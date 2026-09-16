@@ -1,15 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  type UserDetailsData,
-  type UserTaskConfiguration,
-} from '../api/Api';
+  type UserDetailsResultData,
+  type UserDetailsTaskConfigurationOBJ,
+} from '../api/users/users.types';
 import {HARDCODED_USER_ID} from '../config/hardcodedUser';
 
 const STORAGE_KEY_USER_TOKEN = 'userToken';
 const STORAGE_KEY_USER_ID = 'userId';
 
 export type SessionUserProfile = {
-  details: UserDetailsData | null;
+  details: UserDetailsResultData | null;
   mobileOrEmail: string;
   userFirstName: string;
   teleCmiModuleFlag: string;
@@ -53,22 +53,12 @@ const getSafeString = (value: unknown) =>
   typeof value === 'string' ? value.trim() : '';
 
 const normalizeTaskConfiguration = (
-  taskConfigurationOBJ: UserTaskConfiguration | null | undefined,
+  taskConfigurationOBJ: UserDetailsTaskConfigurationOBJ | null | undefined,
 ) => ({
-  isStateEnable: toBoolean(
-    taskConfigurationOBJ?.isStateEnable ?? taskConfigurationOBJ?.IsStateEnable,
-  ),
-  isCityEnable: toBoolean(
-    taskConfigurationOBJ?.isCityEnable ?? taskConfigurationOBJ?.IsCityEnable,
-  ),
-  isPincodeEnable: toBoolean(
-    taskConfigurationOBJ?.isPincodeEnable ??
-      taskConfigurationOBJ?.IsPincodeEnable,
-  ),
-  isTaskTagEnable: toBoolean(
-    taskConfigurationOBJ?.isTaskTagEnable ??
-      taskConfigurationOBJ?.IsTaskTagEnable,
-  ),
+  isStateEnable: toBoolean(taskConfigurationOBJ?.IsStateEnable),
+  isCityEnable: toBoolean(taskConfigurationOBJ?.IsCityEnable),
+  isPincodeEnable: toBoolean(taskConfigurationOBJ?.IsPincodeEnable),
+  isTaskTagEnable: toBoolean(taskConfigurationOBJ?.IsTaskTagEnable),
 });
 
 export const setCurrentUserId = (userId: number | null | undefined) => {
@@ -109,24 +99,18 @@ export const getCurrentCountryDetailsId = () => currentCountryDetailsId;
 
 export const isIndiaCountryDetailsId = () => currentCountryDetailsId === 1;
 
-export const setCurrentUserProfile = (userDetails: UserDetailsData | null | undefined) => {
+export const setCurrentUserProfile = (userDetails: UserDetailsResultData | null | undefined) => {
   const details = userDetails ?? null;
-  const contactNo = getSafeString(details?.contactNo ?? details?.ContactNo);
-  const email = getSafeString(details?.email ?? details?.Email);
-  const firstName = getSafeString(details?.firstName ?? details?.FirstName);
+  const contactNo = getSafeString(details?.ContactNo);
+  const email = getSafeString(details?.Email);
+  const firstName = getSafeString(details?.FirstName);
 
   currentUserProfile = {
     details,
     mobileOrEmail: contactNo || email,
     userFirstName: firstName,
-    teleCmiModuleFlag: toBoolean(
-      details?.isTeleCmiEnabled ?? details?.IsTeleCmiEnabled,
-    )
-      ? 'true'
-      : 'false',
-    taskConfiguration: normalizeTaskConfiguration(
-      details?.taskConfigurationOBJ ?? details?.TaskConfigurationOBJ,
-    ),
+    teleCmiModuleFlag: toBoolean(details?.IsTeleCmiEnabled) ? 'true' : 'false',
+    taskConfiguration: normalizeTaskConfiguration(details?.TaskConfigurationOBJ),
   };
 };
 

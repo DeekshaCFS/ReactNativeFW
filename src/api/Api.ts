@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { HARDCODED_USER_ID } from '../config/hardcodedUser';
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT';
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 type Primitive = string | number | boolean | null | undefined;
 type QueryParams = Record<string, Primitive>;
@@ -1865,10 +1865,17 @@ type TouchlessEndpoints = {
 };
 
 export const DEFAULT_ENDPOINTS: TouchlessEndpoints = {
-  login: '/Login/DoTouchlessLogin',
-  signUpOtp: '/SignUp/GetOTPRegister',
-  verifyMobileOtp: '/Users/AuthenticateMobile',
-  verifyEmailOtp: '/Users/AuthenticateEmail',
+  // Was '/Login/DoTouchlessLogin' — that route doesn't exist on the backend.
+  // The Java app's doTouchlessLogin() retrofit call actually posts to
+  // URLConstant.Login.URL_LOGIN (see Api.java + old-rn-app/api/auth/loginService.ts).
+  login: '/Login/UserLoginMobile',
+  // Was '/SignUp/GetOTPRegister' — real path is URLConstant.SignUp.GET_OTP_REGISTER.
+  signUpOtp: '/SignUp/TouchlessTempRegistration',
+  // Was '/Users/AuthenticateMobile' / '/Users/AuthenticateEmail' — those routes
+  // don't exist either. The Java retrofit methods are literally named
+  // getMobileOTPVerified/getMobileOTPVerified-equivalent and point at these:
+  verifyMobileOtp: '/Users/IsMobileNoExistForUpdateProfile',
+  verifyEmailOtp: '/Users/IsTechEmailIdExistForUpdateProfile',
   userDetails: '/Users/GetUsersByUserId',
   dashboardData: '/Dashboard/GetDashboardData',
   dashboardEarning: '/Passbook/GetPassbookDetailsForDashboard',
@@ -1891,6 +1898,12 @@ export const DEFAULT_ENDPOINTS: TouchlessEndpoints = {
   itemList: '/Item/AllItemList',
   assignedItemList: '/Item/GetAllAssignedItemList',
   usedItemList: '/Item/GetUsedItemList',
+  // NOTE: 'Item/GetAllItemGroups' has no equivalent anywhere in the Java
+  // source or old-rn-app — "item group" isn't a feature of the original app.
+  // getItemGroupList()/AddItemModal's group picker will 404 until either a
+  // real backend endpoint is confirmed or the picker is rebuilt to derive
+  // group names client-side from the existing item-list responses (which
+  // already carry ItemGroupName on each item).
   itemGroupList: '/Item/GetAllItemGroups',
   itemUnitTypeList: '/Item/GetItemUnitTypes',
   addItem: '/Item/AddItem',
@@ -1920,7 +1933,11 @@ export const DEFAULT_ENDPOINTS: TouchlessEndpoints = {
   enquiryList: '/CustomerInquiry/GetAllEnquiryListForMobile',
   addEnquiry: '/CustomerInquiry/AddCustomerInquiry',
   updateEnquiry: '/CustomerInquiry/UpdateCustomerInquiry',
-  advanceServiceList: '/Services/GetAdvanceServiceListByUserId',
+  // Was '/Services/GetAdvanceServiceListByUserId' — no such route in the Java
+  // source. The service-type picker this feeds (CRMScreen/AddTaskModal) maps
+  // to URLConstant.Services.GET_ServiceTypeList, which takes OwnerId/SearchParam/
+  // pageIndex — see getAdvanceServiceList() below, updated to match.
+  advanceServiceList: '/Services/GetServiceTypeList',
   quoteBindList: '/Quotation/GetQuoteBindList',
   fsrBindList: '/FSRManagement/GetAllFSRListByUserId',
   quotationList: '/Quotation/getquotationssearchbyparam',
@@ -1934,7 +1951,7 @@ export const DEFAULT_ENDPOINTS: TouchlessEndpoints = {
   addBulkFieldworkers: '/UM_EmployeeList/AddEmployeeDetailsForUMList',
 };
 
-const DEFAULT_BASE_URL = 'http://192.168.3.8/API/api/';
+const DEFAULT_BASE_URL = 'http://192.169.3.8/API/api/';
 const REQUEST_TIMEOUT_MS = 20000;
 export { HARDCODED_USER_ID };
 
@@ -2074,7 +2091,10 @@ const request = async <T>(
       response = await fetch(url, {
         method,
         headers: requestHeaders,
-        body: method === 'GET' ? undefined : requestBody,
+        // DELETE endpoints on this backend take their identifiers as query
+        // params (e.g. Quotation/DeleteQuotationForMobile?Id=..&UserId=..),
+        // same as GET — only POST/PUT send a body.
+        body: method === 'GET' || method === 'DELETE' ? undefined : requestBody,
         signal: controller.signal,
       });
     } finally {
@@ -2152,45 +2172,45 @@ export const touchlessApi = {
 
   async getMobileOTPVerified<T = unknown>({
     mobileNo,
-    userId: _userId,
+    userId,
   }: VerifyMobileOtpRequest) {
     return request<T>(runtimeConfig.endpoints.verifyMobileOtp, {
       method: 'GET',
       query: {
         MobileNo: mobileNo,
-        UserId: HARDCODED_USER_ID,
+        UserId: userId,
       },
     });
   },
 
   async getEmailOTPVerified<T = unknown>({
     emailId,
-    userId: _userId,
+    userId,
   }: VerifyEmailOtpRequest) {
     return request<T>(runtimeConfig.endpoints.verifyEmailOtp, {
       method: 'GET',
       query: {
         EmailId: emailId,
-        UserId: HARDCODED_USER_ID,
+        UserId: userId,
       },
     });
   },
 
   async getUserDetails<T = UserDetailsResponse>({
-    userId: _userId,
+    userId,
   }: {
     userId: number;
   }) {
     return request<T>(runtimeConfig.endpoints.userDetails, {
       method: 'GET',
       query: {
-        UserId: HARDCODED_USER_ID,
+        UserId: userId,
       },
     });
   },
 
   async getDashboardData<T = unknown>({
-    userId: _userId,
+    userId,
     duration,
     pageIndex = 1,
   }: {
@@ -2201,7 +2221,7 @@ export const touchlessApi = {
     return request<T>(runtimeConfig.endpoints.dashboardData, {
       method: 'GET',
       query: {
-        UserId: HARDCODED_USER_ID,
+        UserId: userId,
         Duration: duration,
         pageIndex,
       },
@@ -2209,7 +2229,7 @@ export const touchlessApi = {
   },
 
   async getDashboardEarning<T = unknown>({
-    userId: _userId,
+    userId,
     inputFilter,
   }: {
     userId: number;
@@ -2218,7 +2238,7 @@ export const touchlessApi = {
     return request<T>(runtimeConfig.endpoints.dashboardEarning, {
       method: 'GET',
       query: {
-        UserId: HARDCODED_USER_ID,
+        UserId: userId,
         InputFilter: inputFilter,
       },
     });
@@ -2368,15 +2388,19 @@ export const touchlessApi = {
   async getAdvanceServiceList<T = AdvanceServiceResponse>({
     userId,
     searchParam = '',
+    pageIndex = 1,
   }: {
     userId: number;
     searchParam?: string;
+    pageIndex?: number;
   }) {
     return request<T>(runtimeConfig.endpoints.advanceServiceList, {
       method: 'GET',
       query: {
-        UserId: userId,
+        // Real endpoint (Services/GetServiceTypeList) takes OwnerId, not UserId.
+        OwnerId: userId,
         SearchParam: searchParam,
+        pageIndex,
       },
     });
   },
@@ -2569,7 +2593,7 @@ export const touchlessApi = {
   },
 
   async getTaskList<T = TaskListResponse>({
-    userId: _userId,
+    userId,
     searchParam = '',
     statusId = 0,
     taskTypeId = 0,
@@ -2592,7 +2616,7 @@ export const touchlessApi = {
     return request<T>(runtimeConfig.endpoints.taskList, {
       method: 'GET',
       query: {
-        UserId: HARDCODED_USER_ID,
+        UserId: userId,
         searchparam: searchParam,
         TaskStatusID: statusId,
         TaskTypeID: taskTypeId,
@@ -2613,7 +2637,7 @@ export const touchlessApi = {
   },
 
   async getTaskDetails<T = TaskDetailsResponse>({
-    userId: _userId,
+    userId,
     taskId,
   }: {
     userId: number;
@@ -2622,40 +2646,40 @@ export const touchlessApi = {
     return request<T>(runtimeConfig.endpoints.taskDetails, {
       method: 'GET',
       query: {
-        UserId: HARDCODED_USER_ID,
+        UserId: userId,
         TaskId: taskId,
       },
     });
   },
 
   async getTaskTags<T = TaskTagResponse>({
-    userId: _userId,
+    userId,
   }: {
     userId: number;
   }) {
     return request<T>(runtimeConfig.endpoints.taskTags, {
       method: 'GET',
       query: {
-        UserId: HARDCODED_USER_ID,
+        UserId: userId,
       },
     });
   },
 
   async getEmployeeLookup<T = EmployeeLookupResponse>({
-    userId: _userId,
+    userId,
   }: {
     userId: number;
   }) {
     return request<T>(runtimeConfig.endpoints.employeeLookup, {
       method: 'GET',
       query: {
-        UserId: HARDCODED_USER_ID,
+        UserId: userId,
       },
     });
   },
 
   async getEmployeeList<T = EmployeeListResponse>({
-    ownerId: _ownerId,
+    ownerId,
     pageIndex = 1,
     searchParam = '',
     employeeTypeId = 0,
@@ -2672,7 +2696,7 @@ export const touchlessApi = {
     return request<T>(runtimeConfig.endpoints.employeeList, {
       method: 'GET',
       query: {
-        OwnerId: HARDCODED_USER_ID,
+        OwnerId: ownerId,
         pageIndex,
         SearchParam: searchParam,
         employeeTypeId,
@@ -2683,7 +2707,7 @@ export const touchlessApi = {
   },
 
   async getLeaveList<T = LeaveListResponse>({
-    userId: _userId,
+    userId,
     pageNumber = 1,
     pageSize = 10,
     leaveStatusId = 0,
@@ -2713,7 +2737,7 @@ export const touchlessApi = {
         PageNumber: pageNumber,
         PageSize: pageSize,
         SearchParams: searchParams,
-        UserId: HARDCODED_USER_ID,
+        UserId: userId,
         ZoneId: zoneId,
       },
     });
@@ -2850,7 +2874,7 @@ export const touchlessApi = {
   },
 
   async getFocRequestList<T = FocRequestListResponse>({
-    ownerId: _ownerId,
+    ownerId,
     pageNumber = 1,
     pageSize = 10,
     zoneId = 0,
@@ -2872,7 +2896,7 @@ export const touchlessApi = {
         Pageindex: pageNumber,
         Pagesize: pageSize,
         ZoneId: zoneId,
-        OwnerId: HARDCODED_USER_ID,
+        OwnerId: ownerId,
         IssueTypeID: issueTypeId,
         FOCStatusTagID: focStatusId,
         SearchParam: searchParam,
@@ -2913,7 +2937,7 @@ export const touchlessApi = {
   },
 
   async getLeadList<T = LeadListResponse>({
-    userId: _userId,
+    userId,
     pageIndex = 1,
     searchParam = '',
     leadStatusId = 0,
@@ -2926,7 +2950,7 @@ export const touchlessApi = {
     return request<T>(runtimeConfig.endpoints.leadList, {
       method: 'GET',
       query: {
-        UserId: HARDCODED_USER_ID,
+        UserId: userId,
         pageIndex,
         SearchParam: searchParam,
         LeadStatusId: leadStatusId,
@@ -3084,10 +3108,12 @@ export const touchlessApi = {
     quotationId: number;
     userId: number;
   }) {
+    // Real route (URLConstant.Accounts.DELETE_QUOTATION_DETAILS) is an
+    // @DELETE with the id/user passed as query params, not a POST form body.
     return request<T>(runtimeConfig.endpoints.deleteQuotation, {
-      method: 'POST',
-      form: {
-        QuotationId: quotationId,
+      method: 'DELETE',
+      query: {
+        Id: quotationId,
         UserId: userId,
       },
     });
@@ -3100,10 +3126,12 @@ export const touchlessApi = {
     invoiceId: number;
     userId: number;
   }) {
+    // Same story: URLConstant.Accounts.DELETE_INVOICE_DETAILS is @DELETE
+    // with query params (Id, UserId), not a POST form body.
     return request<T>(runtimeConfig.endpoints.deleteInvoice, {
-      method: 'POST',
-      form: {
-        InvoiceId: invoiceId,
+      method: 'DELETE',
+      query: {
+        Id: invoiceId,
         UserId: userId,
       },
     });

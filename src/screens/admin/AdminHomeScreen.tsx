@@ -1,0 +1,627 @@
+// src/screens/admin/AdminHomeScreen.tsx
+
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {getUserDetails} from '../../api/users/usersService';
+import type {UserDetails, UserDetailsResultData} from '../../api/users/users.types';
+import {useNavigation, useRoute, DrawerActions, type RouteProp} from '@react-navigation/native';
+import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { ms } from '../../utils/responsive';
+import {
+  getCurrentUserProfile,
+  getCurrentPreferredLanguage,
+  getCurrentUserId,
+  setCurrentUserProfile,
+} from '../../state/session';
+import type {AdminTabParamList} from '../../navigation/AdminTabs';
+import OwnerDashboardScreen, {type DayFilter} from './OwnerDashboardScreen';
+import ItemInventoryTabHostScreen from './ItemInventoryTabHostScreen';
+import PassbookExpenditureTabHostScreen from './PassbookExpenditureTabHostScreen';
+import LeadListScreen from './LeadListScreen';
+import AddTaskModal from './AddTaskModal';
+import AddItemModal from './AddItemModal';
+import AssignItemModal from './AssignItemModal';
+import AddFieldworkerModal from './AddFieldworkerModal';
+import ManageBalanceModal from './ManageBalanceModal';
+import AccountsScreen from './AccountsScreen';
+
+// Drawer item labels now live in CustomDrawerContent.tsx (the shared,
+// real Drawer). They still match these exact strings: 'Leads',
+// 'Item Inventory', 'Passbook', 'AMC', 'Attendance', 'Accounts',
+// 'Services', 'Help & Support' — see the `isXSection` checks below, which
+// compare `selectedDrawerLabel` against them.
+import AMCDashboardScreen from './AMCDashboardScreen';
+
+const LANGUAGE_GREETINGS: Record<string, string> = {
+  English: 'Hello',
+  Hindi: 'नमस्ते',
+  Punjabi: 'ਸੁਆਗਤ ਹੈ',
+  Bengali: 'হ্যালো',
+  Marathi: 'नमस्कार',
+  Kannada: 'ನಮಸ್ಕಾರ',
+  Tamil: 'வணக்கம்',
+  Telugu: 'హలో',
+  Malayalam: 'മലയാളം',
+  Arabic: 'مرحبا',
+};
+
+const THEME_PRIMARY = '#c3002f';
+const OwnerDashboard = OwnerDashboardScreen as React.ComponentType<{
+  ownerId: number;
+  filter: DayFilter;
+}>;
+
+const DASHBOARD_FILTERS: DayFilter[] = ['Today', 'Week', 'Month', 'Year'];
+const ItemInventoryTabHost = ItemInventoryTabHostScreen as React.ComponentType<{
+  ownerId: number;
+  isFieldWorker?: boolean;
+}>;
+const PassbookExpenditureTabHost =
+  PassbookExpenditureTabHostScreen as React.ComponentType<{
+    userId: number;
+  }>;
+const LeadList = LeadListScreen as React.ComponentType<{
+  userId: number;
+  onMenuPress: () => void;
+}>;
+
+const getUserDetailsResultData = (response: UserDetails) =>
+  response?.ResultData ?? null;
+
+const getSafeString = (value: unknown) =>
+  typeof value === 'string' ? value.trim() : '';
+
+const getUserFieldString = (
+  userDetails: UserDetailsResultData | null,
+  key: keyof UserDetailsResultData,
+) => getSafeString(userDetails?.[key]);
+
+const getGreetingPrefix = (language: string) =>
+  LANGUAGE_GREETINGS[language] ?? LANGUAGE_GREETINGS.English;
+
+const buildFullName = (userDetails: UserDetailsResultData | null) => {
+  const firstName = getUserFieldString(userDetails, 'FirstName');
+  const lastName = getUserFieldString(userDetails, 'LastName');
+  return [firstName, lastName].filter(Boolean).join(' ').trim();
+};
+
+const formatPrimaryContact = (userDetails: UserDetailsResultData | null) => {
+  const contactNo = getUserFieldString(userDetails, 'ContactNo');
+  if (contactNo) {
+    return contactNo.startsWith('+') ? contactNo : `+91 ${contactNo}`;
+  }
+
+  return getUserFieldString(userDetails, 'Email') || 'No contact details';
+};
+
+const AdminHomeScreen = () => {
+  const navigation =
+    useNavigation<BottomTabNavigationProp<AdminTabParamList, 'Home'>>();
+  // Params come from CustomDrawerContent, which deep-links straight into a
+  // section of this screen the same way it deep-links technician's drawer
+  // into a stack screen (see CustomDrawerContent.tsx).
+  const route = useRoute<RouteProp<AdminTabParamList, 'Home'>>();
+  // Set from the `addAmcTrigger` route param -- see the drawerSection effect
+  // below. The FAB (now owned by AdminTabs, rendered above all four tabs)
+  // sends this when "Add AMC" is tapped from any tab, the same way it sends
+  // `addEnquiryTrigger` to the CRM tab.
+  const [addAmcTrigger, setAddAmcTrigger] = useState(0);
+  const [selectedDrawerLabel, setSelectedDrawerLabel] = useState('Dashboard');
+  const [isUserDetailsLoading, setIsUserDetailsLoading] = useState(false);
+
+  // The real Drawer (CustomDrawerContent) opens sections here via a
+  // `drawerSection` param instead of local drawer-item taps.
+  useEffect(() => {
+    const section = route.params?.drawerSection;
+    if (section) {
+      setSelectedDrawerLabel(section);
+      // Clear it so re-selecting the same drawer item still fires next time.
+      navigation.setParams({ drawerSection: undefined });
+    }
+  }, [route.params?.drawerSection, navigation]);
+
+  useEffect(() => {
+    const trigger = route.params?.addAmcTrigger;
+    if (trigger) {
+      setAddAmcTrigger(trigger);
+      navigation.setParams({ addAmcTrigger: undefined });
+    }
+  }, [route.params?.addAmcTrigger, navigation]);
+  const [userDetails, setUserDetails] = useState<UserDetailsResultData | null>(() => {
+    return getCurrentUserProfile().details;
+  });
+  const [useDefaultAvatar, setUseDefaultAvatar] = useState(false);
+  const [dashboardFilter, setDashboardFilter] = useState<DayFilter>('Today');
+  const [isDashboardFilterOpen, setIsDashboardFilterOpen] = useState(false);
+
+  const ownerId = getCurrentUserId();
+  const preferredLanguage = useMemo(() => getCurrentPreferredLanguage(), []);
+
+  const toolbarTitle = useMemo(
+    () =>
+      selectedDrawerLabel !== 'Dashboard' ? selectedDrawerLabel : 'FieldWeb',
+    [selectedDrawerLabel],
+  );
+
+  const isItemInventorySection = selectedDrawerLabel === 'Item Inventory';
+  const isPassbookSection = selectedDrawerLabel === 'Passbook';
+  const isAMCSection = selectedDrawerLabel === 'AMC';
+  const isLeadSection = selectedDrawerLabel === 'Leads';
+  const isAccountsSection = selectedDrawerLabel === 'Accounts';
+  const isHomeDashboard = selectedDrawerLabel === 'Dashboard';
+
+  const isFieldWorkerUser = useMemo(() => {
+    const roleDetails = userDetails as
+      | (UserDetailsResultData & {
+          userGroupCodeId?: number | null;
+          userGroupId?: number | null;
+          userGroupName?: string | null;
+          UserGroupCodeId?: number | null;
+          UserGroupId?: number | null;
+          UserGroupName?: string | null;
+        })
+      | null;
+    const userGroupName = String(
+      roleDetails?.userGroupName ?? roleDetails?.UserGroupName ?? '',
+    )
+      .trim()
+      .toLowerCase();
+    const userGroupId = Number(
+      roleDetails?.userGroupId ??
+        roleDetails?.UserGroupId ??
+        roleDetails?.userGroupCodeId ??
+        roleDetails?.UserGroupCodeId,
+    );
+
+    return (
+      userGroupName.includes('field') ||
+      userGroupName.includes('technician') ||
+      userGroupId === 4
+    );
+  }, [userDetails]);
+
+  const fullName = useMemo(() => {
+    return buildFullName(userDetails) || 'User';
+  }, [userDetails]);
+
+  const firstName = useMemo(() => {
+    return (
+      getUserFieldString(userDetails, 'FirstName') || fullName
+    );
+  }, [fullName, userDetails]);
+
+  const greetingText = useMemo(() => {
+    return `${getGreetingPrefix(preferredLanguage)}, ${firstName}`;
+  }, [firstName, preferredLanguage]);
+
+  const primaryContact = useMemo(() => {
+    return formatPrimaryContact(userDetails);
+  }, [userDetails]);
+
+  const profileImageUri = useMemo(() => {
+    if (useDefaultAvatar) {
+      return '';
+    }
+
+    return getUserFieldString(userDetails, 'Photo');
+  }, [useDefaultAvatar, userDetails]);
+
+  useEffect(() => {
+    setUseDefaultAvatar(false);
+  }, [profileImageUri]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUserDetails = async () => {
+      setIsUserDetailsLoading(true);
+
+      try {
+        const response = await getUserDetails({UserId: ownerId});
+        const resultData = getUserDetailsResultData(response);
+
+        if (!isMounted || !resultData) {
+          return;
+        }
+
+        setCurrentUserProfile(resultData);
+        setUserDetails(resultData);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Unable to load user details right now.';
+        Alert.alert('User details error', message);
+      } finally {
+        if (isMounted) {
+          setIsUserDetailsLoading(false);
+        }
+      }
+    };
+
+    loadUserDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [ownerId]);
+
+  // Drawer content, logout confirmation, and check-out flow now all live in
+  // the shared CustomDrawerContent (navigation/CustomDrawerContent.tsx) —
+  // the same real Drawer the technician screens use. This screen just opens
+  // it (DrawerActions.openDrawer()) and reacts to `drawerSection` params.
+
+  const renderContent = () => {
+    if (isItemInventorySection) {
+      return (
+        <ItemInventoryTabHost
+          ownerId={ownerId}
+          isFieldWorker={isFieldWorkerUser}
+        />
+      );
+    }
+
+    if (isPassbookSection) {
+      return <PassbookExpenditureTabHost userId={ownerId} />;
+    }
+
+    if (isLeadSection) {
+      return (
+        <LeadList
+          userId={ownerId}
+          onMenuPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+        />
+      );
+    }
+
+    if (isAccountsSection) {
+      return (
+        <AccountsScreen
+          ownerId={ownerId}
+          onMenuPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+        />
+      );
+    }
+
+    if (isAMCSection) {
+      return (
+        <AMCDashboardScreen
+          ownerId={ownerId}
+          onMenuPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+          openAddAmcTrigger={addAmcTrigger}
+        />
+      );
+    }
+
+    if (selectedDrawerLabel !== 'Dashboard') {
+      return (
+        <View style={styles.contentCard}>
+          <Text style={styles.contentTitle}>{selectedDrawerLabel}</Text>
+          <Text style={styles.contentText}>
+            This section is converted from `HomeActivityNew` navigation and is
+            ready for feature-specific React Native components.
+          </Text>
+        </View>
+      );
+    }
+
+    return <OwnerDashboard ownerId={ownerId} filter={dashboardFilter} />;
+  };
+
+  return (
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        isHomeDashboard ? styles.containerHomeBackground : null,
+      ]}
+    >
+      <View
+        style={[
+          styles.container,
+          isHomeDashboard ? styles.containerHomeBackground : null,
+        ]}
+      >
+        {isAMCSection ||
+        isLeadSection ||
+        isAccountsSection ? null : isItemInventorySection ||
+          isPassbookSection ? (
+          <View style={styles.toolbar}>
+            <TouchableOpacity
+              onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+              style={styles.toolbarIconButton}
+            >
+              <Ionicons name="menu-outline" size={ms(26)} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.toolbarTitle}>{toolbarTitle}</Text>
+            <View style={styles.toolbarRightSpace} />
+          </View>
+        ) : (
+          <>
+            <View style={styles.toolbar}>
+              <TouchableOpacity
+                onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+                style={styles.toolbarIconButton}
+              >
+                <Ionicons name="menu-outline" size={ms(26)} color="#fff" />
+              </TouchableOpacity>
+              <Text style={styles.toolbarTitle}>{toolbarTitle}</Text>
+              <View style={styles.toolbarRightIcons}>
+                <TouchableOpacity style={styles.toolbarIconButton}>
+                  <Ionicons name="headset-outline" size={ms(22)} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.toolbarIconButton}>
+                  <Ionicons name="notifications-outline" size={ms(22)} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.header}>
+              <View style={styles.headerTopRow}>
+                <Text numberOfLines={1} style={styles.headerName}>
+                  {greetingText}
+                </Text>
+                <Pressable
+                  style={styles.headerFilterControl}
+                  onPress={() => setIsDashboardFilterOpen(true)}
+                >
+                  <Text style={styles.headerFilterLabel}>{dashboardFilter}</Text>
+                  <Text style={styles.headerFilterArrow}>▼</Text>
+                </Pressable>
+              </View>
+              {isUserDetailsLoading ? (
+                <View style={styles.headerLoaderRow}>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={styles.headerLoaderText}>
+                    Refreshing profile...
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </>
+        )}
+
+        {isItemInventorySection ||
+        isPassbookSection ||
+        isLeadSection ||
+        isAMCSection ? (
+          <View style={styles.taskContentContainer}>{renderContent()}</View>
+        ) : (
+          <ScrollView
+            style={styles.homeScrollView}
+            contentContainerStyle={styles.contentContainer}
+          >
+            {renderContent()}
+          </ScrollView>
+        )}
+
+      </View>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={isDashboardFilterOpen}
+        onRequestClose={() => setIsDashboardFilterOpen(false)}
+      >
+        <Pressable
+          style={styles.dashboardFilterBackdrop}
+          onPress={() => setIsDashboardFilterOpen(false)}
+        >
+          <Pressable style={styles.dashboardFilterPanel} onPress={() => {}}>
+            {DASHBOARD_FILTERS.map(option => {
+              const selected = option === dashboardFilter;
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => {
+                    setDashboardFilter(option);
+                    setIsDashboardFilterOpen(false);
+                  }}
+                  style={[
+                    styles.dashboardFilterItem,
+                    selected ? styles.dashboardFilterItemSelected : null,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dashboardFilterItemText,
+                      selected ? styles.dashboardFilterItemTextSelected : null,
+                    ]}
+                  >
+                    {option}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
+      {/* Drawer itself is now the real navigation Drawer (CustomDrawerContent),
+          opened via navigation.dispatch(DrawerActions.openDrawer()) below —
+          same component, same open/close animation, as technician screens. */}
+
+      {/* The quick-add FAB, its bottom sheet, and the five simple modals
+          (AddTask/AddItem/AssignItem/AddFieldworker/ManageBalance) moved to
+          AdminTabs so they're available from all four tabs, not just Home.
+          "Add AMC" now navigates here with drawerSection: 'AMC' +
+          addAmcTrigger (see the effect above) instead of the old hidden
+          off-screen AMCDashboardScreen mount -- pressing it now takes you to
+          the real AMC section instead of opening an invisible overlay from
+          wherever you were. Flagging this as an intentional UX change. */}
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: THEME_PRIMARY,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: THEME_PRIMARY,
+  },
+  containerHomeBackground: {
+    backgroundColor: '#F2F3F5',
+  },
+  toolbar: {
+    height: 48,
+    backgroundColor: THEME_PRIMARY,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+  },
+  toolbarIconButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolbarTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  toolbarRightSpace: {
+    width: 40,
+  },
+  toolbarRightIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  header: {
+    backgroundColor: THEME_PRIMARY,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 10 : 14,
+    paddingBottom: 12,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  headerName: {
+    flexShrink: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  headerFilterControl: {
+    minWidth: 108,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.45)',
+    borderRadius: 8,
+    height: 34,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  headerFilterLabel: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  headerFilterArrow: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    marginLeft: 8,
+  },
+  dashboardFilterBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'flex-end',
+    paddingTop: Platform.OS === 'ios' ? 108 : 118,
+    paddingRight: 16,
+  },
+  dashboardFilterPanel: {
+    width: 140,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 6,
+    elevation: 6,
+    shadowColor: '#000000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  dashboardFilterItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  dashboardFilterItemSelected: {
+    backgroundColor: '#FCE9ED',
+  },
+  dashboardFilterItemText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  dashboardFilterItemTextSelected: {
+    color: THEME_PRIMARY,
+  },
+  headerLoaderRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerLoaderText: {
+    marginLeft: 8,
+    color: '#FFFFFF',
+    fontSize: 12,
+  },
+  homeScrollView: {
+    flex: 1,
+    backgroundColor: '#F2F3F5',
+  },
+  contentContainer: {
+    flexGrow: 1,
+    padding: 16,
+    paddingBottom: 100,
+  },
+  taskContentContainer: {
+    flex: 1,
+    paddingBottom: 0,
+    backgroundColor: THEME_PRIMARY,
+  },
+  contentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  contentTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  contentText: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginTop: 8,
+    lineHeight: 20,
+  },
+});
+
+export default AdminHomeScreen;
