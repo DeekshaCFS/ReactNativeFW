@@ -16,6 +16,7 @@ import { urlLogin } from '../../api/auth/loginService';
 import { getOtpRegister } from '../../api/signUp/signUpService';
 import { getAndroidId } from '../../utils/deviceId';
 import { ms, sp, scale, wp } from '../../utils/responsive';
+import { setCurrentUserId, persistLoggedInUserId, } from '../../state/session';
 
 type AuthStackParamList = {
   Otp: {
@@ -96,10 +97,13 @@ export default function OtpScreen() {
       }
 
       // flow === 'login'
+      setCurrentUserId(userId);
+      await persistLoggedInUserId(userId);
+
       await AsyncStorage.multiSet([
         ['uid',      String(userId)],
-        ['token',    token],
-        ['role',     role],
+        ['token',     token],
+        ['role',      role],
         ['username', mobile],
         ['owner_id', String(ownerId)],
       ]);

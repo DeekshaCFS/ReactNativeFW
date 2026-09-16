@@ -1,6 +1,5 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { HARDCODED_USER_ID } from '../config/hardcodedUser';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -1953,7 +1952,6 @@ export const DEFAULT_ENDPOINTS: TouchlessEndpoints = {
 
 const DEFAULT_BASE_URL = 'http://192.169.3.8/API/api/';
 const REQUEST_TIMEOUT_MS = 20000;
-export { HARDCODED_USER_ID };
 
 const runtimeConfig: { baseUrl: string; endpoints: TouchlessEndpoints } = {
   baseUrl: DEFAULT_BASE_URL,

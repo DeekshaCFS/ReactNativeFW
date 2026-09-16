@@ -3,10 +3,9 @@ import {
   type UserDetailsResultData,
   type UserDetailsTaskConfigurationOBJ,
 } from '../api/users/users.types';
-import {HARDCODED_USER_ID} from '../config/hardcodedUser';
 
-const STORAGE_KEY_USER_TOKEN = 'userToken';
-const STORAGE_KEY_USER_ID = 'userId';
+const STORAGE_KEY_USER_TOKEN = 'token';
+const STORAGE_KEY_USER_ID = 'uid';
 
 export type SessionUserProfile = {
   details: UserDetailsResultData | null;
@@ -22,7 +21,7 @@ export type SessionUserProfile = {
 };
 
 let currentPreferredLanguage = 'English';
-let currentUserId = HARDCODED_USER_ID;
+let currentUserId = 0;
 let currentCountryDetailsId = 1;
 let currentUserProfile: SessionUserProfile = {
   details: null,
@@ -117,7 +116,7 @@ export const setCurrentUserProfile = (userDetails: UserDetailsResultData | null 
 export const getCurrentUserProfile = () => currentUserProfile;
 
 export const clearCurrentUserId = () => {
-  currentUserId = HARDCODED_USER_ID;
+  currentUserId = 0;
   currentCountryDetailsId = 1;
   currentUserProfile = {
     details: null,
