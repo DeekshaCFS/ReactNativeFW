@@ -4,6 +4,11 @@
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <!-- This controls the calendar header, selected date circle, OK/CANCEL color -->
+        <item name="colorAccent">#C22032</item>
+        <!-- Optional: controls the header background -->
+        <item name="colorPrimary">#C22032</item>
+        <item name="colorPrimaryDark">#C22032</item>
     </style>
 
 </resources>
