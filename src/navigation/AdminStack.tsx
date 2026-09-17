@@ -16,6 +16,14 @@ import TaskDetailsScreen from '../screens/admin/TaskDetailsScreen';
 import type {TasksListResultData} from '../api/task/task.types';
 import AMCDetailsScreen from '../screens/admin/AMCDetailsScreen';
 
+// Header destinations (headset/notification icons on the shared AppHeader).
+// Admin doesn't have its own versions of these, so it reuses the same
+// generic screens the technician stack already registers under the same
+// route names -- same reasoning as sharing AppHeader/BottomTabBar.
+import NotificationScreen from '../screens/technician/main/NotificationScreen';
+import HelpScreen from '../screens/technician/main/HelpScreen';
+import HelpMessagesScreen from '../screens/technician/main/HelpMsgScreen';
+
 import { COLORS } from '../theme/theme';
 
 import DisclaimerModal from '../components/DisclaimerModal';
@@ -57,6 +65,7 @@ export type AdminStackParamList = {
   // Header destinations
   help: undefined;
   notification: undefined;
+  helpMessages: undefined;
 };
 
 const Stack = createNativeStackNavigator<AdminStackParamList>();
@@ -319,6 +328,25 @@ export default function AdminStack() {
         </Stack.Screen>
 
         <Stack.Screen name="AMCDetails" component={AMCDetailsScreen} />
+
+        {/* Header icon destinations (headset / notification bell on the
+            shared AppHeader) -- same routes and screens the technician
+            stack uses. */}
+        <Stack.Screen
+          name="notification"
+          component={NotificationScreen}
+          options={{ title: 'Notification' }}
+        />
+        <Stack.Screen
+          name="help"
+          component={HelpScreen}
+          options={{ title: 'Help & Support' }}
+        />
+        <Stack.Screen
+          name="helpMessages"
+          component={HelpMessagesScreen}
+          options={{ title: 'Help & Support' }}
+        />
 
       </Stack.Navigator>
 

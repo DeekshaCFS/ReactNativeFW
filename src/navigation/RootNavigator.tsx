@@ -1,3 +1,5 @@
+// src/navigation/RootNavigator.tsx
+
 import { useEffect, useState, useCallback } from 'react';
 import { ActivityIndicator, View, AppState } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';

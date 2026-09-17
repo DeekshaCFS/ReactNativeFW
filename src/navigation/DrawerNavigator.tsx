@@ -1,3 +1,5 @@
+// src/navigation/DrawerNavigator.tsx
+
 import React, { useEffect, useState } from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import TechnicianStack from './TechStack';
