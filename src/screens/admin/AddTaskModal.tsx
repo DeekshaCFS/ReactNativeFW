@@ -70,6 +70,12 @@ export type AddTaskInitialValues = {
   customerNumber: string;
   taskTagId: number;
   taskTagName: string;
+  // Optional AMC-service prefill (used when adding a task from AMCDetailsScreen,
+  // matching Java's AMCDetailsFragment -> HomeActivityNew.addTask(...) flow).
+  customerId?: number;
+  productBrand?: string;
+  modelNumber?: string;
+  amcServiceDetailsId?: number;
 };
 
 type AddTaskModalProps = {
@@ -259,6 +265,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
   const [warrantyMode, setWarrantyMode] = useState<'in' | 'out'>('in');
   const [amcAmount, setAmcAmount] = useState('');
+  const [taskAmcServiceDetailsId, setTaskAmcServiceDetailsId] = useState(0);
 
   const [taskAddress, setTaskAddress] = useState('');
   const [taskState, setTaskState] = useState('');
@@ -367,6 +374,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setAddTaskTagSearch('');
     setWarrantyMode('in');
     setAmcAmount('');
+    setTaskAmcServiceDetailsId(initialValues?.amcServiceDetailsId ?? 0);
     setTaskAddress(initialValues?.address ?? '');
     setTaskState(initialValues?.state ?? '');
     setTaskStateId(0);
@@ -378,12 +386,12 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setShowTaskCitySuggestions(false);
     setTaskPinCode(initialValues?.pinCode ?? '');
     setTaskLandmark(initialValues?.landmark ?? '');
-    setTaskProductBrand('');
-    setTaskModelNumber('');
+    setTaskProductBrand(initialValues?.productBrand ?? '');
+    setTaskModelNumber(initialValues?.modelNumber ?? '');
     setTaskLatitude('');
     setTaskLongitude('');
     setActiveTaskFormTab('cust');
-    setTaskCustomerId(0);
+    setTaskCustomerId(initialValues?.customerId ?? 0);
     setTaskCustomerName(initialValues?.customerName ?? '');
     setTaskCustomerNumber(initialValues?.customerNumber ?? '');
     setTaskCustomerSuggestions([]);
@@ -1262,7 +1270,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       }));
 
     const payload: AddTaskResultData = {
-      AMCServiceDetailsId: 0,
+      AMCServiceDetailsId: taskAmcServiceDetailsId,
       Address: taskAddress.trim(),
       AudioFilePath: instructionAudioPath || '',
       BrandName: taskProductBrand.trim(),

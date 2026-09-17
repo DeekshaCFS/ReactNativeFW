@@ -11,12 +11,15 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { getAmcReportDetails, getAmcDetailsForEdit, putAmcDetails } from '../../api/amc/amcService';
-import type { EditAMCDTOResultData } from '../../api/amc/amc.types';
+import { getAmcReportDetails, getAmcDetailsForEdit, putAmcDetails, deleteAmc } from '../../api/amc/amcService';
+import type { EditAMCDTOResultData, DeleteAMCResultData } from '../../api/amc/amc.types';
+import { downloadAmcReport } from '../../api/report/reportService';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
+import AddTaskModal, { type AddTaskInitialValues } from './AddTaskModal';
 
 type AMCDetailsScreenProps = NativeStackScreenProps<AdminStackParamList, 'AMCDetails'>;
 
@@ -384,6 +387,12 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   const [editLoading, setEditLoading] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData | null>(null);
   const [editSourceData, setEditSourceData] = useState<Record<string, unknown> | null>(null);
+
+  // Toolbar action state (Call / WhatsApp / Download / Add task / Delete)
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
+  const [isDeletingAmc, setIsDeletingAmc] = useState(false);
+  const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
+  const [addTaskInitialValues, setAddTaskInitialValues] = useState<AddTaskInitialValues | null>(null);
 
   useEffect(() => {
     fetchAMCDetails();
@@ -837,6 +846,149 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     return extractedDetails;
   }, [amcData, amcItem]);
 
+  // ---- Toolbar actions (migrated from AMCDetailsFragment.java) ----
+
+  const getRawRecord = (): Record<string, unknown> =>
+    (amcData || amcItem || {}) as Record<string, unknown>;
+
+  const getResolvedAmcId = (): number =>
+    toNumberValue(amcsId || getFirstValue(getRawRecord(), ['AMCsId', 'amCsId', 'Id', 'id']));
+
+  const getResolvedUserId = (): number =>
+    toNumberValue(ownerId || getFirstValue(getRawRecord(), ['UserId', 'userId']));
+
+  const handleCallPress = () => {
+    const phone = String(details?.contactNo || '').trim();
+    if (!phone || phone.toUpperCase() === 'NA') {
+      Alert.alert('Call', 'Contact number is not available');
+      return;
+    }
+    Linking.openURL(`tel:${phone}`).catch(() => {
+      Alert.alert('Call', 'Unable to open the dialer');
+    });
+  };
+
+  const handleWhatsAppPress = () => {
+    const phone = String(details?.contactNo || '').trim();
+    if (!phone || phone.toUpperCase() === 'NA') {
+      Alert.alert('WhatsApp', 'Contact number is not available');
+      return;
+    }
+    const digits = phone.replace(/[^0-9]/g, '');
+    Linking.openURL(`https://wa.me/${digits}`).catch(() => {
+      Alert.alert('WhatsApp', 'Unable to open WhatsApp');
+    });
+  };
+
+  const handleDownloadPress = async () => {
+    const downloadAmcId = getResolvedAmcId();
+    const userId = getResolvedUserId();
+
+    if (!downloadAmcId) {
+      Alert.alert('Download', 'AMC report is not available');
+      return;
+    }
+
+    setIsDownloadingReport(true);
+    try {
+      const response = await downloadAmcReport({ AMCsId: downloadAmcId, UserId: userId });
+      if (response.Code === '200' && response.Message) {
+        await Linking.openURL(response.Message);
+      } else {
+        Alert.alert('Download Failed', response.Message || 'Could not generate the AMC report.');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not download the report.';
+      Alert.alert('Error', message);
+    } finally {
+      setIsDownloadingReport(false);
+    }
+  };
+
+  const confirmDeleteAmc = async () => {
+    const deleteAmcId = getResolvedAmcId();
+    const userId = getResolvedUserId();
+
+    if (!deleteAmcId) {
+      Alert.alert('Delete AMC', 'AMC id is not available.');
+      return;
+    }
+
+    setIsDeletingAmc(true);
+    try {
+      // The live endpoint (AMCs/DeleteAMCListByUserId) expects a JSON array of
+      // {Id, UserId} entries, matching the Java call's List<DeleteAMC.ResultData>.
+      const response = await deleteAmc(([{ Id: deleteAmcId, UserId: userId }] as unknown) as Partial<DeleteAMCResultData>);
+      if (response.Code === '200') {
+        Alert.alert('Deleted', response.Message || 'AMC deleted successfully.');
+        navigation.goBack();
+      } else {
+        Alert.alert('Delete Failed', response.Message || 'Could not delete this AMC.');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not delete this AMC.';
+      Alert.alert('Error', message);
+    } finally {
+      setIsDeletingAmc(false);
+    }
+  };
+
+  const handleDeletePress = () => {
+    Alert.alert('Delete AMC', 'Are you sure you want to delete this AMC?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: confirmDeleteAmc },
+    ]);
+  };
+
+  const handleAddTaskPress = () => {
+    const sourceRecord = getRawRecord();
+
+    const amcTypeName = String(
+      getFirstValue(sourceRecord, ['AMCTypeName']) ||
+        getFirstValue((amcItem || {}) as Record<string, unknown>, ['AMCTypeName', 'amcTypeName']) ||
+        '',
+    ).trim();
+
+    if (amcTypeName.toLowerCase() === 'expired') {
+      Alert.alert('AMC Expired', 'AMC expired, can not add task');
+      return;
+    }
+
+    const isUpcomingServiceActive = Boolean(getFirstValue(sourceRecord, ['IsUpcomingServiceActive']));
+    const upcomingServiceDate = getFirstValue(sourceRecord, ['UpcomingAmcsServiceDate']);
+
+    if (!isUpcomingServiceActive || !upcomingServiceDate) {
+      Alert.alert('Add Task', 'Can not add task for the selected date');
+      return;
+    }
+
+    const customerId = getNumberFromPaths(sourceRecord, [
+      'ProductDetail.CustomerId',
+      'ProductDetail.CustomerDetailInfoDto.CustomerDetailsid',
+      'ProductDetail.CustomerDetailInfoDto.CustomerDetailsId',
+      'ProductDetail.CustomerDetail.CustomerDetailsid',
+      'ProductDetail.CustomerDetail.CustomerDetailsId',
+    ]);
+
+    setAddTaskInitialValues({
+      title: String(getFirstValue(sourceRecord, ['AMCName', 'ProductDetail.ProductName']) || details?.amcName || ''),
+      address: String(details?.address || ''),
+      state: '',
+      city: String(details?.landmark || ''),
+      pinCode: '',
+      landmark: String(details?.landmark || 'NA'),
+      customerName: String(details?.customerName || ''),
+      customerNumber: String(details?.customerNumber || ''),
+      taskTagId: 0,
+      taskTagName: '',
+      customerId,
+      productBrand: String(details?.productBrand || ''),
+      modelNumber: String(details?.serialNumber || ''),
+      amcServiceDetailsId: toNumberValue(amcServiceDetailsId),
+    });
+    setIsAddTaskModalOpen(true);
+  };
+
   const renderEditInput = (
     label: string,
     value: string,
@@ -942,25 +1094,25 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           <Text style={styles.toolbarIcon}>✎</Text>
           <Text style={styles.toolbarButtonText}>{editLoading ? 'Loading' : 'Edit'}</Text>
         </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={() => Alert.alert('WhatsApp', 'Messaging')}>
+        <Pressable style={styles.toolbarButton} onPress={handleWhatsAppPress}>
           <Text style={styles.toolbarIcon}>💬</Text>
           <Text style={styles.toolbarButtonText}>WhatsApp</Text>
         </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={() => Alert.alert('Call', 'Coming soon')}>
+        <Pressable style={styles.toolbarButton} onPress={handleCallPress}>
           <Text style={styles.toolbarIcon}>📞</Text>
           <Text style={styles.toolbarButtonText}>Call</Text>
         </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={() => Alert.alert('Download', 'Coming soon')}>
+        <Pressable style={styles.toolbarButton} onPress={handleDownloadPress} disabled={isDownloadingReport}>
           <Text style={styles.toolbarIcon}>⬇</Text>
-          <Text style={styles.toolbarButtonText}>Download</Text>
+          <Text style={styles.toolbarButtonText}>{isDownloadingReport ? 'Loading' : 'Download'}</Text>
         </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={() => Alert.alert('Add', 'Coming soon')}>
+        <Pressable style={styles.toolbarButton} onPress={handleAddTaskPress}>
           <Text style={styles.toolbarIcon}>➕</Text>
           <Text style={styles.toolbarButtonText}>Add</Text>
         </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={() => Alert.alert('Delete', 'Delete this AMC?')}>
+        <Pressable style={styles.toolbarButton} onPress={handleDeletePress} disabled={isDeletingAmc}>
           <Text style={styles.toolbarIcon}>🗑</Text>
-          <Text style={styles.toolbarButtonText}>Delete</Text>
+          <Text style={styles.toolbarButtonText}>{isDeletingAmc ? 'Loading' : 'Delete'}</Text>
         </Pressable>
       </View>
 
@@ -1172,6 +1324,12 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         </View>
       </Modal>
 
+      <AddTaskModal
+        visible={isAddTaskModalOpen}
+        onClose={() => setIsAddTaskModalOpen(false)}
+        ownerId={ownerId || 0}
+        initialValues={addTaskInitialValues}
+      />
     </SafeAreaView>
   );
 };
