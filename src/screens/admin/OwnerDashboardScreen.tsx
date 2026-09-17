@@ -24,7 +24,7 @@ const RING_SEGMENT_ANGLE = 360 / RING_SEGMENTS;
 const RING_SEGMENT_LENGTH = (2 * Math.PI * RING_RADIUS) / RING_SEGMENTS + 1;
 
 const FILTER_INPUT_VALUE: Record<DayFilter, string> = {
-  Today: 'Today',
+  Today: 'today',
   Week: 'week',
   Month: 'month',
   Year: 'year',

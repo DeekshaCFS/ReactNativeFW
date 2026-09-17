@@ -6,6 +6,7 @@ import { useNavigation, useNavigationContainerRef } from '@react-navigation/nati
 import AuthStack from './AuthStack';
 import DrawerNavigator from './DrawerNavigator';
 import { authEvents, AUTH_CHANGED } from '../utils/authEvents';
+import { restoreSavedSession } from '../state/session';
 
 const Stack = createNativeStackNavigator();
 
@@ -15,6 +16,11 @@ export default function RootNavigator() {
 
   const loadToken = async () => {
     const storedToken = await AsyncStorage.getItem('token');
+
+    if (storedToken) {
+      await restoreSavedSession();
+    }
+
     setToken(storedToken);
     setLoading(false);
   };
