@@ -32,6 +32,7 @@ import {
 } from '../../../api/task/task.types';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { getAllchkpointCategory, postChkpointData } from '../../../api/fsrManagement/fsrManagementService';
+import { requestLocationPermission, getCurrentPosition, getAddressFromCoordinates, Coordinates } from '../../../utils/locationPermision';
 
 // ─── Local Types ──────────────────────────────────────────────────────────────
 
@@ -311,6 +312,31 @@ export default function TaskClosure({ navigation, route }: any) {
   };
 
   const [submitting, setSubmitting] = useState(false);
+
+  // ── Current location (Source: TaskClosureFragmentNew.getLastLocation() /
+  // getAddressFromLocation()) — requests location permission and resolves
+  // the technician's address as soon as the closure screen loads. The Java
+  // fragment stamps this address (plus date/time) as a caption on the
+  // before/after task photos; that caption-stamping step still needs to be
+  // wired up here once the photo-caption UI exists — for now this captures
+  // the permission + coordinates + address so that follow-up isn't blocked.
+  const [closureLocation, setClosureLocation] = useState<Coordinates | null>(null);
+  const [closureAddress, setClosureAddress] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const granted = await requestLocationPermission();
+      if (!granted) return;
+      try {
+        const coords = await getCurrentPosition();
+        setClosureLocation(coords);
+        const address = await getAddressFromCoordinates(coords.latitude, coords.longitude);
+        setClosureAddress(address);
+      } catch (error) {
+        console.log('[TaskClosureScreen] Unable to get current location:', error);
+      }
+    })();
+  }, []);
 
   // ── Work modes (static — see WORK_MODES above) ──
   const [selectedWorkMode, setSelectedWorkMode] = useState<WorkModeOption | null>(null);

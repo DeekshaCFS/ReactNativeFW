@@ -9,6 +9,7 @@ import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive
 import { GetAllTaskListDTOResultData as Task } from '../../../api/task/task.types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
+import { requestLocationPermission, getCurrentPosition, Coordinates } from '../../../utils/locationPermision';
 
 type Props = NativeStackScreenProps<TechnicianStackParamList, 'TaskRouteMap'>;
 
@@ -18,6 +19,24 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
   const [task, setTask] = useState<Task>(initialTask);
   const [showPrompt, setShowPrompt] = useState(false);
   const [cardExpanded, setCardExpanded] = useState(false);
+  const [currentPosition, setCurrentPosition] = useState<Coordinates | null>(null);
+
+  // Source: TechnTaskRouteMapFragment.getLastLocation() — requests location
+  // permission and reads the technician's current position as soon as the
+  // screen loads, so it's ready for the "my location" marker/centering once
+  // the live map (currently a placeholder below) is wired in.
+  useEffect(() => {
+    (async () => {
+      const granted = await requestLocationPermission();
+      if (!granted) return;
+      try {
+        const position = await getCurrentPosition();
+        setCurrentPosition(position);
+      } catch (error) {
+        console.log('[TaskRouteMapScreen] Unable to get current location:', error);
+      }
+    })();
+  }, []);
 
   const chevronRotation = useRef(new Animated.Value(0));
 
@@ -123,6 +142,11 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
       <View style={styles.mapPlaceholder}>
         <Ionicons name="map-outline" size={sp(56)} color="#D1D5DB" />
         <Text style={styles.mapPlaceholderText}>Map view coming soon</Text>
+        {currentPosition ? (
+          <Text style={styles.mapPlaceholderText}>
+            Current location: {currentPosition.latitude.toFixed(4)}, {currentPosition.longitude.toFixed(4)}
+          </Text>
+        ) : null}
       </View>
 
       {/* Floating Task Card */}

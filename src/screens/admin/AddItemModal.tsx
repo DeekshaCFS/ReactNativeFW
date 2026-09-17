@@ -1,6 +1,6 @@
 // src/screens/admin/AddItemModal.tsx
 
-import React, {useCallback, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +29,7 @@ import {
   getStringField,
   styles,
 } from './CRMScreen';
+import {requestLocationPermission} from '../../utils/locationPermision';
 
 type AddItemModalProps = {
   visible: boolean;
@@ -123,6 +124,15 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
   const [itemImageBase64, setItemImageBase64] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Source: OwnerItemInventoryFragmentNew.getLastLocation() / ItemInventoryFragment.getLastLocation()
+  // — both request location permission as soon as the item-inventory screen loads. Primed here the
+  // same way, on modal open, ahead of any inventory-location field this form grows later.
+  useEffect(() => {
+    if (visible) {
+      requestLocationPermission();
+    }
+  }, [visible]);
 
   const resetForm = () => {
     setItemName('');

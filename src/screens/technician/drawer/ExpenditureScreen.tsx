@@ -8,9 +8,10 @@ import { COLORS } from '../../../theme/theme';
 import { useNavigation } from '@react-navigation/native';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ms, sp, scale, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { requestLocationPermission } from '../../../utils/locationPermision';
 
 type NavigationProp = NativeStackNavigationProp<TechnicianStackParamList, 'Expenditure'>;
 
@@ -18,6 +19,16 @@ export default function ExpenditureScreen() {
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
+
+  // Source: ExpenseDetailsFragmentNew.getLastLocation() — requests location permission as soon
+  // as the add-expense sheet opens. The Java fragment reverse-geocodes this into an address
+  // alongside the expense record; this form has no fields/state wired up for that yet (see the
+  // ADD button below, which is still a no-op), so this only primes the permission for now.
+  useEffect(() => {
+    if (showAddExpenseModal) {
+      requestLocationPermission();
+    }
+  }, [showAddExpenseModal]);
 
   const statusBarHeight =
     Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;

@@ -35,7 +35,9 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>This app uses your location for field tracking.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app uses your location in the background to track field visits.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Allow access to the camera to capture lead photos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
