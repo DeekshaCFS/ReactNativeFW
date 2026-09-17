@@ -1,0 +1,21 @@
+diff --git a/node_modules/react-native-audio-record/android/src/main/java/com/goodatlas/audiorecord/RNAudioRecordModule.java b/node_modules/react-native-audio-record/android/src/main/java/com/goodatlas/audiorecord/RNAudioRecordModule.java
+index 11c5ad8..8edb294 100644
+--- a/node_modules/react-native-audio-record/android/src/main/java/com/goodatlas/audiorecord/RNAudioRecordModule.java
++++ b/node_modules/react-native-audio-record/android/src/main/java/com/goodatlas/audiorecord/RNAudioRecordModule.java
+@@ -47,6 +47,16 @@ public class RNAudioRecordModule extends ReactContextBaseJavaModule {
+         return "RNAudioRecord";
+     }
+ 
++    @ReactMethod
++    public void addListener(String eventName) {
++        // Required by React Native's NativeEventEmitter.
++    }
++
++    @ReactMethod
++    public void removeListeners(double count) {
++        // Required by React Native's NativeEventEmitter.
++    }
++
+     @ReactMethod
+     public void init(ReadableMap options) {
+         sampleRateInHz = 44100;
