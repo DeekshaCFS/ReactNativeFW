@@ -23,8 +23,9 @@ import {
   type PassbookSummaryData,
   type TodayPassbookResponse,
   type YearlyPassbookResponse,
-  touchlessApi,
-} from '../../api/Api';
+} from './adminLegacyApiTypes';
+import { getTodayPassbook, getMonthlyPassbook, getYearlyPassbook } from '../../api/passbook/passbookService';
+import { getExpenseUserList } from '../../api/expenditure/expenditureService';
 import ManageBalanceModal from './ManageBalanceModal';
 
 type PassbookExpenditureTabHostScreenProps = {
@@ -353,7 +354,7 @@ const PassbookExpenditureTabHostScreen = ({
       latestPassbookRequestId.current = requestId;
 
       try {
-        const response = await touchlessApi.getTodayPassbook({userId});
+        const response = await getTodayPassbook({ UserId: userId }) as TodayPassbookResponse;
 
         if (requestId !== latestPassbookRequestId.current) {
           return;
@@ -389,11 +390,11 @@ const PassbookExpenditureTabHostScreen = ({
       latestPassbookRequestId.current = requestId;
 
       try {
-        const response = await touchlessApi.getMonthlyPassbook({
-          userId,
-          month,
-          year,
-        });
+        const response = (await getMonthlyPassbook({
+          UserId: userId,
+          PassbookMonth: month,
+          PassbookYear: year,
+        })) as MonthlyPassbookResponse;
 
         if (requestId !== latestPassbookRequestId.current) {
           return;
@@ -437,7 +438,7 @@ const PassbookExpenditureTabHostScreen = ({
       latestPassbookRequestId.current = requestId;
 
       try {
-        const response = await touchlessApi.getYearlyPassbook({userId, year});
+        const response = (await getYearlyPassbook({ UserId: userId, PassbookYear: year })) as YearlyPassbookResponse;
 
         if (requestId !== latestPassbookRequestId.current) {
           return;
@@ -498,7 +499,7 @@ const PassbookExpenditureTabHostScreen = ({
       latestExpenseRequestId.current = requestId;
 
       try {
-        const response = await touchlessApi.getExpenseTechnicianList({ownerId: userId});
+        const response = (await getExpenseUserList({ OwnerId: userId })) as ExpenseTechnicianListResponse;
 
         if (requestId !== latestExpenseRequestId.current) {
           return;

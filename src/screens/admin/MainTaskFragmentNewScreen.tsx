@@ -364,15 +364,15 @@ const MainTaskFragmentNewScreen = ({
 
       try {
         const response = await getTaskListSearchNew({
-          userId,
-          searchParam,
-          statusId,
-          taskTypeId,
+          UserId: userId,
+          searchparam: searchParam,
+          TaskStatusID: statusId,
+          TaskTypeID: taskTypeId,
           pageIndex: nextPage,
-          month,
-          year,
-          taskTagId,
-          isAllData: allData,
+          TaskMonth: month,
+          TaskYear: year,
+          TaskTagId: taskTagId,
+          AllData: allData,
         });
 
         if (requestId !== latestRequestId.current) {

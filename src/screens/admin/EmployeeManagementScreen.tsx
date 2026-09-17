@@ -22,8 +22,10 @@ import {
   type EmployeeLookupResponse,
   type LeaveListItem,
   type LeaveListResponse,
-  touchlessApi,
-} from '../../api/Api';
+} from './adminLegacyApiTypes';
+import { getAllDesignation } from '../../api/umDesignations/umDesignationsService';
+import { getAllEmpList } from '../../api/umEmployeeList/umEmployeeListService';
+import { getAllEmployeeLeaveList } from '../../api/leaveManagement/leaveManagementService';
 
 type EmployeeManagementScreenProps = {
   ownerId: number;
@@ -257,7 +259,7 @@ const EmployeeManagementScreen = ({ownerId, onMenuPress}: EmployeeManagementScre
 
   const loadLookup = useCallback(async () => {
     try {
-      const response = await touchlessApi.getEmployeeLookup({userId: ownerId});
+      const response = (await getAllDesignation({ UserId: ownerId })) as EmployeeLookupResponse;
       if (!isSuccessOrNoData(response)) {
         return;
       }
@@ -325,14 +327,14 @@ const EmployeeManagementScreen = ({ownerId, onMenuPress}: EmployeeManagementScre
       latestRequestId.current = requestId;
 
       try {
-        const response = await touchlessApi.getEmployeeList({
-          ownerId,
+        const response = (await getAllEmpList({
+          OwnerId: ownerId,
           pageIndex: nextPage,
-          searchParam,
+          SearchParam: searchParam,
           employeeTypeId,
           zoneId,
           status,
-        });
+        })) as EmployeeListResponse;
 
         if (requestId !== latestRequestId.current) {
           return;
@@ -410,17 +412,17 @@ const EmployeeManagementScreen = ({ownerId, onMenuPress}: EmployeeManagementScre
       latestLeaveRequestId.current = requestId;
 
       try {
-        const response = await touchlessApi.getLeaveList({
-          userId: ownerId,
-          pageNumber: nextPage,
-          pageSize: 10,
-          leaveStatusId,
-          isPersonal: false,
-          isExportData: false,
-          monthYear: formatMonthYearParam(month, year),
-          searchParams,
-          zoneId: 0,
-        });
+        const response = (await getAllEmployeeLeaveList({
+          UserId: ownerId,
+          PageNumber: nextPage,
+          PageSize: 10,
+          LeaveStatusId: leaveStatusId,
+          IsPersonal: false,
+          IsExportData: false,
+          MonthYear: formatMonthYearParam(month, year),
+          SearchParams: searchParams,
+          ZoneId: 0,
+        })) as LeaveListResponse;
 
         if (requestId !== latestLeaveRequestId.current) {
           return;

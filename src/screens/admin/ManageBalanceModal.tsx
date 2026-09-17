@@ -12,8 +12,8 @@ import {
 import {
   type ExpenseTechnicianItem,
   type ExpenseTechnicianListResponse,
-  touchlessApi,
-} from '../../api/Api';
+} from './adminLegacyApiTypes';
+import { getExpenseUserList, updateAddCredit, updateDeductBalance } from '../../api/expenditure/expenditureService';
 
 const THEME_PRIMARY = '#c3002f';
 
@@ -121,7 +121,7 @@ const ManageBalanceModal = ({
   const loadTechnicians = useCallback(async () => {
     setIsLoadingTechnicians(true);
     try {
-      const response = await touchlessApi.getExpenseTechnicianList({ownerId: userId});
+      const response = (await getExpenseUserList({ OwnerId: userId })) as ExpenseTechnicianListResponse;
       if (!isSuccessOrNoData(response)) {
         throw new Error(getMessage(response) || 'Unable to load fieldworkers.');
       }
@@ -189,20 +189,20 @@ const ManageBalanceModal = ({
     (async () => {
       try {
         if (balanceMode === 'add') {
-          await touchlessApi.addCredit({
-            amount: Number(balanceAmount),
-            description: balanceDescription,
-            givenBy: userId,
-            receivedBy: getTechnicianId(selectedTechnician),
+          await updateAddCredit({
+            Amount: Number(balanceAmount),
+            CredidDescription: balanceDescription,
+            GivenBy: userId,
+            ReceivedBy: getTechnicianId(selectedTechnician),
           });
 
           Alert.alert('Add Balance', `₹${balanceAmount} added to ${getTechnicianName(selectedTechnician)}.`);
         } else {
-          await touchlessApi.addDeduction({
-            amount: Number(balanceAmount),
-            description: balanceDescription,
-            deductBy: userId,
-            userId: getTechnicianId(selectedTechnician),
+          await updateDeductBalance({
+            Amount: Number(balanceAmount),
+            Description: balanceDescription,
+            DeductBy: userId,
+            UserId: getTechnicianId(selectedTechnician),
           });
           Alert.alert('Deduct Balance', `₹${balanceAmount} deducted from ${getTechnicianName(selectedTechnician)}.`);
         }

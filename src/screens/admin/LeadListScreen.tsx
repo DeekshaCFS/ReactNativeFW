@@ -36,8 +36,11 @@ import {
   type LeadStatusResponse,
   type StateItem,
   type StateListResponse,
-  touchlessApi,
-} from '../../api/Api';
+} from './adminLegacyApiTypes';
+import { getLeadstatusList, getAllLEADList } from '../../api/lead/leadService';
+import { getEnquiryServiceTypeList } from '../../api/services/servicesService';
+import { getCustomerList, getStateList, getCityList } from '../../api/customerList/customerListService';
+import { postExternalLeadForm } from '../../api/leadForm/leadFormService';
 import LeadDetailsScreen from '../admin/LeadDetailsScreen';
 
 type LeadListScreenProps = {
@@ -809,7 +812,7 @@ const LeadListScreen = ({userId, onMenuPress}: LeadListScreenProps) => {
 
   const loadStatuses = useCallback(async () => {
     try {
-      const response = await touchlessApi.getLeadStatusList();
+      const response = (await getLeadstatusList()) as LeadStatusResponse;
       if (!isSuccessOrNoData(response)) {
         return;
       }
@@ -830,9 +833,9 @@ const LeadListScreen = ({userId, onMenuPress}: LeadListScreenProps) => {
 
     setIsServiceTypeLoading(true);
     try {
-      const response = await touchlessApi.getLeadServiceTypeList({
-        ownerId: userId,
-      });
+      const response = (await getEnquiryServiceTypeList({
+        OwnerId: userId,
+      })) as LeadServiceTypeResponse;
       if (!isSuccessOrNoData(response)) {
         return;
       }
@@ -875,12 +878,12 @@ const LeadListScreen = ({userId, onMenuPress}: LeadListScreenProps) => {
       latestRequestId.current = requestId;
 
       try {
-        const response = await touchlessApi.getLeadList({
-          userId,
+        const response = (await getAllLEADList({
+          UserId: userId,
           pageIndex: nextPage,
-          searchParam,
-          leadStatusId,
-        });
+          SearchParam: searchParam,
+          LeadStatusId: leadStatusId,
+        })) as LeadListResponse;
 
         if (requestId !== latestRequestId.current) {
           return;
@@ -951,11 +954,10 @@ const LeadListScreen = ({userId, onMenuPress}: LeadListScreenProps) => {
       setIsCustomerLoading(true);
 
       try {
-        const response =
-          await touchlessApi.getCustomerListForMobile<CustomerLookupResponse>({
-            userId,
-            customerTagId: 0,
-          });
+        const response = (await getCustomerList({
+          UserId: userId,
+          CustomerTagId: 0,
+        })) as CustomerLookupResponse;
 
         if (latestCustomerRequestId.current !== requestId) {
           return;
@@ -1020,7 +1022,7 @@ const LeadListScreen = ({userId, onMenuPress}: LeadListScreenProps) => {
       setIsStateLoading(true);
 
       try {
-        const response = await touchlessApi.getStateList<StateListResponse>();
+        const response = (await getStateList()) as StateListResponse;
 
         if (latestStateRequestId.current !== requestId) {
           return;
@@ -1090,10 +1092,10 @@ const LeadListScreen = ({userId, onMenuPress}: LeadListScreenProps) => {
       setIsCityLoading(true);
 
       try {
-        const response = await touchlessApi.getCityList<CityListResponse>({
-          userId,
-          stateId,
-        });
+        const response = (await getCityList({
+          UserId: userId,
+          StateId: stateId,
+        })) as CityListResponse;
 
         if (latestCityRequestId.current !== requestId) {
           return;
@@ -1368,7 +1370,9 @@ const LeadListScreen = ({userId, onMenuPress}: LeadListScreenProps) => {
     };
 
     try {
-      await touchlessApi.addCustomerLead(payload);
+      await postExternalLeadForm(
+        payload as unknown as Parameters<typeof postExternalLeadForm>[0],
+      );
       closeAddLeadModal();
       Alert.alert('Lead', 'Lead added successfully.');
       fetchLeadPage({nextPage: PAGE_START, replace: true});

@@ -17,8 +17,10 @@ import {
   type TaskListResponse,
   type AMCListItem,
   type AMCListResponse,
-  touchlessApi,
-} from '../../api/Api';
+} from './adminLegacyApiTypes';
+import { getTaskListSearchNew } from '../../api/taskList/taskListService';
+import { getAmcServiceMonthList } from '../../api/amc/amcService';
+import { getEnquiryList } from '../../api/customerInquiry/customerInquiryService';
 import {
   CUSTOMER_ADDRESS_KEYS,
   CUSTOMER_NAME_KEYS,
@@ -253,15 +255,15 @@ const CustomerDetailsScreen = ({
     setIsLoadingTasks(true);
     setTaskError('');
     try {
-      const response = await touchlessApi.getTaskList<TaskListResponse>({
-        userId: ownerId,
-        searchParam: customerName,
-        statusId: selectedStatus.id,
-        month: monthYear.month,
-        year: monthYear.year,
+      const response = (await getTaskListSearchNew({
+        UserId: ownerId,
+        searchparam: customerName,
+        TaskStatusID: selectedStatus.id,
+        TaskMonth: monthYear.month,
+        TaskYear: monthYear.year,
         pageIndex: 1,
-        isAllData: true,
-      });
+        AllData: true,
+      })) as TaskListResponse;
       const list = response.resultData ?? response.ResultData ?? [];
       const filtered = list.filter(item =>
         matchesCustomer(
@@ -289,11 +291,11 @@ const CustomerDetailsScreen = ({
     try {
       const today = new Date();
       const dateStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
-      const response = await touchlessApi.getDashboardAmcWeb<AMCListResponse>({
-        ownerId,
-        date: dateStr,
-        amcTypeId: 0,
-      });
+      const response = (await getAmcServiceMonthList({
+        OwnerId: ownerId,
+        Date: dateStr,
+        AMCTypeId: 0,
+      })) as AMCListResponse;
       const list = response.resultData ?? response.ResultData ?? [];
       const filtered = list.filter(item =>
         matchesCustomer(
@@ -320,9 +322,9 @@ const CustomerDetailsScreen = ({
     setIsLoadingEnquiries(true);
     setEnquiryError('');
     try {
-      const response = await touchlessApi.getEnquiryList<EnquiryListResponse>({
-        userId: ownerId,
-      });
+      const response = (await getEnquiryList({
+        UserId: ownerId,
+      })) as EnquiryListResponse;
       const data = response as unknown as Record<string, unknown>;
       const list =
         (data.resultData as EnquiryListItem[] | undefined) ??

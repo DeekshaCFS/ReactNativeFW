@@ -25,8 +25,9 @@ import {
   type ItemInventoryListResponse,
   type UsedItemListItem,
   type UsedItemListResponse,
-  touchlessApi,
-} from '../../api/Api';
+} from './adminLegacyApiTypes';
+import { getAllLargeItemList, getAllAssignItemlistTechwise, getUsedItemlist } from '../../api/item/itemService';
+import { getFocList, getFocStatusTagList } from '../../api/focItemRequest/focItemRequestService';
 
 type ItemInventoryTabHostScreenProps = {
   ownerId: number;
@@ -829,11 +830,11 @@ const ItemInventoryTabHostScreen = ({
       latestItemRequestId.current = requestId;
 
       try {
-        const response = await touchlessApi.getItemInventoryList({
-          ownerId,
-          searchParam,
+        const response = (await getAllLargeItemList({
+          OwnerId: ownerId,
+          SearchParam: searchParam,
           pageIndex: nextPage,
-        });
+        })) as ItemInventoryListResponse;
 
         if (requestId !== latestItemRequestId.current) {
           return;
@@ -894,15 +895,15 @@ const ItemInventoryTabHostScreen = ({
       latestFocRequestId.current = requestId;
 
       try {
-        const response = await touchlessApi.getFocRequestList({
-          ownerId,
-          pageNumber: nextPage,
-          pageSize: FOC_PAGE_SIZE,
-          zoneId: 0,
-          issueTypeId,
-          focStatusId: statusId,
-          searchParam,
-        });
+        const response = (await getFocList({
+          Pageindex: nextPage,
+          Pagesize: FOC_PAGE_SIZE,
+          ZoneId: 0,
+          OwnerId: ownerId,
+          IssueTypeID: issueTypeId,
+          FOCStatusTagID: statusId,
+          SearchParam: searchParam,
+        })) as FocRequestListResponse;
 
         if (requestId !== latestFocRequestId.current) {
           return;
@@ -991,7 +992,7 @@ const ItemInventoryTabHostScreen = ({
 
     const loadStatusTags = async () => {
       try {
-        const response = await touchlessApi.getFocStatusTags();
+        const response = (await getFocStatusTagList()) as FocStatusTagResponse;
         if (!isMounted) {
           return;
         }
@@ -1090,10 +1091,10 @@ const ItemInventoryTabHostScreen = ({
     latestAssignedRequestId.current = requestId;
 
     try {
-      const response = await touchlessApi.getAssignedItemList({
+      const response = (await getAllAssignItemlistTechwise({
         itemId,
-        ownerId,
-      });
+        OwnerId: ownerId,
+      })) as AssignedItemListResponse;
 
       if (requestId !== latestAssignedRequestId.current) {
         return;
@@ -1144,10 +1145,10 @@ const ItemInventoryTabHostScreen = ({
     latestUsedRequestId.current = requestId;
 
     try {
-      const response = await touchlessApi.getUsedItemList({
+      const response = (await getUsedItemlist({
         itemId,
-        ownerId,
-      });
+        OwnerId: ownerId,
+      })) as UsedItemListResponse;
 
       if (requestId !== latestUsedRequestId.current) {
         return;

@@ -20,8 +20,8 @@ import {
   type LeadDetailsResponse,
   type LeadStatusItem,
   type LeadStatusResponse,
-  touchlessApi,
-} from '../../api/Api';
+} from './adminLegacyApiTypes';
+import { getLeadstatusList, getLeadetailsByLeadId, updateLeadStatus as updateLeadStatusApi } from '../../api/lead/leadService';
 
 type LeadDetailsScreenProps = {
   userId: number;
@@ -127,7 +127,7 @@ const LeadDetailsScreen = ({
 
   const loadStatusOptions = useCallback(async () => {
     try {
-      const response = await touchlessApi.getLeadStatusList();
+      const response = (await getLeadstatusList()) as LeadStatusResponse;
       const list = getLookupResultData<LeadStatusItem>(response);
       const filtered = list.filter(item => {
         const sName = getStringValue(item, [
@@ -154,11 +154,11 @@ const LeadDetailsScreen = ({
 
     setIsUpdatingStatus(true);
     try {
-      const response = await touchlessApi.updateLeadStatus({
-        leadId,
-        statusId: selectedStatusId,
-        userId,
-        notes: updateNotes || 'Updated from app',
+      const response = await updateLeadStatusApi({
+        LeadId: leadId,
+        LeadStatusId: selectedStatusId,
+        UserId: userId,
+        Description: updateNotes || 'Updated from app',
       });
 
       // Based on Api.ts, request returns the parsed JSON response
@@ -234,9 +234,9 @@ const LeadDetailsScreen = ({
   const loadDetails = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await touchlessApi.getLeadDetails<unknown>({
-        userId,
-        leadId,
+      const response = await getLeadetailsByLeadId({
+        UserId: userId,
+        LeadId: leadId,
       });
 
       const list = getLookupResultData<LeadListItem>(response);

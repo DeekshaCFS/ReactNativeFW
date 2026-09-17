@@ -20,8 +20,8 @@ import {
   type StateItem,
   type StateListResponse,
   type UpdateCustomerDetailsRequest,
-  touchlessApi,
-} from '../../api/Api';
+} from './adminLegacyApiTypes';
+import { getStateList, getCityList, updateCustomerDetails, getCustomerTagList } from '../../api/customerList/customerListService';
 import {
   CUSTOMER_ADDRESS_KEYS,
   CUSTOMER_ID_KEYS,
@@ -244,7 +244,7 @@ const EditCustomerModal = ({
     }
     setIsStateLoading(true);
     try {
-      const response = await touchlessApi.getStateList<StateListResponse>();
+      const response = (await getStateList()) as StateListResponse;
       const normalized = extractArray<StateItem>(response)
         .map(normalizeStateOption)
         .filter(option => option.id > 0 && option.name);
@@ -271,10 +271,10 @@ const EditCustomerModal = ({
     }
     setIsCityLoading(true);
     try {
-      const response = await touchlessApi.getCityList<CityListResponse>({
-        userId: ownerId,
-        stateId: forStateId,
-      });
+      const response = (await getCityList({
+        UserId: ownerId,
+        StateId: forStateId,
+      })) as CityListResponse;
       const normalized = extractArray<CityItem>(response)
         .map(normalizeCityOption)
         .filter(option => option.id > 0 && option.name);
@@ -307,10 +307,9 @@ const EditCustomerModal = ({
       return;
     }
     setIsTagLoading(true);
-    touchlessApi
-      .getCustomerTagList<CustomerTagListResponse>({userId: ownerId})
+    getCustomerTagList({UserId: ownerId})
       .then(response => {
-        const items = extractArray<CustomerTagItem>(response)
+        const items = extractArray<CustomerTagItem>(response as CustomerTagListResponse)
           .map(normalizeCustomerTagOption)
           .filter(option => option.id > 0 && option.name);
         setCustomerTags(items);
@@ -373,7 +372,9 @@ const EditCustomerModal = ({
         UpdatedBy: ownerId,
       };
 
-      const response = await touchlessApi.updateCustomerDetails(payload);
+      const response = await updateCustomerDetails(
+        payload as unknown as Parameters<typeof updateCustomerDetails>[0],
+      );
       const responseRecord = (response ?? {}) as Record<string, unknown>;
       const code = String(responseRecord.code ?? responseRecord.Code ?? '');
       const message = String(responseRecord.message ?? responseRecord.Message ?? '').trim();
