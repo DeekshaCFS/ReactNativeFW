@@ -19,7 +19,7 @@ import type {
   TasksListMultipleItemAssigned,
 } from '../../api/task/task.types';
 import type {TaskListItem} from './adminLegacyApiTypes';
-import {getStringField} from '../admin/CRMScreen';
+import {getStringField} from './CRMScreen';
 
 type TaskDetailsTask = TasksListResultData | TaskListItem;
 

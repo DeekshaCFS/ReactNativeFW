@@ -117,7 +117,7 @@ type AdvanceServiceItem = ServiceTypeListDTOResultData & {
 };
 
 import AddTaskModal, {type AddTaskInitialValues} from './AddTaskModal';
-import CustomerDetailsScreen from './CustomerDetailsScreen';
+import CustomerDetailsScreen from '../main/CustomerDetailsScreen';
 import EditCustomerModal from './EditCustomerModal';
 
 type CRMScreenProps = {

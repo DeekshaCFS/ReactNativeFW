@@ -43,7 +43,7 @@ import { getLeadstatusList, getAllLEADList } from '../../api/lead/leadService';
 import { getEnquiryServiceTypeList } from '../../api/services/servicesService';
 import { getCustomerList, getStateList, getCityList } from '../../api/customerList/customerListService';
 import { postExternalLeadForm } from '../../api/leadForm/leadFormService';
-import LeadDetailsScreen from '../admin/LeadDetailsScreen';
+import LeadDetailsScreen from './LeadDetailsScreen';
 
 type LeadListScreenProps = {
   userId: number;
