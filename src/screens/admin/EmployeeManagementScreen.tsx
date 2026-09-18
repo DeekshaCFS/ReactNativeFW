@@ -28,6 +28,7 @@ import {
 import { getAllDesignation } from '../../api/umDesignations/umDesignationsService';
 import { getAllEmpList } from '../../api/umEmployeeList/umEmployeeListService';
 import { getAllEmployeeLeaveList } from '../../api/leaveManagement/leaveManagementService';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 type EmployeeManagementScreenProps = {
   ownerId: number;
@@ -796,7 +797,7 @@ const EmployeeManagementScreen = ({
             <Text numberOfLines={1} style={styles.filterText}>
               {selectedType.label}
             </Text>
-            <Text style={styles.filterChevron}>⌄</Text>
+            <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
           <Pressable
             style={styles.filterButton}
@@ -804,7 +805,7 @@ const EmployeeManagementScreen = ({
             <Text numberOfLines={1} style={styles.filterText}>
               {selectedZone.label}
             </Text>
-            <Text style={styles.filterChevron}>⌄</Text>
+            <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
           <Pressable
             style={styles.filterButton}
@@ -812,7 +813,7 @@ const EmployeeManagementScreen = ({
             <Text numberOfLines={1} style={styles.filterText}>
               {selectedStatus.label}
             </Text>
-            <Text style={styles.filterChevron}>⌄</Text>
+            <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
         </View>
       </View>
@@ -912,7 +913,7 @@ const EmployeeManagementScreen = ({
           <Text numberOfLines={1} style={styles.leaveFilterText}>
             {selectedLeaveStatus.label}
           </Text>
-          <Text style={styles.leaveFilterChevron}>⌄</Text>
+          <Ionicons name="chevron-down" style={styles.leaveFilterChevron} />
         </Pressable>
 
         <Pressable
@@ -925,7 +926,7 @@ const EmployeeManagementScreen = ({
           <Text numberOfLines={1} style={styles.leaveFilterText}>
             {formatMonthYearLabel(leaveMonthYear.month, leaveMonthYear.year)}
           </Text>
-          <Text style={styles.leaveFilterChevron}>⌄</Text>
+          <Ionicons name="chevron-down" style={styles.leaveFilterChevron} />
         </Pressable>
       </View>
 

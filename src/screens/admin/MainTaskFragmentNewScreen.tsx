@@ -15,6 +15,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {useFocusEffect} from '@react-navigation/native';
 import {getTaskListSearchNew} from '../../api/taskList/taskListService';
 import {getTaskTagList} from '../../api/task/taskService';
 import type {TasksList, TasksListResultData, TagList, TagListResultData} from '../../api/task/task.types';
@@ -475,6 +477,18 @@ const MainTaskFragmentNewScreen = ({
     fetchTaskPage({nextPage: PAGE_START, replace: true});
   }, [submittedSearch, selectedStatus.id, selectedTag.id, selectedType.id]);
 
+  const isFirstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) {
+        isFirstFocus.current = false;
+        return;
+      }
+      fetchTaskPage({nextPage: PAGE_START, replace: true, refreshing: true});
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchTaskPage]),
+  );
+
   const resetAndLoad = () => {
     setSearchText('');
     setSubmittedSearch('');
@@ -751,7 +765,7 @@ const MainTaskFragmentNewScreen = ({
             <Text numberOfLines={1} style={styles.filterText}>
               {selectedTag.name}
             </Text>
-            <Text style={styles.filterChevron}>⌄</Text>
+            <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
           <Pressable
             style={styles.filterButton}
@@ -759,7 +773,7 @@ const MainTaskFragmentNewScreen = ({
             <Text numberOfLines={1} style={styles.filterText}>
               {selectedStatus.label}
             </Text>
-            <Text style={styles.filterChevron}>⌄</Text>
+            <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
           <Pressable style={styles.refreshButton} onPress={resetAndLoad}>
             <Text style={styles.refreshText}>Refresh List</Text>
@@ -878,7 +892,7 @@ const MainTaskFragmentNewScreen = ({
           <Text style={styles.taskMonthText}>
             {formatMonthYearLabel(month, year)}
           </Text>
-          <Text style={styles.taskMonthArrow}>⌄</Text>
+          <Ionicons name="chevron-down" style={styles.taskMonthArrow} />
         </Pressable>
       </View>
 

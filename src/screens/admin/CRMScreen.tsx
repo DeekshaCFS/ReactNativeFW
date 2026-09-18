@@ -1,6 +1,7 @@
 // src/screens/admin/CRMScreen.tsx
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
 import {
@@ -2570,7 +2571,7 @@ const CRMScreen = ({
                   >
                     {selectedService ? selectedService.label : 'Select Service Type'}
                   </Text>
-                  <Text style={styles.dropdownChevron}>⌄</Text>
+                  <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -2590,7 +2591,7 @@ const CRMScreen = ({
                   >
                     {selectedTaskTag ? selectedTaskTag.label : 'Select Task Type'}
                   </Text>
-                  <Text style={styles.dropdownChevron}>⌄</Text>
+                  <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
 
                 <View style={styles.fieldWrap}>

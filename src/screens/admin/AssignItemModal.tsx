@@ -1,6 +1,7 @@
 // src/screens/admin/AssignItemModal.tsx
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
   Alert,
@@ -292,7 +293,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                 >
                   {selectedItem ? selectedItem.name : 'Select Item'}
                 </Text>
-                <Text style={styles.dropdownChevron}>⌄</Text>
+                <Ionicons name="chevron-down" style={styles.dropdownChevron} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -314,7 +315,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                     ? selectedFieldworker.name
                     : 'Select Fieldworkers'}
                 </Text>
-                <Text style={styles.dropdownChevron}>⌄</Text>
+                <Ionicons name="chevron-down" style={styles.dropdownChevron} />
               </TouchableOpacity>
 
               <Text style={assignStyles.quantityLabel}>Quantity</Text>

@@ -1,6 +1,7 @@
 // src/screens/admin/AddItemModal.tsx
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
   Alert,
@@ -414,7 +415,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                       ? selectedItemGroup.name
                       : 'Select Item Group'}
                   </Text>
-                  <Text style={styles.dropdownChevron}>⌄</Text>
+                  <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
 
                 <View style={styles.fieldRow}>
@@ -463,7 +464,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                           ? selectedItemUnit.name
                           : 'Select Unit'}
                       </Text>
-                      <Text style={styles.dropdownChevron}>⌄</Text>
+                      <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                     </TouchableOpacity>
                   </View>
                 </View>

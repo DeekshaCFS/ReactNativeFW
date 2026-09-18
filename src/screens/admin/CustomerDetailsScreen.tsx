@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
   FlatList,
@@ -548,14 +549,14 @@ const CustomerDetailsScreen = ({
             onPress={() => setStatusModalVisible(true)}
           >
             <Text style={styles.filterLabel}>{selectedStatus.label}</Text>
-            <Text style={styles.filterChevron}>⌄</Text>
+            <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
           <Pressable
             style={styles.filterControl}
             onPress={() => setMonthModalVisible(true)}
           >
             <Text style={styles.filterLabel}>{monthLabel}</Text>
-            <Text style={styles.filterChevron}>⌄</Text>
+            <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
         </View>
       ) : null}

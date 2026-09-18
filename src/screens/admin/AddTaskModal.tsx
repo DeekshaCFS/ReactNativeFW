@@ -1,6 +1,7 @@
 // src/screens/admin/AddTaskModal.tsx
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
   Alert,
@@ -1410,7 +1411,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       ? selectedFieldworker.name
                       : 'Select Fieldworker'}
                   </Text>
-                  <Text style={styles.dropdownChevron}>⌄</Text>
+                  <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1432,7 +1433,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       ? selectedAddTaskTag.label
                       : 'Select Task Tag'}
                   </Text>
-                  <Text style={styles.dropdownChevron}>⌄</Text>
+                  <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
 
                 <View style={styles.warrantyRow}>
@@ -1770,7 +1771,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                         ? selectedTaskService.label
                         : 'Select Service'}
                     </Text>
-                    <Text style={styles.dropdownChevron}>⌄</Text>
+                    <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                   </TouchableOpacity>
                 ) : activeTaskFormTab === 'quote' ? (
                   <TouchableOpacity
@@ -1790,7 +1791,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     >
                       {selectedQuote ? selectedQuote.label : 'Select Quote'}
                     </Text>
-                    <Text style={styles.dropdownChevron}>⌄</Text>
+                    <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                   </TouchableOpacity>
                 ) : activeTaskFormTab === 'fsr' ? (
                   <TouchableOpacity
@@ -1810,7 +1811,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     >
                       {selectedFsr ? selectedFsr.label : 'Select FSR'}
                     </Text>
-                    <Text style={styles.dropdownChevron}>⌄</Text>
+                    <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                   </TouchableOpacity>
                 ) : activeTaskFormTab === 'items' ? (
                   <View>
@@ -1841,7 +1842,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                             >
                               {row.itemName || 'Item Name'}
                             </Text>
-                            <Text style={styles.dropdownChevron}>⌄</Text>
+                            <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                           </TouchableOpacity>
                           <View style={styles.itemAvailableQtyBox}>
                             <Text style={styles.itemAvailableQtyText}>

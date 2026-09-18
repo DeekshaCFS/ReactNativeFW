@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
   Alert,
@@ -595,7 +596,7 @@ const EditCustomerModal = ({
                 >
                   {customerTagName || 'Select Customer Tag'}
                 </Text>
-                <Text style={styles.dropdownChevron}>⌄</Text>
+                <Ionicons name="chevron-down" style={styles.dropdownChevron} />
               </TouchableOpacity>
             </View>
 

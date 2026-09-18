@@ -1,6 +1,7 @@
 // src/screens/admin/AdminHomeScreen.tsx
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
   Alert,
@@ -55,7 +56,6 @@ const THEME_PRIMARY = '#c3002f';
 const OwnerDashboard = OwnerDashboardScreen as React.ComponentType<{
   ownerId: number;
   filter: DayFilter;
-  onCreateTask?: () => void;
 }>;
 
 const DASHBOARD_FILTERS: DayFilter[] = ['Today', 'Week', 'Month', 'Year'];
@@ -100,11 +100,7 @@ const formatPrimaryContact = (userDetails: UserDetailsResultData | null) => {
   return getUserFieldString(userDetails, 'Email') || 'No contact details';
 };
 
-type AdminHomeScreenProps = {
-  onCreateTask?: () => void;
-};
-
-const AdminHomeScreen = ({onCreateTask}: AdminHomeScreenProps) => {
+const AdminHomeScreen = () => {
   const navigation =
     useNavigation<BottomTabNavigationProp<AdminTabParamList, 'Home'>>();
   const insets = useSafeAreaInsets();
@@ -317,13 +313,7 @@ const AdminHomeScreen = ({onCreateTask}: AdminHomeScreenProps) => {
       );
     }
 
-    return (
-      <OwnerDashboard
-        ownerId={ownerId}
-        filter={dashboardFilter}
-        onCreateTask={onCreateTask}
-      />
-    );
+    return <OwnerDashboard ownerId={ownerId} filter={dashboardFilter} />;
   };
 
   return (
@@ -355,7 +345,7 @@ const AdminHomeScreen = ({onCreateTask}: AdminHomeScreenProps) => {
               onPress={() => setIsDashboardFilterOpen(true)}
             >
               <Text style={styles.headerFilterLabel}>{dashboardFilter}</Text>
-              <Text style={styles.headerFilterArrow}>▼</Text>
+              <Ionicons name="chevron-down" style={styles.headerFilterArrow} />
             </Pressable>
           </View>
           {isUserDetailsLoading ? (
