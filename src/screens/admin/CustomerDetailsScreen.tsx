@@ -17,10 +17,10 @@ import {
   type TaskListResponse,
   type AMCListItem,
   type AMCListResponse,
-} from '../adminLegacyApiTypes';
-import { getTaskListSearchNew } from '../../../api/taskList/taskListService';
-import { getAmcServiceMonthList } from '../../../api/amc/amcService';
-import { getEnquiryList } from '../../../api/customerInquiry/customerInquiryService';
+} from './adminLegacyApiTypes';
+import { getTaskListSearchNew } from '../../api/taskList/taskListService';
+import { getAmcServiceMonthList } from '../../api/amc/amcService';
+import { getEnquiryList } from '../../api/customerInquiry/customerInquiryService';
 import {
   CUSTOMER_ADDRESS_KEYS,
   CUSTOMER_NAME_KEYS,
@@ -33,8 +33,8 @@ import {
   getEnquiryPhone,
   getNumberField,
   getStringField,
-} from '../drawer/CRMScreen';
-import TaskDetailsScreen from '../TaskDetailsScreen';
+} from './CRMScreen';
+import TaskDetailsScreen from './TaskDetailsScreen';
 
 type CustomerDetailsScreenProps = {
   ownerId: number;

@@ -5,7 +5,6 @@ import {
   BackHandler,
   FlatList,
   Image,
-  Modal,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -17,17 +16,13 @@ import {
 import {
   type AssignedItemListItem,
   type AssignedItemListResponse,
-  type FocRequestListItem,
-  type FocRequestListResponse,
-  type FocStatusTag,
-  type FocStatusTagResponse,
   type ItemInventoryListItem,
   type ItemInventoryListResponse,
   type UsedItemListItem,
   type UsedItemListResponse,
 } from './adminLegacyApiTypes';
 import { getAllLargeItemList, getAllAssignItemlistTechwise, getUsedItemlist } from '../../api/item/itemService';
-import { getFocList, getFocStatusTagList } from '../../api/focItemRequest/focItemRequestService';
+import FOCScreen from './FOCScreen';
 
 type ItemInventoryTabHostScreenProps = {
   ownerId: number;
@@ -49,31 +44,9 @@ type FetchItemPageOptions = {
   searchParam?: string;
 };
 
-type FetchFocPageOptions = {
-  nextPage: number;
-  replace: boolean;
-  refreshing?: boolean;
-  searchParam?: string;
-  statusId?: number;
-  issueTypeId?: number;
-};
-
-type IssueFilter = {
-  id: number;
-  label: string;
-};
-
 const PAGE_START = 1;
-const FOC_PAGE_SIZE = 10;
 const ITEM_SEARCH_LIMIT = 25;
-const FOC_SEARCH_LIMIT = 10;
 const THEME_PRIMARY = '#c3002f';
-
-const ISSUE_FILTERS: IssueFilter[] = [
-  {id: 0, label: 'Issue'},
-  {id: 1, label: 'Yes'},
-  {id: 2, label: 'No'},
-];
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -161,16 +134,7 @@ const getUsedResultData = (
   return [];
 };
 
-const getFocResultData = (response: FocRequestListResponse) =>
-  response.resultData ?? response.ResultData ?? [];
-
-const getFocTagResultData = (response: FocStatusTagResponse) =>
-  response.resultData ?? response.ResultData ?? [];
-
 const getItemCode = (response: ItemInventoryListResponse) =>
-  String(response.code ?? response.Code ?? '');
-
-const getFocCode = (response: FocRequestListResponse) =>
   String(response.code ?? response.Code ?? '');
 
 const getItemMessage = (response: ItemInventoryListResponse) =>
@@ -188,9 +152,6 @@ const getUsedCode = (response: UsedItemListResponse) =>
 const getUsedMessage = (response: UsedItemListResponse) =>
   String(response.message ?? response.Message ?? '').trim();
 
-const getFocMessage = (response: FocRequestListResponse) =>
-  String(response.message ?? response.Message ?? '').trim();
-
 const getItemString = (
   item: ItemInventoryListItem,
   camelKey: keyof ItemInventoryListItem,
@@ -203,23 +164,6 @@ const getItemString = (
 const getItemStringFromKeys = (
   item: ItemInventoryListItem,
   keys: Array<keyof ItemInventoryListItem>,
-) => {
-  for (const key of keys) {
-    const value = item[key];
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return String(value);
-    }
-  }
-
-  return '';
-};
-
-const getFocString = (
-  item: FocRequestListItem,
-  keys: Array<keyof FocRequestListItem>,
 ) => {
   for (const key of keys) {
     const value = item[key];
@@ -271,21 +215,6 @@ const getUsedString = (
 const getItemNumber = (
   item: ItemInventoryListItem,
   keys: Array<keyof ItemInventoryListItem>,
-) => {
-  for (const key of keys) {
-    const value = item[key];
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-
-  return 0;
-};
-
-const getFocNumber = (
-  item: FocRequestListItem,
-  keys: Array<keyof FocRequestListItem>,
 ) => {
   for (const key of keys) {
     const value = item[key];
@@ -509,123 +438,6 @@ const formatItemDate = (item: ItemInventoryListItem) => {
   return parsedDate.toLocaleDateString('en-GB');
 };
 
-const getFocId = (item: FocRequestListItem) =>
-  getFocNumber(item, [
-    'FocRequestId',
-    'focRequestId',
-    'FOCRequestId',
-    'focRequestedID',
-    'FOCRequestedID',
-    'id',
-    'Id',
-  ]);
-
-const getFocRequestNo = (item: FocRequestListItem) =>
-  getFocString(item, [
-    'requestNo',
-    'RequestNo',
-    'focRequestNo',
-    'FOCRequestNo',
-    'focReqNo',
-    'FOCReqNo',
-  ]) || `#REQ${getFocId(item) || '-'}`;
-
-const getFocIssue = (item: FocRequestListItem) => {
-  const raw =
-    item.issue ??
-    item.Issue ??
-    item.isIssue ??
-    item.IsIssue ??
-    item.isAnyIssue ??
-    item.IsAnyIssue ??
-    item.issueType ??
-    item.IssueType;
-
-  if (typeof raw === 'boolean') {
-    return raw ? 'Yes' : 'No';
-  }
-
-  if (Number(raw) === 1) {
-    return 'Yes';
-  }
-
-  if (Number(raw) === 2) {
-    return 'No';
-  }
-
-  const value = String(raw ?? '').trim();
-  return value || 'No';
-};
-
-const getFocStatus = (item: FocRequestListItem) =>
-  getFocString(item, [
-    'FOCStatusName',
-    'focStatusName',
-    'FocStatusName',
-    'statusName',
-    'StatusName',
-  ]) ||
-  String(item.FOC_ItemList?.[0]?.ItemRequestStatusTagName ?? '').trim() ||
-  'NA';
-
-const getFocNotes = (item: FocRequestListItem) =>
-  getFocString(item, [
-    'notes',
-    'Notes',
-    'note',
-    'Note',
-    'remarks',
-    'Remarks',
-    'description',
-    'Description',
-    'employeeName',
-    'EmployeeName',
-    'userName',
-    'UserName',
-  ]) ||
-  String(
-    item.FOC_ItemList?.[0]?.DescribeIssue ??
-      item.FOC_ItemList?.[0]?.FieldWorkerDescribeIssue ??
-      item.FOC_ItemList?.[0]?.ItemDescription ??
-      item.FOC_ItemList?.[0]?.ProductDescription ??
-      item.FOC_ItemList?.[0]?.ItemRequestName ??
-      '',
-  ).trim() ||
-  'Notes';
-
-const getFocDate = (item: FocRequestListItem) => {
-  const raw = getFocString(item, [
-    'focDate',
-    'FOCDate',
-    'requestDate',
-    'RequestDate',
-    'createdDate',
-    'CreatedDate',
-    'date',
-    'Date',
-  ]);
-  if (!raw) {
-    return '-';
-  }
-
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) {
-    return raw.split('T')[0] || raw;
-  }
-
-  return date.toLocaleDateString('en-GB');
-};
-
-const getFocTaskCode = (item: FocRequestListItem) =>
-  getFocString(item, ['newTaskID', 'NewTaskID', 'taskId', 'TaskId']);
-
-const getStatusTagId = (tag: FocStatusTag) =>
-  Number(tag.focStatusId ?? tag.FocStatusId ?? tag.FOCStatusId ?? 0);
-
-const getStatusTagName = (tag: FocStatusTag) =>
-  String(tag.focStatusName ?? tag.FocStatusName ?? tag.FOCStatusName ?? '')
-    .trim();
-
 const isItemSuccessOrNoData = (response: ItemInventoryListResponse) => {
   const code = getItemCode(response);
   return code === '200' || code === '500' || code === '';
@@ -638,11 +450,6 @@ const isAssignedSuccessOrNoData = (response: AssignedItemListResponse) => {
 
 const isUsedSuccessOrNoData = (response: UsedItemListResponse) => {
   const code = getUsedCode(response);
-  return code === '200' || code === '500' || code === '';
-};
-
-const isFocSuccessOrNoData = (response: FocRequestListResponse) => {
-  const code = getFocCode(response);
   return code === '200' || code === '500' || code === '';
 };
 
@@ -713,29 +520,6 @@ const ItemInventoryTabHostScreen = ({
   const latestItemDetailRequestId = useRef(0);
   const latestAssignedRequestId = useRef(0);
   const latestUsedRequestId = useRef(0);
-
-  const [focRequests, setFocRequests] = useState<FocRequestListItem[]>([]);
-  const [focSearchText, setFocSearchText] = useState('');
-  const [submittedFocSearch, setSubmittedFocSearch] = useState('');
-  const [focPageIndex, setFocPageIndex] = useState(PAGE_START);
-  const [isFocInitialLoading, setIsFocInitialLoading] = useState(false);
-  const [isFocRefreshing, setIsFocRefreshing] = useState(false);
-  const [isFocLoadingMore, setIsFocLoadingMore] = useState(false);
-  const [isFocLastPage, setIsFocLastPage] = useState(false);
-  const [focErrorMessage, setFocErrorMessage] = useState('');
-  const [statusTags, setStatusTags] = useState<Array<{id: number; name: string}>>(
-    [],
-  );
-  const [selectedStatusTag, setSelectedStatusTag] = useState({
-    id: 0,
-    name: 'Status Tag',
-  });
-  const [selectedIssue, setSelectedIssue] = useState<IssueFilter>(
-    ISSUE_FILTERS[0],
-  );
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
-  const latestFocRequestId = useRef(0);
 
   const closeItemDetail = useCallback(() => {
     latestItemDetailRequestId.current += 1;
@@ -873,77 +657,6 @@ const ItemInventoryTabHostScreen = ({
     [ownerId, submittedItemSearch],
   );
 
-  const fetchFocPage = useCallback(
-    async ({
-      nextPage,
-      replace,
-      refreshing = false,
-      searchParam = submittedFocSearch,
-      statusId = selectedStatusTag.id,
-      issueTypeId = selectedIssue.id,
-    }: FetchFocPageOptions) => {
-      if (replace && !refreshing) {
-        setIsFocInitialLoading(true);
-      } else if (refreshing) {
-        setIsFocRefreshing(true);
-      } else {
-        setIsFocLoadingMore(true);
-      }
-
-      setFocErrorMessage('');
-      const requestId = latestFocRequestId.current + 1;
-      latestFocRequestId.current = requestId;
-
-      try {
-        const response = (await getFocList({
-          Pageindex: nextPage,
-          Pagesize: FOC_PAGE_SIZE,
-          ZoneId: 0,
-          OwnerId: ownerId,
-          IssueTypeID: issueTypeId,
-          FOCStatusTagID: statusId,
-          SearchParam: searchParam,
-        })) as FocRequestListResponse;
-
-        if (requestId !== latestFocRequestId.current) {
-          return;
-        }
-
-        if (!isFocSuccessOrNoData(response)) {
-          throw new Error(getFocMessage(response) || 'Unable to load requests.');
-        }
-
-        const nextRequests = getFocResultData(response);
-        setFocRequests(previous =>
-          replace ? nextRequests : [...previous, ...nextRequests],
-        );
-        setFocPageIndex(nextPage);
-        setIsFocLastPage(nextRequests.length === 0);
-      } catch (error) {
-        if (requestId !== latestFocRequestId.current) {
-          return;
-        }
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Unable to load requested items right now.';
-        setFocErrorMessage(message);
-        if (replace) {
-          setFocRequests([]);
-          setIsFocLastPage(true);
-        }
-      } finally {
-        if (requestId === latestFocRequestId.current) {
-          setIsFocInitialLoading(false);
-          setIsFocRefreshing(false);
-          setIsFocLoadingMore(false);
-        }
-      }
-    },
-    [ownerId, selectedIssue.id, selectedStatusTag.id, submittedFocSearch],
-  );
-
   const loadFirstItemPage = useCallback(
     (refreshing = false, searchParam = submittedItemSearch) => {
       fetchItemPage({
@@ -956,68 +669,11 @@ const ItemInventoryTabHostScreen = ({
     [fetchItemPage, submittedItemSearch],
   );
 
-  const loadFirstFocPage = useCallback(
-    (
-      refreshing = false,
-      searchParam = submittedFocSearch,
-      statusId = selectedStatusTag.id,
-      issueTypeId = selectedIssue.id,
-    ) => {
-      fetchFocPage({
-        nextPage: PAGE_START,
-        replace: true,
-        refreshing,
-        searchParam,
-        statusId,
-        issueTypeId,
-      });
-    },
-    [fetchFocPage, selectedIssue.id, selectedStatusTag.id, submittedFocSearch],
-  );
-
   useEffect(() => {
     if (activeTab === 'primary' && !isFieldWorker) {
       loadFirstItemPage();
     }
   }, [activeTab, isFieldWorker, loadFirstItemPage]);
-
-  useEffect(() => {
-    if (activeTab === 'requested') {
-      loadFirstFocPage();
-    }
-  }, [activeTab, loadFirstFocPage]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadStatusTags = async () => {
-      try {
-        const response = (await getFocStatusTagList()) as FocStatusTagResponse;
-        if (!isMounted) {
-          return;
-        }
-
-        setStatusTags(
-          getFocTagResultData(response)
-            .map(tag => ({
-              id: getStatusTagId(tag),
-              name: getStatusTagName(tag),
-            }))
-            .filter(tag => tag.id > 0 && tag.name),
-        );
-      } catch {
-        if (isMounted) {
-          setStatusTags([]);
-        }
-      }
-    };
-
-    loadStatusTags();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const submitItemSearch = () => {
     setSubmittedItemSearch(itemSearchText.trim());
@@ -1028,31 +684,6 @@ const ItemInventoryTabHostScreen = ({
     if (submittedItemSearch) {
       setSubmittedItemSearch('');
     }
-  };
-
-  const submitFocSearch = () => {
-    setSubmittedFocSearch(focSearchText.trim());
-  };
-
-  const clearFocSearch = () => {
-    setFocSearchText('');
-    if (submittedFocSearch) {
-      setSubmittedFocSearch('');
-    }
-  };
-
-  const refreshFocList = () => {
-    setFocSearchText('');
-    setSubmittedFocSearch('');
-    setSelectedStatusTag({id: 0, name: 'Status Tag'});
-    setSelectedIssue(ISSUE_FILTERS[0]);
-    fetchFocPage({
-      nextPage: PAGE_START,
-      replace: true,
-      searchParam: '',
-      statusId: 0,
-      issueTypeId: 0,
-    });
   };
 
   const handleItemActionPress = (label: string, item: ItemInventoryListItem) => {
@@ -1176,19 +807,6 @@ const ItemInventoryTabHostScreen = ({
     }
   };
 
-  const handleFocPress = (item: FocRequestListItem) => {
-    Alert.alert(
-      getFocRequestNo(item),
-      [`Status: ${getFocStatus(item)}`, `Issue: ${getFocIssue(item)}`].join(
-        '\n',
-      ),
-    );
-  };
-
-  const handleFocDeletePress = (item: FocRequestListItem) => {
-    Alert.alert('Delete request', `${getFocRequestNo(item)}\nID: ${getFocId(item) || '-'}`);
-  };
-
   const renderItemInventoryRow = ({item}: {item: ItemInventoryListItem}) => {
     const itemId = getItemId(item);
     const imageUri = getSafeImageUri(item);
@@ -1260,51 +878,6 @@ const ItemInventoryTabHostScreen = ({
       </TouchableOpacity>
     );
   };
-
-  const renderFocRequestRow = ({item}: {item: FocRequestListItem}) => (
-    <TouchableOpacity
-      activeOpacity={0.78}
-      style={styles.focCard}
-      onPress={() => handleFocPress(item)}>
-      <View style={styles.focTopRow}>
-        <View style={styles.focStatusBadge}>
-          <Text numberOfLines={1} style={styles.focStatusText}>
-            {getFocStatus(item).toUpperCase()}
-          </Text>
-        </View>
-        <Text numberOfLines={2} style={styles.focRequestNo}>
-          {getFocRequestNo(item)}
-        </Text>
-        <Text style={styles.focLabel}>Issue:</Text>
-        <Text numberOfLines={1} style={styles.focIssue}>
-          {getFocIssue(item)}
-        </Text>
-        <Text style={styles.focLabel}>Date</Text>
-        <Text numberOfLines={1} style={styles.focDate}>
-          {getFocDate(item)}
-        </Text>
-      </View>
-
-      {getFocTaskCode(item) ? (
-        <Text numberOfLines={1} style={styles.focTaskCode}>
-          {getFocTaskCode(item)}
-        </Text>
-      ) : null}
-
-      <View style={styles.focNotesRow}>
-        <Text style={styles.focNotesLabel}>Notes</Text>
-        <Text numberOfLines={4} style={styles.focNotes}>
-          {getFocNotes(item)}
-        </Text>
-        <Pressable
-          hitSlop={10}
-          style={styles.focDeleteButton}
-          onPress={() => handleFocDeletePress(item)}>
-          <DeleteIcon />
-        </Pressable>
-      </View>
-    </TouchableOpacity>
-  );
 
   const renderItemListTab = () => (
     <View style={styles.card}>
@@ -1714,177 +1287,6 @@ const ItemInventoryTabHostScreen = ({
     );
   };
 
-  const renderRequestedTab = () => (
-    <View style={styles.card}>
-      <View style={styles.focRequestRow}>
-        {!isFieldWorker ? (
-          <View style={styles.focSearchBox}>
-            <Text style={styles.searchIcon}>Search</Text>
-            <TextInput
-              value={focSearchText}
-              onChangeText={value => {
-                const nextValue = value.slice(0, FOC_SEARCH_LIMIT);
-                setFocSearchText(nextValue);
-                if (!nextValue.trim() && submittedFocSearch) {
-                  setSubmittedFocSearch('');
-                }
-              }}
-              onSubmitEditing={submitFocSearch}
-              placeholder="Search Employee Name"
-              placeholderTextColor="#8C8C8C"
-              style={styles.searchInput}
-              returnKeyType="search"
-            />
-            {focSearchText ? (
-              <Pressable hitSlop={10} onPress={clearFocSearch}>
-                <Text style={styles.clearText}>x</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.requestButton}
-            onPress={() =>
-              Alert.alert('Request item', 'TaskRequestItems_FW is not migrated yet.')
-            }>
-            <Text style={styles.requestButtonText}>+ Request</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <View style={styles.focFilterRow}>
-        <Pressable
-          style={styles.focFilter}
-          onPress={() => setIsStatusModalOpen(true)}>
-          <Text numberOfLines={1} style={styles.focFilterText}>
-            {selectedStatusTag.name}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={styles.focFilter}
-          onPress={() => setIsIssueModalOpen(true)}>
-          <Text numberOfLines={1} style={styles.focFilterText}>
-            {selectedIssue.label}
-          </Text>
-        </Pressable>
-        <Pressable style={styles.refreshListButton} onPress={refreshFocList}>
-          <Text style={styles.refreshListText}>Refresh List</Text>
-          <Text style={styles.refreshListIcon}>↻</Text>
-        </Pressable>
-      </View>
-
-      {isFocInitialLoading ? (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading requested items...</Text>
-        </View>
-      ) : null}
-
-      <FlatList
-        data={focRequests}
-        keyExtractor={(item, index) => `${getFocId(item) || index}-${index}`}
-        renderItem={renderFocRequestRow}
-        contentContainerStyle={styles.focListContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={isFocRefreshing}
-            colors={[THEME_PRIMARY]}
-            tintColor={THEME_PRIMARY}
-            onRefresh={() => loadFirstFocPage(true)}
-          />
-        }
-        ListEmptyComponent={
-          isFocInitialLoading ? null : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>
-                {focErrorMessage ? 'Unable to Load Requests' : 'No Result Found'}
-              </Text>
-              <Text style={styles.emptyText}>
-                {focErrorMessage ||
-                  'Try another search, status tag, issue filter, or refresh.'}
-              </Text>
-            </View>
-          )
-        }
-        ListFooterComponent={
-          isFocLoadingMore ? (
-            <View style={styles.listFooter}>
-              <ActivityIndicator color={THEME_PRIMARY} size="small" />
-            </View>
-          ) : null
-        }
-        onEndReachedThreshold={0.35}
-        onEndReached={() => {
-          if (!isFocInitialLoading && !isFocLoadingMore && !isFocLastPage) {
-            fetchFocPage({nextPage: focPageIndex + 1, replace: false});
-          }
-        }}
-      />
-
-      <Modal
-        visible={isStatusModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsStatusModalOpen(false)}>
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setIsStatusModalOpen(false)}>
-          <Pressable style={styles.modalPanel}>
-            <Text style={styles.modalTitle}>Status Tag</Text>
-            <TouchableOpacity
-              style={styles.modalItem}
-              onPress={() => {
-                setSelectedStatusTag({id: 0, name: 'Status Tag'});
-                setIsStatusModalOpen(false);
-              }}>
-              <Text style={styles.modalItemText}>All Status Tags</Text>
-            </TouchableOpacity>
-            {statusTags.length === 0 ? (
-              <Text style={styles.modalHint}>No status tags returned.</Text>
-            ) : (
-              statusTags.map(tag => (
-                <TouchableOpacity
-                  key={tag.id}
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setSelectedStatusTag(tag);
-                    setIsStatusModalOpen(false);
-                  }}>
-                  <Text style={styles.modalItemText}>{tag.name}</Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal
-        visible={isIssueModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsIssueModalOpen(false)}>
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setIsIssueModalOpen(false)}>
-          <Pressable style={styles.modalPanel}>
-            <Text style={styles.modalTitle}>Issue</Text>
-            {ISSUE_FILTERS.map(issue => (
-              <TouchableOpacity
-                key={issue.id}
-                style={styles.modalItem}
-                onPress={() => {
-                  setSelectedIssue(issue);
-                  setIsIssueModalOpen(false);
-                }}>
-                <Text style={styles.modalItemText}>{issue.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </View>
-  );
-
   const renderPlaceholderTab = () => (
     <View style={styles.card}>
       <View style={styles.emptyState}>
@@ -1931,7 +1333,7 @@ const ItemInventoryTabHostScreen = ({
           </View>
 
           {activeTab === 'requested'
-            ? renderRequestedTab()
+            ? <FOCScreen ownerId={ownerId} isFieldWorker={isFieldWorker} />
             : isFieldWorker
               ? renderPlaceholderTab()
               : renderItemListTab()}
