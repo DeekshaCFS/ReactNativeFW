@@ -44,7 +44,11 @@ export type AdminTabParamList = {
   // Quick-add "Add Enquiry" lives on the Home tab but opens a CRM sheet, so
   // the signal crosses routes as a param. Any changing value re-triggers it.
   CRM: { addEnquiryTrigger?: number } | undefined;
-  Employee: undefined;
+  // `openLeaveTabTrigger` mirrors `addAmcTrigger`/`addEnquiryTrigger` above --
+  // the dashboard's "Today's Attendance" card sends this from the Home tab
+  // to land directly on the Leave sub-tab here (matches Java's Attendance
+  // tap, which opens LeaveTabHost/PersonalLeaveTabHost).
+  Employee: { openLeaveTabTrigger?: number } | undefined;
 };
 
 const Tab = createBottomTabNavigator<AdminTabParamList>();
@@ -200,10 +204,11 @@ export default function AdminTabs() {
         </Tab.Screen>
 
         <Tab.Screen name="Employee">
-          {() => (
+          {({ route }) => (
             <EmployeeManagementScreen
               ownerId={ownerId}
               contentTopOffset={headerOffset}
+              openLeaveTabTrigger={route.params?.openLeaveTabTrigger}
             />
           )}
         </Tab.Screen>

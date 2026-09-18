@@ -13,11 +13,12 @@ import {
 import {getDashboardData} from '../../api/dashboard/dashboardService';
 import {getPassbookForDashboard} from '../../api/passbook/passbookService';
 import {getAmcDashboardCountDetails} from '../../api/amc/amcService';
+import {ms, sp} from '../../utils/responsive';
 
 export type DayFilter = 'Today' | 'Week' | 'Month' | 'Year';
 
-const RING_SIZE = 170;
-const RING_THICKNESS = 16;
+const RING_SIZE = ms(170);
+const RING_THICKNESS = ms(16);
 const RING_SEGMENTS = 60;
 const RING_RADIUS = RING_SIZE / 2 - RING_THICKNESS / 2;
 const RING_SEGMENT_ANGLE = 360 / RING_SEGMENTS;
@@ -48,9 +49,26 @@ type OwnerDashboardScreenProps = {
   ownerId: number;
   filter: DayFilter;
   onCreateTask?: () => void;
+  // Matches Java's Earnings/mEarnings.setOnClickListener — both the value
+  // and the ⓘ icon navigate to Passbook (HomePassbookFragmentNew).
+  onEarningsPress?: () => void;
+  // Matches Java's mTextViewAMCStatus/mAMC.setOnClickListener — both
+  // navigate to the AMC list (AMCListFragment).
+  onAmcStatusPress?: () => void;
+  // Matches Java's mAttendance/mAttend.setOnClickListener — navigates to
+  // Leave management (LeaveTabHost / PersonalLeaveTabHost for Manager and
+  // Zone Head roles), not a dedicated attendance screen.
+  onAttendancePress?: () => void;
 };
 
-const OwnerDashboardScreen = ({ownerId, filter, onCreateTask}: OwnerDashboardScreenProps) => {
+const OwnerDashboardScreen = ({
+  ownerId,
+  filter,
+  onCreateTask,
+  onEarningsPress,
+  onAmcStatusPress,
+  onAttendancePress,
+}: OwnerDashboardScreenProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [taskStats, setTaskStats] = useState({
     complete: 0,
@@ -114,6 +132,16 @@ const OwnerDashboardScreen = ({ownerId, filter, onCreateTask}: OwnerDashboardScr
         const dashboardData = getResultData<Record<string, unknown>>(dashboardResponse);
         const earningData = getResultData<Record<string, unknown>>(earningResponse);
         const amcData = getResultData<Record<string, unknown>>(amcResponse);
+
+        // TEMP DEBUG — remove once we've confirmed what the "year" filter
+        // actually returns. Compares the raw AMC response against what
+        // Java's FWLogger line logs (amcDashboardCount.getMessage()) for
+        // the same filter/account so we can tell a data issue apart from
+        // a parsing issue.
+        if (__DEV__ && filter === 'Year') {
+          console.log('[AMC][Year] raw response:', JSON.stringify(amcResponse));
+          console.log('[AMC][Year] resolved amcData:', amcData);
+        }
 
         const tasksCountList =
           ((dashboardData?.tasksCount ?? dashboardData?.TasksCount) as
@@ -192,21 +220,11 @@ const OwnerDashboardScreen = ({ownerId, filter, onCreateTask}: OwnerDashboardScr
         // AMCDashboardCountResultData uses PascalCase (TotalUpcomming is the
         // actual, misspelled field name on the backend), so the camelCase
         // keys here never matched and AMC Status always rendered as 0s.
-        // Java's callAMCStatusCountApi() only updates the AMC views when
-        // the backend reports a real success — on any other Code (e.g. the
-        // 500/NullReferenceException the backend currently throws for the
-        // "year" InputFilter) it leaves whatever was already on screen
-        // untouched rather than zeroing it out. Match that here.
-        const amcResponseRecord = amcResponse as Record<string, unknown> | null;
-        const amcCode = String(amcResponseRecord?.Code ?? '').toLowerCase();
-        const amcMessage = String(amcResponseRecord?.Message ?? '').toLowerCase();
-        if (amcCode === '200' && amcMessage === 'success request') {
-          setAmcStatus({
-            upcoming: toNumber(amcData?.TotalUpcomming ?? amcData?.totalUpcomming ?? amcData?.totalUpcoming),
-            renewal: toNumber(amcData?.TotalRenewal ?? amcData?.totalRenewal),
-            expired: toNumber(amcData?.TotalExpired ?? amcData?.totalExpired),
-          });
-        }
+        setAmcStatus({
+          upcoming: toNumber(amcData?.TotalUpcomming ?? amcData?.totalUpcomming ?? amcData?.totalUpcoming),
+          renewal: toNumber(amcData?.TotalRenewal ?? amcData?.totalRenewal),
+          expired: toNumber(amcData?.TotalExpired ?? amcData?.totalExpired),
+        });
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unable to load dashboard data';
@@ -316,14 +334,14 @@ const OwnerDashboardScreen = ({ownerId, filter, onCreateTask}: OwnerDashboardScr
         </View>
 
         <View style={styles.metricsRow}>
-          <View style={styles.metricBlock}>
+          <Pressable style={styles.metricBlock} onPress={onEarningsPress}>
             <View style={styles.metricLabelRow}>
               <Text style={styles.metricLabel}>Earnings</Text>
               <Text style={styles.infoIcon}>ⓘ</Text>
             </View>
             <Text style={styles.metricValueGreen}>Rs. {earningAmount.toFixed(0)}</Text>
-          </View>
-          <View style={styles.metricBlock}>
+          </Pressable>
+          <Pressable style={styles.metricBlock} onPress={onAmcStatusPress}>
             <View style={[styles.metricLabelRow, styles.metricLabelRowCenter]}>
               <Text style={styles.metricLabelCenter}>AMC Status</Text>
               <Text style={styles.infoIcon}>ⓘ</Text>
@@ -340,7 +358,7 @@ const OwnerDashboardScreen = ({ownerId, filter, onCreateTask}: OwnerDashboardScr
               <Text style={styles.metricValuePrimary}>{amcStatus.expired}</Text>
               <Text style={styles.metricHintPrimary}> Expired</Text>
             </View>
-          </View>
+          </Pressable>
         </View>
 
         <View style={styles.divider} />
@@ -369,7 +387,7 @@ const OwnerDashboardScreen = ({ownerId, filter, onCreateTask}: OwnerDashboardScr
         </View>
       </View>
 
-      <View style={styles.card}>
+      <Pressable style={styles.card} onPress={onAttendancePress}>
         <View style={styles.rowBetween}>
           <Text style={styles.sectionTitle}>Today's Attendance</Text>
           <Text style={styles.infoIcon}>ⓘ</Text>
@@ -392,7 +410,7 @@ const OwnerDashboardScreen = ({ownerId, filter, onCreateTask}: OwnerDashboardScr
             <Text style={styles.attendanceLabel}>On Leave</Text>
           </View>
         </View>
-      </View>
+      </Pressable>
       {isLoading ? (
         <View style={styles.loaderRow}>
           <ActivityIndicator color="#c3002f" />
@@ -405,14 +423,14 @@ const OwnerDashboardScreen = ({ownerId, filter, onCreateTask}: OwnerDashboardScr
 
 const styles = StyleSheet.create({
   container: {
-    padding: 2,
-    paddingBottom: 2,
+    padding: ms(2),
+    paddingBottom: ms(2),
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 14,
-    marginBottom: 10,
+    borderRadius: ms(20),
+    padding: ms(14),
+    marginBottom: ms(10),
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
@@ -420,21 +438,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: ms(8),
   },
   sectionTitle: {
     color: '#111827',
-    fontSize: 15,
+    fontSize: sp(15),
     fontWeight: '700',
   },
   muted: {
     color: '#6B7280',
-    fontSize: 13,
+    fontSize: sp(13),
   },
   valueStrong: {
     color: '#111827',
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: sp(13),
   },
   showingDataRow: {
     flexDirection: 'row',
@@ -442,24 +460,24 @@ const styles = StyleSheet.create({
   },
   ctaButton: {
     backgroundColor: '#c3002f',
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    borderRadius: ms(24),
+    paddingHorizontal: ms(18),
+    paddingVertical: ms(10),
   },
   ctaButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: sp(13),
   },
   infoIcon: {
     color: '#9CA3AF',
-    fontSize: 13,
-    marginLeft: 4,
+    fontSize: sp(13),
+    marginLeft: ms(4),
   },
   metricsRow: {
-    marginTop: 16,
+    marginTop: ms(16),
     flexDirection: 'row',
-    gap: 12,
+    gap: ms(12),
   },
   metricBlock: {
     flex: 1,
@@ -483,13 +501,13 @@ const styles = StyleSheet.create({
   metricValueGreen: {
     color: '#10B981',
     fontWeight: '700',
-    fontSize: 22,
-    marginTop: 6,
+    fontSize: sp(22),
+    marginTop: ms(6),
   },
   metricInline: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 6,
+    marginTop: ms(6),
   },
   metricValueOrange: {
     color: '#F59E0B',
@@ -518,13 +536,13 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#E5E7EB',
-    marginVertical: 12,
+    marginVertical: ms(12),
   },
   taskChartRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 18,
+    gap: ms(10),
+    marginTop: ms(18),
   },
   taskChartLeft: {
     flex: 0.56,
@@ -548,40 +566,40 @@ const styles = StyleSheet.create({
     borderRadius: RING_THICKNESS / 2,
   },
   taskChartTotal: {
-    fontSize: 30,
+    fontSize: sp(30),
     fontWeight: '800',
     color: '#111827',
-    lineHeight: 34,
+    lineHeight: sp(34),
   },
   taskChartTotalLabel: {
-    fontSize: 14,
+    fontSize: sp(14),
     color: '#4B5563',
-    marginTop: 2,
+    marginTop: ms(2),
     fontWeight: '600',
   },
   taskChartLegend: {
     flex: 0.44,
     justifyContent: 'center',
-    paddingVertical: 2,
+    paddingVertical: ms(2),
   },
   taskLegendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: ms(10),
   },
   taskLegendValue: {
-    minWidth: 24,
-    fontSize: 15,
+    minWidth: ms(24),
+    fontSize: sp(15),
     fontWeight: '700',
   },
   taskLegendLabel: {
-    marginLeft: 10,
-    fontSize: 13,
+    marginLeft: ms(10),
+    fontSize: sp(13),
     fontWeight: '700',
   },
   summaryRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: ms(12),
   },
   summaryBlock: {
     flex: 1,
@@ -589,47 +607,47 @@ const styles = StyleSheet.create({
   },
   summaryTitle: {
     color: '#6B7280',
-    fontSize: 13,
+    fontSize: sp(13),
     textAlign: 'center',
     fontWeight: '700',
   },
   summaryValue: {
-    marginTop: 8,
+    marginTop: ms(8),
     color: '#111827',
-    fontSize: 14,
+    fontSize: sp(14),
   },
   ratingRow: {
-    marginTop: 8,
+    marginTop: ms(8),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: ms(6),
   },
   ratingValue: {
     color: '#111827',
-    fontSize: 14,
+    fontSize: sp(14),
   },
   starsRow: {
     flexDirection: 'row',
   },
   starFilled: {
     color: '#c3002f',
-    fontSize: 14,
-    marginHorizontal: 1,
+    fontSize: sp(14),
+    marginHorizontal: ms(1),
   },
   starEmpty: {
     color: '#F3D0D6',
-    fontSize: 14,
-    marginHorizontal: 1,
+    fontSize: sp(14),
+    marginHorizontal: ms(1),
   },
   attendanceRow: {
     flexDirection: 'row',
-    marginTop: 14,
-    gap: 8,
+    marginTop: ms(14),
+    gap: ms(8),
   },
   attendanceBox: {
     flex: 1,
-    borderRadius: 12,
-    minHeight: 78,
+    borderRadius: ms(12),
+    minHeight: ms(78),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -648,25 +666,25 @@ const styles = StyleSheet.create({
   attendanceCount: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 20,
+    fontSize: sp(20),
   },
   attendanceLabel: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: sp(12),
     fontWeight: '700',
-    marginTop: 4,
+    marginTop: ms(4),
   },
   loaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: ms(4),
+    marginBottom: ms(8),
   },
   loaderText: {
-    marginLeft: 8,
+    marginLeft: ms(8),
     color: '#4B5563',
-    fontSize: 12,
+    fontSize: sp(12),
   },
 });
 

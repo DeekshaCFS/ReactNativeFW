@@ -37,6 +37,10 @@ type EmployeeManagementScreenProps = {
   // Settings this screen already sits under a native stack header, which
   // reserves its own space, so the default (0) is correct there.
   contentTopOffset?: number;
+  // Set (to a changing value, e.g. Date.now()) by AdminTabs when the
+  // dashboard's "Today's Attendance" card is tapped, so this screen opens
+  // directly on the Leave tab instead of the default Employee tab.
+  openLeaveTabTrigger?: number;
 };
 
 type EmployeeTab = 'employee' | 'leave';
@@ -173,8 +177,18 @@ const getLeaveEmployeeName = (item: LeaveListItem) =>
 const EmployeeManagementScreen = ({
   ownerId,
   contentTopOffset = 0,
+  openLeaveTabTrigger,
 }: EmployeeManagementScreenProps) => {
   const [activeTab, setActiveTab] = useState<EmployeeTab>('employee');
+
+  // Jump to the Leave tab when the dashboard's Attendance card sends a
+  // (changing) trigger value -- fires on first mount too if a trigger is
+  // already present, same pattern as addAmcTrigger/addEnquiryTrigger.
+  useEffect(() => {
+    if (openLeaveTabTrigger) {
+      setActiveTab('leave');
+    }
+  }, [openLeaveTabTrigger]);
   const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
   const [leaves, setLeaves] = useState<LeaveListItem[]>([]);
   const [employeeTypes, setEmployeeTypes] = useState<FilterOption[]>([]);
@@ -890,11 +904,9 @@ const EmployeeManagementScreen = ({
         />
       </View>
       <View style={styles.emptyState}>
-        <Image
-          source={require('../../../assets/images/noresultfound.png')}
-          style={styles.emptyImage}
-          resizeMode="contain"
-        />
+        <Text style={styles.emptyIcon}>!</Text>
+        <Text style={styles.emptyTitle}>No Result Found</Text>
+        <Text style={styles.emptyText}>Leave request data is not available.</Text>
       </View>
     </View>
   );
@@ -994,11 +1006,6 @@ const EmployeeManagementScreen = ({
 
   return (
     <View style={styles.shell}>
-      {/* The hamburger/title/notification row used to be drawn here; it's
-          now the shared AppHeader rendered once by AdminTabs above the tab
-          bar (this screen is also pushed standalone from Settings, which
-          gets its own native stack header there). The tab row below is
-          offset by the header's height so it doesn't render underneath it. */}
       <View style={[styles.tabRow, { marginTop: contentTopOffset }]}>
         <Pressable
           style={[styles.tabButton, activeTab === 'employee' ? styles.tabActive : null]}
@@ -1565,6 +1572,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 48,
   },
+  emptyImage: {
+    width: 220,
+    height: 220,
+  },
   emptyIcon: {
     width: 42,
     height: 42,
@@ -1575,10 +1586,6 @@ const styles = StyleSheet.create({
     lineHeight: 42,
     fontSize: 24,
     fontWeight: '900',
-  },
-  emptyImage: {
-    width: 220,
-    height: 220,
   },
   emptyTitle: {
     marginTop: 14,

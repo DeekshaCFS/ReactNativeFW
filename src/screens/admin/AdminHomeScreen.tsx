@@ -19,6 +19,7 @@ import type {UserDetails, UserDetailsResultData} from '../../api/users/users.typ
 import {useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import { HEADER_CONTENT_HEIGHT } from '../../components/AppHeader';
+import { ms, sp } from '../../utils/responsive';
 import {
   getCurrentUserProfile,
   getCurrentPreferredLanguage,
@@ -56,6 +57,10 @@ const THEME_PRIMARY = '#c3002f';
 const OwnerDashboard = OwnerDashboardScreen as React.ComponentType<{
   ownerId: number;
   filter: DayFilter;
+  onCreateTask?: () => void;
+  onEarningsPress?: () => void;
+  onAmcStatusPress?: () => void;
+  onAttendancePress?: () => void;
 }>;
 
 const DASHBOARD_FILTERS: DayFilter[] = ['Today', 'Week', 'Month', 'Year'];
@@ -100,7 +105,14 @@ const formatPrimaryContact = (userDetails: UserDetailsResultData | null) => {
   return getUserFieldString(userDetails, 'Email') || 'No contact details';
 };
 
-const AdminHomeScreen = () => {
+type AdminHomeScreenProps = {
+  onCreateTask?: () => void;
+};
+
+// NOTE: AdminTabs mounts this as `<AdminHomeScreen onCreateTask={...} />`,
+// but this component previously took no props at all, so that handler was
+// silently dropped -- the dashboard's "Create Task" button called nothing.
+const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
   const navigation =
     useNavigation<BottomTabNavigationProp<AdminTabParamList, 'Home'>>();
   const insets = useSafeAreaInsets();
@@ -313,7 +325,26 @@ const AdminHomeScreen = () => {
       );
     }
 
-    return <OwnerDashboard ownerId={ownerId} filter={dashboardFilter} />;
+    return (
+      <OwnerDashboard
+        ownerId={ownerId}
+        filter={dashboardFilter}
+        onCreateTask={onCreateTask}
+        // Matches Java's Earnings tap -> HomePassbookFragmentNew: jump to
+        // the Passbook section of this same screen.
+        onEarningsPress={() => setSelectedDrawerLabel('Passbook')}
+        // Matches Java's AMC Status tap -> AMCListFragment.
+        onAmcStatusPress={() => setSelectedDrawerLabel('AMC')}
+        // Matches Java's Attendance tap -> LeaveTabHost / PersonalLeaveTabHost
+        // (role-based in Java; the RN port already unifies both into a single
+        // Leave tab inside Employee Management, so we route there for every
+        // role). This is a cross-tab jump, not a drawerSection switch, since
+        // Leave lives on the Employee tab, not inside this Home tab.
+        onAttendancePress={() =>
+          navigation.navigate('Employee', { openLeaveTabTrigger: Date.now() })
+        }
+      />
+    );
   };
 
   return (
@@ -442,26 +473,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F3F5',
   },
   toolbar: {
-    height: 48,
+    height: ms(48),
     backgroundColor: THEME_PRIMARY,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
+    paddingHorizontal: ms(8),
   },
   toolbarIconButton: {
-    width: 40,
-    height: 40,
+    width: ms(40),
+    height: ms(40),
     alignItems: 'center',
     justifyContent: 'center',
   },
   toolbarTitle: {
     color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: sp(17),
     fontWeight: '700',
   },
   toolbarRightSpace: {
-    width: 40,
+    width: ms(40),
   },
   toolbarRightIcons: {
     flexDirection: 'row',
@@ -469,29 +500,29 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: THEME_PRIMARY,
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 10 : 14,
-    paddingBottom: 12,
+    paddingHorizontal: ms(16),
+    paddingTop: Platform.OS === 'ios' ? ms(10) : ms(14),
+    paddingBottom: ms(12),
   },
   headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: ms(12),
   },
   headerName: {
     flexShrink: 1,
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '700',
     color: '#FFFFFF',
   },
   headerFilterControl: {
-    minWidth: 108,
+    minWidth: ms(108),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.45)',
-    borderRadius: 8,
-    height: 34,
-    paddingHorizontal: 10,
+    borderRadius: ms(8),
+    height: ms(34),
+    paddingHorizontal: ms(10),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -499,41 +530,41 @@ const styles = StyleSheet.create({
   },
   headerFilterLabel: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '600',
   },
   headerFilterArrow: {
     color: '#FFFFFF',
-    fontSize: 10,
-    marginLeft: 8,
+    fontSize: sp(10),
+    marginLeft: ms(8),
   },
   dashboardFilterBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'flex-end',
-    paddingTop: Platform.OS === 'ios' ? 108 : 118,
-    paddingRight: 16,
+    paddingTop: Platform.OS === 'ios' ? ms(108) : ms(118),
+    paddingRight: ms(16),
   },
   dashboardFilterPanel: {
-    width: 140,
+    width: ms(140),
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 6,
+    borderRadius: ms(12),
+    paddingVertical: ms(6),
     elevation: 6,
     shadowColor: '#000000',
     shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: ms(8),
+    shadowOffset: { width: 0, height: ms(4) },
   },
   dashboardFilterItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: ms(10),
+    paddingHorizontal: ms(16),
   },
   dashboardFilterItemSelected: {
     backgroundColor: '#FCE9ED',
   },
   dashboardFilterItemText: {
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '600',
     color: '#111827',
   },
@@ -541,14 +572,14 @@ const styles = StyleSheet.create({
     color: THEME_PRIMARY,
   },
   headerLoaderRow: {
-    marginTop: 10,
+    marginTop: ms(10),
     flexDirection: 'row',
     alignItems: 'center',
   },
   headerLoaderText: {
-    marginLeft: 8,
+    marginLeft: ms(8),
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: sp(12),
   },
   homeScrollView: {
     flex: 1,
@@ -556,8 +587,8 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flexGrow: 1,
-    padding: 16,
-    paddingBottom: 100,
+    padding: ms(16),
+    paddingBottom: ms(100),
   },
   taskContentContainer: {
     flex: 1,
@@ -566,21 +597,21 @@ const styles = StyleSheet.create({
   },
   contentCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: ms(12),
+    padding: ms(16),
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
   contentTitle: {
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '700',
     color: '#111827',
   },
   contentText: {
-    fontSize: 14,
+    fontSize: sp(14),
     color: '#4B5563',
-    marginTop: 8,
-    lineHeight: 20,
+    marginTop: ms(8),
+    lineHeight: sp(20),
   },
 });
 
