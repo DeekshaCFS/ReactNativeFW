@@ -10,7 +10,7 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 
 import AdminTabs, { AdminTabParamList } from './AdminTabs';
 
-import AdminProfileScreen from '../screens/admin/drawer/AdminProfileScreen';
+import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
 import EmployeeManagementScreen from '../screens/admin/EmployeeManagementScreen';
 import TaskDetailsScreen from '../screens/admin/TaskDetailsScreen';
 import type {TasksListResultData} from '../api/task/task.types';

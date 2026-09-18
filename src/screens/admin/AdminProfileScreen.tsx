@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '../../../theme/theme';
+import { COLORS } from '../../theme/theme';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,9 +16,9 @@ import {
   updateUser as updateUserProfile,
   authenticateMobile,
   authenticateEmail,
-} from '../../../api/users/usersService';
-import type { UserDetailsResultData, UpdateUserResultData } from '../../../api/users/users.types';
-import { ms, sp, scale, vs } from '../../../utils/responsive';
+} from '../../api/users/usersService';
+import type { UserDetailsResultData, UpdateUserResultData } from '../../api/users/users.types';
+import { ms, sp, scale, vs } from '../../utils/responsive';
 
 type UserResultData = UserDetailsResultData;
 
