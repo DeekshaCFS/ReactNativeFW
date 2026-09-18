@@ -55,6 +55,7 @@ const THEME_PRIMARY = '#c3002f';
 const OwnerDashboard = OwnerDashboardScreen as React.ComponentType<{
   ownerId: number;
   filter: DayFilter;
+  onCreateTask?: () => void;
 }>;
 
 const DASHBOARD_FILTERS: DayFilter[] = ['Today', 'Week', 'Month', 'Year'];
@@ -99,7 +100,11 @@ const formatPrimaryContact = (userDetails: UserDetailsResultData | null) => {
   return getUserFieldString(userDetails, 'Email') || 'No contact details';
 };
 
-const AdminHomeScreen = () => {
+type AdminHomeScreenProps = {
+  onCreateTask?: () => void;
+};
+
+const AdminHomeScreen = ({onCreateTask}: AdminHomeScreenProps) => {
   const navigation =
     useNavigation<BottomTabNavigationProp<AdminTabParamList, 'Home'>>();
   const insets = useSafeAreaInsets();
@@ -312,7 +317,13 @@ const AdminHomeScreen = () => {
       );
     }
 
-    return <OwnerDashboard ownerId={ownerId} filter={dashboardFilter} />;
+    return (
+      <OwnerDashboard
+        ownerId={ownerId}
+        filter={dashboardFilter}
+        onCreateTask={onCreateTask}
+      />
+    );
   };
 
   return (

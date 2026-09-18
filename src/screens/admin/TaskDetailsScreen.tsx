@@ -146,7 +146,7 @@ const TaskDetailsScreen = ({
     const rotateLoop = Animated.loop(
       Animated.timing(avatarRotation, {
         toValue: 1,
-        duration: 2500,
+        duration: 10000,
         easing: Easing.linear,
         useNativeDriver: true,
       }),

@@ -164,7 +164,11 @@ export default function AdminTabs() {
           );
         }}
       >
-        <Tab.Screen name="Home" component={AdminHomeScreen} />
+        <Tab.Screen name="Home">
+          {() => (
+            <AdminHomeScreen onCreateTask={() => setIsAddTaskModalOpen(true)} />
+          )}
+        </Tab.Screen>
 
         {/* month/year are deliberately NOT passed: the screen owns its own
             month picker when uncontrolled. See MainTaskFragmentNewScreen. */}

@@ -47,11 +47,11 @@ const toNumber = (value: unknown, fallback = 0) => {
 type OwnerDashboardScreenProps = {
   ownerId: number;
   filter: DayFilter;
+  onCreateTask?: () => void;
 };
 
-const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
+const OwnerDashboardScreen = ({ownerId, filter, onCreateTask}: OwnerDashboardScreenProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [profileCompletion, setProfileCompletion] = useState(0);
   const [taskStats, setTaskStats] = useState({
     complete: 0,
     urgent: 0,
@@ -114,6 +114,16 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
         const dashboardData = getResultData<Record<string, unknown>>(dashboardResponse);
         const earningData = getResultData<Record<string, unknown>>(earningResponse);
         const amcData = getResultData<Record<string, unknown>>(amcResponse);
+
+        // TEMP DEBUG — remove once we've confirmed what the "year" filter
+        // actually returns. Compares the raw AMC response against what
+        // Java's FWLogger line logs (amcDashboardCount.getMessage()) for
+        // the same filter/account so we can tell a data issue apart from
+        // a parsing issue.
+        if (__DEV__ && filter === 'Year') {
+          console.log('[AMC][Year] raw response:', JSON.stringify(amcResponse));
+          console.log('[AMC][Year] resolved amcData:', amcData);
+        }
 
         const tasksCountList =
           ((dashboardData?.tasksCount ?? dashboardData?.TasksCount) as
@@ -189,23 +199,14 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
           toNumber(earningData?.earningAmount ?? earningData?.EarningAmount),
         );
 
+        // AMCDashboardCountResultData uses PascalCase (TotalUpcomming is the
+        // actual, misspelled field name on the backend), so the camelCase
+        // keys here never matched and AMC Status always rendered as 0s.
         setAmcStatus({
-          upcoming: toNumber(amcData?.totalUpcomming ?? amcData?.totalUpcoming),
-          renewal: toNumber(amcData?.totalRenewal),
-          expired: toNumber(amcData?.totalExpired),
+          upcoming: toNumber(amcData?.TotalUpcomming ?? amcData?.totalUpcomming ?? amcData?.totalUpcoming),
+          renewal: toNumber(amcData?.TotalRenewal ?? amcData?.totalRenewal),
+          expired: toNumber(amcData?.TotalExpired ?? amcData?.totalExpired),
         });
-
-        const profileData =
-          (dashboardData?.profile as Record<string, unknown> | undefined) ??
-          (dashboardData?.Profile as Record<string, unknown> | undefined);
-        setProfileCompletion(
-          toNumber(
-            profileData?.completionPercentage ??
-              profileData?.CompletionPercentage ??
-              dashboardData?.profileCompletion ??
-              dashboardData?.ProfileCompletion,
-          ),
-        );
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unable to load dashboard data';
@@ -226,11 +227,15 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
 
   const taskChartItems = useMemo(
     () => [
-      {key: 'complete', label: 'Completed', value: taskStats.complete, color: '#16A34A'},
-      {key: 'urgent', label: 'Ongoing', value: taskStats.urgent, color: '#F59E0B'},
-      {key: 'inactive', label: 'Inactive', value: taskStats.inactive, color: '#9CA3AF'},
+      // Colors match Java's R.color values used in the FitChart:
+      // Completed -> green (#03DE73), Ongoing -> orange (#FF9B00),
+      // InActive -> light_gray (#9A9FAA), Rejected -> colorPrimaryDark
+      // (#C3002F), OnHold -> onhold (#353935).
+      {key: 'complete', label: 'Completed', value: taskStats.complete, color: '#03DE73'},
+      {key: 'urgent', label: 'Ongoing', value: taskStats.urgent, color: '#FF9B00'},
+      {key: 'inactive', label: 'Inactive', value: taskStats.inactive, color: '#9A9FAA'},
       {key: 'reject', label: 'Rejected', value: taskStats.reject, color: '#c3002f'},
-      {key: 'onHold', label: 'OnHold', value: taskStats.onHold, color: '#7C3AED'},
+      {key: 'onHold', label: 'OnHold', value: taskStats.onHold, color: '#353935'},
     ],
     [taskStats.complete, taskStats.inactive, taskStats.onHold, taskStats.reject, taskStats.urgent],
   );
@@ -266,22 +271,12 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
   return (
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Profile Completion</Text>
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              {width: `${Math.min(Math.max(profileCompletion, 0), 100)}%`},
-            ]}
-          />
-        </View>
-
         <View style={styles.rowBetween}>
           <View style={styles.showingDataRow}>
             <Text style={styles.muted}>Showing Data for :</Text>
             <Text style={styles.valueStrong}> {filter}</Text>
           </View>
-          <Pressable style={styles.ctaButton}>
+          <Pressable style={styles.ctaButton} onPress={onCreateTask}>
             <Text style={styles.ctaButtonText}>Create Task</Text>
           </Pressable>
         </View>
@@ -440,18 +435,6 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '700',
     fontSize: 13,
-  },
-  progressTrack: {
-    height: 7,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 12,
-    marginTop: 10,
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#c3002f',
   },
   showingDataRow: {
     flexDirection: 'row',
