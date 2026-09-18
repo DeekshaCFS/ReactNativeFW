@@ -1497,15 +1497,23 @@ const LeadListScreen = ({userId}: LeadListScreenProps) => {
       return null;
     }
 
+    if (errorMessage) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>!</Text>
+          <Text style={styles.emptyTitle}>Unable to Load Leads</Text>
+          <Text style={styles.emptyText}>{errorMessage}</Text>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>!</Text>
-        <Text style={styles.emptyTitle}>
-          {errorMessage ? 'Unable to Load Leads' : 'No Result Found'}
-        </Text>
-        <Text style={styles.emptyText}>
-          {errorMessage || 'Try another search or lead status.'}
-        </Text>
+        <Image
+          source={require('../../../assets/images/noresultfound.png')}
+          style={styles.emptyImage}
+          resizeMode="contain"
+        />
       </View>
     );
   };
@@ -2323,6 +2331,10 @@ const styles = StyleSheet.create({
     color: '#98a2b3',
     fontSize: 28,
     fontWeight: '800',
+  },
+  emptyImage: {
+    width: 220,
+    height: 220,
   },
   emptyTitle: {
     marginTop: 12,

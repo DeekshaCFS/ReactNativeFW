@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Modal,
   Pressable,
   RefreshControl,
@@ -597,14 +598,18 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
           />
         }
         ListEmptyComponent={
-          isFocInitialLoading ? null : (
+          isFocInitialLoading ? null : focErrorMessage ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>
-                {focErrorMessage ? 'Unable to Load Requests' : 'No Result Found'}
-              </Text>
-              <Text style={styles.emptyText}>
-                {focErrorMessage || 'Try another search, status tag, issue filter, or refresh.'}
-              </Text>
+              <Text style={styles.emptyTitle}>Unable to Load Requests</Text>
+              <Text style={styles.emptyText}>{focErrorMessage}</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Image
+                source={require('../../../assets/images/noresultfound.png')}
+                style={styles.emptyImage}
+                resizeMode="contain"
+              />
             </View>
           )
         }
@@ -766,6 +771,10 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     paddingVertical: 48,
+  },
+  emptyImage: {
+    width: 220,
+    height: 220,
   },
   emptyTitle: {
     fontSize: 14,

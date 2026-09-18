@@ -115,16 +115,6 @@ const OwnerDashboardScreen = ({ownerId, filter, onCreateTask}: OwnerDashboardScr
         const earningData = getResultData<Record<string, unknown>>(earningResponse);
         const amcData = getResultData<Record<string, unknown>>(amcResponse);
 
-        // TEMP DEBUG — remove once we've confirmed what the "year" filter
-        // actually returns. Compares the raw AMC response against what
-        // Java's FWLogger line logs (amcDashboardCount.getMessage()) for
-        // the same filter/account so we can tell a data issue apart from
-        // a parsing issue.
-        if (__DEV__ && filter === 'Year') {
-          console.log('[AMC][Year] raw response:', JSON.stringify(amcResponse));
-          console.log('[AMC][Year] resolved amcData:', amcData);
-        }
-
         const tasksCountList =
           ((dashboardData?.tasksCount ?? dashboardData?.TasksCount) as
             | Array<Record<string, unknown>>
@@ -202,11 +192,21 @@ const OwnerDashboardScreen = ({ownerId, filter, onCreateTask}: OwnerDashboardScr
         // AMCDashboardCountResultData uses PascalCase (TotalUpcomming is the
         // actual, misspelled field name on the backend), so the camelCase
         // keys here never matched and AMC Status always rendered as 0s.
-        setAmcStatus({
-          upcoming: toNumber(amcData?.TotalUpcomming ?? amcData?.totalUpcomming ?? amcData?.totalUpcoming),
-          renewal: toNumber(amcData?.TotalRenewal ?? amcData?.totalRenewal),
-          expired: toNumber(amcData?.TotalExpired ?? amcData?.totalExpired),
-        });
+        // Java's callAMCStatusCountApi() only updates the AMC views when
+        // the backend reports a real success — on any other Code (e.g. the
+        // 500/NullReferenceException the backend currently throws for the
+        // "year" InputFilter) it leaves whatever was already on screen
+        // untouched rather than zeroing it out. Match that here.
+        const amcResponseRecord = amcResponse as Record<string, unknown> | null;
+        const amcCode = String(amcResponseRecord?.Code ?? '').toLowerCase();
+        const amcMessage = String(amcResponseRecord?.Message ?? '').toLowerCase();
+        if (amcCode === '200' && amcMessage === 'success request') {
+          setAmcStatus({
+            upcoming: toNumber(amcData?.TotalUpcomming ?? amcData?.totalUpcomming ?? amcData?.totalUpcoming),
+            renewal: toNumber(amcData?.TotalRenewal ?? amcData?.totalRenewal),
+            expired: toNumber(amcData?.TotalExpired ?? amcData?.totalExpired),
+          });
+        }
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unable to load dashboard data';

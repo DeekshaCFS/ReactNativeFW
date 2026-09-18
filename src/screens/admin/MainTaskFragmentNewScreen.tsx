@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Modal,
   Pressable,
   RefreshControl,
@@ -327,6 +328,7 @@ const MainTaskFragmentNewScreen = ({
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const latestRequestId = useRef(0);
   const didSkipInitialFilterLoad = useRef(false);
+  const didHandleInitialMonthYear = useRef(false);
 
   const isAllData = useMemo(
     () =>
@@ -465,6 +467,15 @@ const MainTaskFragmentNewScreen = ({
     setSelectedType(TASK_TYPES[0]);
     setSelectedStatus(TASK_STATUSES[0]);
     setSelectedTag({id: 0, name: 'Select Task Tag'});
+
+    if (!didHandleInitialMonthYear.current) {
+      // First run (mount): the focus effect below owns the very first load,
+      // on its own delay -- see the comment there. Firing a second, undelayed
+      // request here as well would race it.
+      didHandleInitialMonthYear.current = true;
+      return;
+    }
+
     loadCleanMonthTasks();
   }, [month, year]);
 
@@ -477,16 +488,33 @@ const MainTaskFragmentNewScreen = ({
     fetchTaskPage({nextPage: PAGE_START, replace: true});
   }, [submittedSearch, selectedStatus.id, selectedTag.id, selectedType.id]);
 
-  const isFirstFocus = useRef(true);
+  // The legacy Java screen is a Fragment that gets destroyed and recreated
+  // every time the Task tab is opened (FragmentTransaction.replace), so
+  // MainTaskFragmentNew.onCreateView() -- and its initial getTaskList() call
+  // -- reruns on every visit. React Navigation's bottom tabs keep this
+  // screen mounted after the first visit instead of remounting it, so a
+  // plain mount effect only ever fires once and can't be trusted to survive
+  // the tab's lazy-mount timing. Fetching on every focus -- including the
+  // first one -- makes the list load every time the tab is opened, matching
+  // the Java app.
+  //
+  // Crucially, Java's onCreateView() never calls getTaskList() directly --
+  // it always routes the *first* call through mockingNetworkDelay(), which
+  // deliberately waits 1 second before firing, and since the fragment is
+  // recreated on every visit, that applies to every open, not just the
+  // very first. RN's fetch here was firing the instant the screen mounted
+  // or refocused, with no delay at all -- and it turns out that's too
+  // early: the exact same request that comes back empty on a cold open
+  // succeeds a moment later (e.g. via a manual "Refresh List" tap).
+  // Matching Java's delay on every open fixes that.
   useFocusEffect(
     useCallback(() => {
-      if (isFirstFocus.current) {
-        isFirstFocus.current = false;
-        return;
-      }
-      fetchTaskPage({nextPage: PAGE_START, replace: true, refreshing: true});
+      const timer = setTimeout(() => {
+        loadCleanMonthTasks();
+      }, 1000);
+      return () => clearTimeout(timer);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fetchTaskPage]),
+    }, [loadCleanMonthTasks]),
   );
 
   const resetAndLoad = () => {
@@ -596,15 +624,23 @@ const MainTaskFragmentNewScreen = ({
       return null;
     }
 
+    if (errorMessage) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>!</Text>
+          <Text style={styles.emptyTitle}>Unable to Load Tasks</Text>
+          <Text style={styles.emptyText}>{errorMessage}</Text>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>!</Text>
-        <Text style={styles.emptyTitle}>
-          {errorMessage ? 'Unable to Load Tasks' : 'No Result Found'}
-        </Text>
-        <Text style={styles.emptyText}>
-          {errorMessage || 'Try another search, status, tag, or refresh the list.'}
-        </Text>
+        <Image
+          source={require('../../../assets/images/noresultfound.png')}
+          style={styles.emptyImage}
+          resizeMode="contain"
+        />
       </View>
     );
   };
@@ -1119,16 +1155,16 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   filterText: {
+    flex: 1,
     color: '#111111',
     fontSize: 17,
     fontWeight: '500',
   },
   filterChevron: {
-    marginLeft: 'auto',
+    flexShrink: 0,
+    marginLeft: 6,
     color: THEME_PRIMARY,
-    fontSize: 26,
-    lineHeight: 28,
-    fontWeight: '800',
+    fontSize: 20,
   },
   refreshButton: {
     width: 132,
@@ -1274,6 +1310,10 @@ const styles = StyleSheet.create({
     color: '#98A2B3',
     fontSize: 28,
     fontWeight: '800',
+  },
+  emptyImage: {
+    width: 220,
+    height: 220,
   },
   emptyTitle: {
     marginTop: 12,

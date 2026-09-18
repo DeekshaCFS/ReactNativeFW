@@ -658,15 +658,23 @@ const EmployeeManagementScreen = ({
       return null;
     }
 
+    if (errorMessage) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>!</Text>
+          <Text style={styles.emptyTitle}>Unable to Load Employees</Text>
+          <Text style={styles.emptyText}>{errorMessage}</Text>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>!</Text>
-        <Text style={styles.emptyTitle}>
-          {errorMessage ? 'Unable to Load Employees' : 'No Result Found'}
-        </Text>
-        <Text style={styles.emptyText}>
-          {errorMessage || 'Try another search or refresh the list.'}
-        </Text>
+        <Image
+          source={require('../../../assets/images/noresultfound.png')}
+          style={styles.emptyImage}
+          resizeMode="contain"
+        />
       </View>
     );
   };
@@ -743,15 +751,23 @@ const EmployeeManagementScreen = ({
       return null;
     }
 
+    if (leaveErrorMessage) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>!</Text>
+          <Text style={styles.emptyTitle}>Unable to Load Leave Requests</Text>
+          <Text style={styles.emptyText}>{leaveErrorMessage}</Text>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>!</Text>
-        <Text style={styles.emptyTitle}>
-          {leaveErrorMessage ? 'Unable to Load Leave Requests' : 'No Result Found'}
-        </Text>
-        <Text style={styles.emptyText}>
-          {leaveErrorMessage || 'Try another search, status, or month.'}
-        </Text>
+        <Image
+          source={require('../../../assets/images/noresultfound.png')}
+          style={styles.emptyImage}
+          resizeMode="contain"
+        />
       </View>
     );
   };
@@ -874,9 +890,11 @@ const EmployeeManagementScreen = ({
         />
       </View>
       <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>!</Text>
-        <Text style={styles.emptyTitle}>No Result Found</Text>
-        <Text style={styles.emptyText}>Leave request data is not available.</Text>
+        <Image
+          source={require('../../../assets/images/noresultfound.png')}
+          style={styles.emptyImage}
+          resizeMode="contain"
+        />
       </View>
     </View>
   );
@@ -1557,6 +1575,10 @@ const styles = StyleSheet.create({
     lineHeight: 42,
     fontSize: 24,
     fontWeight: '900',
+  },
+  emptyImage: {
+    width: 220,
+    height: 220,
   },
   emptyTitle: {
     marginTop: 14,

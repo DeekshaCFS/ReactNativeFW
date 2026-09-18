@@ -794,14 +794,18 @@ const PassbookExpenditureTabHostScreen = ({
           />
         }
         ListEmptyComponent={
-          isExpenseLoading ? null : (
+          isExpenseLoading ? null : expenseError ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>
-                {expenseError ? 'Unable to Load Expenditure' : 'No Result Found'}
-              </Text>
-              <Text style={styles.emptyText}>
-                {expenseError || 'Try another search term or refresh the list.'}
-              </Text>
+              <Text style={styles.emptyTitle}>Unable to Load Expenditure</Text>
+              <Text style={styles.emptyText}>{expenseError}</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Image
+                source={require('../../../assets/images/noresultfound.png')}
+                style={styles.emptyImage}
+                resizeMode="contain"
+              />
             </View>
           )
         }
@@ -1239,6 +1243,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+  },
+  emptyImage: {
+    width: 220,
+    height: 220,
   },
   emptyTitle: {
     color: '#111827',

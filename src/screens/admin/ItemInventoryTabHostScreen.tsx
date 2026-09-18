@@ -928,15 +928,18 @@ const ItemInventoryTabHostScreen = ({
           />
         }
         ListEmptyComponent={
-          isItemInitialLoading ? null : (
+          isItemInitialLoading ? null : itemErrorMessage ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>
-                {itemErrorMessage ? 'Unable to Load Items' : 'No Result Found'}
-              </Text>
-              <Text style={styles.emptyText}>
-                {itemErrorMessage ||
-                  'Try another search term or refresh the item list.'}
-              </Text>
+              <Text style={styles.emptyTitle}>Unable to Load Items</Text>
+              <Text style={styles.emptyText}>{itemErrorMessage}</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Image
+                source={require('../../../assets/images/noresultfound.png')}
+                style={styles.emptyImage}
+                resizeMode="contain"
+              />
             </View>
           )
         }
@@ -1184,15 +1187,18 @@ const ItemInventoryTabHostScreen = ({
           renderItem={renderAssignedItemRow}
           contentContainerStyle={styles.assignedListContent}
           ListEmptyComponent={
-            isAssignedLoading ? null : (
+            isAssignedLoading ? null : assignedErrorMessage ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>
-                  {assignedErrorMessage ? 'Unable to Load Issued Items' : 'No Result Found'}
-                </Text>
-                <Text style={styles.emptyText}>
-                  {assignedErrorMessage ||
-                    'Try another search term or go back to item details.'}
-                </Text>
+                <Text style={styles.emptyTitle}>Unable to Load Issued Items</Text>
+                <Text style={styles.emptyText}>{assignedErrorMessage}</Text>
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <Image
+                  source={require('../../../assets/images/noresultfound.png')}
+                  style={styles.emptyImage}
+                  resizeMode="contain"
+                />
               </View>
             )
           }
@@ -1270,15 +1276,18 @@ const ItemInventoryTabHostScreen = ({
           renderItem={renderUsedItemRow}
           contentContainerStyle={styles.assignedListContent}
           ListEmptyComponent={
-            isUsedLoading ? null : (
+            isUsedLoading ? null : usedErrorMessage ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>
-                  {usedErrorMessage ? 'Unable to Load Used Items' : 'No Result Found'}
-                </Text>
-                <Text style={styles.emptyText}>
-                  {usedErrorMessage ||
-                    'Try another search term or go back to item details.'}
-                </Text>
+                <Text style={styles.emptyTitle}>Unable to Load Used Items</Text>
+                <Text style={styles.emptyText}>{usedErrorMessage}</Text>
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <Image
+                  source={require('../../../assets/images/noresultfound.png')}
+                  style={styles.emptyImage}
+                  resizeMode="contain"
+                />
               </View>
             )
           }
@@ -2172,6 +2181,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+  },
+  emptyImage: {
+    width: 220,
+    height: 220,
   },
   emptyTitle: {
     color: '#111827',
