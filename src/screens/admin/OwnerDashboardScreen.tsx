@@ -410,8 +410,8 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 10,
-    paddingBottom: 24,
+    padding: 2,
+    paddingBottom: 2,
   },
   card: {
     backgroundColor: '#FFFFFF',

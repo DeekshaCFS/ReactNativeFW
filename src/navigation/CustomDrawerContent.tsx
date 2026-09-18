@@ -149,7 +149,10 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
           />
           <Pressable
             style={styles.editProfile}
-            onPress={() => navigation.navigate(tabsRoute, { screen: 'Profile' })}
+            onPress={() => {
+              navigation.closeDrawer();
+              navigation.navigate(tabsRoute, { screen: 'Profile' });
+            }}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
             <Ionicons name="create-outline" size={scale(14)} color="#fff" />
@@ -172,7 +175,10 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
 
         <Pressable
           style={styles.logoutButton}
-          onPress={() => setShowLogoutModal(true)}
+          onPress={() => {
+            navigation.closeDrawer();
+            setShowLogoutModal(true);
+          }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Ionicons name="log-out-outline" size={scale(28)} color="#000000" />
@@ -185,19 +191,19 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
             // These five render inside HomeActivityNewScreen as internal
             // sections (not their own stack screens), so they're opened via
             // a `drawerSection` param on the Home tab rather than `screen`.
-            { icon: 'people-outline',                 label: 'Leads',           section: 'Leads' },
-            { icon: 'cube-outline',                   label: 'Item Inventory',  section: 'Item Inventory' },
-            { icon: 'wallet-outline',                 label: 'Passbook',        section: 'Passbook' },
-            { icon: 'construct-outline',               label: 'AMC',             section: 'AMC' },
-            { icon: 'calendar-outline',               label: 'Attendance',      section: 'Attendance' },
-            { icon: 'cash-outline',                   label: 'Accounts',        section: 'Accounts' },
-            { icon: 'list-outline',                   label: 'Services',        section: 'Services' },
-            { icon: 'help-circle-outline',            label: 'Help & Support',  section: 'Help & Support' },
-            { icon: 'settings-outline',               label: 'Settings',        screen: 'Settings' },
+            { icon: 'cube-outline',                   label: 'Item Inventory',   section: 'Item Inventory' },
+            { icon: 'wallet-outline',                 label: 'Passbook',         section: 'Passbook' },
+            { icon: 'construct-outline',              label: 'AMC',              section: 'AMC' },
+            { icon: 'reader-outline',                 label: 'Services',         section: 'Services' },
+            { icon: 'person-circle-outline',          label: 'Accounts',         section: 'Accounts' },
+            { icon: 'people-outline',                 label: 'Leads',            section: 'Leads' },
+            { icon: 'bar-chart-outline',              label: 'Brand Management', section: 'Brand Management' },
+            { icon: 'chatbox-ellipses-outline',       label: 'FieldWeb AI',      screen: 'FieldWeb AI' },
+            { icon: 'phone-portrait-outline',         label: 'Book App Demo',    section: 'Book App Demo' },
+            { icon: 'settings-outline',               label: 'Settings',         screen: 'Settings' },
           ]
         : [
             { icon: 'cube-outline',                   label: 'Item Inventory',  screen: 'Issued Items' },
-            { icon: 'construct-outline',               label: 'AMC',             screen: 'AMC' },
             { icon: 'cash-outline',                   label: 'Expenditure',     screen: 'Expenditure' },
             { icon: 'list-outline',                   label: 'Routine Service', screen: 'Routine Service' },
             { icon: 'chatbox-ellipses-outline',       label: 'FieldWeb AI',     screen: 'FieldWeb AI' },
@@ -210,6 +216,11 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
           icon={icon}
           label={label}
           onPress={() => {
+            // Close the drawer as soon as an item is picked, before
+            // navigating or opening a modal, so it doesn't linger open
+            // behind the destination screen/modal.
+            navigation.closeDrawer();
+
             if (section) {
               // Drill Drawer -> AdminStack -> AdminTabsRoot -> Home, passing
               // which internal section HomeActivityNewScreen should show.

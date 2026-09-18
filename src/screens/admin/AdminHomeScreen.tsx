@@ -29,11 +29,6 @@ import OwnerDashboardScreen, {type DayFilter} from './OwnerDashboardScreen';
 import ItemInventoryTabHostScreen from './ItemInventoryTabHostScreen';
 import PassbookExpenditureTabHostScreen from './PassbookExpenditureTabHostScreen';
 import LeadListScreen from './LeadListScreen';
-import AddTaskModal from './AddTaskModal';
-import AddItemModal from './AddItemModal';
-import AssignItemModal from './AssignItemModal';
-import AddFieldworkerModal from './AddFieldworkerModal';
-import ManageBalanceModal from './ManageBalanceModal';
 import AccountsScreen from './AccountsScreen';
 
 // Drawer item labels now live in CustomDrawerContent.tsx (the shared,

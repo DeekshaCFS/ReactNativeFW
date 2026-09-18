@@ -7,8 +7,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Platform,
-  StatusBar,
 } from 'react-native';
 
 import Ionicons from 'react-native-vector-icons/Ionicons';
