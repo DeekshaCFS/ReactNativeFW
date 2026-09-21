@@ -12,6 +12,8 @@ import { getTodayTaskList } from '../../../api/task/taskService';
 import { getTaskStatusCountOwnNew } from '../../../api/dashboard/dashboardService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getProfileDetails } from '../../../api/users/usersService';
+import { getCountrySymbol } from '../../../api/countryDetails/countryDetailsService';
+import { setCurrentCountryDetails } from '../../../state/session';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
@@ -82,6 +84,7 @@ export default function HomeScreen({ navigation }: any) {
     if (token && userId) {
       loadProfile();
       loadTaskCounts();
+      loadCountrySymbol();
       if (!attendanceChecked) {
         checkAttendance();
         setAttendanceChecked(true);
@@ -163,6 +166,24 @@ export default function HomeScreen({ navigation }: any) {
       }
     } catch {
       // silent
+    }
+  };
+
+  // Java's HomeActivityNew.onCreate() calls GetCountrySymbol() once per
+  // session (owner AND technician/fieldworker alike) and caches the result
+  // in SharedPrefManager -- used to prefix customer phone numbers and build
+  // WhatsApp links. Mirror that here so the technician stack has it too.
+  const loadCountrySymbol = async () => {
+    try {
+      if (!userId) return;
+
+      const response = await getCountrySymbol({ UserId: userId });
+      const resultData = response?.ResultData;
+      if (resultData) {
+        setCurrentCountryDetails(resultData.CountryCode, resultData.CurrencySymbol);
+      }
+    } catch {
+      // silent -- non-critical, same as loadProfile
     }
   };
 
