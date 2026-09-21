@@ -19,7 +19,9 @@ import type {
   TasksListMultipleItemAssigned,
 } from '../../api/task/task.types';
 import type {TaskListItem} from './adminLegacyApiTypes';
-import {getStringField} from './CRMScreen';
+import {getStringField, getNumberField} from './CRMScreen';
+import {ms, sp} from '../../utils/responsive';
+import {getCurrentCountryCode} from '../../state/session';
 
 type TaskDetailsTask = TasksListResultData | TaskListItem;
 
@@ -220,7 +222,15 @@ const TaskDetailsScreen = ({
     'taskTagName',
     'TaskTagName',
   ]);
-  const paymentMode = getStringField(record, ['paymentMode', 'PaymentMode']);
+  // The Java app never shows the raw PaymentMode string here -- it maps it to
+  // a warranty label (CRMTaskDetailsFragmentNew.setData()): "Amc"/"AMC" means
+  // the task is covered under warranty, anything else is out of warranty.
+  const rawPaymentMode = getStringField(record, ['paymentMode', 'PaymentMode']);
+  const paymentMode = rawPaymentMode
+    ? rawPaymentMode.toLowerCase() === 'amc'
+      ? 'In Warranty'
+      : 'Out of Warranty'
+    : '';
   const employeeName = getStringField(record, ['assignedTo', 'AssignedTo']);
 
   const itemDetails =
@@ -236,22 +246,36 @@ const TaskDetailsScreen = ({
     '';
   const custPhone =
     getStringField(record, ['contactNo', 'ContactNo']) || customerPhone || '';
+  // Java (CRMTaskDetailsFragmentNew.setData()) prefixes the displayed number
+  // and the WhatsApp deep link with the session's country code, but leaves
+  // the `tel:` call intent using the raw contact number as-is.
+  const countryCode = getCurrentCountryCode();
+  const custPhoneDisplay = custPhone
+    ? countryCode
+      ? `+${countryCode} ${custPhone}`
+      : custPhone
+    : '';
+  const custPhoneWhatsapp = countryCode ? `${countryCode}${custPhone}` : custPhone;
   const custAddress =
     getStringField(record, ['fullAddress', 'FullAddress']) ||
     customerAddress ||
     '';
   const landmark = getStringField(record, [
-    'landMark',
-    'LandMark',
-    'landmark',
-    'Landmark',
+    // Java's CRMTaskDetailsFragmentNew/TaskDetailsFragmentNew both populate
+    // the "Landmark" field from LocationDesc -- there is no LandMark field
+    // on the task DTO at all.
+    'locationDesc',
+    'LocationDesc',
   ]);
 
-  const responseCode = getStringField(record, ['responseCode', 'ResponseCode']);
-  const satisfactionCode = getStringField(record, [
-    'satisfactionCode',
-    'SatisfactionCode',
-  ]);
+  // Java shows both Response Code and Satisfaction Code as "NA" together if
+  // *either* one is 0 (CRMTaskDetailsFragmentNew.setData()); Satisfaction
+  // Code itself comes from HappyCode -- there is no SatisfactionCode field.
+  const responseCodeNum = getNumberField(record, ['responseCode', 'ResponseCode']);
+  const satisfactionCodeNum = getNumberField(record, ['happyCode', 'HappyCode']);
+  const hasCodes = responseCodeNum > 0 && satisfactionCodeNum > 0;
+  const responseCode = hasCodes ? String(responseCodeNum) : '';
+  const satisfactionCode = hasCodes ? String(satisfactionCodeNum) : '';
   const fieldworkerAvailability = getFieldworkerAvailability(status);
 
   return (
@@ -302,7 +326,7 @@ const TaskDetailsScreen = ({
             <View style={styles.actionIconsRow}>
               <TouchableOpacity
                 style={styles.actionIconButton}
-                onPress={() => openWhatsapp(custPhone)}
+                onPress={() => openWhatsapp(custPhoneWhatsapp)}
               >
                 <Text style={styles.actionIconText}>💬</Text>
               </TouchableOpacity>
@@ -367,7 +391,7 @@ const TaskDetailsScreen = ({
           </View>
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>Customer Number</Text>
-            <Text style={styles.fieldValue}>{valueOrNA(custPhone)}</Text>
+            <Text style={styles.fieldValue}>{valueOrNA(custPhoneDisplay)}</Text>
           </View>
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>Address</Text>
@@ -406,22 +430,22 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: THEME_PRIMARY,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(12),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   headerIconButton: {
-    padding: 4,
+    padding: ms(4),
   },
   headerIconText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
   },
   headerRightActions: {
     flexDirection: 'row',
-    gap: 16,
+    gap: ms(16),
   },
   centerBox: {
     flex: 1,
@@ -430,103 +454,103 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    paddingHorizontal: 24,
+    fontSize: sp(13),
+    paddingHorizontal: ms(24),
     textAlign: 'center',
   },
   body: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: ms(16),
+    borderTopRightRadius: ms(16),
   },
   bodyContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 32,
+    paddingHorizontal: ms(16),
+    paddingTop: ms(16),
+    paddingBottom: ms(32),
   },
   avatarWrap: {
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingHorizontal: ms(24),
+    paddingBottom: ms(24),
   },
   avatarCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: ms(64),
+    height: ms(64),
+    borderRadius: ms(32),
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: ms(12),
   },
   avatarIcon: {
-    fontSize: 30,
+    fontSize: sp(30),
     color: THEME_PRIMARY,
   },
   avatarName: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: sp(16),
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: ms(4),
     textAlign: 'center',
   },
   avatarAvailability: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: sp(12),
     textAlign: 'center',
   },
   statusActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: ms(12),
   },
   statusLabel: {
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '700',
   },
   actionIconsRow: {
     flexDirection: 'row',
-    gap: 20,
+    gap: ms(20),
   },
   actionIconButton: {
-    padding: 2,
+    padding: ms(2),
   },
   actionIconText: {
-    fontSize: 18,
+    fontSize: sp(18),
     color: THEME_PRIMARY,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: ms(10),
   },
   sectionHeading: {
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '700',
     color: '#1F2937',
   },
   sectionSpacing: {
-    marginTop: 16,
-    marginBottom: 4,
+    marginTop: ms(16),
+    marginBottom: ms(4),
   },
   taskIdText: {
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '600',
     color: '#1565c0',
   },
   fieldRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: ms(6),
   },
   fieldLabel: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#1F2937',
     flex: 1,
   },
   fieldValue: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#9CA3AF',
     flex: 1,
     textAlign: 'left',
@@ -535,34 +559,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: ms(16),
+    marginBottom: ms(8),
   },
   itemNameHeading: {
     flex: 1,
   },
   itemColumnHeading: {
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '700',
     color: '#1F2937',
-    width: 80,
+    width: ms(80),
     textAlign: 'center',
   },
   itemDetailsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: ms(6),
   },
   itemName: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#1F2937',
     flex: 1,
   },
   itemQty: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#9CA3AF',
-    width: 80,
+    width: ms(80),
     textAlign: 'center',
   },
 });

@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {getUserDetails} from '../../api/users/usersService';
 import type {UserDetails, UserDetailsResultData} from '../../api/users/users.types';
+import {getCountrySymbol} from '../../api/countryDetails/countryDetailsService';
 import {useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import { HEADER_CONTENT_HEIGHT } from '../../components/AppHeader';
@@ -25,6 +26,7 @@ import {
   getCurrentPreferredLanguage,
   getCurrentUserId,
   setCurrentUserProfile,
+  setCurrentCountryDetails,
 } from '../../state/session';
 import type {AdminTabParamList} from '../../navigation/AdminTabs';
 import OwnerDashboardScreen, {type DayFilter} from './OwnerDashboardScreen';
@@ -270,6 +272,37 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
     };
 
     loadUserDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [ownerId]);
+
+  // Java's HomeActivityNew.onCreate() fetches this once per session
+  // alongside getUSerDetails() and caches it in SharedPrefManager
+  // (CountryCode/CurrencySymbol) -- it's what CRMTaskDetailsFragmentNew /
+  // TaskDetailsFragmentNew use to prefix the customer's phone number
+  // ("+<code> <number>") and to build the wa.me link. Mirror that here so
+  // every admin screen has it available via session getters.
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCountrySymbol = async () => {
+      try {
+        const response = await getCountrySymbol({UserId: ownerId});
+        const resultData = response?.ResultData;
+        if (!isMounted || !resultData) {
+          return;
+        }
+
+        setCurrentCountryDetails(resultData.CountryCode, resultData.CurrencySymbol);
+      } catch {
+        // Non-critical: phone/currency formatting just falls back to raw
+        // values if this fails, same as the rest of this bootstrap effect.
+      }
+    };
+
+    loadCountrySymbol();
 
     return () => {
       isMounted = false;
