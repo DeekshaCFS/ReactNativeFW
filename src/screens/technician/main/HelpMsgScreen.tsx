@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f9f9f9' },
 
   redBg: {
-    height: HEADER_TOP_PADDING,
+    height: vs(15),
     backgroundColor: COLORS.primary,
   },
 

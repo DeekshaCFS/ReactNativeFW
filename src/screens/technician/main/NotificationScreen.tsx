@@ -21,7 +21,7 @@ const styles = StyleSheet.create({
   },
   redBg: {
     top: 0,
-    height: HEADER_TOP_PADDING + vs(15),
+    height: vs(15),
     backgroundColor: COLORS.primary,
   },
   whiteSheet: {

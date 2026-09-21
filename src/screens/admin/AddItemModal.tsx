@@ -1,6 +1,7 @@
 // src/screens/admin/AddItemModal.tsx
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import {ms, sp} from '../../utils/responsive';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
@@ -668,68 +669,68 @@ const itemStyles = StyleSheet.create({
     flex: 1,
   },
   blockLabel: {
-    fontSize: 11,
+    fontSize: sp(11),
     color: '#8a8f98',
-    marginBottom: 4,
+    marginBottom: ms(4),
   },
   quantityPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: 24,
-    height: 46,
-    paddingHorizontal: 6,
+    borderRadius: ms(24),
+    height: ms(46),
+    paddingHorizontal: ms(6),
   },
   quantityInput: {
     flex: 1,
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#222',
     padding: 0,
     textAlign: 'center',
   },
   quantityPlusButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: ms(34),
+    height: ms(34),
+    borderRadius: ms(17),
     backgroundColor: THEME_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
   },
   quantityMinusButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: ms(34),
+    height: ms(34),
+    borderRadius: ms(17),
     backgroundColor: THEME_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
   },
   quantityPlusText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '700',
-    lineHeight: 20,
+    lineHeight: sp(20),
   },
   unitDropdown: {
     marginBottom: 0,
   },
   imageBox: {
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: 8,
-    height: 100,
+    borderRadius: ms(8),
+    height: ms(100),
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: ms(14),
     overflow: 'hidden',
   },
   imageBoxIcon: {
-    fontSize: 26,
+    fontSize: sp(26),
     color: '#9aa0a6',
-    marginBottom: 4,
+    marginBottom: ms(4),
   },
   imageBoxText: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#9aa0a6',
   },
 });

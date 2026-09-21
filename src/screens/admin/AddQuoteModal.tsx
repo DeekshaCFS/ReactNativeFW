@@ -1,6 +1,7 @@
 // src/screens/admin/AddQuoteModal.tsx
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import {ms, sp} from '../../utils/responsive';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -19,18 +20,16 @@ import {getEnquiryServiceTypeList} from '../../api/services/servicesService';
 import type {EnquiryServiceTypeDTOResultData} from '../../api/services/services.types';
 import {getAllItemAssignedUnassigned} from '../../api/item/itemService';
 import type {ItemsListResultData} from '../../api/item/item.types';
-import {postQuotationDetails} from '../../api/quotation/quotationService';
+import {postQuotationDetailsNonOwner} from '../../api/quotation/quotationService';
 import type {
-  SaveQuotationDTOQuoteItemList,
-  SaveQuotationDTOQuoteServiceList,
-  SaveQuotationDTOQuoteTaxList,
+  SaveQuotationsNonOwnerDTOQuoteItemList,
+  SaveQuotationsNonOwnerDTOQuoteServiceList,
 } from '../../api/quotation/quotation.types';
-import {scale, sp, vs} from '../../utils/responsive';
 
 type LeadServiceTypeItem = EnquiryServiceTypeDTOResultData;
 type ItemInventoryListItem = ItemsListResultData;
-type SaveQuotationServiceRequest = SaveQuotationDTOQuoteServiceList;
-type SaveQuotationItemRequest = SaveQuotationDTOQuoteItemList;
+type SaveQuotationServiceRequest = SaveQuotationsNonOwnerDTOQuoteServiceList;
+type SaveQuotationItemRequest = SaveQuotationsNonOwnerDTOQuoteItemList;
 
 const HEADER_DARK = '#3a3a3c';
 const SEGMENT_DARK = '#232b3a';
@@ -309,40 +308,20 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
         UnitPrice: Number(row.price) || 0,
       }));
 
-    // Java's admin add-quote flow (AddUpdateServiceDialog#addQuote) always sends
-    // exactly one QuoteTaxList entry carrying discount % and tax %, even though
-    // the UI only exposes one pair of fields — mirror that here instead of
-    // dropping the values the user typed.
-    const quoteTaxList: SaveQuotationDTOQuoteTaxList[] = [
-      {
-        Discount: Number(discountPercent) || 0,
-        Tax: Number(taxPercent) || 0,
-        WithoutTax: Number(taxPercent) > 0 ? 1 : 2,
-      },
-    ];
-
-    const nowIso = new Date().toISOString().slice(0, 19);
-
     setIsSubmitting(true);
     try {
-      await postQuotationDetails({
+      await postQuotationDetailsNonOwner({
         UserId: ownerId,
-        CreatedBy: ownerId,
-        UpdatedBy: ownerId,
-        StatusId: 2, // Not Assigned — matches the Java admin create-quote default
         QuoteName: quoteName.trim(),
-        CreatedDate: `${quoteDate}T00:00:00`,
-        QuoteTime: nowIso,
-        ValidityDate: `${validityDate.trim()}T00:00:00`,
+        QuoteTime: quoteDate,
+        ValidityDate: validityDate.trim(),
         Customer: {
           CustomerName: customerName.trim(),
           MobileNumber: phoneNumber.trim(),
-          IsActive: true,
           LocationList: {
             Address: address.trim(),
             BuildingNumber: buildingFlatNumber.trim(),
             Description: landmark.trim(),
-            IsActive: true,
           },
         },
         ExtraItem: extraName.trim(),
@@ -352,7 +331,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
         GrandTotalAmount: grandTotal,
         QuoteServiceList: quoteServiceList,
         QuoteItemList: quoteItemList,
-        QuoteTaxList: quoteTaxList,
+        CreatedBy: ownerId,
       });
 
       Alert.alert('Add Quote', 'Quote saved successfully.');
@@ -764,9 +743,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   sheet: {
     backgroundColor: '#FFFFFF',
+    width: '100%',
+    maxWidth: ms(560),
     maxHeight: '94%',
     overflow: 'hidden',
   },
@@ -775,8 +757,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: HEADER_DARK,
-    paddingHorizontal: scale(18),
-    paddingVertical: vs(16),
+    paddingHorizontal: ms(18),
+    paddingVertical: ms(16),
   },
   headerTitle: {
     color: '#FFFFFF',
@@ -791,72 +773,67 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   scrollContent: {
-    padding: scale(16),
-    paddingBottom: vs(30),
+    padding: ms(16),
+    paddingBottom: ms(30),
   },
   fieldRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: scale(12),
-    marginBottom: vs(14),
+    gap: ms(12),
+    marginBottom: ms(14),
   },
   halfInput: {
     flex: 1,
-    minWidth: scale(120),
   },
   thirdInput: {
     flex: 1,
-    minWidth: scale(70),
   },
   pillInput: {
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: BORDER,
-    borderRadius: scale(24),
-    paddingHorizontal: scale(16),
-    height: vs(46),
+    borderRadius: ms(24),
+    paddingHorizontal: ms(16),
+    height: ms(46),
     fontSize: sp(13),
     color: '#222',
-    marginBottom: vs(14),
+    marginBottom: ms(14),
   },
   termInput: {
-    marginTop: vs(4),
+    marginTop: ms(4),
   },
   floatingFieldHalf: {
     flex: 1,
-    minWidth: scale(120),
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: BORDER,
-    borderRadius: scale(24),
-    paddingHorizontal: scale(16),
-    paddingTop: vs(6),
-    paddingBottom: vs(6),
+    borderRadius: ms(24),
+    paddingHorizontal: ms(16),
+    paddingTop: ms(6),
+    paddingBottom: ms(6),
     justifyContent: 'center',
-    marginBottom: vs(14),
   },
   floatingLabel: {
     fontSize: sp(10),
     color: '#8a8f98',
-    marginBottom: vs(2),
+    marginBottom: ms(2),
   },
   floatingInput: {
     fontSize: sp(13),
     color: '#222',
     padding: 0,
-    height: vs(20),
+    height: ms(20),
   },
   segmentRow: {
     flexDirection: 'row',
-    borderRadius: scale(8),
+    borderRadius: ms(8),
     overflow: 'hidden',
-    marginBottom: vs(16),
-    borderWidth: 1,
+    marginBottom: ms(16),
+    borderWidth: ms(1),
     borderColor: SEGMENT_DARK,
   },
   segmentButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: vs(12),
+    paddingVertical: ms(12),
     backgroundColor: '#FFFFFF',
   },
   segmentButtonActive: {
@@ -871,18 +848,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   rowCard: {
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#eceef0',
-    borderRadius: scale(10),
-    padding: scale(14),
-    marginBottom: vs(12),
+    borderRadius: ms(10),
+    padding: ms(14),
+    marginBottom: ms(12),
     backgroundColor: '#FFFFFF',
   },
   rowCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: vs(12),
+    marginBottom: ms(12),
   },
   rowCardTitle: {
     color: RED,
@@ -896,12 +873,10 @@ const styles = StyleSheet.create({
   },
   rowCardFields: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: scale(8),
+    gap: ms(8),
   },
   dropdownWrap: {
     flex: 2,
-    minWidth: scale(140),
     position: 'relative',
     zIndex: 5,
   },
@@ -909,11 +884,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: BORDER,
-    borderRadius: scale(24),
-    paddingHorizontal: scale(14),
-    height: vs(46),
+    borderRadius: ms(24),
+    paddingHorizontal: ms(14),
+    height: ms(46),
   },
   dropdownPlaceholderText: {
     fontSize: sp(12),
@@ -928,28 +903,28 @@ const styles = StyleSheet.create({
   dropdownChevron: {
     fontSize: sp(14),
     color: '#8a8f98',
-    marginLeft: scale(6),
+    marginLeft: ms(6),
   },
   dropdownList: {
     position: 'absolute',
-    top: vs(48),
+    top: ms(48),
     left: 0,
     right: 0,
-    maxHeight: vs(160),
-    borderWidth: 1,
+    maxHeight: ms(160),
+    borderWidth: ms(1),
     borderColor: '#e5e7eb',
-    borderRadius: scale(12),
+    borderRadius: ms(12),
     backgroundColor: '#FFFFFF',
     zIndex: 20,
     elevation: 10,
   },
   dropdownScroll: {
-    maxHeight: vs(160),
+    maxHeight: ms(160),
   },
   dropdownItem: {
-    paddingVertical: vs(10),
-    paddingHorizontal: scale(14),
-    borderBottomWidth: 1,
+    paddingVertical: ms(10),
+    paddingHorizontal: ms(14),
+    borderBottomWidth: ms(1),
     borderBottomColor: '#f1f2f4',
   },
   dropdownItemText: {
@@ -958,7 +933,7 @@ const styles = StyleSheet.create({
   },
   addMoreButton: {
     alignItems: 'center',
-    marginBottom: vs(18),
+    marginBottom: ms(18),
   },
   addMoreText: {
     color: RED,
@@ -969,16 +944,16 @@ const styles = StyleSheet.create({
     fontSize: sp(13),
     fontWeight: '700',
     color: '#222',
-    marginBottom: vs(10),
+    marginBottom: ms(10),
   },
   attachBox: {
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderStyle: 'dashed',
     borderColor: '#c7c9cc',
-    borderRadius: scale(6),
-    paddingHorizontal: scale(14),
-    paddingVertical: vs(16),
-    marginBottom: vs(18),
+    borderRadius: ms(6),
+    paddingHorizontal: ms(14),
+    paddingVertical: ms(16),
+    marginBottom: ms(18),
   },
   attachBoxText: {
     fontSize: sp(12),
@@ -986,12 +961,12 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: SEGMENT_DARK,
-    borderRadius: scale(24),
-    height: vs(50),
+    borderRadius: ms(24),
+    height: ms(50),
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: vs(6),
-    marginBottom: vs(16),
+    marginTop: ms(6),
+    marginBottom: ms(16),
   },
   saveButtonText: {
     color: '#FFFFFF',

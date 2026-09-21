@@ -1,6 +1,7 @@
 // src/screens/admin/InvoiceDetailsScreen.tsx
 
 import React, {useCallback, useEffect, useState} from 'react';
+import {ms, sp} from '../../utils/responsive';
 import {
   ActivityIndicator,
   Alert,
@@ -316,39 +317,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: HEADER_PRIMARY,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    paddingHorizontal: ms(12),
+    paddingVertical: ms(14),
   },
   headerIconButton: {
-    padding: 4,
+    padding: ms(4),
   },
   headerIconText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
   },
   headerTitle: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '700',
   },
   headerRightActions: {
     flexDirection: 'row',
-    gap: 16,
+    gap: ms(16),
   },
   body: {
     flex: 1,
   },
   bodyContent: {
-    padding: 12,
-    paddingBottom: 30,
+    padding: ms(12),
+    paddingBottom: ms(30),
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: ms(12),
+    padding: ms(16),
   },
   centerBox: {
-    paddingVertical: 60,
+    paddingVertical: ms(60),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -356,65 +357,65 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: ms(8),
   },
   statusLabel: {
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: sp(14),
   },
   iconRow: {
     flexDirection: 'row',
-    gap: 14,
+    gap: ms(14),
   },
   iconButton: {
-    padding: 2,
+    padding: ms(2),
   },
   iconText: {
-    fontSize: 16,
+    fontSize: sp(16),
     color: '#1c1c1e',
   },
   iconTextDelete: {
-    fontSize: 16,
+    fontSize: sp(16),
     color: RED,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '700',
     color: '#1c1c1e',
-    marginTop: 14,
-    marginBottom: 6,
+    marginTop: ms(14),
+    marginBottom: ms(6),
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 3,
+    paddingVertical: ms(3),
   },
   detailLabel: {
-    fontSize: 12,
+    fontSize: sp(12),
     color: '#1c1c1e',
     flex: 1,
   },
   detailLabelBold: {
-    fontSize: 12,
+    fontSize: sp(12),
     color: '#1c1c1e',
     fontWeight: '700',
     flex: 1,
   },
   detailValue: {
-    fontSize: 12,
+    fontSize: sp(12),
     color: '#8a8f98',
     flex: 1,
     textAlign: 'right',
   },
   grandTotalValue: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: GREEN_AMOUNT,
     fontWeight: '700',
     flex: 1,
     textAlign: 'right',
   },
   pendingAmountValue: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: RED,
     fontWeight: '700',
     flex: 1,
@@ -422,20 +423,20 @@ const styles = StyleSheet.create({
   },
   tableHeaderRow: {
     flexDirection: 'row',
-    marginTop: 12,
-    marginBottom: 4,
+    marginTop: ms(12),
+    marginBottom: ms(4),
   },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 3,
+    paddingVertical: ms(3),
   },
   tableHeaderCell: {
-    fontSize: 12,
+    fontSize: sp(12),
     fontWeight: '700',
     color: '#1c1c1e',
   },
   tableCell: {
-    fontSize: 12,
+    fontSize: sp(12),
     color: '#4c4c4e',
   },
   colName: {

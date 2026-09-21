@@ -127,11 +127,14 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
+    alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   sheet: {
     backgroundColor: COLORS.white,
     borderRadius: scale(30),
+    width: '100%',
+    maxWidth: scale(480),
     margin: scale(10),
     padding: scale(10),
     height: '50%',
