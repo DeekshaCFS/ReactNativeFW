@@ -20,6 +20,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   launchCamera,
   launchImageLibrary,
@@ -1866,7 +1867,7 @@ const LeadListScreen = ({userId}: LeadListScreenProps) => {
                 ]}>
                 {selectedServiceType?.label || 'Select Service Type'}
               </Text>
-              <Text style={styles.formSelectArrow}>v</Text>
+              <Ionicons name="chevron-down" style={styles.formSelectArrow} />
             </Pressable>
 
             <View style={styles.photoRow}>
@@ -1942,7 +1943,7 @@ const LeadListScreen = ({userId}: LeadListScreenProps) => {
         <Text numberOfLines={1} style={styles.statusSelectorText}>
           {selectedStatus.label}
         </Text>
-        <Text style={styles.statusSelectorChevron}>v</Text>
+        <Ionicons name="chevron-down" style={styles.statusSelectorChevron} />
       </Pressable>
 
       <View style={styles.panel}>

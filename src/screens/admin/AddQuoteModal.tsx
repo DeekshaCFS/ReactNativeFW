@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {getEnquiryServiceTypeList} from '../../api/services/servicesService';
 import type {EnquiryServiceTypeDTOResultData} from '../../api/services/services.types';
@@ -382,7 +383,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
               ? 'Loading...'
               : row.serviceTypeName || 'Select Service Type'}
           </Text>
-          <Text style={styles.dropdownChevron}>{'\u2304'}</Text>
+          <Ionicons name="chevron-down" style={styles.dropdownChevron} />
         </Pressable>
         {isOpen ? (
           <View style={styles.dropdownList}>
@@ -429,7 +430,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
             numberOfLines={1}>
             {isLoadingItems ? 'Loading...' : row.itemName || 'Select Item'}
           </Text>
-          <Text style={styles.dropdownChevron}>{'\u2304'}</Text>
+          <Ionicons name="chevron-down" style={styles.dropdownChevron} />
         </Pressable>
         {isOpen ? (
           <View style={styles.dropdownList}>

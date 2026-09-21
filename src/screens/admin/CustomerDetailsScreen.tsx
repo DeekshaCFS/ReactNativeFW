@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
+import BackBar from '../../components/BackBar';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
@@ -471,21 +472,14 @@ const CustomerDetailsScreen = ({
         customerPhone={customerPhone}
         customerAddress={customerAddress}
         onBack={() => setSelectedTask(null)}
+        underAppHeader
       />
     );
   }
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerIconButton}>
-          <Text style={styles.headerIconText}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.headerRightActions}>
-          <Text style={styles.headerIconText}>🎧</Text>
-          <Text style={styles.headerIconText}>🔔</Text>
-        </View>
-      </View>
+      <BackBar onBack={onBack} underAppHeader />
 
       <View style={styles.infoCard}>
         <View style={styles.infoRows}>

@@ -22,6 +22,7 @@ import {
 } from '../../api/quotation/quotationService';
 import type {QuotationDetailsDTOResultData} from '../../api/quotation/quotation.types';
 import {sp, ms, vs, scale} from '../../utils/responsive';
+import BackBar from '../../components/BackBar';
 
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
@@ -206,15 +207,7 @@ const QuotationDetailsScreen = ({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerIconButton} hitSlop={10}>
-          <Text style={styles.headerIconText}>{'\u2190'}</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          Quotation Details
-        </Text>
-        <View style={styles.headerRightActions} />
-      </View>
+      <BackBar onBack={onBack} />
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
         <View style={styles.card}>

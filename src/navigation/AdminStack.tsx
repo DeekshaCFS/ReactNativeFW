@@ -307,7 +307,7 @@ export default function AdminStack() {
           }
         </Stack.Screen>
 
-        <Stack.Screen name="TaskDetails" options={{headerShown: false}}>
+        <Stack.Screen name="TaskDetails" options={{title: 'Task Details'}}>
           {({route, navigation}) =>
             ownerId === null ? (
               <View style={styles.loadingContainer}>
@@ -322,12 +322,17 @@ export default function AdminStack() {
                 customerPhone={route.params.customerPhone}
                 customerAddress={route.params.customerAddress}
                 onBack={() => navigation.goBack()}
+                hideBackBar
               />
             )
           }
         </Stack.Screen>
 
-        <Stack.Screen name="AMCDetails" component={AMCDetailsScreen} />
+        <Stack.Screen
+          name="AMCDetails"
+          component={AMCDetailsScreen}
+          options={{title: 'AMC'}}
+        />
 
         {/* Header icon destinations (headset / notification bell on the
             shared AppHeader) -- same routes and screens the technician

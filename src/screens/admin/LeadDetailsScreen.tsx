@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
+import BackBar from '../../components/BackBar';
 import {
   ActivityIndicator,
   Alert,
@@ -533,17 +534,7 @@ const LeadDetailsScreen = ({
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Leads</Text>
-        <View style={styles.headerIcons}>
-          <Text style={styles.headerIcon}>🎧</Text>
-          <Text style={styles.headerIcon}>🔔</Text>
-        </View>
-      </View>
+      <BackBar onBack={onBack} />
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
         {/* Map Mock */}

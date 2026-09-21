@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {getQuotationList} from '../../api/quotation/quotationService';
 import type {QuotationListDTOResultData} from '../../api/quotation/quotation.types';
 import {getInvoiceList} from '../../api/accountManagement/accountManagementService';
@@ -25,7 +26,7 @@ const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
 const BLUE_CODE = '#1877F2';
 const CORAL_NAME = '#E4574E';
-const GREEN_AMOUNT = '#2E7D32';
+const GREEN_AMOUNT = '#1fb327';
 const BADGE_PURPLE = '#6C4BA5';
 const BADGE_ORANGE = '#F4A62A';
 const BADGE_GREEN = '#2E7D32';
@@ -38,15 +39,19 @@ type StatusOption = {
 };
 
 const QUOTATION_STATUS_OPTIONS: StatusOption[] = [
-  {id: 0, label: 'All'},
-  {id: 1, label: 'Assigned'},
-  {id: 2, label: 'Not Assigned'},
+  {id: 0, label: 'Select Status'},
+  {id: 1, label: 'Not Assigned'},
+  {id: 2, label: 'Assigned'},
+  {id: 3, label: 'Task Completed'},
+  {id: 4, label: 'Lost'},
 ];
 
 const INVOICE_STATUS_OPTIONS: StatusOption[] = [
-  {id: 0, label: 'All'},
-  {id: 7, label: 'Partial Paid'},
-  {id: 8, label: 'Paid'},
+  {id: 0, label: 'Select Status'},
+  {id: 7, label: 'Follow Up'},
+  {id: 8, label: 'Un-Paid'},
+  {id: 9, label: 'Partial-Paid'},
+  {id: 10, label: 'Paid'},
 ];
 
 const PAGE_START = 1;
@@ -66,7 +71,7 @@ const getQuoteStatusName = (item: QuotationListDTOResultData) => {
     return statusName;
   }
   const statusId = Number(item.StatusId ?? 0);
-  return statusId === 1 ? 'Assigned' : 'Not Assigned';
+  return statusId === 1 ? 'Not Assigned' : 'Assigned';
 };
 
 const getQuoteCustomerName = (item: QuotationListDTOResultData) => {
@@ -410,7 +415,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
         <Text style={styles.statusSelectorText} numberOfLines={1}>
           {selectedStatus.label}
         </Text>
-        <Text style={styles.statusSelectorChevron}>{'\u2304'}</Text>
+        <Ionicons name="chevron-down" style={styles.statusSelectorChevron} />
       </Pressable>
 
       {isInitialLoading ? (
@@ -497,7 +502,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
@@ -623,11 +628,12 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: scale(8),
+    borderRadius: scale(20),
     padding: scale(12),
     marginBottom: vs(10),
     borderWidth: 1,
     borderColor: '#eceef0',
+    elevation: 2,
   },
   cardTopRow: {
     flexDirection: 'row',

@@ -1,7 +1,7 @@
 // src/screens/admin/AMCDetailsScreen.tsx
 
 import React, { useEffect, useState, useMemo } from 'react';
-import {ms, sp} from '../../utils/responsive';
+import {ms, sp, vs} from '../../utils/responsive';
 import {
   View,
   Text,
@@ -1016,19 +1016,9 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerContainer}>
-          <View style={styles.headerLeft}>
-            <Text style={{ fontSize: 20, color: '#FFFFFF' }}>☰</Text>
-            <Text style={styles.headerTitle}>AMC</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.headerIcon}>🎧</Text>
-            <Text style={styles.headerIcon}>🔔</Text>
-          </View>
-        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={THEME_PRIMARY} />
-          <Text style={{ marginTop: 10, color: THEME_GRAY_TEXT }}>Loading AMC Details...</Text>
+          <Text style={{ marginTop: vs(10), color: THEME_GRAY_TEXT }}>Loading AMC Details...</Text>
         </View>
       </SafeAreaView>
     );
@@ -1037,16 +1027,6 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   if (error) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerContainer}>
-          <View style={styles.headerLeft}>
-            <Text style={{ fontSize: 20, color: '#FFFFFF' }}>☰</Text>
-            <Text style={styles.headerTitle}>AMC</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.headerIcon}>🎧</Text>
-            <Text style={styles.headerIcon}>🔔</Text>
-          </View>
-        </View>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable style={styles.retryButton} onPress={fetchAMCDetails}>
@@ -1060,16 +1040,6 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   if (!details) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerContainer}>
-          <View style={styles.headerLeft}>
-            <Text style={{ fontSize: 20, color: '#FFFFFF' }}>☰</Text>
-            <Text style={styles.headerTitle}>AMC</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.headerIcon}>🎧</Text>
-            <Text style={styles.headerIcon}>🔔</Text>
-          </View>
-        </View>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>No AMC data available</Text>
         </View>
@@ -1079,19 +1049,6 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.headerContainer}>
-        <View style={styles.headerLeft}>
-          <Pressable onPress={() => navigation.goBack()}>
-            <Text style={{ fontSize: 20, color: '#FFFFFF' }}>☰</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>AMC</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <Text style={styles.headerIcon}>🎧</Text>
-          <Text style={styles.headerIcon}>🔔</Text>
-        </View>
-      </View>
-
       {/* Toolbar Below Header */}
       <View style={styles.toolbarContainer}>
         <Pressable style={styles.toolbarButton} onPress={openEditModal} disabled={editLoading}>
@@ -1120,7 +1077,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         </Pressable>
       </View>
 
-      <ScrollView style={styles.contentContainer} contentContainerStyle={{ paddingBottom: 20 }}>
+      <ScrollView style={styles.contentContainer} contentContainerStyle={{ paddingBottom: vs(20) }}>
         {/* Info Card */}
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>

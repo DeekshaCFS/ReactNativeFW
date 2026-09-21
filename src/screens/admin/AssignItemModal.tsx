@@ -2,6 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {scale, sp, vs} from '../../utils/responsive';
 import {
   ActivityIndicator,
   Alert,
@@ -478,58 +479,58 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
 
 const assignStyles = {
   quantityLabel: {
-    fontSize: 11,
+    fontSize: sp(11),
     color: '#8a8f98',
-    marginBottom: 4,
+    marginBottom: vs(4),
   },
   quantityPill: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     borderWidth: 1,
     borderColor: '#d5d7db',
-    borderRadius: 24,
-    height: 46,
-    paddingHorizontal: 6,
-    marginBottom: 14,
+    borderRadius: scale(24),
+    height: vs(46),
+    paddingHorizontal: scale(6),
+    marginBottom: vs(14),
   },
   quantityInput: {
     flex: 1,
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#222',
-    padding: 0,
+    padding: scale(0),
     textAlign: 'center' as const,
   },
   quantityPlusButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: scale(34),
+    height: vs(34),
+    borderRadius: scale(17),
     backgroundColor: THEME_PRIMARY,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   quantityMinusButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: scale(34),
+    height: vs(34),
+    borderRadius: scale(17),
     backgroundColor: THEME_PRIMARY,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   quantityButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '700' as const,
-    lineHeight: 20,
+    lineHeight: sp(20),
   },
   assignButton: {
     flexDirection: 'row' as const,
     backgroundColor: THEME_PRIMARY,
-    borderRadius: 24,
-    height: 48,
+    borderRadius: scale(24),
+    height: vs(48),
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: 14,
-    gap: 8,
+    marginBottom: vs(14),
+    gap: scale(8),
   },
 };
 

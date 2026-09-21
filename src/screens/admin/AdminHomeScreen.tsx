@@ -426,6 +426,7 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
       {isItemInventorySection ||
       isPassbookSection ||
       isLeadSection ||
+      isAccountsSection ||
       isAMCSection ? (
         <View style={styles.taskContentContainer}>{renderContent()}</View>
       ) : (
@@ -551,24 +552,20 @@ const styles = StyleSheet.create({
   },
   headerFilterControl: {
     minWidth: ms(108),
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.45)',
-    borderRadius: ms(8),
     height: ms(34),
     paddingHorizontal: ms(10),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   headerFilterLabel: {
     color: '#FFFFFF',
-    fontSize: sp(13),
-    fontWeight: '600',
+    fontSize: sp(16),
+    fontWeight: '500',
   },
   headerFilterArrow: {
     color: '#FFFFFF',
-    fontSize: sp(10),
+    fontSize: sp(16),
     marginLeft: ms(8),
   },
   dashboardFilterBackdrop: {

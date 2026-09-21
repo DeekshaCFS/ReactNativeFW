@@ -14,6 +14,7 @@ import {
 import {addBulkFieldworkers} from '../../api/umEmployeeList/umEmployeeListService';
 import {isIndiaCountryDetailsId} from '../../state/session';
 import {styles} from './CRMScreen';
+import {scale, sp, vs} from '../../utils/responsive';
 
 type FieldworkerBulkInsertItem = {
   AE_FW_Contact: string;
@@ -380,33 +381,33 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
 const fieldworkerCardStyle = {
   borderWidth: 1,
   borderColor: '#d5d7db',
-  borderRadius: 8,
-  padding: 14,
-  marginBottom: 16,
+  borderRadius: scale(8),
+  padding: scale(14),
+  marginBottom: vs(16),
 } as const;
 
 const fieldworkerCardHeaderStyle = {
   flexDirection: 'row' as const,
   alignItems: 'center' as const,
   justifyContent: 'space-between' as const,
-  marginBottom: 12,
+  marginBottom: vs(12),
 };
 
 const fieldworkerCardTitleStyle = {
   color: '#c3002f',
-  fontSize: 14,
+  fontSize: sp(14),
   fontWeight: '700' as const,
 };
 
 const fieldworkerRemoveIconStyle = {
   color: '#c3002f',
-  fontSize: 16,
+  fontSize: sp(16),
   fontWeight: '700' as const,
 };
 
 const addMoreButtonStyle = {
   alignSelf: 'center' as const,
-  marginTop: 4,
+  marginTop: vs(4),
 };
 
 export default AddFieldworkerModal;

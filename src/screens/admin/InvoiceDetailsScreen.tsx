@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   getInvoicedetailsByInvoiceId,
   deleteInvoiceDetails,
@@ -23,6 +24,7 @@ import {
 } from '../../api/accountManagement/accountManagementService';
 import type {InvoiceDetailsDTOResultData} from '../../api/accountManagement/accountManagement.types';
 import {scale, sp, vs, ms} from '../../utils/responsive';
+import BackBar from '../../components/BackBar';
 
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
@@ -264,15 +266,7 @@ const InvoiceDetailsScreen = ({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerIconButton} hitSlop={10}>
-          <Text style={styles.headerIconText}>{'\u2190'}</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          Invoice Details
-        </Text>
-        <View style={styles.headerRightActions} />
-      </View>
+      <BackBar onBack={onBack} />
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
         <View style={styles.card}>
@@ -479,7 +473,7 @@ const InvoiceDetailsScreen = ({
                 numberOfLines={1}>
                 {paymentType || 'Select Payment Type'}
               </Text>
-              <Text style={styles.modalDropdownChevron}>{'\u2304'}</Text>
+              <Ionicons name="chevron-down" style={styles.modalDropdownChevron} />
             </Pressable>
             {isPaymentTypeOpen ? (
               <View style={styles.modalDropdownList}>

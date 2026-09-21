@@ -21,6 +21,7 @@ import type {
 import type {TaskListItem} from './adminLegacyApiTypes';
 import {getStringField, getNumberField} from './CRMScreen';
 import {ms, sp} from '../../utils/responsive';
+import BackBar from '../../components/BackBar';
 import {getCurrentCountryCode} from '../../state/session';
 
 type TaskDetailsTask = TasksListResultData | TaskListItem;
@@ -33,6 +34,10 @@ type TaskDetailsScreenProps = {
   customerPhone?: string;
   customerAddress?: string;
   onBack: () => void;
+  /** Stack-pushed use gets the native header (with back) instead. */
+  hideBackBar?: boolean;
+  /** Embedded under the shared AppHeader without host padding. */
+  underAppHeader?: boolean;
 };
 
 const THEME_PRIMARY = '#c3002f';
@@ -138,6 +143,8 @@ const TaskDetailsScreen = ({
   customerPhone,
   customerAddress,
   onBack,
+  hideBackBar,
+  underAppHeader,
 }: TaskDetailsScreenProps) => {
   const [task, setTask] = useState<TaskDetailsTask | null>(fallbackTask ?? null);
   const [isLoading, setIsLoading] = useState(true);
@@ -280,15 +287,7 @@ const TaskDetailsScreen = ({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerIconButton}>
-          <Text style={styles.headerIconText}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.headerRightActions}>
-          <Text style={styles.headerIconText}>🎧</Text>
-          <Text style={styles.headerIconText}>🔔</Text>
-        </View>
-      </View>
+      {hideBackBar ? null : <BackBar onBack={onBack} underAppHeader={underAppHeader} />}
 
       <View style={styles.avatarWrap}>
         <Animated.View style={[styles.avatarCircle, avatarRotationStyle]}>

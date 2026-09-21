@@ -22,6 +22,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getAmcTypeList, getServiceOccurrenceList, getReminderModeList, getAmcServiceMonthList, addAmc } from '../../api/amc/amcService';
@@ -1358,7 +1359,7 @@ const AMCDashboardScreen = ({
       >
         {value || placeholder}
       </Text>
-      <Text style={styles.formSelectArrow}>v</Text>
+      <Ionicons name="chevron-down" style={styles.formSelectArrow} />
     </Pressable>
   );
 
@@ -1999,7 +2000,7 @@ const AMCDashboardScreen = ({
             <Text numberOfLines={1} style={styles.headerFilterText}>
               {selectedType.name}
             </Text>
-            <Text style={styles.headerArrow}>v</Text>
+            <Ionicons name="chevron-down" style={styles.headerArrow} />
           </Pressable>
 
           <Pressable
@@ -2009,7 +2010,7 @@ const AMCDashboardScreen = ({
             <Text numberOfLines={1} style={styles.headerFilterText}>
               {selectedMonth.label}
             </Text>
-            <Text style={styles.headerArrow}>v</Text>
+            <Ionicons name="chevron-down" style={styles.headerArrow} />
           </Pressable>
         </View>
       </View>
