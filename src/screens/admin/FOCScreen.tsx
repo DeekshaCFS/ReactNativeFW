@@ -357,7 +357,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
 
     const loadStatusTags = async () => {
       try {
-        const response = (await getFocStatusTagList()) as FocStatusTagResponse;
+        const response = (await getFocStatusTagList({userid: ownerId})) as FocStatusTagResponse;
         if (!isMounted) {
           return;
         }
@@ -441,7 +441,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
 
     setDeletingFocId(focRequestId);
     try {
-      const response = await getDeleteFocRequestItem({FocRequestId: focRequestId});
+      const response = await getDeleteFocRequestItem({id: focRequestId});
       if (response.Code === '200') {
         Alert.alert('Deleted', response.Message || 'Request deleted successfully.');
         setFocRequests(previous => previous.filter(row => getFocId(row) !== focRequestId));

@@ -3,6 +3,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {scale, sp, vs} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 import {
   ActivityIndicator,
   Alert,
@@ -237,7 +238,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await issueItem(payload);
+      ensureSuccess(await issueItem(payload));
       Alert.alert('Assign Item', 'Item assigned successfully.');
       resetForm();
       onClose();

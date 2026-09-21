@@ -22,6 +22,7 @@ import {
 } from '../../api/quotation/quotationService';
 import type {QuotationDetailsDTOResultData} from '../../api/quotation/quotation.types';
 import {sp, ms, vs, scale} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 import BackBar from '../../components/BackBar';
 
 const THEME_PRIMARY = '#c3002f';
@@ -133,7 +134,7 @@ const QuotationDetailsScreen = ({
         onPress: async () => {
           setIsDeleting(true);
           try {
-            await deleteQuotationDetails({Id: quotationId, UserId: ownerId});
+            ensureSuccess(await deleteQuotationDetails({Id: quotationId, UserId: ownerId}));
             if (onDeleted) {
               onDeleted();
             } else {
@@ -170,12 +171,12 @@ const QuotationDetailsScreen = ({
   const handleMarkAsLost = async () => {
     setIsUpdatingStatus(true);
     try {
-      await updateQuotationStatus({
+      ensureSuccess(await updateQuotationStatus({
         QuotationId: quotationId,
         UserId: ownerId,
         StatusId: LOST_STATUS_ID,
         Notes: statusNote.trim(),
-      });
+      }));
       setIsStatusModalOpen(false);
       setStatusNote('');
       await loadDetails();

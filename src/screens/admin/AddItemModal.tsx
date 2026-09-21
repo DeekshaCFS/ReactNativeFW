@@ -2,6 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
@@ -332,7 +333,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await addItem(payload as Partial<AddItem>);
+      ensureSuccess(await addItem(payload as Partial<AddItem>));
       Alert.alert('Add Item', 'Item added successfully.');
       resetForm();
       onClose();

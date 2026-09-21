@@ -2,6 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 import {
   ActivityIndicator,
   Alert,
@@ -1368,14 +1369,14 @@ const LeadListScreen = ({userId}: LeadListScreenProps) => {
       State: leadState.trim(),
       TaskId: 0,
       UpdatedBy: userId,
-      UserId: 0,
+      UserId: userId,
       latitude: '',
     };
 
     try {
-      await postExternalLeadForm(
+      ensureSuccess(await postExternalLeadForm(
         payload as unknown as Parameters<typeof postExternalLeadForm>[0],
-      );
+      ));
       closeAddLeadModal();
       Alert.alert('Lead', 'Lead added successfully.');
       fetchLeadPage({nextPage: PAGE_START, replace: true});

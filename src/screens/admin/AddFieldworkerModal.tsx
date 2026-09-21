@@ -15,6 +15,7 @@ import {addBulkFieldworkers} from '../../api/umEmployeeList/umEmployeeListServic
 import {isIndiaCountryDetailsId} from '../../state/session';
 import {styles} from './CRMScreen';
 import {scale, sp, vs} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 
 type FieldworkerBulkInsertItem = {
   AE_FW_Contact: string;
@@ -237,7 +238,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await addBulkFieldworkers([payload]);
+      ensureSuccess(await addBulkFieldworkers([payload]));
       Alert.alert('Add Fieldworker', 'Fieldworker(s) added successfully.');
       resetForm();
       onAdded?.();

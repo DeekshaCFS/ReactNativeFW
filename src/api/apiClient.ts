@@ -6,7 +6,7 @@ export const BASE_URL = "http://192.169.3.8/API/api";
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 15000,
+  timeout: 60000,
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",

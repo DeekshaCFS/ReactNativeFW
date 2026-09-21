@@ -1,6 +1,7 @@
 // src/screens/admin/AddTaskModal.tsx
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {ensureSuccess} from '../../utils/apiResponse';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
@@ -1270,10 +1271,23 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         UsedItemQty: 0,
       }));
 
+    // Java sends the recording inline as base64 (Base64AudioString) with an
+    // empty AudioFilePath; a device-local path is meaningless to the server.
+    let instructionAudioBase64 = '';
+    if (instructionAudioPath) {
+      try {
+        instructionAudioBase64 = await RNFS.readFile(instructionAudioPath, 'base64');
+      } catch {
+        Alert.alert('Add Task', 'Unable to read the recorded instruction.');
+        return;
+      }
+    }
+
     const payload: AddTaskResultData = {
       AMCServiceDetailsId: taskAmcServiceDetailsId,
       Address: taskAddress.trim(),
-      AudioFilePath: instructionAudioPath || '',
+      AudioFilePath: '',
+      Base64AudioString: instructionAudioBase64,
       BrandName: taskProductBrand.trim(),
       City: taskCity.trim(),
       ContactNo: taskCustomerNumber.trim(),
@@ -1320,7 +1334,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     };
 
     try {
-      await addTask(payload);
+      ensureSuccess(await addTask(payload));
       Alert.alert('Add Task', 'Task added successfully.');
       onClose();
     } catch (error) {

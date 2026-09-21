@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import {ms, sp} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 import {
   ActivityIndicator,
   Alert,
@@ -719,6 +720,8 @@ const AMCDashboardScreen = ({
   const [modelName, setModelName] = useState('');
   const [serialNo, setSerialNo] = useState('');
   const [note, setNote] = useState('');
+  const [amcAmount, setAmcAmount] = useState('');
+  const [receivedAmount, setReceivedAmount] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allCustomerOptions, setAllCustomerOptions] = useState<
@@ -916,6 +919,8 @@ const AMCDashboardScreen = ({
     setModelName('');
     setSerialNo('');
     setNote('');
+    setAmcAmount('');
+    setReceivedAmount('');
     setSelectedCustomerId(0);
     setUnderWarranty(true);
     setActivationDate(null);
@@ -996,10 +1001,23 @@ const AMCDashboardScreen = ({
       return;
     }
 
+    // Same rules as Java's AMCDialog: amount is required when the product is
+    // out of warranty, and the received amount can't exceed it.
+    const amcAmountValue = Number(amcAmount) || 0;
+    const receivedAmountValue = Number(receivedAmount) || 0;
+    if (!underWarranty && !amcAmount.trim()) {
+      Alert.alert('Validation', 'Please enter service amount.');
+      return;
+    }
+    if (receivedAmountValue > amcAmountValue) {
+      Alert.alert('Validation', 'Received amount cannot be greater than service amount !');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      await addAmc({
-        AMCAmount: 0,
+      ensureSuccess(await addAmc({
+        AMCAmount: amcAmountValue,
         AMCName: amcName.trim(),
         AMCNotes: note.trim(),
         AMCSetReminderId: selectedReminder ? Number(selectedReminder.id) : 0,
@@ -1060,12 +1078,12 @@ const AMCDashboardScreen = ({
           UserId: owner,
         },
         ProductId: 0,
-        ReceivedAmount: 0.0,
+        ReceivedAmount: receivedAmountValue,
         ServiceOccuranceId: Number(selectedOccurrence.id),
         TotalServices: Number(selectedServiceCount.name),
         UpdatedBy: owner,
         UserId: owner,
-      });
+      }));
 
       Alert.alert('Success', 'AMC added successfully.');
       setAddModalVisible(false);
@@ -1300,7 +1318,7 @@ const AMCDashboardScreen = ({
       value?: string;
       onChangeText?: (text: string) => void;
       onFocus?: () => void;
-      keyboardType?: 'default' | 'email-address' | 'phone-pad';
+      keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'decimal-pad';
     } = {},
   ) => (
     <View
@@ -1905,6 +1923,17 @@ const AMCDashboardScreen = ({
                 </Pressable>
               </View>
             </View>
+
+            {renderFormInput(underWarranty ? 'Service Amount' : 'Service Amount *', {
+              value: amcAmount,
+              onChangeText: setAmcAmount,
+              keyboardType: 'decimal-pad',
+            })}
+            {renderFormInput('Received Amount', {
+              value: receivedAmount,
+              onChangeText: setReceivedAmount,
+              keyboardType: 'decimal-pad',
+            })}
 
             <View style={styles.formPairRow}>
               {renderPickerInput(

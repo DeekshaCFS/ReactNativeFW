@@ -2,6 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
@@ -49,19 +50,23 @@ type AddEnquiryRequest = {
   CustomerDetailsid?: number;
   CustomerName: string;
   MobileNumber: string;
-  EnquiryDate: string;
-  EnquiryTime: string;
+  PreferableDate: string;
+  PreferableTime: string;
   Address: string;
   State: string;
   City: string;
   PinCode: string;
-  Landmark: string;
-  ServiceTypeId?: number;
-  ServiceTypeName?: string;
+  LocDescription: string;
+  LocName?: string;
+  Longitude?: string;
+  latitude?: string;
+  ServicesId?: number;
   TaskTagId?: number;
   TaskTagName?: string;
   TechnicalProblem?: string;
-  SpecialInstruction?: string;
+  TechnicalNote?: string;
+  OwnerId: number;
+  InquaryState: number;
   ImageFileBase64Str?: string;
   ImageFileName?: string;
   ImageFileBase64Str1?: string;
@@ -1769,19 +1774,23 @@ const CRMScreen = ({
           CustomerDetailsid: customerId || 0,
           CustomerName: customerName.trim(),
           MobileNumber: phone.trim(),
-          EnquiryDate: enquiryDate,
-          EnquiryTime: enquiryTime,
+          PreferableDate: enquiryDate,
+          PreferableTime: enquiryTime,
           Address: address.trim(),
           State: state.trim(),
           City: city.trim(),
           PinCode: pinCode.trim(),
-          Landmark: landmark.trim(),
-          ServiceTypeId: selectedService?.id || 0,
-          ServiceTypeName: selectedService?.label || '',
+          LocDescription: landmark.trim(),
+          LocName: '',
+          Longitude: '',
+          latitude: '',
+          ServicesId: selectedService?.id || 0,
           TaskTagId: selectedTaskTag?.id || 0,
           TaskTagName: selectedTaskTag?.label || '',
           TechnicalProblem: technicalProblem.trim(),
-          SpecialInstruction: specialInstructions.trim(),
+          TechnicalNote: specialInstructions.trim(),
+          OwnerId: ownerId,
+          InquaryState: 1,
           ImageFileBase64Str: photos[0]?.base64 || '',
           ImageFileName: photos[0]?.fileName || '',
           ImageFileBase64Str1: photos[1]?.base64 || '',
@@ -1793,7 +1802,7 @@ const CRMScreen = ({
           UpdatedBy: ownerId,
           IsActive: true,
         };
-        await addEnquiry(payload);
+        ensureSuccess(await addEnquiry(payload as unknown as Parameters<typeof addEnquiry>[0]));
         closeAddEnquiryModal();
         Alert.alert('Enquiry', 'Enquiry added successfully.');
       }

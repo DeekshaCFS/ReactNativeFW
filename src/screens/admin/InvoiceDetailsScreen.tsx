@@ -24,6 +24,7 @@ import {
 } from '../../api/accountManagement/accountManagementService';
 import type {InvoiceDetailsDTOResultData} from '../../api/accountManagement/accountManagement.types';
 import {scale, sp, vs, ms} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 import BackBar from '../../components/BackBar';
 
 const THEME_PRIMARY = '#c3002f';
@@ -141,7 +142,7 @@ const InvoiceDetailsScreen = ({
         onPress: async () => {
           setIsDeleting(true);
           try {
-            await deleteInvoiceDetails({Id: invoiceId, UserId: ownerId});
+            ensureSuccess(await deleteInvoiceDetails({Id: invoiceId, UserId: ownerId}));
             if (onDeleted) {
               onDeleted();
             } else {
@@ -204,7 +205,7 @@ const InvoiceDetailsScreen = ({
     try {
       // Java's UpdatePaymentStatus() sends Id == InvoiceId for this endpoint
       // (see InvoiceDetailsFragment.java#updatePayment) — mirrored here.
-      await saveInvoicePaymmentDetails({
+      ensureSuccess(await saveInvoicePaymmentDetails({
         Id: invoiceId,
         InvoiceId: invoiceId,
         Amount: amount,
@@ -212,7 +213,7 @@ const InvoiceDetailsScreen = ({
         UserId: ownerId,
         PaymentTransactionType: paymentType,
         IsActive: true,
-      });
+      }));
       setIsPaymentModalOpen(false);
       await loadDetails();
     } catch (error) {
@@ -236,7 +237,7 @@ const InvoiceDetailsScreen = ({
     }
     setIsSavingFollowUp(true);
     try {
-      await invoiceFollowUpNotes({
+      ensureSuccess(await invoiceFollowUpNotes({
         InvoiceId: invoiceId,
         // Java hardcodes this to 1 with the comment "need to pass final value
         // once Details API is ready" — it's a known placeholder in the
@@ -245,7 +246,7 @@ const InvoiceDetailsScreen = ({
         UserId: ownerId,
         FolowUpDate: `${followUpDate.trim()}T00:00:00`,
         Notes: followUpNote.trim(),
-      });
+      }));
       setIsFollowUpModalOpen(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to save follow-up.';

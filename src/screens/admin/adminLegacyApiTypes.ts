@@ -467,6 +467,8 @@ export type UpdateCustomerDetailsRequest = {
   SecondaryMobileNumber?: string;
   State: string;
   UpdatedBy: number;
+  latitude?: string;
+  Longitude?: string;
 };
 
 export type AddCustomerLeadRequest = {

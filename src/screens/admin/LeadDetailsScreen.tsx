@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 import BackBar from '../../components/BackBar';
 import {
   ActivityIndicator,
@@ -156,12 +157,35 @@ const LeadDetailsScreen = ({
 
     setIsUpdatingStatus(true);
     try {
-      const response = await updateLeadStatusApi({
+      const rec = (lead ?? {}) as Record<string, unknown>;
+      const pick = (...keys: string[]) => {
+        for (const key of keys) {
+          if (rec[key] !== undefined && rec[key] !== null) {
+            return rec[key];
+          }
+        }
+        return undefined;
+      };
+      const response = ensureSuccess(await updateLeadStatusApi({
         LeadId: leadId,
         LeadStatusId: selectedStatusId,
+        LeadStatus: selectedStatusId,
         UserId: userId,
-        Description: updateNotes || 'Updated from app',
-      });
+        OwnerId: userId,
+        CreatedBy: userId,
+        UpdatedBy: userId,
+        IsActive: true,
+        // The lead's own Description stays as is; the note is FollowUpNotes.
+        FollowUpNotes: updateNotes || 'Updated from app',
+        Description: String(pick('Description', 'description') ?? ''),
+        CustomerName: String(pick('CustomerName', 'customerName') ?? ''),
+        MobileNumber: String(pick('MobileNumber', 'mobileNumber') ?? ''),
+        Address: String(pick('Address', 'address') ?? ''),
+        LocName: String(pick('LocName', 'locName') ?? ''),
+        LocationId: Number(pick('LocationId', 'locationId') ?? 0),
+        ServiceName: String(pick('ServiceName', 'serviceName') ?? ''),
+        ServicesId: Number(pick('ServicesId', 'servicesId') ?? 0),
+      }));
 
       // Based on Api.ts, request returns the parsed JSON response
       // Usually success is indicated by the absence of error or a specific field

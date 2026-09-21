@@ -27,6 +27,7 @@ import type {
   SaveQuotationDTOQuoteTaxList,
 } from '../../api/quotation/quotation.types';
 import {sp, ms} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 
 type LeadServiceTypeItem = EnquiryServiceTypeDTOResultData;
 type ItemInventoryListItem = ItemsListResultData;
@@ -326,7 +327,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
 
     setIsSubmitting(true);
     try {
-      await postQuotationDetails({
+      ensureSuccess(await postQuotationDetails({
         UserId: ownerId,
         CreatedBy: ownerId,
         UpdatedBy: ownerId,
@@ -354,7 +355,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
         QuoteServiceList: quoteServiceList,
         QuoteItemList: quoteItemList,
         QuoteTaxList: quoteTaxList,
-      });
+      }));
 
       Alert.alert('Add Quote', 'Quote saved successfully.');
       onSuccess?.();

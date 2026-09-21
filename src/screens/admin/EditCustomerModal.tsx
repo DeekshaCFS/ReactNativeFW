@@ -372,6 +372,10 @@ const EditCustomerModal = ({
         SecondaryMobileNumber: form.secondaryMobileNumber.trim(),
         State: form.state.trim(),
         UpdatedBy: ownerId,
+        // Java re-sends the stored coordinates on update; omitting them risks
+        // clearing the customer's saved map location.
+        latitude: String(customer?.latitude ?? customer?.Latitude ?? ''),
+        Longitude: String(customer?.Longitude ?? customer?.longitude ?? ''),
       };
 
       const response = await updateCustomerDetails(

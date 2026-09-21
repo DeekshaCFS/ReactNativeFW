@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 import {
   Alert,
   Modal,
@@ -190,21 +191,21 @@ const ManageBalanceModal = ({
     (async () => {
       try {
         if (balanceMode === 'add') {
-          await updateAddCredit({
+          ensureSuccess(await updateAddCredit({
             Amount: Number(balanceAmount),
             CredidDescription: balanceDescription,
             GivenBy: userId,
             ReceivedBy: getTechnicianId(selectedTechnician),
-          });
+          }));
 
           Alert.alert('Add Balance', `₹${balanceAmount} added to ${getTechnicianName(selectedTechnician)}.`);
         } else {
-          await updateDeductBalance({
+          ensureSuccess(await updateDeductBalance({
             Amount: Number(balanceAmount),
             Description: balanceDescription,
             DeductBy: userId,
             UserId: getTechnicianId(selectedTechnician),
-          });
+          }));
           Alert.alert('Deduct Balance', `₹${balanceAmount} deducted from ${getTechnicianName(selectedTechnician)}.`);
         }
 

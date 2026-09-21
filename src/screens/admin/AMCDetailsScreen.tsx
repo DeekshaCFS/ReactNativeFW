@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import {ms, sp, vs} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 import {
   View,
   Text,
@@ -376,6 +377,8 @@ type EditFormData = {
   activationTime: string;
   contractDate: string;
   totalServices: string;
+  amcAmount: string;
+  receivedAmount: string;
   expiryDate: string;
   note: string;
 };
@@ -557,6 +560,8 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     activationTime: String(getFirstValue(data, ['ActivationTime']) || ''),
     contractDate: toDateInputValue(getFirstValue(data, ['ContractDate'])),
     totalServices: String(getFirstValue(data, ['TotalServices']) || ''),
+    amcAmount: String(getFirstValue(data, ['AMCAmount', 'AMCAmountValue']) ?? ''),
+    receivedAmount: String(getFirstValue(data, ['ReceivedAmount', 'ReceivedAmt']) ?? ''),
     expiryDate: toDateInputValue(getFirstValue(data, ['ExpiryDate'])),
     note: String(getFirstValue(data, ['AMCNotes', 'Note']) || ''),
   });
@@ -670,6 +675,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         'ServiceOccuranceTypeID',
       ]);
 
+      if (toNumberValue(editFormData.receivedAmount) > toNumberValue(editFormData.amcAmount)) {
+        Alert.alert('Error', 'Received amount cannot be greater than service amount !');
+        return;
+      }
+
       const missingFields = [
         !amcId ? 'AMC id' : '',
         !customerId ? 'Customer id' : '',
@@ -685,7 +695,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       }
 
       const payload: Partial<EditAMCDTOResultData> = {
-        AMCAmount: toNumberValue(getFirstValue(sourceData, ['AMCAmount', 'AMCAmountValue'])),
+        AMCAmount: toNumberValue(editFormData.amcAmount),
         AMCName: toEditableText(editFormData.amcName),
         AMCNotes: toEditableText(editFormData.note),
         AMCSetReminderId: reminderId,
@@ -734,15 +744,15 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           UserId: toNumberValue(productDetail.UserId),
         },
         ProductId: productId,
-        ReceivedAmount: toNumberValue(getFirstValue(sourceData, ['ReceivedAmount', 'ReceivedAmt'])),
+        ReceivedAmount: toNumberValue(editFormData.receivedAmount),
         ServiceOccuranceId: occurrenceId,
         TotalServices: parseInt(editFormData.totalServices, 10) || 0,
-        UpdatedBy: toNumberValue(getFirstValue(sourceData, ['UpdatedBy'])),
+        UpdatedBy: userId,
         UserId: userId,
       };
 
       console.log('[AMC Update] Sending payload:', JSON.stringify(payload, null, 2));
-      const response = await putAmcDetails(payload);
+      const response = ensureSuccess(await putAmcDetails(payload));
       console.log('[AMC Update Response]', response);
 
       Alert.alert('Success', 'AMC updated successfully');
@@ -997,7 +1007,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     label: string,
     value: string,
     onChangeText: (value: string) => void,
-    options?: { keyboardType?: 'default' | 'numeric' | 'phone-pad' | 'email-address'; multiline?: boolean },
+    options?: { keyboardType?: 'default' | 'numeric' | 'decimal-pad' | 'phone-pad' | 'email-address'; multiline?: boolean },
   ) => (
     <View style={styles.editField}>
       <Text style={styles.editLabel}>{label}</Text>
@@ -1254,6 +1264,8 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 {renderEditInput('Contract Date (YYYY-MM-DD)', editFormData.contractDate, value => updateEditField('contractDate', value))}
                 {renderEditInput('Expiry Date (YYYY-MM-DD)', editFormData.expiryDate, value => updateEditField('expiryDate', value))}
                 {renderEditInput('Total Services', editFormData.totalServices, value => updateEditField('totalServices', value), { keyboardType: 'numeric' })}
+                {renderEditInput('Service Amount', editFormData.amcAmount, value => updateEditField('amcAmount', value), { keyboardType: 'decimal-pad' })}
+                {renderEditInput('Received Amount', editFormData.receivedAmount, value => updateEditField('receivedAmount', value), { keyboardType: 'decimal-pad' })}
                 {renderEditInput('Notes', editFormData.note, value => updateEditField('note', value), { multiline: true })}
 
                 <Pressable
