@@ -20,6 +20,7 @@ import {getCountrySymbol} from '../../api/countryDetails/countryDetailsService';
 import {useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import { HEADER_CONTENT_HEIGHT } from '../../components/AppHeader';
+import { useDoubleBackExit } from '../../hooks/useDoubleBackExit';
 import { ms, sp } from '../../utils/responsive';
 import {
   getCurrentUserProfile,
@@ -177,6 +178,16 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
   const isLeadSection = selectedDrawerLabel === 'Leads';
   const isAccountsSection = selectedDrawerLabel === 'Accounts';
   const isHomeDashboard = selectedDrawerLabel === 'Dashboard';
+
+  // Back from a drawer section (Leads, Accounts, AMC...) returns to the
+  // dashboard first; only from the dashboard does back reach the exit prompt.
+  useDoubleBackExit(() => {
+    if (selectedDrawerLabel !== 'Dashboard') {
+      setSelectedDrawerLabel('Dashboard');
+      return true;
+    }
+    return false;
+  });
 
   const isFieldWorkerUser = useMemo(() => {
     const roleDetails = userDetails as

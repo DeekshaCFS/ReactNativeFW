@@ -148,6 +148,7 @@ export default function AdminTabs() {
     <View style={styles.container}>
       <Tab.Navigator
         initialRouteName="Home"
+        backBehavior="initialRoute"
         screenOptions={{ headerShown: false }}
         tabBar={(props) => {
           const currentRoute = props.state.routes[props.state.index];
