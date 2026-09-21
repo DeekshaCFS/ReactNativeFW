@@ -222,8 +222,40 @@ export interface SaveInvoicePaymentAmountDetailsDTO {
   Code?: string;
 }
 
+// Request shape for AccountManagement/SaveInvoicePaymentAmountDetails.
+// Java's Api.updatePayment() is @FormUrlEncoded with these exact field names.
+// Id is the payment-record id (0 for a new payment entry).
+export interface SaveInvoicePaymentRequest {
+  Id: number;
+  InvoiceId: number;
+  Amount: number;
+  CreatedBy: number;
+  UserId: number;
+  PaymentTransactionType: string;
+  IsActive: boolean;
+}
+
 // ---- from DTO/Account/InvoiceFollowUpNotesDTO.java ----
 export interface InvoiceFollowUpNotesDTO {
   Message?: string;
   Code?: string;
+}
+
+// Request shape for AccountManagement/InvoiceFollowUp.
+// Java's Api.followUpNotes() is @FormUrlEncoded — note the backend's own
+// field names are misspelled ("StatuiId", "FolowUpDate"); they must be sent
+// exactly like this or the backend won't bind them.
+export interface InvoiceFollowUpRequest {
+  InvoiceId: number;
+  StatuiId: number;
+  UserId: number;
+  FolowUpDate: string;
+  Notes: string;
+}
+
+// Request shape for AccountManagement/GetInvoicePdfById.
+// Java's Api.getInvoicePdf() query params are UserId + lower-case "invoiceId".
+export interface GetInvoicePdfParams {
+  UserId: number;
+  invoiceId: number;
 }

@@ -1,6 +1,7 @@
 // src/screens/admin/CRMScreen.tsx
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import {ms, sp} from '../../utils/responsive';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
@@ -39,6 +40,7 @@ import type {ServiceTypeListDTOResultData} from '../../api/services/services.typ
 import {getTaskTagList} from '../../api/task/taskService';
 import type {TagListResultData} from '../../api/task/task.types';
 import {BASE_URL} from '../../api/apiClient';
+import {getCurrentCountryCode} from '../../state/session';
 // TODO(temp): inlined from URLConstant.Base.GET_LINK before URLConstant.ts was deleted.
 // Was: `${PROTOCOL}${SERVICE_IP}/EnquiryForm/EnquiryForm?Node=` where PROTOCOL='http://', SERVICE_IP='192.169.3.8'.
 const ENQUIRY_FORM_LINK = 'http://192.169.3.8/EnquiryForm/EnquiryForm?Node=';
@@ -268,6 +270,18 @@ const isSuccessOrNoData = (response: {code?: string; Code?: string}) => {
 };
 
 const normalizePhone = (phone: string) => phone.replace(/[^\d+]/g, '');
+
+// Java (CRMTaskDetailsFragmentNew / TaskDetailsFragmentNew / EnquiryDialogNew /
+// CRMTaskAmcTabHostFragment -- every screen that shows a customer's number as
+// text) prefixes it with the session's country code: "+" + countryCode + " " + number.
+export const formatPhoneWithCountryCode = (rawPhone: string) => {
+  const trimmed = rawPhone.trim();
+  if (!trimmed) {
+    return '';
+  }
+  const countryCode = getCurrentCountryCode();
+  return countryCode ? `+${countryCode} ${trimmed}` : trimmed;
+};
 
 const USER_ID_DIGIT_CODES: Record<string, string> = {
   '0': 'AZ=',
@@ -1911,12 +1925,40 @@ const CRMScreen = ({
     }
   };
 
-  const openWhatsapp = async (rawPhone: string) => {
-    const normalizedPhone = normalizePhone(rawPhone).replace(/^\+/, '');
+  // Java's list-row message icon (CRMFragment.onClick, imageView_message, for
+  // both the enquiry and customer adapters) opens the native SMS composer
+  // with the raw number -- it does NOT open WhatsApp. Only the enquiry
+  // *details* dialog (EnquiryDialogNew.enquiryDetailsDialog) opens WhatsApp.
+  const openSms = async (rawPhone: string) => {
+    const normalizedPhone = normalizePhone(rawPhone);
     if (!normalizedPhone) {
+      Alert.alert('Phone number unavailable');
+      return;
+    }
+    const url = `sms:${normalizedPhone}`;
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Unable to open Messages', 'Please try again on a device.');
+      }
+    } catch {
+      Alert.alert('Unable to open Messages', 'Please try again later.');
+    }
+  };
+
+  // Java (EnquiryDialogNew.enquiryDetailsDialog, imageViewMessage) prefixes
+  // the number with the session's country code before building the wa.me
+  // link -- e.g. countryCode "91" + number "9998887776" -> wa.me/919998887776.
+  const openWhatsapp = async (rawPhone: string) => {
+    const digitsOnly = normalizePhone(rawPhone).replace(/^\+/, '');
+    if (!digitsOnly) {
       Alert.alert('WhatsApp number unavailable');
       return;
     }
+    const countryCode = getCurrentCountryCode().replace(/\D/g, '');
+    const normalizedPhone = countryCode ? `${countryCode}${digitsOnly}` : digitsOnly;
     const url = `https://wa.me/${normalizedPhone}`;
     try {
       const canOpen = await Linking.canOpenURL(url);
@@ -1997,7 +2039,7 @@ const CRMScreen = ({
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.cardIconButton}
-                onPress={() => openWhatsapp(phoneValue)}
+                onPress={() => openSms(phoneValue)}
               >
                 <Text style={styles.cardIconText}>💬</Text>
               </TouchableOpacity>
@@ -2047,7 +2089,7 @@ const CRMScreen = ({
             <View style={styles.cardActionsRow}>
               <TouchableOpacity
                 style={styles.cardIconButton}
-                onPress={() => openWhatsapp(phoneValue)}
+                onPress={() => openSms(phoneValue)}
               >
                 <Text style={styles.cardIconText}>💬</Text>
               </TouchableOpacity>
@@ -2713,7 +2755,7 @@ const CRMScreen = ({
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Contact Number</Text>
                     <Text style={styles.detailValue}>
-                      {getEnquiryPhone(selectedEnquiry) || 'NA'}
+                      {formatPhoneWithCountryCode(getEnquiryPhone(selectedEnquiry)) || 'NA'}
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
@@ -2952,38 +2994,38 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: HEADER_PRIMARY,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    paddingHorizontal: ms(12),
+    paddingVertical: ms(14),
   },
   headerIconButton: {
-    padding: 4,
+    padding: ms(4),
   },
   headerIconText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
   },
   headerTitle: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '700',
   },
   headerRightActions: {
     flexDirection: 'row',
-    gap: 16,
+    gap: ms(16),
   },
   tabsRow: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
+    borderBottomWidth: ms(1),
     borderBottomColor: '#eceef0',
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: ms(12),
   },
   tabButtonText: {
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '700',
     color: '#8a8f98',
     letterSpacing: 0.5,
@@ -2992,17 +3034,17 @@ export const styles = StyleSheet.create({
     color: THEME_PRIMARY,
   },
   tabButtonUnderline: {
-    marginTop: 8,
-    height: 2,
+    marginTop: ms(8),
+    height: ms(2),
     width: '60%',
     backgroundColor: THEME_PRIMARY,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
+    paddingHorizontal: ms(12),
+    paddingVertical: ms(10),
+    gap: ms(8),
     backgroundColor: '#FFFFFF',
   },
   searchInputWrap: {
@@ -3010,75 +3052,75 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f1f2f4',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    height: 40,
+    borderRadius: ms(20),
+    paddingHorizontal: ms(12),
+    height: ms(40),
   },
   searchIcon: {
-    fontSize: 14,
-    marginRight: 6,
+    fontSize: sp(14),
+    marginRight: ms(6),
     color: '#8a8f98',
   },
   searchInput: {
     flex: 1,
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#222',
     padding: 0,
   },
   searchClearIcon: {
-    fontSize: 14,
+    fontSize: sp(14),
     color: '#8a8f98',
-    paddingLeft: 6,
+    paddingLeft: ms(6),
   },
   addEnquiryButton: {
     backgroundColor: '#1c1c1e',
-    paddingHorizontal: 14,
-    height: 40,
-    borderRadius: 20,
+    paddingHorizontal: ms(14),
+    height: ms(40),
+    borderRadius: ms(20),
     alignItems: 'center',
     justifyContent: 'center',
   },
   addEnquiryButtonText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: sp(12),
     fontWeight: '700',
   },
   linkIconButton: {
-    width: 34,
-    height: 34,
+    width: ms(34),
+    height: ms(34),
     alignItems: 'center',
     justifyContent: 'center',
   },
   linkIconText: {
-    fontSize: 18,
+    fontSize: sp(18),
     color: THEME_PRIMARY,
   },
   listContent: {
-    padding: 12,
-    paddingBottom: 24,
+    padding: ms(12),
+    paddingBottom: ms(24),
   },
   centerBox: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: ms(40),
   },
   errorText: {
     color: '#c3002f',
-    fontSize: 13,
+    fontSize: sp(13),
     textAlign: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: ms(20),
   },
   emptyText: {
     color: '#8a8f98',
-    fontSize: 13,
+    fontSize: sp(13),
     textAlign: 'center',
-    paddingVertical: 20,
+    paddingVertical: ms(20),
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    marginBottom: 10,
+    borderRadius: ms(6),
+    marginBottom: ms(10),
     overflow: 'hidden',
     elevation: 1,
     shadowColor: '#000',
@@ -3089,34 +3131,34 @@ export const styles = StyleSheet.create({
   cardRibbon: {
     alignSelf: 'flex-start',
     backgroundColor: '#3f7ee8',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderBottomRightRadius: 6,
+    paddingHorizontal: ms(10),
+    paddingVertical: ms(3),
+    borderBottomRightRadius: ms(6),
   },
   cardRibbonText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: sp(10),
     fontWeight: '700',
   },
   cardBody: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 12,
+    padding: ms(12),
   },
   cardMainCol: {
     flex: 1,
-    paddingRight: 8,
+    paddingRight: ms(8),
   },
   cardTitle: {
-    fontSize: 15,
+    fontSize: sp(15),
     fontWeight: '700',
     color: '#1c1c1e',
-    marginBottom: 4,
+    marginBottom: ms(4),
   },
   cardSubtitle: {
-    fontSize: 12,
+    fontSize: sp(12),
     color: '#6b7280',
-    lineHeight: 16,
+    lineHeight: sp(16),
   },
   cardActionsCol: {
     alignItems: 'flex-end',
@@ -3124,21 +3166,21 @@ export const styles = StyleSheet.create({
   },
   cardActionsRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: ms(10),
   },
   cardIconButton: {
-    width: 26,
-    height: 26,
+    width: ms(26),
+    height: ms(26),
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardIconText: {
-    fontSize: 15,
+    fontSize: sp(15),
   },
   cardDateText: {
-    fontSize: 11,
+    fontSize: sp(11),
     color: '#9ca3af',
-    marginTop: 8,
+    marginTop: ms(8),
   },
   modalOverlay: {
     flex: 1,
@@ -3148,8 +3190,8 @@ export const styles = StyleSheet.create({
   modalSheet: {
     backgroundColor: '#FFFFFF',
     maxHeight: '92%',
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
+    borderTopLeftRadius: ms(8),
+    borderTopRightRadius: ms(8),
     overflow: 'hidden',
   },
   modalHeader: {
@@ -3157,50 +3199,50 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#3a3a3c',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(14),
   },
   modalHeaderTitle: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: sp(16),
     fontWeight: '700',
   },
   modalCloseIcon: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
   },
   modalFlex: {
     flexShrink: 1,
   },
   modalScrollContent: {
-    padding: 16,
-    paddingBottom: 30,
+    padding: ms(16),
+    paddingBottom: ms(30),
   },
   howToRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: ms(16),
   },
   howToPlayIcon: {
-    width: 28,
-    height: 20,
-    borderRadius: 4,
+    width: ms(28),
+    height: ms(20),
+    borderRadius: ms(4),
     backgroundColor: THEME_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: ms(8),
   },
   howToPlayIconText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: sp(10),
   },
   howToText: {
     color: THEME_PRIMARY,
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '600',
   },
   fieldWrap: {
-    marginBottom: 14,
+    marginBottom: ms(14),
     position: 'relative',
     zIndex: 1,
   },
@@ -3210,8 +3252,8 @@ export const styles = StyleSheet.create({
   },
   fieldRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 14,
+    gap: ms(12),
+    marginBottom: ms(14),
   },
   stateCityFieldRow: {
     zIndex: 20,
@@ -3226,105 +3268,105 @@ export const styles = StyleSheet.create({
     zIndex: 1,
   },
   pillInput: {
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    height: 46,
-    fontSize: 13,
+    borderRadius: ms(24),
+    paddingHorizontal: ms(16),
+    height: ms(46),
+    fontSize: sp(13),
     color: '#222',
   },
   pillInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    height: 46,
+    borderRadius: ms(24),
+    paddingHorizontal: ms(16),
+    height: ms(46),
   },
   pillInputFlex: {
     flex: 1,
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#222',
     padding: 0,
   },
   contactPickerIcon: {
-    fontSize: 18,
+    fontSize: sp(18),
     color: THEME_PRIMARY,
-    marginLeft: 8,
+    marginLeft: ms(8),
   },
   floatingFieldFull: {
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 6,
+    borderRadius: ms(24),
+    paddingHorizontal: ms(16),
+    paddingTop: ms(6),
+    paddingBottom: ms(6),
   },
   floatingFieldHalf: {
     flex: 1,
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 6,
+    borderRadius: ms(24),
+    paddingHorizontal: ms(16),
+    paddingTop: ms(6),
+    paddingBottom: ms(6),
   },
   floatingLabel: {
-    fontSize: 10,
+    fontSize: sp(10),
     color: '#8a8f98',
-    marginBottom: 2,
+    marginBottom: ms(2),
   },
   floatingInput: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#222',
     padding: 0,
-    height: 20,
+    height: ms(20),
   },
   dropdownPill: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    height: 46,
-    marginBottom: 14,
+    borderRadius: ms(24),
+    paddingHorizontal: ms(16),
+    height: ms(46),
+    marginBottom: ms(14),
   },
   dropdownPillTextPlaceholder: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#9aa0a6',
     flex: 1,
   },
   dropdownPillTextValue: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#222',
     flex: 1,
   },
   dropdownChevron: {
-    fontSize: 16,
+    fontSize: sp(16),
     color: '#8a8f98',
-    marginLeft: 8,
+    marginLeft: ms(8),
   },
   photoRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 18,
+    gap: ms(10),
+    marginBottom: ms(18),
   },
   photoBox: {
     flex: 1,
-    height: 70,
-    borderWidth: 1,
+    height: ms(70),
+    borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: 6,
+    borderRadius: ms(6),
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   photoBoxIcon: {
-    fontSize: 22,
+    fontSize: sp(22),
     color: '#9aa0a6',
   },
   photoPreview: {
@@ -3334,158 +3376,158 @@ export const styles = StyleSheet.create({
   addButton: {
     flexDirection: 'row',
     backgroundColor: THEME_PRIMARY,
-    borderRadius: 24,
-    height: 48,
+    borderRadius: ms(24),
+    height: ms(48),
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
-    gap: 8,
+    marginBottom: ms(14),
+    gap: ms(8),
   },
   addButtonIcon: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
     letterSpacing: 0.5,
   },
   cancelText: {
     textAlign: 'center',
     color: THEME_PRIMARY,
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '600',
   },
   shareModalSheet: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 28,
+    borderTopLeftRadius: ms(16),
+    borderTopRightRadius: ms(16),
+    paddingHorizontal: ms(24),
+    paddingTop: ms(24),
+    paddingBottom: ms(28),
     alignItems: 'center',
   },
   qrPreviewSheet: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 28,
+    borderRadius: ms(16),
+    paddingHorizontal: ms(24),
+    paddingTop: ms(24),
+    paddingBottom: ms(28),
     alignItems: 'center',
     width: '100%',
-    maxWidth: 380,
+    maxWidth: ms(380),
     alignSelf: 'center',
   },
   qrPreviewImage: {
     width: '100%',
-    maxWidth: 240,
+    maxWidth: ms(240),
     aspectRatio: 1,
-    marginVertical: 16,
+    marginVertical: ms(16),
   },
   shareModalIconBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: ms(44),
+    height: ms(44),
+    borderRadius: ms(22),
     backgroundColor: THEME_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: ms(14),
   },
   shareModalIconText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: sp(16),
   },
   shareModalTitle: {
     color: THEME_PRIMARY,
-    fontSize: 15,
+    fontSize: sp(15),
     fontWeight: '700',
-    marginBottom: 10,
+    marginBottom: ms(10),
     textAlign: 'center',
   },
   shareModalSubtitle: {
     color: '#333333',
-    fontSize: 13,
+    fontSize: sp(13),
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: ms(20),
   },
   shareModalPrimaryButton: {
     width: '100%',
-    height: 48,
-    borderRadius: 24,
+    height: ms(48),
+    borderRadius: ms(24),
     backgroundColor: THEME_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: ms(12),
   },
   shareModalPrimaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
     letterSpacing: 0.5,
   },
   shareModalSecondaryButton: {
     width: '100%',
-    height: 48,
-    borderRadius: 24,
+    height: ms(48),
+    borderRadius: ms(24),
     backgroundColor: '#2b2b2b',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 18,
+    marginBottom: ms(18),
   },
   shareModalSecondaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
     letterSpacing: 0.5,
   },
   detailModalSheet: {
     backgroundColor: '#FFFFFF',
     maxHeight: '85%',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+    borderTopLeftRadius: ms(12),
+    borderTopRightRadius: ms(12),
     overflow: 'hidden',
   },
   detailModalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
+    paddingHorizontal: ms(20),
+    paddingVertical: ms(18),
   },
   detailModalTitle: {
     color: '#1f2937',
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '700',
   },
   detailModalHeaderActions: {
     flexDirection: 'row',
-    gap: 20,
+    gap: ms(20),
   },
   detailModalHeaderIcon: {
     color: THEME_PRIMARY,
-    fontSize: 20,
+    fontSize: sp(20),
   },
   detailModalContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingHorizontal: ms(20),
+    paddingBottom: ms(24),
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingVertical: 10,
+    paddingVertical: ms(10),
   },
   detailLabel: {
     color: '#1f2937',
-    fontSize: 14,
+    fontSize: sp(14),
     flexShrink: 0,
-    marginRight: 12,
+    marginRight: ms(12),
   },
   detailValue: {
     color: '#9ca3af',
-    fontSize: 14,
+    fontSize: sp(14),
     textAlign: 'right',
     flexShrink: 1,
   },
@@ -3494,120 +3536,120 @@ export const styles = StyleSheet.create({
   },
   addTaskButton: {
     backgroundColor: THEME_PRIMARY,
-    borderRadius: 24,
-    height: 48,
+    borderRadius: ms(24),
+    height: ms(48),
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
-    marginBottom: 14,
+    marginTop: ms(10),
+    marginBottom: ms(14),
   },
   addTaskButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
     letterSpacing: 0.5,
   },
   suggestionBox: {
     position: 'absolute',
-    top: 48,
+    top: ms(48),
     left: 0,
     right: 0,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#e1e2e5',
-    borderRadius: 8,
-    maxHeight: 200,
+    borderRadius: ms(8),
+    maxHeight: ms(200),
     overflow: 'hidden',
     zIndex: 10,
     elevation: 4,
   },
   suggestionScroll: {
-    maxHeight: 200,
+    maxHeight: ms(200),
   },
   suggestionLoader: {
-    paddingVertical: 10,
+    paddingVertical: ms(10),
   },
   suggestionItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
+    paddingHorizontal: ms(14),
+    paddingVertical: ms(10),
+    borderBottomWidth: ms(1),
     borderBottomColor: '#f0f0f0',
     backgroundColor: '#FFFFFF',
   },
   suggestionItemText: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#222',
   },
   suggestionItemSubText: {
-    fontSize: 11,
+    fontSize: sp(11),
     color: '#8a8f98',
-    marginTop: 2,
+    marginTop: ms(2),
   },
   centeredModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: ms(24),
   },
   serviceModalBox: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 6,
+    borderRadius: ms(6),
     width: '100%',
     maxHeight: '70%',
-    padding: 16,
+    padding: ms(16),
   },
   searchModalInputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: THEME_PRIMARY,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    height: 42,
-    marginBottom: 10,
+    borderRadius: ms(6),
+    paddingHorizontal: ms(12),
+    height: ms(42),
+    marginBottom: ms(10),
   },
   searchModalInput: {
     flex: 1,
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#222',
     padding: 0,
   },
   searchModalIcon: {
-    fontSize: 14,
+    fontSize: sp(14),
     color: '#8a8f98',
   },
   serviceModalScroll: {
-    maxHeight: 320,
+    maxHeight: ms(320),
   },
   serviceHeaderText: {
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
     color: THEME_PRIMARY,
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: ms(8),
+    marginBottom: ms(4),
   },
   serviceSubHeaderText: {
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '700',
     color: THEME_PRIMARY,
-    marginLeft: 12,
-    marginTop: 6,
-    marginBottom: 4,
+    marginLeft: ms(12),
+    marginTop: ms(6),
+    marginBottom: ms(4),
   },
   serviceLeafRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 24,
-    paddingVertical: 4,
+    marginLeft: ms(24),
+    paddingVertical: ms(4),
   },
   serviceLeafBullet: {
-    fontSize: 12,
+    fontSize: sp(12),
     color: '#222',
-    marginRight: 6,
+    marginRight: ms(6),
   },
   serviceLeafText: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#222',
   },
   serviceLeafTextSelected: {
@@ -3616,68 +3658,68 @@ export const styles = StyleSheet.create({
   },
   taskTagModalBox: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 6,
+    borderRadius: ms(6),
     width: '100%',
     maxHeight: '75%',
-    padding: 16,
+    padding: ms(16),
   },
   taskTagModalTitle: {
-    fontSize: 15,
+    fontSize: sp(15),
     fontWeight: '700',
     color: '#1c1c1e',
-    marginBottom: 10,
+    marginBottom: ms(10),
   },
   taskTagModalScroll: {
-    maxHeight: 320,
+    maxHeight: ms(320),
   },
   taskTagItem: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
+    paddingVertical: ms(10),
+    borderBottomWidth: ms(1),
     borderBottomColor: '#f0f0f0',
   },
   taskTagItemText: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#222',
   },
   warrantyRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 14,
+    gap: ms(12),
+    marginBottom: ms(14),
   },
   warrantyToggleGroup: {
     flexDirection: 'row',
-    borderRadius: 24,
+    borderRadius: ms(24),
     overflow: 'hidden',
   },
   warrantyToggleButton: {
-    height: 46,
-    paddingHorizontal: 14,
+    height: ms(46),
+    paddingHorizontal: ms(14),
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#3a3a3c',
   },
   warrantyToggleButtonLeft: {
-    borderTopLeftRadius: 24,
-    borderBottomLeftRadius: 24,
-    borderRightWidth: 0.5,
+    borderTopLeftRadius: ms(24),
+    borderBottomLeftRadius: ms(24),
+    borderRightWidth: ms(0.5),
   },
   warrantyToggleButtonRight: {
-    borderTopRightRadius: 24,
-    borderBottomRightRadius: 24,
-    borderLeftWidth: 0.5,
+    borderTopRightRadius: ms(24),
+    borderBottomRightRadius: ms(24),
+    borderLeftWidth: ms(0.5),
   },
   warrantyToggleButtonActive: {
     backgroundColor: '#1c1c1e',
   },
   warrantyToggleText: {
-    fontSize: 12,
+    fontSize: sp(12),
     fontWeight: '600',
     color: '#1c1c1e',
   },
   warrantyToggleTextActive: {
-    fontSize: 12,
+    fontSize: sp(12),
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -3686,12 +3728,12 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   amcDisabledInput: {
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#e1e2e5',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    height: 46,
-    fontSize: 11,
+    borderRadius: ms(24),
+    paddingHorizontal: ms(16),
+    height: ms(46),
+    fontSize: sp(11),
     color: '#9aa0a6',
     backgroundColor: '#f5f5f7',
   },
@@ -3702,68 +3744,68 @@ export const styles = StyleSheet.create({
   },
   taskFormTabsRow: {
     flexDirection: 'row',
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: 8,
+    borderRadius: ms(8),
     overflow: 'hidden',
-    marginBottom: 16,
+    marginBottom: ms(16),
   },
   taskFormTabButton: {
     flex: 1,
-    height: 40,
+    height: ms(40),
     alignItems: 'center',
     justifyContent: 'center',
-    borderLeftWidth: 1,
+    borderLeftWidth: ms(1),
     borderLeftColor: '#d5d7db',
   },
   taskFormTabButtonActive: {
     backgroundColor: '#1c1c1e',
   },
   taskFormTabText: {
-    fontSize: 11,
+    fontSize: sp(11),
     fontWeight: '600',
     color: '#1c1c1e',
   },
   taskFormTabTextActive: {
-    fontSize: 11,
+    fontSize: sp(11),
     fontWeight: '600',
     color: '#FFFFFF',
   },
   tabContentPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 24,
+    paddingVertical: ms(24),
   },
   tabContentPlaceholderText: {
     color: '#9aa0a6',
-    fontSize: 13,
+    fontSize: sp(13),
   },
   instructionRecorderBox: {
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: 10,
-    paddingVertical: 18,
-    paddingHorizontal: 12,
+    borderRadius: ms(10),
+    paddingVertical: ms(18),
+    paddingHorizontal: ms(12),
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: ms(16),
   },
   instructionRecorderLabel: {
     color: '#6b7280',
-    fontSize: 12,
+    fontSize: sp(12),
     textAlign: 'center',
-    marginBottom: 14,
+    marginBottom: ms(14),
   },
   instructionRecorderButtonsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 28,
-    marginBottom: 10,
+    gap: ms(28),
+    marginBottom: ms(10),
   },
   instructionRecorderButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: ms(44),
+    height: ms(44),
+    borderRadius: ms(22),
     backgroundColor: '#9aa0a6',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3772,63 +3814,63 @@ export const styles = StyleSheet.create({
     opacity: 0.5,
   },
   instructionRecorderMicButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: ms(56),
+    height: ms(56),
+    borderRadius: ms(28),
     backgroundColor: THEME_PRIMARY,
   },
   instructionRecorderButtonIcon: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
   },
   instructionRecorderTimerText: {
     color: '#1a1a1a',
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '600',
   },
   darkAddButton: {
     flexDirection: 'row',
     backgroundColor: '#3a3a3c',
-    borderRadius: 24,
-    height: 48,
+    borderRadius: ms(24),
+    height: ms(48),
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
-    gap: 8,
+    marginBottom: ms(14),
+    gap: ms(8),
   },
   darkAddButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
     letterSpacing: 0.5,
   },
   itemRowCard: {
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#e1e2e5',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 12,
+    borderRadius: ms(10),
+    padding: ms(12),
+    marginBottom: ms(12),
   },
   itemRowHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: ms(10),
   },
   itemRowTitle: {
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '700',
     color: THEME_PRIMARY,
   },
   itemRowRemove: {
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
     color: THEME_PRIMARY,
   },
   itemRowFieldsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: ms(8),
   },
   itemNameDropdown: {
     flex: 1.4,
@@ -3836,15 +3878,15 @@ export const styles = StyleSheet.create({
   },
   itemAvailableQtyBox: {
     flex: 0.7,
-    height: 46,
-    borderWidth: 1,
+    height: ms(46),
+    borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: 24,
+    borderRadius: ms(24),
     alignItems: 'center',
     justifyContent: 'center',
   },
   itemAvailableQtyText: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#222',
   },
   itemQuantityInput: {
@@ -3854,16 +3896,16 @@ export const styles = StyleSheet.create({
   },
   addMoreText: {
     color: THEME_PRIMARY,
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 14,
+    marginBottom: ms(14),
   },
   itemSearchHintText: {
     color: THEME_PRIMARY,
-    fontSize: 12,
+    fontSize: sp(12),
     textAlign: 'center',
-    paddingVertical: 16,
+    paddingVertical: ms(16),
   },
 });
 

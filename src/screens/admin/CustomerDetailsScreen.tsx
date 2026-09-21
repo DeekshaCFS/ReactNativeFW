@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import {ms, sp} from '../../utils/responsive';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
@@ -26,6 +27,7 @@ import {
   CUSTOMER_ADDRESS_KEYS,
   CUSTOMER_NAME_KEYS,
   CUSTOMER_PHONE_KEYS,
+  formatPhoneWithCountryCode,
   getEnquiryAddress,
   getEnquiryCustomerName,
   getEnquiryDate,
@@ -495,7 +497,7 @@ const CustomerDetailsScreen = ({
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Mobile No.</Text>
-            <Text style={styles.infoValue}>{customerPhone || 'NA'}</Text>
+            <Text style={styles.infoValue}>{formatPhoneWithCountryCode(customerPhone) || 'NA'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Cust Address</Text>
@@ -685,28 +687,28 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: THEME_PRIMARY,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(12),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   headerIconButton: {
-    padding: 4,
+    padding: ms(4),
   },
   headerIconText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
   },
   headerRightActions: {
     flexDirection: 'row',
-    gap: 16,
+    gap: ms(16),
   },
   infoCard: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 2,
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(12),
+    borderBottomWidth: ms(2),
     borderBottomColor: THEME_PRIMARY,
   },
   infoRows: {
@@ -714,47 +716,47 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     flexDirection: 'row',
-    marginVertical: 4,
+    marginVertical: ms(4),
   },
   infoLabel: {
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '700',
     color: THEME_PRIMARY,
-    width: 100,
+    width: ms(100),
   },
   infoValue: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#3c3c3c',
     flex: 1,
   },
   infoActionsCol: {
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingLeft: 8,
+    paddingLeft: ms(8),
   },
   infoIconButton: {
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: THEME_PRIMARY,
-    borderRadius: 4,
-    padding: 4,
-    marginVertical: 4,
+    borderRadius: ms(4),
+    padding: ms(4),
+    marginVertical: ms(4),
   },
   infoIconText: {
     color: THEME_PRIMARY,
-    fontSize: 14,
+    fontSize: sp(14),
   },
   tabsRow: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
+    borderBottomWidth: ms(1),
     borderBottomColor: '#E5E7EB',
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: ms(10),
   },
   tabButtonText: {
-    fontSize: 11,
+    fontSize: sp(11),
     fontWeight: '600',
     color: '#8a8a8a',
   },
@@ -762,61 +764,61 @@ const styles = StyleSheet.create({
     color: THEME_PRIMARY,
   },
   tabButtonUnderline: {
-    marginTop: 6,
-    height: 2,
+    marginTop: ms(6),
+    height: ms(2),
     width: '80%',
     backgroundColor: THEME_PRIMARY,
   },
   filterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(10),
   },
   filterControl: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: ms(4),
   },
   filterLabel: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: THEME_PRIMARY,
     fontWeight: '600',
   },
   filterChevron: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: THEME_PRIMARY,
   },
   listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
+    paddingHorizontal: ms(16),
+    paddingBottom: ms(24),
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
+    borderRadius: ms(8),
+    borderWidth: ms(1),
     borderColor: '#E5E7EB',
-    padding: 12,
-    marginBottom: 10,
+    padding: ms(12),
+    marginBottom: ms(10),
   },
   cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: ms(6),
   },
   statusBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    borderRadius: ms(4),
+    paddingHorizontal: ms(8),
+    paddingVertical: ms(2),
   },
   statusBadgeText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: sp(10),
     fontWeight: '700',
   },
   cardDate: {
-    fontSize: 11,
+    fontSize: sp(11),
     color: '#8a8a8a',
   },
   taskTitleRow: {
@@ -825,36 +827,36 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   taskTitle: {
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
     color: '#1F2937',
   },
   taskId: {
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '600',
     color: '#1565c0',
   },
   cardSubtitle: {
-    fontSize: 12,
+    fontSize: sp(12),
     color: '#6B7280',
-    marginTop: 4,
+    marginTop: ms(4),
   },
   centerBox: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: ms(40),
   },
   emptyBox: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: ms(40),
   },
   emptyText: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#8a8a8a',
     textAlign: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: ms(24),
   },
   modalBackdrop: {
     flex: 1,
@@ -864,24 +866,24 @@ const styles = StyleSheet.create({
   },
   modalPanel: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    borderRadius: ms(8),
     width: '80%',
     maxHeight: '60%',
-    padding: 12,
+    padding: ms(12),
   },
   modalTitle: {
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 8,
+    marginBottom: ms(8),
   },
   modalItem: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
+    paddingVertical: ms(10),
+    borderBottomWidth: ms(1),
     borderBottomColor: '#F0F0F0',
   },
   modalItemText: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#1F2937',
   },
 });
