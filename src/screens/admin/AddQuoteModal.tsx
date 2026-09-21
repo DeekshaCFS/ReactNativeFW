@@ -1,7 +1,6 @@
 // src/screens/admin/AddQuoteModal.tsx
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {ms, sp} from '../../utils/responsive';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -20,16 +19,18 @@ import {getEnquiryServiceTypeList} from '../../api/services/servicesService';
 import type {EnquiryServiceTypeDTOResultData} from '../../api/services/services.types';
 import {getAllItemAssignedUnassigned} from '../../api/item/itemService';
 import type {ItemsListResultData} from '../../api/item/item.types';
-import {postQuotationDetailsNonOwner} from '../../api/quotation/quotationService';
+import {postQuotationDetails} from '../../api/quotation/quotationService';
 import type {
-  SaveQuotationsNonOwnerDTOQuoteItemList,
-  SaveQuotationsNonOwnerDTOQuoteServiceList,
+  SaveQuotationDTOQuoteItemList,
+  SaveQuotationDTOQuoteServiceList,
+  SaveQuotationDTOQuoteTaxList,
 } from '../../api/quotation/quotation.types';
+import {sp, ms} from '../../utils/responsive';
 
 type LeadServiceTypeItem = EnquiryServiceTypeDTOResultData;
 type ItemInventoryListItem = ItemsListResultData;
-type SaveQuotationServiceRequest = SaveQuotationsNonOwnerDTOQuoteServiceList;
-type SaveQuotationItemRequest = SaveQuotationsNonOwnerDTOQuoteItemList;
+type SaveQuotationServiceRequest = SaveQuotationDTOQuoteServiceList;
+type SaveQuotationItemRequest = SaveQuotationDTOQuoteItemList;
 
 const HEADER_DARK = '#3a3a3c';
 const SEGMENT_DARK = '#232b3a';
@@ -308,20 +309,40 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
         UnitPrice: Number(row.price) || 0,
       }));
 
+    // Java's admin add-quote flow (AddUpdateServiceDialog#addQuote) always sends
+    // exactly one QuoteTaxList entry carrying discount % and tax %, even though
+    // the UI only exposes one pair of fields — mirror that here instead of
+    // dropping the values the user typed.
+    const quoteTaxList: SaveQuotationDTOQuoteTaxList[] = [
+      {
+        Discount: Number(discountPercent) || 0,
+        Tax: Number(taxPercent) || 0,
+        WithoutTax: Number(taxPercent) > 0 ? 1 : 2,
+      },
+    ];
+
+    const nowIso = new Date().toISOString().slice(0, 19);
+
     setIsSubmitting(true);
     try {
-      await postQuotationDetailsNonOwner({
+      await postQuotationDetails({
         UserId: ownerId,
+        CreatedBy: ownerId,
+        UpdatedBy: ownerId,
+        StatusId: 2, // Not Assigned — matches the Java admin create-quote default
         QuoteName: quoteName.trim(),
-        QuoteTime: quoteDate,
-        ValidityDate: validityDate.trim(),
+        CreatedDate: `${quoteDate}T00:00:00`,
+        QuoteTime: nowIso,
+        ValidityDate: `${validityDate.trim()}T00:00:00`,
         Customer: {
           CustomerName: customerName.trim(),
           MobileNumber: phoneNumber.trim(),
+          IsActive: true,
           LocationList: {
             Address: address.trim(),
             BuildingNumber: buildingFlatNumber.trim(),
             Description: landmark.trim(),
+            IsActive: true,
           },
         },
         ExtraItem: extraName.trim(),
@@ -331,7 +352,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
         GrandTotalAmount: grandTotal,
         QuoteServiceList: quoteServiceList,
         QuoteItemList: quoteItemList,
-        CreatedBy: ownerId,
+        QuoteTaxList: quoteTaxList,
       });
 
       Alert.alert('Add Quote', 'Quote saved successfully.');
@@ -751,6 +772,7 @@ const styles = StyleSheet.create({
     maxWidth: ms(560),
     maxHeight: '94%',
     overflow: 'hidden',
+    borderRadius: ms(10),
   },
   header: {
     flexDirection: 'row',
@@ -759,6 +781,7 @@ const styles = StyleSheet.create({
     backgroundColor: HEADER_DARK,
     paddingHorizontal: ms(18),
     paddingVertical: ms(16),
+    borderRadius: ms(10),
   },
   headerTitle: {
     color: '#FFFFFF',
@@ -823,7 +846,7 @@ const styles = StyleSheet.create({
   },
   segmentRow: {
     flexDirection: 'row',
-    borderRadius: ms(8),
+    borderRadius: ms(20),
     overflow: 'hidden',
     marginBottom: ms(16),
     borderWidth: ms(1),

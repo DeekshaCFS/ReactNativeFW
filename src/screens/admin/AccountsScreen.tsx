@@ -1,7 +1,6 @@
 // src/screens/admin/AccountsScreen.tsx
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {ms, sp} from '../../utils/responsive';
 import {
   ActivityIndicator,
   FlatList,
@@ -20,6 +19,7 @@ import type {InvoiceListDTOResultData} from '../../api/accountManagement/account
 import AddQuoteModal from './AddQuoteModal';
 import QuotationDetailsScreen from './QuotationDetailsScreen';
 import InvoiceDetailsScreen from './InvoiceDetailsScreen';
+import {scale, sp, vs} from '../../utils/responsive';
 
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
@@ -253,19 +253,25 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
         }}>
         <View style={styles.cardTopRow}>
           <View style={[styles.badge, {backgroundColor: getBadgeColor(statusLabel)}]}>
-            <Text style={styles.badgeText}>{statusLabel.toUpperCase()}</Text>
+            <Text style={styles.badgeText} numberOfLines={1}>
+              {statusLabel.toUpperCase()}
+            </Text>
           </View>
-          <Text style={styles.quoteCode}>[{getQuoteCode(item)}]</Text>
-          <Text style={styles.dateText}>{getQuoteDate(item)}</Text>
+          <Text style={styles.quoteCode} numberOfLines={1}>
+            [{getQuoteCode(item)}]
+          </Text>
+          <Text style={styles.dateText} numberOfLines={1}>
+            {getQuoteDate(item)}
+          </Text>
         </View>
         <Text style={styles.cardTitle} numberOfLines={1}>
           {getQuoteTitle(item)}
         </Text>
         <View style={styles.cardMetaRow}>
-          <Text style={styles.metaLabel}>
+          <Text style={[styles.metaLabel, styles.metaLabelCustomer]} numberOfLines={1}>
             Customer: <Text style={styles.metaCustomer}>{getQuoteCustomerName(item)}</Text>
           </Text>
-          <Text style={styles.metaLabel}>
+          <Text style={styles.metaLabel} numberOfLines={1}>
             Amount: <Text style={styles.metaAmount}>Rs. {getQuoteAmount(item)}</Text>
           </Text>
         </View>
@@ -286,19 +292,25 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
         }}>
         <View style={styles.cardTopRow}>
           <View style={[styles.badge, {backgroundColor: getBadgeColor(statusLabel)}]}>
-            <Text style={styles.badgeText}>{statusLabel.toUpperCase()}</Text>
+            <Text style={styles.badgeText} numberOfLines={1}>
+              {statusLabel.toUpperCase()}
+            </Text>
           </View>
-          <Text style={styles.quoteCode}>[{getInvoiceCode(item)}]</Text>
-          <Text style={styles.dateText}>{getInvoiceDate(item)}</Text>
+          <Text style={styles.quoteCode} numberOfLines={1}>
+            [{getInvoiceCode(item)}]
+          </Text>
+          <Text style={styles.dateText} numberOfLines={1}>
+            {getInvoiceDate(item)}
+          </Text>
         </View>
         <Text style={styles.cardTitle} numberOfLines={1}>
           {getInvoiceTitle(item)}
         </Text>
         <View style={styles.cardMetaRow}>
-          <Text style={styles.metaLabel}>
+          <Text style={[styles.metaLabel, styles.metaLabelCustomer]} numberOfLines={1}>
             Customer: <Text style={styles.metaCustomer}>{getInvoiceCustomerName(item)}</Text>
           </Text>
-          <Text style={styles.metaLabel}>
+          <Text style={styles.metaLabel} numberOfLines={1}>
             Amount: <Text style={styles.metaAmount}>Rs. {getInvoiceAmount(item)}</Text>
           </Text>
         </View>
@@ -395,7 +407,9 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
       </View>
 
       <Pressable style={styles.statusSelector} onPress={() => setIsStatusModalOpen(true)}>
-        <Text style={styles.statusSelectorText}>{selectedStatus.label}</Text>
+        <Text style={styles.statusSelectorText} numberOfLines={1}>
+          {selectedStatus.label}
+        </Text>
         <Text style={styles.statusSelectorChevron}>{'\u2304'}</Text>
       </Pressable>
 
@@ -490,11 +504,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: HEADER_PRIMARY,
-    paddingHorizontal: ms(12),
-    paddingVertical: ms(14),
+    paddingHorizontal: scale(12),
+    paddingVertical: vs(14),
   },
   headerIconButton: {
-    padding: ms(4),
+    padding: scale(4),
   },
   headerIconText: {
     color: '#FFFFFF',
@@ -507,18 +521,18 @@ const styles = StyleSheet.create({
   },
   headerRightActions: {
     flexDirection: 'row',
-    gap: ms(16),
+    gap: scale(16),
   },
   tabsRow: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: ms(1),
+    borderBottomWidth: 1,
     borderBottomColor: '#eceef0',
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: ms(12),
+    paddingVertical: vs(12),
   },
   tabButtonText: {
     fontSize: sp(13),
@@ -530,17 +544,17 @@ const styles = StyleSheet.create({
     color: THEME_PRIMARY,
   },
   tabButtonUnderline: {
-    marginTop: ms(8),
-    height: ms(2),
+    marginTop: vs(8),
+    height: 2,
     width: '60%',
     backgroundColor: THEME_PRIMARY,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: ms(12),
-    paddingVertical: ms(10),
-    gap: ms(8),
+    paddingHorizontal: scale(12),
+    paddingVertical: vs(10),
+    gap: scale(8),
     backgroundColor: '#FFFFFF',
   },
   searchInputWrap: {
@@ -548,13 +562,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f1f2f4',
-    borderRadius: ms(20),
-    paddingHorizontal: ms(12),
-    height: ms(40),
+    borderRadius: scale(20),
+    paddingHorizontal: scale(12),
+    height: vs(40),
+    minHeight: 36,
   },
   searchIcon: {
     fontSize: sp(14),
-    marginRight: ms(6),
+    marginRight: scale(6),
     color: '#8a8f98',
   },
   searchInput: {
@@ -566,13 +581,14 @@ const styles = StyleSheet.create({
   searchClearIcon: {
     fontSize: sp(14),
     color: '#8a8f98',
-    paddingLeft: ms(6),
+    paddingLeft: scale(6),
   },
   addQuoteButton: {
     backgroundColor: '#1c1c1e',
-    paddingHorizontal: ms(14),
-    height: ms(40),
-    borderRadius: ms(20),
+    paddingHorizontal: scale(14),
+    height: vs(40),
+    minHeight: 36,
+    borderRadius: scale(20),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -584,43 +600,45 @@ const styles = StyleSheet.create({
   statusSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: ms(16),
-    paddingVertical: ms(10),
+    paddingHorizontal: scale(16),
+    paddingVertical: vs(10),
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: ms(1),
+    borderBottomWidth: 1,
     borderBottomColor: '#eceef0',
   },
   statusSelectorText: {
     fontSize: sp(13),
     color: '#222',
     fontWeight: '600',
-    marginRight: ms(6),
+    marginRight: scale(6),
+    flexShrink: 1,
   },
   statusSelectorChevron: {
     fontSize: sp(14),
     color: '#8a8f98',
   },
   listContent: {
-    padding: ms(12),
-    paddingBottom: ms(24),
+    padding: scale(12),
+    paddingBottom: vs(24),
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: ms(8),
-    padding: ms(12),
-    marginBottom: ms(10),
-    borderWidth: ms(1),
+    borderRadius: scale(8),
+    padding: scale(12),
+    marginBottom: vs(10),
+    borderWidth: 1,
     borderColor: '#eceef0',
   },
   cardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: ms(8),
+    marginBottom: vs(8),
   },
   badge: {
-    borderRadius: ms(4),
-    paddingHorizontal: ms(8),
-    paddingVertical: ms(3),
+    borderRadius: scale(4),
+    paddingHorizontal: scale(8),
+    paddingVertical: vs(3),
+    flexShrink: 0,
   },
   badgeText: {
     color: '#FFFFFF',
@@ -633,25 +651,33 @@ const styles = StyleSheet.create({
     color: BLUE_CODE,
     fontSize: sp(12),
     fontWeight: '700',
-    marginRight: ms(8),
+    marginRight: scale(8),
+    marginLeft: scale(6),
   },
   dateText: {
     color: '#8a8f98',
     fontSize: sp(11),
+    flexShrink: 0,
   },
   cardTitle: {
     color: '#111111',
     fontSize: sp(15),
     fontWeight: '700',
-    marginBottom: ms(6),
+    marginBottom: vs(6),
   },
   cardMetaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: scale(8),
   },
   metaLabel: {
     color: '#6b7280',
     fontSize: sp(12),
+    flexShrink: 0,
+  },
+  metaLabelCustomer: {
+    flex: 1,
+    flexShrink: 1,
   },
   metaCustomer: {
     color: CORAL_NAME,
@@ -662,7 +688,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   emptyBox: {
-    paddingTop: ms(60),
+    paddingTop: vs(60),
     alignItems: 'center',
   },
   emptyText: {
@@ -675,7 +701,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   listFooter: {
-    paddingVertical: ms(16),
+    paddingVertical: vs(16),
     alignItems: 'center',
   },
   statusModalOverlay: {
@@ -686,27 +712,24 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: ms(40),
+    paddingHorizontal: scale(40),
   },
   statusModalSheet: {
     backgroundColor: '#FFFFFF',
-    width: '100%',
-    maxWidth: ms(360),
-    borderRadius: ms(10),
-    padding: ms(16),
+    borderRadius: scale(10),
+    padding: scale(16),
   },
   statusModalTitle: {
     fontSize: sp(15),
     fontWeight: '700',
     color: '#111111',
-    marginBottom: ms(12),
+    marginBottom: vs(12),
     textAlign: 'center',
   },
   statusModalItem: {
-    paddingVertical: ms(12),
-    borderRadius: ms(8),
-    paddingHorizontal: ms(12),
+    paddingVertical: vs(12),
+    borderRadius: scale(8),
+    paddingHorizontal: scale(12),
   },
   statusModalItemActive: {
     backgroundColor: '#fdecef',

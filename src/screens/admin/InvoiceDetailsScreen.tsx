@@ -1,24 +1,46 @@
 // src/screens/admin/InvoiceDetailsScreen.tsx
 
 import React, {useCallback, useEffect, useState} from 'react';
-import {ms, sp} from '../../utils/responsive';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import {getInvoicedetailsByInvoiceId, deleteInvoiceDetails} from '../../api/accountManagement/accountManagementService';
+import {
+  getInvoicedetailsByInvoiceId,
+  deleteInvoiceDetails,
+  getInvoicePdf,
+  saveInvoicePaymmentDetails,
+  invoiceFollowUpNotes,
+} from '../../api/accountManagement/accountManagementService';
 import type {InvoiceDetailsDTOResultData} from '../../api/accountManagement/accountManagement.types';
+import {scale, sp, vs, ms} from '../../utils/responsive';
 
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
 const STATUS_ORANGE = '#F4A62A';
 const GREEN_AMOUNT = '#2E7D32';
 const RED = '#c3002f';
+
+// Matches Java's UpdatePaymentStatus() dialog spinner exactly
+// (dialog_update_payment_status / InvoiceDetailsFragment.java).
+const PAYMENT_TYPES = ['Cash', 'UPI', 'NEFT', 'Cheque', 'Credit', 'Other'] as const;
+
+const getTodayDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const formatAmount = (value: unknown) => {
   const num = Number(value ?? 0);
@@ -73,6 +95,18 @@ const InvoiceDetailsScreen = ({
   const [details, setDetails] = useState<InvoiceDetailsDTOResultData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentType, setPaymentType] = useState<string>('');
+  const [isPaymentTypeOpen, setIsPaymentTypeOpen] = useState(false);
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
+
+  const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
+  const [followUpDate, setFollowUpDate] = useState(getTodayDateString());
+  const [followUpNote, setFollowUpNote] = useState('');
+  const [isSavingFollowUp, setIsSavingFollowUp] = useState(false);
 
   const loadDetails = useCallback(async () => {
     setIsLoading(true);
@@ -123,7 +157,107 @@ const InvoiceDetailsScreen = ({
     ]);
   };
 
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      const response = await getInvoicePdf({UserId: ownerId, invoiceId: invoiceId});
+      const pdfUrl = String(response.ResultData?.InvoicePdfPath ?? '').trim();
+      if (!pdfUrl) {
+        Alert.alert('Download', 'PDF is not available for this invoice.');
+        return;
+      }
+      await Linking.openURL(pdfUrl);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to download PDF.';
+      Alert.alert('Download failed', message);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const openPaymentModal = () => {
+    setPaymentAmount('');
+    setPaymentType('');
+    setIsPaymentTypeOpen(false);
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleSavePayment = async () => {
+    const amount = Number(paymentAmount);
+    if (!paymentAmount.trim() || !Number.isFinite(amount) || amount <= 0) {
+      Alert.alert('Record Payment', 'Please enter a valid amount.');
+      return;
+    }
+    if (!paymentType) {
+      Alert.alert('Record Payment', 'Please select a payment type.');
+      return;
+    }
+    const remaining = Number(details?.RemainingAmount ?? 0);
+    if (remaining > 0 && amount > remaining) {
+      Alert.alert('Record Payment', 'Entered amount is greater than the remaining amount.');
+      return;
+    }
+
+    setIsSavingPayment(true);
+    try {
+      // Java's UpdatePaymentStatus() sends Id == InvoiceId for this endpoint
+      // (see InvoiceDetailsFragment.java#updatePayment) — mirrored here.
+      await saveInvoicePaymmentDetails({
+        Id: invoiceId,
+        InvoiceId: invoiceId,
+        Amount: amount,
+        CreatedBy: ownerId,
+        UserId: ownerId,
+        PaymentTransactionType: paymentType,
+        IsActive: true,
+      });
+      setIsPaymentModalOpen(false);
+      await loadDetails();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to record payment.';
+      Alert.alert('Payment failed', message);
+    } finally {
+      setIsSavingPayment(false);
+    }
+  };
+
+  const openFollowUpModal = () => {
+    setFollowUpDate(getTodayDateString());
+    setFollowUpNote('');
+    setIsFollowUpModalOpen(true);
+  };
+
+  const handleSaveFollowUp = async () => {
+    if (!followUpDate.trim()) {
+      Alert.alert('Follow Up', 'Please enter a date.');
+      return;
+    }
+    setIsSavingFollowUp(true);
+    try {
+      await invoiceFollowUpNotes({
+        InvoiceId: invoiceId,
+        // Java hardcodes this to 1 with the comment "need to pass final value
+        // once Details API is ready" — it's a known placeholder in the
+        // original app itself, not something we're guessing at here.
+        StatuiId: 1,
+        UserId: ownerId,
+        FolowUpDate: `${followUpDate.trim()}T00:00:00`,
+        Notes: followUpNote.trim(),
+      });
+      setIsFollowUpModalOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to save follow-up.';
+      Alert.alert('Follow up failed', message);
+    } finally {
+      setIsSavingFollowUp(false);
+    }
+  };
+
   const statusLabel = initialStatusLabel || 'Pending';
+  // Java's InvoiceDetailsFragment hides edit/delete/follow-up once an invoice
+  // is fully Paid (only the download icon stays), and hides download while
+  // Partial Paid / UnPaid — see setInvoiceStatusUI() in the Java source.
+  const isPaid = statusLabel.trim().toLowerCase() === 'paid';
   const itemList = details?.ItemList ?? [];
   const serviceList = details?.ServiceList ?? [];
   const paymentList = details?.PaymentList ?? [];
@@ -131,14 +265,13 @@ const InvoiceDetailsScreen = ({
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerIconButton}>
-          <Text style={styles.headerIconText}>{'\u2630'}</Text>
+        <TouchableOpacity onPress={onBack} style={styles.headerIconButton} hitSlop={10}>
+          <Text style={styles.headerIconText}>{'\u2190'}</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Invoice Details</Text>
-        <View style={styles.headerRightActions}>
-          <Text style={styles.headerIconText}>{'\uD83C\uDFA7'}</Text>
-          <Text style={styles.headerIconText}>{'\uD83D\uDD14'}</Text>
-        </View>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          Invoice Details
+        </Text>
+        <View style={styles.headerRightActions} />
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
@@ -154,18 +287,40 @@ const InvoiceDetailsScreen = ({
                   {statusLabel}
                 </Text>
                 <View style={styles.iconRow}>
-                  <TouchableOpacity style={styles.iconButton}>
-                    <Text style={styles.iconText}>{'\u270E'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={handleDelete}
-                    disabled={isDeleting}>
-                    <Text style={styles.iconTextDelete}>{'\uD83D\uDDD1'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.iconButton}>
-                    <Text style={styles.iconText}>{'\uD83D\uDCC5'}</Text>
-                  </TouchableOpacity>
+                  {!isPaid ? (
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={openPaymentModal}
+                      hitSlop={8}>
+                      <Text style={styles.iconText}>{'\u270E'}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {!isPaid ? (
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={handleDelete}
+                      disabled={isDeleting}
+                      hitSlop={8}>
+                      <Text style={styles.iconTextDelete}>{'\uD83D\uDDD1'}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {!isPaid ? (
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={openFollowUpModal}
+                      hitSlop={8}>
+                      <Text style={styles.iconText}>{'\uD83D\uDCC5'}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {isPaid ? (
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={handleDownload}
+                      disabled={isDownloading}
+                      hitSlop={8}>
+                      <Text style={styles.iconText}>{'\u2B07'}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               </View>
 
@@ -296,14 +451,125 @@ const InvoiceDetailsScreen = ({
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={isPaymentModalOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setIsPaymentModalOpen(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setIsPaymentModalOpen(false)}>
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Record Payment</Text>
+            <Text style={styles.modalSubtitle}>
+              Remaining: Rs. {formatAmount(details?.RemainingAmount)}
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Amount"
+              placeholderTextColor="#9aa0a6"
+              keyboardType="numeric"
+              value={paymentAmount}
+              onChangeText={setPaymentAmount}
+            />
+            <Pressable
+              style={styles.modalDropdownField}
+              onPress={() => setIsPaymentTypeOpen(prev => !prev)}>
+              <Text
+                style={paymentType ? styles.modalDropdownValueText : styles.modalDropdownPlaceholderText}
+                numberOfLines={1}>
+                {paymentType || 'Select Payment Type'}
+              </Text>
+              <Text style={styles.modalDropdownChevron}>{'\u2304'}</Text>
+            </Pressable>
+            {isPaymentTypeOpen ? (
+              <View style={styles.modalDropdownList}>
+                {PAYMENT_TYPES.map(type => (
+                  <Pressable
+                    key={type}
+                    style={styles.modalDropdownItem}
+                    onPress={() => {
+                      setPaymentType(type);
+                      setIsPaymentTypeOpen(false);
+                    }}>
+                    <Text style={styles.modalDropdownItemText}>{type}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => setIsPaymentModalOpen(false)}
+                disabled={isSavingPayment}>
+                <Text style={styles.modalButtonSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={handleSavePayment}
+                disabled={isSavingPayment}>
+                <Text style={styles.modalButtonPrimaryText}>
+                  {isSavingPayment ? 'Saving...' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={isFollowUpModalOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setIsFollowUpModalOpen(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setIsFollowUpModalOpen(false)}>
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Follow Up</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#9aa0a6"
+              value={followUpDate}
+              onChangeText={setFollowUpDate}
+            />
+            <TextInput
+              style={styles.modalNoteInput}
+              placeholder="Note (optional)"
+              placeholderTextColor="#9aa0a6"
+              value={followUpNote}
+              onChangeText={setFollowUpNote}
+              multiline
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => setIsFollowUpModalOpen(false)}
+                disabled={isSavingFollowUp}>
+                <Text style={styles.modalButtonSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={handleSaveFollowUp}
+                disabled={isSavingFollowUp}>
+                <Text style={styles.modalButtonPrimaryText}>
+                  {isSavingFollowUp ? 'Saving...' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
 
 const DetailRow = ({label, value}: {label: string; value: React.ReactNode}) => (
   <View style={styles.detailRow}>
-    <Text style={styles.detailLabel}>{label}</Text>
-    <Text style={styles.detailValue}>{value}</Text>
+    <Text style={styles.detailLabel} numberOfLines={2}>
+      {label}
+    </Text>
+    <Text style={styles.detailValue} numberOfLines={3}>
+      {value}
+    </Text>
   </View>
 );
 
@@ -449,6 +715,121 @@ const styles = StyleSheet.create({
   colPrice: {
     flex: 1,
     textAlign: 'right',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    paddingHorizontal: scale(24),
+  },
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: scale(14),
+    padding: scale(18),
+  },
+  modalTitle: {
+    fontSize: sp(15),
+    fontWeight: '700',
+    color: '#1c1c1e',
+    marginBottom: vs(6),
+  },
+  modalSubtitle: {
+    fontSize: sp(12),
+    color: '#6b7280',
+    marginBottom: vs(14),
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#d5d7db',
+    borderRadius: scale(10),
+    height: vs(44),
+    paddingHorizontal: scale(12),
+    fontSize: sp(13),
+    color: '#222',
+    marginBottom: vs(12),
+  },
+  modalNoteInput: {
+    borderWidth: 1,
+    borderColor: '#d5d7db',
+    borderRadius: scale(10),
+    minHeight: vs(70),
+    paddingHorizontal: scale(12),
+    paddingVertical: vs(10),
+    fontSize: sp(13),
+    color: '#222',
+    textAlignVertical: 'top',
+    marginBottom: vs(16),
+  },
+  modalDropdownField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#d5d7db',
+    borderRadius: scale(10),
+    height: vs(44),
+    paddingHorizontal: scale(12),
+    marginBottom: vs(12),
+  },
+  modalDropdownPlaceholderText: {
+    fontSize: sp(13),
+    color: '#9aa0a6',
+    flex: 1,
+  },
+  modalDropdownValueText: {
+    fontSize: sp(13),
+    color: '#222',
+    flex: 1,
+  },
+  modalDropdownChevron: {
+    fontSize: sp(14),
+    color: '#8a8f98',
+    marginLeft: scale(6),
+  },
+  modalDropdownList: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: scale(10),
+    marginTop: vs(-8),
+    marginBottom: vs(12),
+    overflow: 'hidden',
+  },
+  modalDropdownItem: {
+    paddingVertical: vs(10),
+    paddingHorizontal: scale(14),
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f2f4',
+  },
+  modalDropdownItemText: {
+    fontSize: sp(13),
+    color: '#222',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: scale(10),
+  },
+  modalButton: {
+    flex: 1,
+    height: vs(44),
+    borderRadius: scale(22),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#f1f2f4',
+  },
+  modalButtonSecondaryText: {
+    color: '#1c1c1e',
+    fontWeight: '700',
+    fontSize: sp(13),
+  },
+  modalButtonPrimary: {
+    backgroundColor: THEME_PRIMARY,
+  },
+  modalButtonPrimaryText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: sp(13),
   },
 });
 

@@ -1,25 +1,38 @@
 // src/screens/admin/QuotationDetailsScreen.tsx
 
 import React, {useCallback, useEffect, useState} from 'react';
-import {ms, sp} from '../../utils/responsive';
 import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import {getQuotationdetailsByQuoteId, deleteQuotationDetails, getQuotationPdf} from '../../api/quotation/quotationService';
+import {
+  getQuotationdetailsByQuoteId,
+  deleteQuotationDetails,
+  getQuotationPdf,
+  updateQuotationStatus,
+} from '../../api/quotation/quotationService';
 import type {QuotationDetailsDTOResultData} from '../../api/quotation/quotation.types';
+import {sp, ms, vs, scale} from '../../utils/responsive';
 
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
 const STATUS_BLUE = '#5b6bd9';
 const GREEN_AMOUNT = '#2E7D32';
 const RED = '#c3002f';
+
+// Matches Java's Quotation/UpdateQuotationStatus flow (UpdateQuotationStatus()
+// in QuotationDetailsFragment.java): the only status a quotation can be moved
+// to from here is "Lost" (StatusId 4) — there's no full status picker.
+const LOST_STATUS_ID = 4;
 
 const formatAmount = (value: unknown) => {
   const num = Number(value ?? 0);
@@ -84,6 +97,9 @@ const QuotationDetailsScreen = ({
   const [details, setDetails] = useState<QuotationDetailsDTOResultData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [statusNote, setStatusNote] = useState('');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const loadDetails = useCallback(async () => {
     setIsLoading(true);
@@ -150,6 +166,27 @@ const QuotationDetailsScreen = ({
     }
   };
 
+  const handleMarkAsLost = async () => {
+    setIsUpdatingStatus(true);
+    try {
+      await updateQuotationStatus({
+        QuotationId: quotationId,
+        UserId: ownerId,
+        StatusId: LOST_STATUS_ID,
+        Notes: statusNote.trim(),
+      });
+      setIsStatusModalOpen(false);
+      setStatusNote('');
+      await loadDetails();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to update quotation status.';
+      Alert.alert('Update failed', message);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
   const status = details?.Status;
   const statusLabel =
     String(status?.StatusName ?? '').trim() ||
@@ -170,14 +207,13 @@ const QuotationDetailsScreen = ({
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerIconButton}>
-          <Text style={styles.headerIconText}>{'\u2630'}</Text>
+        <TouchableOpacity onPress={onBack} style={styles.headerIconButton} hitSlop={10}>
+          <Text style={styles.headerIconText}>{'\u2190'}</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Quotation Details</Text>
-        <View style={styles.headerRightActions}>
-          <Text style={styles.headerIconText}>{'\uD83C\uDFA7'}</Text>
-          <Text style={styles.headerIconText}>{'\uD83D\uDD14'}</Text>
-        </View>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          Quotation Details
+        </Text>
+        <View style={styles.headerRightActions} />
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
@@ -194,19 +230,17 @@ const QuotationDetailsScreen = ({
                   <TouchableOpacity
                     style={styles.iconButton}
                     onPress={handleDelete}
-                    disabled={isDeleting}>
+                    disabled={isDeleting}
+                    hitSlop={8}>
                     <Text style={styles.iconTextDelete}>{'\uD83D\uDDD1'}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.iconButton}>
-                    <Text style={styles.iconText}>{'\uD83D\uDCC5'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.iconButton}>
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={() => setIsStatusModalOpen(true)}
+                    hitSlop={8}>
                     <Text style={styles.iconText}>{'\u2705'}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.iconButton}>
-                    <Text style={styles.iconText}>{'\uD83D\uDD27'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.iconButton} onPress={handleDownload}>
+                  <TouchableOpacity style={styles.iconButton} onPress={handleDownload} hitSlop={8}>
                     <Text style={styles.iconText}>{'\u2B07'}</Text>
                   </TouchableOpacity>
                 </View>
@@ -323,14 +357,57 @@ const QuotationDetailsScreen = ({
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={isStatusModalOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setIsStatusModalOpen(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setIsStatusModalOpen(false)}>
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Mark Quotation as Lost</Text>
+            <Text style={styles.modalSubtitle}>
+              This updates the quotation status to Lost. Add an optional note below.
+            </Text>
+            <TextInput
+              style={styles.modalNoteInput}
+              placeholder="Note (optional)"
+              placeholderTextColor="#9aa0a6"
+              value={statusNote}
+              onChangeText={setStatusNote}
+              multiline
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => setIsStatusModalOpen(false)}
+                disabled={isUpdatingStatus}>
+                <Text style={styles.modalButtonSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={handleMarkAsLost}
+                disabled={isUpdatingStatus}>
+                <Text style={styles.modalButtonPrimaryText}>
+                  {isUpdatingStatus ? 'Updating...' : 'Mark as Lost'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
 
 const DetailRow = ({label, value}: {label: string; value: React.ReactNode}) => (
   <View style={styles.detailRow}>
-    <Text style={styles.detailLabel}>{label}</Text>
-    <Text style={styles.detailValue}>{value}</Text>
+    <Text style={styles.detailLabel} numberOfLines={2}>
+      {label}
+    </Text>
+    <Text style={styles.detailValue} numberOfLines={3}>
+      {value}
+    </Text>
   </View>
 );
 
@@ -475,6 +552,68 @@ const styles = StyleSheet.create({
     fontSize: sp(12),
     color: '#8a8f98',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    paddingHorizontal: scale(24),
+  },
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: scale(14),
+    padding: scale(18),
+  },
+  modalTitle: {
+    fontSize: sp(15),
+    fontWeight: '700',
+    color: '#1c1c1e',
+    marginBottom: vs(6),
+  },
+  modalSubtitle: {
+    fontSize: sp(12),
+    color: '#6b7280',
+    marginBottom: vs(14),
+  },
+  modalNoteInput: {
+    borderWidth: 1,
+    borderColor: '#d5d7db',
+    borderRadius: scale(10),
+    minHeight: vs(70),
+    paddingHorizontal: scale(12),
+    paddingVertical: vs(10),
+    fontSize: sp(13),
+    color: '#222',
+    textAlignVertical: 'top',
+    marginBottom: vs(16),
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: scale(10),
+  },
+  modalButton: {
+    flex: 1,
+    height: vs(44),
+    borderRadius: scale(22),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#f1f2f4',
+  },
+  modalButtonSecondaryText: {
+    color: '#1c1c1e',
+    fontWeight: '700',
+    fontSize: sp(13),
+  },
+  modalButtonPrimary: {
+    backgroundColor: THEME_PRIMARY,
+  },
+  modalButtonPrimaryText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: sp(13),
+  },
 });
+
 
 export default QuotationDetailsScreen;
