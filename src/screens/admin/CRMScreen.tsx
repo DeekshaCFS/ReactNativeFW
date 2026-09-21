@@ -332,6 +332,7 @@ export type CustomerOption = {
   pinCode: string;
   landmark: string;
   productBrand: string;
+  emailId?: string;
   latitude: string;
   longitude: string;
 };
@@ -441,6 +442,7 @@ export const normalizeCustomerOption = (
     pinCode: getStringField(record, CUSTOMER_PINCODE_KEYS),
     landmark: getStringField(record, CUSTOMER_LANDMARK_KEYS),
     productBrand: getStringField(record, CUSTOMER_BRAND_KEYS),
+    emailId: getStringField(record, ['emailId', 'EmailId', 'emailID', 'EmailID', 'email', 'Email']),
     latitude: getStringField(record, CUSTOMER_LATITUDE_KEYS),
     longitude: getStringField(record, CUSTOMER_LONGITUDE_KEYS),
   };
@@ -989,6 +991,7 @@ const CRMScreen = ({
   const [customerBeingEdited, setCustomerBeingEdited] =
     useState<CustomerLookupItem | null>(null);
   const [isEditCustomerModalOpen, setIsEditCustomerModalOpen] = useState(false);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
 
   const [searchText, setSearchText] = useState('');
 
@@ -2280,7 +2283,14 @@ const CRMScreen = ({
               <Text style={styles.linkIconText}>🔗</Text>
             </TouchableOpacity>
           </>
-        ) : null}
+        ) : (
+          <TouchableOpacity
+            style={styles.addEnquiryButton}
+            onPress={() => setIsAddCustomerModalOpen(true)}
+          >
+            <Text style={styles.addEnquiryButtonText}>+ Customer</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {activeTab === 'enquiries' ? (
@@ -2346,6 +2356,18 @@ const CRMScreen = ({
           }
         />
       )}
+
+      <EditCustomerModal
+        visible={isAddCustomerModalOpen}
+        ownerId={ownerId}
+        customer={null}
+        mode="add"
+        onClose={() => setIsAddCustomerModalOpen(false)}
+        onUpdated={() => {
+          setIsAddCustomerModalOpen(false);
+          fetchCustomers(true);
+        }}
+      />
 
       <Modal
         visible={isAddEnquiryModalOpen}

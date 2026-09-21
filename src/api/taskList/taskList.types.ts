@@ -12,7 +12,25 @@ export interface AddTask {
   Code?: string;
 }
 
+export interface AddTaskWarrantyDetails {
+  BrandId?: number;
+  BrandName?: string;
+  ModelId?: number;
+  ModelName?: string;
+  SerialNoId?: number;
+  SerialNoName?: string;
+  WarrantyTypeId?: number;
+  WarrantyTypeName?: string;
+  StartDate?: string;
+  EndDate?: string;
+  UserId?: number;
+  CreatedBy?: number;
+}
+
 export interface AddTaskResultData {
+  Email?: string;
+  SerialNo?: string;
+  TaskWarrantyDetailsModelDto?: AddTaskWarrantyDetails;
   State?: string;
   City?: string;
   TaskTagId?: number;

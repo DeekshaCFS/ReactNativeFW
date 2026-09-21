@@ -159,6 +159,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isAddQuoteModalOpen, setIsAddQuoteModalOpen] = useState(false);
+  const [isAddInvoiceModalOpen, setIsAddInvoiceModalOpen] = useState(false);
   const [selectedQuotationId, setSelectedQuotationId] = useState<number | null>(null);
   const [selectedQuotationStatus, setSelectedQuotationStatus] = useState<string>('');
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
@@ -408,7 +409,11 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
           <TouchableOpacity style={styles.addQuoteButton} onPress={() => setIsAddQuoteModalOpen(true)}>
             <Text style={styles.addQuoteButtonText}>+ Quote</Text>
           </TouchableOpacity>
-        ) : null}
+        ) : (
+          <TouchableOpacity style={styles.addQuoteButton} onPress={() => setIsAddInvoiceModalOpen(true)}>
+            <Text style={styles.addQuoteButtonText}>+ Invoice</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <Pressable style={styles.statusSelector} onPress={() => setIsStatusModalOpen(true)}>
@@ -493,6 +498,13 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
         visible={isAddQuoteModalOpen}
         ownerId={ownerId}
         onClose={() => setIsAddQuoteModalOpen(false)}
+        onSuccess={() => fetchPage({nextPage: PAGE_START, replace: true})}
+      />
+      <AddQuoteModal
+        mode="invoice"
+        visible={isAddInvoiceModalOpen}
+        ownerId={ownerId}
+        onClose={() => setIsAddInvoiceModalOpen(false)}
         onSuccess={() => fetchPage({nextPage: PAGE_START, replace: true})}
       />
     </View>

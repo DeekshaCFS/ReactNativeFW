@@ -35,6 +35,13 @@ import type {ItemsListResultData} from '../../api/item/item.types';
 import {getTaskTagList} from '../../api/task/taskService';
 import type {TagListResultData} from '../../api/task/task.types';
 import {addTask} from '../../api/taskList/taskListService';
+import {
+  getTaskWarrantyTypeList,
+  searchBrands,
+  searchModels,
+  searchSerialNumbers,
+} from '../../api/brandModel/brandModelService';
+import SearchPickerModal, {type PickerOption} from '../../components/SearchPickerModal';
 import type {AddTaskResultData, AddTaskMultipleItemAssigned} from '../../api/taskList/taskList.types';
 import {
   THEME_PRIMARY,
@@ -278,6 +285,19 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   const [taskLandmark, setTaskLandmark] = useState('');
   const [taskProductBrand, setTaskProductBrand] = useState('');
   const [taskModelNumber, setTaskModelNumber] = useState('');
+  const [taskEmail, setTaskEmail] = useState('');
+  const [taskSerialNo, setTaskSerialNo] = useState('');
+  const [selectedBrand, setSelectedBrand] = useState<PickerOption | null>(null);
+  const [selectedModel, setSelectedModel] = useState<PickerOption | null>(null);
+  const [selectedSerial, setSelectedSerial] = useState<PickerOption | null>(null);
+  const [selectedWarrantyType, setSelectedWarrantyType] = useState<PickerOption | null>(null);
+  const [warrantyStartDate, setWarrantyStartDate] = useState('');
+  const [warrantyEndDate, setWarrantyEndDate] = useState('');
+  // Which searchable product picker (Java's brand/model/serial/warranty
+  // spinner dialogs) is open, and its current options.
+  const [productPicker, setProductPicker] = useState<'brand' | 'model' | 'serial' | 'warranty' | null>(null);
+  const [productPickerOptions, setProductPickerOptions] = useState<PickerOption[]>([]);
+  const [isProductPickerLoading, setIsProductPickerLoading] = useState(false);
   const [taskLatitude, setTaskLatitude] = useState('');
   const [taskLongitude, setTaskLongitude] = useState('');
 
@@ -390,6 +410,15 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setTaskLandmark(initialValues?.landmark ?? '');
     setTaskProductBrand(initialValues?.productBrand ?? '');
     setTaskModelNumber(initialValues?.modelNumber ?? '');
+    setTaskEmail('');
+    setTaskSerialNo('');
+    setSelectedBrand(null);
+    setSelectedModel(null);
+    setSelectedSerial(null);
+    setSelectedWarrantyType(null);
+    setWarrantyStartDate('');
+    setWarrantyEndDate('');
+    setProductPicker(null);
     setTaskLatitude('');
     setTaskLongitude('');
     setActiveTaskFormTab('cust');
@@ -794,6 +823,88 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     showTaskCustomerSuggestions,
   ]);
 
+  const loadProductPickerOptions = useCallback(
+    async (kind: 'brand' | 'model' | 'serial' | 'warranty', search = '') => {
+      setIsProductPickerLoading(true);
+      try {
+        let options: PickerOption[] = [];
+        if (kind === 'brand') {
+          const response = await searchBrands({ownerId, search});
+          options = extractArray<{BrandId?: number; BrandName?: string}>(response).map(item => ({
+            id: Number(item.BrandId) || 0,
+            label: String(item.BrandName ?? ''),
+          }));
+        } else if (kind === 'model') {
+          const response = await searchModels({ownerId, BrandId: selectedBrand?.id ?? 0, search});
+          options = extractArray<{ModelId?: number; ModelName?: string}>(response).map(item => ({
+            id: Number(item.ModelId) || 0,
+            label: String(item.ModelName ?? ''),
+          }));
+        } else if (kind === 'serial') {
+          const response = await searchSerialNumbers({
+            BrandId: selectedBrand?.id ?? 0,
+            ModelId: selectedModel?.id ?? 0,
+            ownerId,
+            search,
+          });
+          options = extractArray<{SerialNoId?: number; SerialNo?: string}>(response).map(item => ({
+            id: Number(item.SerialNoId) || 0,
+            label: String(item.SerialNo ?? ''),
+          }));
+        } else {
+          const response = await getTaskWarrantyTypeList({ownerid: ownerId});
+          options = extractArray<{WarrantyTypeId?: number; WarrantyTypeName?: string}>(response).map(item => ({
+            id: Number(item.WarrantyTypeId) || 0,
+            label: String(item.WarrantyTypeName ?? ''),
+          }));
+        }
+        setProductPickerOptions(options.filter(option => option.label));
+      } catch {
+        setProductPickerOptions([]);
+      } finally {
+        setIsProductPickerLoading(false);
+      }
+    },
+    [ownerId, selectedBrand, selectedModel],
+  );
+
+  const openProductPicker = (kind: 'brand' | 'model' | 'serial' | 'warranty') => {
+    if (kind === 'model' && !selectedBrand) {
+      Alert.alert('Add Task', 'Please select a brand first.');
+      return;
+    }
+    if (kind === 'serial' && !selectedModel) {
+      Alert.alert('Add Task', 'Please select a model first.');
+      return;
+    }
+    setProductPickerOptions([]);
+    setProductPicker(kind);
+    loadProductPickerOptions(kind);
+  };
+
+  const handleProductPickerSelect = (option: PickerOption) => {
+    if (productPicker === 'brand') {
+      setSelectedBrand(option);
+      setTaskProductBrand(option.label);
+      // A new brand invalidates the model and serial chosen under the old one.
+      setSelectedModel(null);
+      setTaskModelNumber('');
+      setSelectedSerial(null);
+      setTaskSerialNo('');
+    } else if (productPicker === 'model') {
+      setSelectedModel(option);
+      setTaskModelNumber(option.label);
+      setSelectedSerial(null);
+      setTaskSerialNo('');
+    } else if (productPicker === 'serial') {
+      setSelectedSerial(option);
+      setTaskSerialNo(option.label);
+    } else if (productPicker === 'warranty') {
+      setSelectedWarrantyType(option);
+    }
+    setProductPicker(null);
+  };
+
   const handleTaskCustomerSelect = (customer: CustomerOption) => {
     setTaskCustomerId(customer.id);
     setTaskCustomerName(customer.name);
@@ -820,6 +931,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     if (customer.productBrand) {
       setTaskProductBrand(customer.productBrand);
     }
+    setTaskEmail(customer.emailId || '');
     setTaskLatitude(customer.latitude || '');
     setTaskLongitude(customer.longitude || '');
     setTaskCustomerSuggestions([]);
@@ -1260,6 +1372,11 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       }
     }
 
+    if (taskEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(taskEmail.trim())) {
+      Alert.alert('Add Task', 'Please enter a valid email address.');
+      return;
+    }
+
     const multipleItemAssigned: AddTaskMultipleItemAssigned[] = taskItemRows
       .filter(row => row.itemId > 0 && Number(row.quantity) > 0)
       .map(row => ({
@@ -1312,6 +1429,22 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       LocationId: taskCityId,
       Longitude: resolvedLongitude,
       ModelNumber: taskModelNumber.trim(),
+      Email: taskEmail.trim(),
+      SerialNo: taskSerialNo.trim(),
+      TaskWarrantyDetailsModelDto: {
+        BrandId: selectedBrand?.id ?? 0,
+        BrandName: selectedBrand?.label ?? taskProductBrand.trim(),
+        ModelId: selectedModel?.id ?? 0,
+        ModelName: selectedModel?.label ?? taskModelNumber.trim(),
+        SerialNoId: selectedSerial?.id ?? 0,
+        SerialNoName: selectedSerial?.label ?? taskSerialNo.trim(),
+        WarrantyTypeId: selectedWarrantyType?.id ?? 0,
+        WarrantyTypeName: selectedWarrantyType?.label ?? '',
+        StartDate: warrantyStartDate.trim(),
+        EndDate: warrantyEndDate.trim(),
+        UserId: ownerId,
+        CreatedBy: ownerId,
+      },
       MultipleItemAssigned: multipleItemAssigned,
       Name: taskTitle.trim(),
       NewAddedTaskId: 0,
@@ -1657,21 +1790,98 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
                 <View style={styles.fieldRow}>
                   <View style={styles.floatingFieldHalf}>
+                    <TouchableOpacity
+                      style={styles.dropdownPill}
+                      onPress={() => openProductPicker('brand')}
+                    >
+                      <Text
+                        style={
+                          taskProductBrand
+                            ? styles.dropdownPillTextValue
+                            : styles.dropdownPillTextPlaceholder
+                        }
+                        numberOfLines={1}
+                      >
+                        {taskProductBrand || 'Product Brand'}
+                      </Text>
+                      <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.floatingFieldHalf}>
+                    <TouchableOpacity
+                      style={styles.dropdownPill}
+                      onPress={() => openProductPicker('model')}
+                    >
+                      <Text
+                        style={
+                          taskModelNumber
+                            ? styles.dropdownPillTextValue
+                            : styles.dropdownPillTextPlaceholder
+                        }
+                        numberOfLines={1}
+                      >
+                        {taskModelNumber || 'Model Number'}
+                      </Text>
+                      <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.fieldWrap}>
+                  <TouchableOpacity
+                      style={styles.dropdownPill}
+                      onPress={() => openProductPicker('serial')}
+                    >
+                      <Text
+                        style={
+                          taskSerialNo
+                            ? styles.dropdownPillTextValue
+                            : styles.dropdownPillTextPlaceholder
+                        }
+                        numberOfLines={1}
+                      >
+                        {taskSerialNo || 'Serial No'}
+                      </Text>
+                      <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.fieldWrap}>
+                  <TouchableOpacity
+                      style={styles.dropdownPill}
+                      onPress={() => openProductPicker('warranty')}
+                    >
+                      <Text
+                        style={
+                          selectedWarrantyType?.label
+                            ? styles.dropdownPillTextValue
+                            : styles.dropdownPillTextPlaceholder
+                        }
+                        numberOfLines={1}
+                      >
+                        {selectedWarrantyType?.label || 'Select Warranty Type'}
+                      </Text>
+                      <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.fieldRow}>
+                  <View style={styles.floatingFieldHalf}>
                     <TextInput
                       style={styles.floatingInput}
-                      placeholder="Product Brand"
+                      placeholder="Start Date (YYYY-MM-DD)"
                       placeholderTextColor="#9aa0a6"
-                      value={taskProductBrand}
-                      onChangeText={setTaskProductBrand}
+                      value={warrantyStartDate}
+                      onChangeText={setWarrantyStartDate}
                     />
                   </View>
                   <View style={styles.floatingFieldHalf}>
                     <TextInput
                       style={styles.floatingInput}
-                      placeholder="Model Number"
+                      placeholder="End Date (YYYY-MM-DD)"
                       placeholderTextColor="#9aa0a6"
-                      value={taskModelNumber}
-                      onChangeText={setTaskModelNumber}
+                      value={warrantyEndDate}
+                      onChangeText={setWarrantyEndDate}
                     />
                   </View>
                 </View>
@@ -1763,6 +1973,18 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                         />
                         <Text style={styles.contactPickerIcon}>👤</Text>
                       </View>
+                    </View>
+
+                    <View style={styles.fieldWrap}>
+                      <TextInput
+                        style={styles.pillInput}
+                        placeholder="Email ID"
+                        placeholderTextColor="#9aa0a6"
+                        value={taskEmail}
+                        onChangeText={setTaskEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                      />
                     </View>
                   </>
                 ) : activeTaskFormTab === 'service' ? (
@@ -2041,6 +2263,29 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
           </Pressable>
         </Pressable>
       </Modal>
+
+      <SearchPickerModal
+        visible={productPicker !== null}
+        title={
+          productPicker === 'brand'
+            ? 'Select Brand'
+            : productPicker === 'model'
+            ? 'Select Model'
+            : productPicker === 'serial'
+            ? 'Select Serial No'
+            : 'Select Warranty Type'
+        }
+        options={productPickerOptions}
+        loading={isProductPickerLoading}
+        emptyText="No results found."
+        onSelect={handleProductPickerSelect}
+        onClose={() => setProductPicker(null)}
+        onSearch={
+          productPicker && productPicker !== 'warranty'
+            ? text => loadProductPickerOptions(productPicker, text)
+            : undefined
+        }
+      />
 
       <Modal
         visible={isAddTaskTagModalOpen}

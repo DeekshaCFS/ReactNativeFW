@@ -15,12 +15,15 @@ import {
   View,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {launchImageLibrary} from 'react-native-image-picker';
+import {pick} from '@react-native-documents/picker';
+import RNFS from 'react-native-fs';
+import SearchPickerModal, {type PickerOption} from '../../components/SearchPickerModal';
 import {getEnquiryServiceTypeList} from '../../api/services/servicesService';
 import type {EnquiryServiceTypeDTOResultData} from '../../api/services/services.types';
 import {getAllItemAssignedUnassigned} from '../../api/item/itemService';
 import type {ItemsListResultData} from '../../api/item/item.types';
-import {postQuotationDetails} from '../../api/quotation/quotationService';
+import {getTaxList, postQuotationDetails, selfInvoiceCreation} from '../../api/quotation/quotationService';
+import {transactionTpye} from '../../api/paymentTransaction/paymentTransactionService';
 import type {
   SaveQuotationDTOQuoteItemList,
   SaveQuotationDTOQuoteServiceList,
@@ -113,9 +116,21 @@ type AddQuoteModalProps = {
   ownerId: number;
   onClose: () => void;
   onSuccess?: () => void;
+  /** 'invoice' mirrors Java's dialog_add_invoice (SelfInvoiceCreate). */
+  mode?: 'quote' | 'invoice';
 };
 
-const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProps) => {
+const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote'}: AddQuoteModalProps) => {
+  const isInvoice = mode === 'invoice';
+  const docLabel = isInvoice ? 'Invoice' : 'Quote';
+  const docTitle = `Add ${docLabel}`;
+  // Invoice-only: Java's preview dialog also asks for the amount received and
+  // the payment transaction type before saving.
+  const [receivedAmount, setReceivedAmount] = useState('');
+  const [paymentTypes, setPaymentTypes] = useState<PickerOption[]>([]);
+  const [selectedPaymentType, setSelectedPaymentType] = useState<PickerOption | null>(null);
+  const [isPaymentTypePickerOpen, setIsPaymentTypePickerOpen] = useState(false);
+  const [isLoadingPaymentTypes, setIsLoadingPaymentTypes] = useState(false);
   const [quoteName, setQuoteName] = useState('');
   const [quoteDate, setQuoteDate] = useState(getTodayDateString());
   const [validityDate, setValidityDate] = useState('');
@@ -140,6 +155,15 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
   const [extraPrice, setExtraPrice] = useState('');
   const [termCondition, setTermCondition] = useState('');
   const [attachedFileName, setAttachedFileName] = useState('');
+  const [attachedFileBase64, setAttachedFileBase64] = useState('');
+  // Java's spin_tax: "Select Tax" (0) / "With Tax" (1) / "Without Tax" (2); with
+  // tax, spin_percent lists the owner's taxes as "Name: N%".
+  const [taxMode, setTaxMode] = useState<0 | 1 | 2>(0);
+  const [taxName, setTaxName] = useState('');
+  const [taxOptions, setTaxOptions] = useState<Array<PickerOption & {name: string; percent: number}>>([]);
+  const [isTaxPickerOpen, setIsTaxPickerOpen] = useState(false);
+  const [isLoadingTaxes, setIsLoadingTaxes] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const [serviceTypes, setServiceTypes] = useState<LeadServiceTypeItem[]>([]);
   const [isLoadingServiceTypes, setIsLoadingServiceTypes] = useState(false);
@@ -166,6 +190,12 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
     setExtraPrice('');
     setTermCondition('');
     setAttachedFileName('');
+    setAttachedFileBase64('');
+    setTaxMode(0);
+    setTaxName('');
+    setIsPreviewOpen(false);
+    setReceivedAmount('');
+    setSelectedPaymentType(null);
     setOpenDropdownKey(null);
   }, []);
 
@@ -227,23 +257,77 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
     setItemRows(prev => (prev.length > 1 ? prev.filter(row => row.id !== id) : prev));
   };
 
+  // Java's "Attach SLA": any document (pdf, images, xlsx, txt, zip...), max 6 MB,
+  // sent inline as SLAAttachmentName + SLAAttachmentBase64.
+  const MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024;
+
   const handlePickAttachment = async () => {
     try {
-      const result = await launchImageLibrary({mediaType: 'mixed', selectionLimit: 1});
-      if (result.didCancel) {
+      const [file] = await pick({type: ['*/*']});
+      if (!file) {
         return;
       }
-      if (result.errorCode) {
-        Alert.alert('Attach File', result.errorMessage || 'Unable to pick file.');
+      if (typeof file.size === 'number' && file.size > MAX_ATTACHMENT_BYTES) {
+        Alert.alert('Attach File', 'File size must be 6 MB or less.');
         return;
       }
-      const asset = result.assets?.[0];
-      if (asset) {
-        setAttachedFileName(asset.fileName || 'Attached file');
-      }
+      const base64 = await RNFS.readFile(file.uri, 'base64');
+      setAttachedFileName(file.name || 'Attached file');
+      setAttachedFileBase64(base64);
     } catch (error) {
-      Alert.alert('Attach File', 'Unable to open picker.');
+      const code = (error as {code?: string} | null)?.code;
+      if (code !== 'DOCUMENT_PICKER_CANCELED' && code !== 'OPERATION_CANCELED') {
+        Alert.alert('Attach File', 'Unable to attach this file.');
+      }
     }
+  };
+
+  const openPaymentTypePicker = () => {
+    setIsPaymentTypePickerOpen(true);
+    if (paymentTypes.length > 0 || isLoadingPaymentTypes) {
+      return;
+    }
+    setIsLoadingPaymentTypes(true);
+    transactionTpye()
+      .then(response => {
+        const rows = Array.isArray(response?.ResultData) ? response.ResultData : [];
+        setPaymentTypes(
+          rows
+            .map(row => ({
+              id: Number(row.PaymentTransactionTypeId) || 0,
+              label: String(row.PaymentTransactionTypeName ?? ''),
+            }))
+            .filter(option => option.label),
+        );
+      })
+      .catch(() => setPaymentTypes([]))
+      .finally(() => setIsLoadingPaymentTypes(false));
+  };
+
+  const openTaxPicker = () => {
+    setIsTaxPickerOpen(true);
+    if (taxOptions.length > 0 || isLoadingTaxes) {
+      return;
+    }
+    setIsLoadingTaxes(true);
+    getTaxList({UserId: ownerId})
+      .then(response => {
+        const rows = Array.isArray(response?.ResultData) ? response.ResultData : [];
+        setTaxOptions(
+          rows.map((row, index) => {
+            const name = String(row.TaxName ?? '').trim();
+            const percent = Number(row.TaxPercentage) || 0;
+            return {
+              id: Number(row.Id) || index + 1,
+              label: `${name}: ${percent}%`,
+              name,
+              percent,
+            };
+          }),
+        );
+      })
+      .catch(() => setTaxOptions([]))
+      .finally(() => setIsLoadingTaxes(false));
   };
 
   const serviceTotal = useMemo(
@@ -267,29 +351,29 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
     return taxableAmount + taxValue;
   }, [serviceTotal, itemTotal, extraTotal, discountPercent, taxPercent]);
 
-  const handleSave = async () => {
+  const handleSave = async (confirmed = false) => {
     if (!quoteName.trim()) {
-      Alert.alert('Add Quote', 'Please enter Quote Name.');
+      Alert.alert(docTitle, `Please enter ${docLabel} Name.`);
       return;
     }
     if (!validityDate.trim()) {
-      Alert.alert('Add Quote', 'Please enter Validity Date.');
+      Alert.alert(docTitle, 'Please enter Validity Date.');
       return;
     }
     if (!customerName.trim()) {
-      Alert.alert('Add Quote', 'Please enter Customer Name.');
+      Alert.alert(docTitle, 'Please enter Customer Name.');
       return;
     }
     if (!address.trim()) {
-      Alert.alert('Add Quote', 'Please enter Address.');
+      Alert.alert(docTitle, 'Please enter Address.');
       return;
     }
     if (!landmark.trim()) {
-      Alert.alert('Add Quote', 'Please enter Landmark.');
+      Alert.alert(docTitle, 'Please enter Landmark.');
       return;
     }
     if (!phoneNumber.trim()) {
-      Alert.alert('Add Quote', 'Please enter Phone Number.');
+      Alert.alert(docTitle, 'Please enter Phone Number.');
       return;
     }
 
@@ -317,17 +401,44 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
     // dropping the values the user typed.
     const quoteTaxList: SaveQuotationDTOQuoteTaxList[] = [
       {
-        Discount: Number(discountPercent) || 0,
-        Tax: Number(taxPercent) || 0,
-        WithoutTax: Number(taxPercent) > 0 ? 1 : 2,
+        Discount: Math.trunc(Number(discountPercent)) || 0,
+        TaxAmount: taxMode === 1 ? Number(taxPercent) || 0 : 0,
+        TaxName: taxMode === 1 ? taxName : '',
+        WithoutTax: taxMode,
+        CreatedBy: ownerId,
       },
     ];
+
+    if (!confirmed) {
+      // Java's "Save & View": show the summary first, save from there.
+      setIsPreviewOpen(true);
+      return;
+    }
+
+    if (isInvoice) {
+      // Same checks as Java's invoice preview dialog.
+      if (!receivedAmount.trim()) {
+        Alert.alert(docTitle, 'Please enter amount received.');
+        setIsPreviewOpen(true);
+        return;
+      }
+      if (!selectedPaymentType) {
+        Alert.alert(docTitle, 'Please select Payment Transaction Type');
+        setIsPreviewOpen(true);
+        return;
+      }
+      if (Number(receivedAmount) > grandTotal) {
+        Alert.alert(docTitle, 'Entered Amount is greater than Grand Total Amount');
+        setIsPreviewOpen(true);
+        return;
+      }
+    }
 
     const nowIso = new Date().toISOString().slice(0, 19);
 
     setIsSubmitting(true);
     try {
-      ensureSuccess(await postQuotationDetails({
+      const requestBody = {
         UserId: ownerId,
         CreatedBy: ownerId,
         UpdatedBy: ownerId,
@@ -355,13 +466,36 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
         QuoteServiceList: quoteServiceList,
         QuoteItemList: quoteItemList,
         QuoteTaxList: quoteTaxList,
-      }));
+      };
 
-      Alert.alert('Add Quote', 'Quote saved successfully.');
+      if (isInvoice) {
+        // Java's SelfInvoiceCreate: ".701Z" timestamps, received amount and
+        // payment transaction type; the SLA strings are quote-only.
+        ensureSuccess(
+          await selfInvoiceCreation({
+            ...requestBody,
+            CreatedDate: `${nowIso}.701Z`,
+            QuoteTime: `${nowIso}.701Z`,
+            ValidityDate: `${validityDate.trim()}T00:00:00.701Z`,
+            ReceivedAmount: Number(receivedAmount) || 0,
+            PaymentTransactionTypeId: selectedPaymentType?.id ?? 0,
+          } as unknown as Parameters<typeof selfInvoiceCreation>[0]),
+        );
+      } else {
+        ensureSuccess(
+          await postQuotationDetails({
+            ...requestBody,
+            SLAAttachmentName: attachedFileName,
+            SLAAttachmentBase64: attachedFileBase64,
+          }),
+        );
+      }
+
+      Alert.alert(docTitle, `${docLabel} saved successfully.`);
       onSuccess?.();
       handleClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to save quote.';
+      const message = error instanceof Error ? error.message : `Unable to save ${docLabel.toLowerCase()}.`;
       Alert.alert('Error', message);
     } finally {
       setIsSubmitting(false);
@@ -475,7 +609,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Add Quote</Text>
+            <Text style={styles.headerTitle}>{docTitle}</Text>
             <TouchableOpacity onPress={handleClose} hitSlop={12}>
               <Text style={styles.headerClose}>{'\u2715'}</Text>
             </TouchableOpacity>
@@ -489,7 +623,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
               keyboardShouldPersistTaps="handled">
               <TextInput
                 style={styles.pillInput}
-                placeholder="Quote Name *"
+                placeholder={`${docLabel} Name *`}
                 placeholderTextColor="#9aa0a6"
                 value={quoteName}
                 onChangeText={setQuoteName}
@@ -497,7 +631,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
 
               <View style={styles.fieldRow}>
                 <View style={styles.floatingFieldHalf}>
-                  <Text style={styles.floatingLabel}>Quote Date*</Text>
+                  <Text style={styles.floatingLabel}>{docLabel} Date*</Text>
                   <TextInput
                     style={styles.floatingInput}
                     value={quoteDate}
@@ -686,23 +820,46 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
               ) : null}
 
               {activeSection === 'discount' ? (
-                <View style={styles.fieldRow}>
+                <View>
                   <TextInput
-                    style={[styles.pillInput, styles.halfInput]}
-                    placeholder="Discount (%)"
+                    style={styles.pillInput}
+                    placeholder="Discount %"
                     placeholderTextColor="#9aa0a6"
                     keyboardType="numeric"
                     value={discountPercent}
                     onChangeText={setDiscountPercent}
                   />
-                  <TextInput
-                    style={[styles.pillInput, styles.halfInput]}
-                    placeholder="Tax (%)"
-                    placeholderTextColor="#9aa0a6"
-                    keyboardType="numeric"
-                    value={taxPercent}
-                    onChangeText={setTaxPercent}
-                  />
+                  <View style={styles.fieldRow}>
+                    {([
+                      [0, 'Select Tax'],
+                      [1, 'With Tax'],
+                      [2, 'Without Tax'],
+                    ] as const).map(([mode, label]) => (
+                      <TouchableOpacity
+                        key={mode}
+                        style={[
+                          styles.pillInput,
+                          styles.halfInput,
+                          taxMode === mode ? {borderColor: '#c3002f'} : null,
+                        ]}
+                        onPress={() => {
+                          setTaxMode(mode);
+                          if (mode !== 1) {
+                            setTaxPercent('');
+                            setTaxName('');
+                          }
+                        }}>
+                        <Text style={{color: taxMode === mode ? '#c3002f' : '#555'}}>{label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {taxMode === 1 ? (
+                    <TouchableOpacity style={styles.pillInput} onPress={openTaxPicker}>
+                      <Text style={{color: taxName ? '#222' : '#9aa0a6'}}>
+                        {taxName ? `${taxName}: ${taxPercent}%` : 'Select Tax Percentage'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               ) : null}
 
@@ -743,7 +900,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
 
               <TouchableOpacity
                 style={styles.saveButton}
-                onPress={handleSave}
+                onPress={() => handleSave()}
                 disabled={isSubmitting}>
                 <Text style={styles.saveButtonText}>
                   {isSubmitting ? 'SAVING...' : 'SAVE & VIEW'}
@@ -757,6 +914,111 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess}: AddQuoteModalProp
           </KeyboardAvoidingView>
         </View>
       </View>
+
+      <SearchPickerModal
+        visible={isTaxPickerOpen}
+        title="Select Tax"
+        options={taxOptions}
+        loading={isLoadingTaxes}
+        emptyText="No taxes found."
+        onSelect={option => {
+          const tax = taxOptions.find(row => row.id === option.id);
+          setTaxName(tax?.name ?? option.label);
+          setTaxPercent(String(tax?.percent ?? 0));
+          setIsTaxPickerOpen(false);
+        }}
+        onClose={() => setIsTaxPickerOpen(false)}
+      />
+
+      <SearchPickerModal
+        visible={isPaymentTypePickerOpen}
+        title="Payment Transaction Type"
+        options={paymentTypes}
+        loading={isLoadingPaymentTypes}
+        emptyText="No payment types found."
+        onSelect={option => {
+          setSelectedPaymentType(option);
+          setIsPaymentTypePickerOpen(false);
+        }}
+        onClose={() => setIsPaymentTypePickerOpen(false)}
+      />
+
+      <Modal
+        visible={isPreviewOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setIsPreviewOpen(false)}>
+        <View style={styles.overlay}>
+          <View style={styles.sheet}>
+            <ScrollView contentContainerStyle={{padding: ms(16)}}>
+              <Text style={styles.extraLabel}>Quote Preview</Text>
+              <Text>{quoteName.trim()}</Text>
+              <Text>
+                {quoteDate} → {validityDate.trim()}
+              </Text>
+              <Text>
+                {customerName.trim()} · {phoneNumber.trim()}
+              </Text>
+              <Text>{address.trim()}</Text>
+              {serviceRows
+                .filter(row => row.serviceTypeId)
+                .map(row => (
+                  <Text key={row.id}>
+                    {row.serviceTypeName} × {Number(row.quantity) || 1} @ {Number(row.price) || 0}
+                  </Text>
+                ))}
+              {itemRows
+                .filter(row => row.itemId)
+                .map(row => (
+                  <Text key={row.id}>
+                    {row.itemName} × {Number(row.quantity) || 1} @ {Number(row.price) || 0}
+                  </Text>
+                ))}
+              {extraName.trim() ? (
+                <Text>
+                  {extraName.trim()}: {extraTotal}
+                </Text>
+              ) : null}
+              <Text>Discount: {Number(discountPercent) || 0}%</Text>
+              <Text>
+                Tax: {taxMode === 1 ? `${taxName} ${Number(taxPercent) || 0}%` : taxMode === 2 ? 'Without Tax' : '-'}
+              </Text>
+              <Text style={styles.extraLabel}>Total: {grandTotal.toFixed(2)}</Text>
+              {isInvoice ? (
+                <View>
+                  <TextInput
+                    style={styles.pillInput}
+                    placeholder="Amount Received"
+                    placeholderTextColor="#9aa0a6"
+                    keyboardType="numeric"
+                    value={receivedAmount}
+                    onChangeText={setReceivedAmount}
+                  />
+                  <TouchableOpacity style={styles.pillInput} onPress={openPaymentTypePicker}>
+                    <Text style={{color: selectedPaymentType ? '#222' : '#9aa0a6'}}>
+                      {selectedPaymentType ? selectedPaymentType.label : 'Select Payment Transaction Type'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={() => {
+                  setIsPreviewOpen(false);
+    setReceivedAmount('');
+    setSelectedPaymentType(null);
+                  handleSave(true);
+                }}
+                disabled={isSubmitting}>
+                <Text style={styles.saveButtonText}>SAVE</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setIsPreviewOpen(false)}>
+                <Text style={styles.cancelText}>Back</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 };

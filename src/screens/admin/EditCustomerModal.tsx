@@ -23,7 +23,8 @@ import {
   type StateListResponse,
   type UpdateCustomerDetailsRequest,
 } from './adminLegacyApiTypes';
-import { getStateList, getCityList, updateCustomerDetails, getCustomerTagList } from '../../api/customerList/customerListService';
+import { ensureSuccess } from '../../utils/apiResponse';
+import { getStateList, getCityList, updateCustomerDetails, addCustomer, getCustomerTagList } from '../../api/customerList/customerListService';
 import {
   CUSTOMER_ADDRESS_KEYS,
   CUSTOMER_ID_KEYS,
@@ -129,6 +130,8 @@ type EditCustomerModalProps = {
   visible: boolean;
   ownerId: number;
   customer: Record<string, unknown> | null;
+  /** 'add' mirrors Java's dialog_add_customer; the default edits `customer`. */
+  mode?: 'add' | 'edit';
   onClose: () => void;
   onUpdated: (customer: Record<string, unknown>) => void;
 };
@@ -143,6 +146,7 @@ const EMPTY_FORM = {
   pinCode: '',
   description: '',
   mobileNumber: '',
+  telephoneNumber: '',
   emailId: '',
   representativeName: '',
   representativeNumber: '',
@@ -160,9 +164,12 @@ const EditCustomerModal = ({
   visible,
   ownerId,
   customer,
+  mode = 'edit',
   onClose,
   onUpdated,
 }: EditCustomerModalProps) => {
+  const isAddMode = mode === 'add';
+  const modalTitle = isAddMode ? 'Add Customer' : 'Edit Customer';
   const [form, setForm] = useState(EMPTY_FORM);
   const [locationId, setLocationId] = useState(0);
   const [customerGroupId, setCustomerGroupId] = useState(0);
@@ -189,6 +196,22 @@ const EditCustomerModal = ({
   const [isTagLoading, setIsTagLoading] = useState(false);
 
   useEffect(() => {
+    if (visible && isAddMode) {
+      setForm(EMPTY_FORM);
+      setLocationId(0);
+      setCustomerGroupId(0);
+      setCountryDetailsId(0);
+      setIsActive(true);
+      setCustomerTagId(0);
+      setCustomerTagName('');
+      setSelectedStateId(0);
+      setAllCityOptions([]);
+      setCitySuggestions([]);
+      setStateSuggestions([]);
+      setShowStateSuggestions(false);
+      setShowCitySuggestions(false);
+      return;
+    }
     if (!visible || !customer) {
       return;
     }
@@ -205,6 +228,7 @@ const EditCustomerModal = ({
       pinCode: getStringField(record, PINCODE_KEYS),
       description: getStringField(record, DESCRIPTION_KEYS),
       mobileNumber: getStringField(record, CUSTOMER_PHONE_KEYS),
+      telephoneNumber: '',
       emailId: getStringField(record, EMAIL_KEYS),
       representativeName: getStringField(record, REPRESENTATIVE_NAME_KEYS),
       representativeNumber: getStringField(record, REPRESENTATIVE_NUMBER_KEYS),
@@ -230,7 +254,7 @@ const EditCustomerModal = ({
     setStateSuggestions([]);
     setShowStateSuggestions(false);
     setShowCitySuggestions(false);
-  }, [visible, customer]);
+  }, [visible, customer, isAddMode]);
 
   const setField = (key: keyof typeof EMPTY_FORM, value: string) => {
     setForm(previous => ({...previous, [key]: value}));
@@ -328,19 +352,19 @@ const EditCustomerModal = ({
 
   const handleUpdate = async () => {
     if (!form.customerName.trim()) {
-      Alert.alert('Edit Customer', 'Customer Name is required.');
+      Alert.alert(modalTitle, 'Customer Name is required.');
       return;
     }
     if (!form.address.trim()) {
-      Alert.alert('Edit Customer', 'Primary Address is required.');
+      Alert.alert(modalTitle, 'Primary Address is required.');
       return;
     }
     if (!form.state.trim() || !form.city.trim() || !form.pinCode.trim()) {
-      Alert.alert('Edit Customer', 'State, City and Pin Code are required.');
+      Alert.alert(modalTitle, 'State, City and Pin Code are required.');
       return;
     }
     if (!form.mobileNumber.trim()) {
-      Alert.alert('Edit Customer', 'Phone Number is required.');
+      Alert.alert(modalTitle, 'Phone Number is required.');
       return;
     }
 
@@ -378,6 +402,57 @@ const EditCustomerModal = ({
         Longitude: String(customer?.Longitude ?? customer?.longitude ?? ''),
       };
 
+      if (isAddMode) {
+        // Java (EnquiryDialogNew add-customer): same fields as update, plus
+        // Telephone_Number and an AddressList entry carrying the representative.
+        const addPayload = {
+          Address: payload.Address,
+          BrandName: payload.BrandName,
+          BuildingNumber: payload.BuildingNumber,
+          City: payload.City,
+          CreatedBy: ownerId,
+          CustomerName: payload.CustomerName,
+          CustomerTagId: customerTagId,
+          CustomerTagName: customerTagName,
+          Description: payload.Description,
+          EmailId: payload.EmailId,
+          Instructions: payload.Instructions,
+          IsActive: true,
+          MobileNumber: payload.MobileNumber,
+          ModelNumber: payload.ModelNumber,
+          PinCode: payload.PinCode,
+          SecondaryAddress: payload.SecondaryAddress,
+          SecondaryDescription: payload.SecondaryDescription,
+          SecondaryEmailId: payload.SecondaryEmailId,
+          SecondaryInstructions: payload.SecondaryInstructions,
+          SecondaryMobileNumber: payload.SecondaryMobileNumber,
+          State: payload.State,
+          Telephone_Number: form.telephoneNumber.trim(),
+          AddressList: [
+            {
+              AddressId: 0,
+              Address: payload.Address,
+              State: payload.State,
+              City: payload.City,
+              PinCode: payload.PinCode,
+              LandMarkPACI: form.secondaryDescription.trim(),
+              RepName: form.representativeName.trim(),
+              RepNo: form.representativeNumber.trim(),
+            },
+          ],
+        };
+        const addResponse = ensureSuccess(
+          await addCustomer(addPayload as unknown as Parameters<typeof addCustomer>[0]),
+        );
+        const addRecord = (addResponse ?? {}) as unknown as Record<string, unknown>;
+        Alert.alert(
+          modalTitle,
+          String(addRecord.Message ?? addRecord.message ?? '').trim() || 'Customer added successfully.',
+        );
+        onUpdated({...addPayload});
+        return;
+      }
+
       const response = await updateCustomerDetails(
         payload as unknown as Parameters<typeof updateCustomerDetails>[0],
       );
@@ -397,7 +472,7 @@ const EditCustomerModal = ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to update customer details.';
-      Alert.alert('Edit Customer', message);
+      Alert.alert(modalTitle, message);
     } finally {
       setIsSubmitting(false);
     }
@@ -412,7 +487,7 @@ const EditCustomerModal = ({
     >
       <View style={styles.screen}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Customer</Text>
+          <Text style={styles.headerTitle}>{modalTitle}</Text>
           <TouchableOpacity onPress={onClose}>
             <Text style={styles.headerCloseIcon}>✕</Text>
           </TouchableOpacity>
@@ -572,6 +647,17 @@ const EditCustomerModal = ({
                   onChangeText={text => setField('mobileNumber', text)}
                 />
               </View>
+              {isAddMode ? (
+                <View style={styles.halfWrap}>
+                  <LabeledField
+                    label="Telephone Number"
+                    half
+                    value={form.telephoneNumber}
+                    keyboardType="phone-pad"
+                    onChangeText={text => setField('telephoneNumber', text)}
+                  />
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.fieldRow}>
@@ -697,7 +783,7 @@ const EditCustomerModal = ({
               ) : (
                 <>
                   <Text style={styles.updateButtonIcon}>?</Text>
-                  <Text style={styles.updateButtonText}>UPDATE</Text>
+                  <Text style={styles.updateButtonText}>{isAddMode ? 'ADD' : 'UPDATE'}</Text>
                 </>
               )}
             </TouchableOpacity>
