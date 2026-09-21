@@ -264,7 +264,7 @@ export default function OtpScreen() {
 const styles = StyleSheet.create({
   bg:           { flex: 1 },
   container:    { flexGrow: 1, alignItems: 'center', paddingHorizontal: ms(30), paddingTop: ms(60), paddingBottom: ms(40) },
-  logo:         { width: wp(70), height: ms(160), marginBottom: ms(10) },
+  logo:         { width: Math.min(wp(70), scale(280)), height: ms(160), marginBottom: ms(10) },
   title:        { fontSize: sp(28), fontWeight: '400', marginBottom: ms(16), color: '#000' },
   subtitle:     { fontSize: sp(16), color: '#8E8E8E', textAlign: 'center', marginBottom: ms(36) },
   otpRow:       { flexDirection: 'row', justifyContent: 'center', gap: ms(16), marginBottom: ms(24), width: '100%' },

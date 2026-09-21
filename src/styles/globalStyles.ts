@@ -111,7 +111,8 @@ export const GlobalStyles = StyleSheet.create({
 
   modalContent: {
     backgroundColor: '#FFFFFF',
-    width: '80%',
+    width: '100%',
+    maxWidth: ms(360),
     maxHeight: '60%',
     borderRadius: ms(12),
     paddingVertical: ms(8),

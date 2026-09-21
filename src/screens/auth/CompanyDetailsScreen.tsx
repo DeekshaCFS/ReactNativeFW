@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     padding: ms(16),
     borderWidth: 1,
     borderColor: '#3e3e3e',
-    borderRadius: 20,
+    borderRadius: ms(20),
     alignItems: 'center',
   },
   workersLabel: {
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     height: ms(44),
     borderWidth: 1,
     borderColor: '#3e3e3e',
-    borderRadius: 22,
+    borderRadius: ms(22),
     marginTop: ms(8),
     fontSize: sp(16),
     color: COLORS.textPrimary,
