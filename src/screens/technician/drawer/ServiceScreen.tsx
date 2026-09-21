@@ -90,7 +90,11 @@ export default function ServiceScreen() {
   );
 }
 
-const FIELD_WIDTH = wp(76); // ~300px on 390w, scales with screen
+// Was flat wp(76) (~300px on a 390pt phone) with no ceiling -- on a tablet
+// (e.g. ~1024pt landscape) that scales to ~780pt, far too wide for a form
+// field or dropdown. Cap it so phones are unaffected but tablets get a
+// sensible max instead of a linear percentage.
+const FIELD_WIDTH = Math.min(wp(76), scale(340));
 
 const styles = StyleSheet.create({
   root: {

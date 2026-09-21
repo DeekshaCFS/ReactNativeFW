@@ -913,7 +913,7 @@ const styles = StyleSheet.create({
   },
 
   modalBackdrop:         { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: scale(32) },
-  photoSourceSheet:      { backgroundColor: '#fff', borderRadius: scale(16), width: '100%', paddingVertical: vs(8), elevation: 10 },
+  photoSourceSheet:      { backgroundColor: '#fff', borderRadius: scale(16), width: '100%', maxWidth: scale(360), paddingVertical: vs(8), elevation: 10 },
   photoSourceTitle:      { fontSize: sp(17), fontWeight: '600', color: '#111', paddingHorizontal: scale(20), paddingVertical: vs(14) },
   photoSourceDivider:    { height: 1, backgroundColor: '#F3F4F6' },
   photoSourceOption:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: scale(20), paddingVertical: vs(14), gap: scale(14) },
@@ -922,7 +922,7 @@ const styles = StyleSheet.create({
 
   /* OTP modal */
   otpSheet: {
-    backgroundColor: '#fff', borderRadius: scale(16), width: '100%',
+    backgroundColor: '#fff', borderRadius: scale(16), width: '100%', maxWidth: scale(400),
     padding: scale(20), elevation: 10,
   },
   otpHeaderRow: {

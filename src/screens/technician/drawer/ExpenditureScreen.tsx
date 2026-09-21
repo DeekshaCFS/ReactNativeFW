@@ -265,9 +265,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   bottomSheet: {
     backgroundColor: '#fff',
+    width: '100%',
+    maxWidth: ms(560),
     padding: ms(20),
     borderTopLeftRadius: ms(28),
     borderTopRightRadius: ms(28),
