@@ -29,6 +29,9 @@ import {
 import { getAllDesignation } from '../../api/umDesignations/umDesignationsService';
 import { getAllEmpList } from '../../api/umEmployeeList/umEmployeeListService';
 import { getAllEmployeeLeaveList } from '../../api/leaveManagement/leaveManagementService';
+import { deleteEmpAccount } from '../../api/users/usersService';
+import { ensureSuccess } from '../../utils/apiResponse';
+import EditEmployeeModal from './EditEmployeeModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 type EmployeeManagementScreenProps = {
@@ -237,6 +240,7 @@ const EmployeeManagementScreen = ({
   const [leaveFilterModal, setLeaveFilterModal] = useState<LeaveFilterKind | null>(
     null,
   );
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeListItem | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeListItem | null>(
     null,
   );
@@ -574,8 +578,12 @@ const EmployeeManagementScreen = ({
     });
   };
 
-  const handleEditEmployee = (_item: EmployeeListItem) => {
-    Alert.alert('Employee Details', 'Edit is not available right now.');
+  const handleEditEmployee = (item: EmployeeListItem) => {
+    if (!item.EmployeeNumber) {
+      Alert.alert('Edit Profile', 'Employee id is not available.');
+      return;
+    }
+    setEditingEmployee(item);
   };
 
   const handleDeleteEmployee = (item: EmployeeListItem) => {
@@ -587,8 +595,23 @@ const EmployeeManagementScreen = ({
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Employee Details', 'Delete is not available right now.');
+          onPress: async () => {
+            try {
+              // Java (EmployeeListFragment.DeleteEmpAccount): a list of
+              // { UserId: <logged-in owner>, Id: <employee to delete> }.
+              ensureSuccess(
+                await deleteEmpAccount([
+                  {UserId: ownerId, Id: item.EmployeeNumber ?? 0},
+                ] as unknown as Parameters<typeof deleteEmpAccount>[0]),
+              );
+              setSelectedEmployee(null);
+              refreshList();
+            } catch (error) {
+              Alert.alert(
+                'Delete Employee',
+                error instanceof Error ? error.message : 'Unable to delete employee.',
+              );
+            }
           },
         },
       ],
@@ -1275,6 +1298,18 @@ const EmployeeManagementScreen = ({
           </Pressable>
         </Pressable>
       </Modal>
+      <EditEmployeeModal
+        visible={editingEmployee !== null}
+        ownerId={ownerId}
+        employeeNumber={editingEmployee?.EmployeeNumber ?? 0}
+        designationName={String(editingEmployee?.DesignationName ?? '')}
+        zoneName={String(editingEmployee?.ZoneName ?? '')}
+        onClose={() => setEditingEmployee(null)}
+        onUpdated={() => {
+          setSelectedEmployee(null);
+          refreshList();
+        }}
+      />
     </View>
   );
 };

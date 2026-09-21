@@ -24,7 +24,7 @@ import {
   launchImageLibrary,
   type Asset,
 } from 'react-native-image-picker';
-import {addItem, getItemUnitType} from '../../api/item/itemService';
+import {addItem, editItem, getItemGroup, getItemUnitType} from '../../api/item/itemService';
 import type {AddItem, ItemUnitTypeResultData} from '../../api/item/item.types';
 import {
   THEME_PRIMARY,
@@ -38,6 +38,9 @@ type AddItemModalProps = {
   visible: boolean;
   onClose: () => void;
   ownerId: number;
+  /** Edit an existing inventory item (Java's updateItemEditDialog). */
+  item?: Record<string, unknown> | null;
+  onSaved?: () => void;
 };
 
 type LookupOption = {
@@ -96,7 +99,11 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
   visible,
   onClose,
   ownerId,
+  item = null,
+  onSaved,
 }) => {
+  const isEditMode = item !== null;
+  const modalTitle = isEditMode ? 'Update Item' : 'Add Item';
   const [itemName, setItemName] = useState('');
   const [itemCode, setItemCode] = useState('');
   const [hsnCode, setHsnCode] = useState('');
@@ -137,6 +144,34 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
     }
   }, [visible]);
 
+  useEffect(() => {
+    if (!visible || !item) {
+      return;
+    }
+    const record = item as Record<string, unknown>;
+    setItemName(getStringField(record, ['name', 'Name', 'itemName', 'ItemName']));
+    setItemCode(getStringField(record, ['serialNumber', 'SerialNumber', 'itemCode', 'ItemCode']));
+    setHsnCode(getStringField(record, ['hsnCode', 'HSNCode']));
+    const groupName = getStringField(record, ['itemGroupName', 'ItemGroupName']);
+    setSelectedItemGroup(
+      groupName
+        ? {id: getNumberField(record, ['itemGroupId', 'ItemGroupId']), name: groupName}
+        : null,
+    );
+    setQuantity(String(getNumberField(record, ['quantity', 'Quantity', 'unAssignedQuantity', 'UnAssignedQuantity'])));
+    const unitName = getStringField(record, ['itemUnitTypeName', 'ItemUnitTypeName', 'unitName', 'UnitName']);
+    setSelectedItemUnit(
+      unitName
+        ? {id: getNumberField(record, ['itemUnitTypeId', 'ItemUnitTypeId']), name: unitName}
+        : null,
+    );
+    setPurchasePrice(String(getNumberField(record, ['purchasePrice', 'PurchasePrice'])));
+    setSalesPrice(String(getNumberField(record, ['salesPrice', 'SalesPrice'])));
+    setDescription(getStringField(record, ['description', 'Description']));
+    setItemImage(null);
+    setItemImageBase64('');
+  }, [visible, item]);
+
   const resetForm = () => {
     setItemName('');
     setItemCode('');
@@ -164,16 +199,28 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
     }
     setIsItemGroupLoading(true);
     setItemGroupError('');
-    // NOTE: 'Item/GetAllItemGroups' has no equivalent anywhere in the Java
-    // source or old-rn-app — "item group" isn't a feature of the original app,
-    // so there's no categorized service call for it (it would 404). Leaving
-    // this as an empty result until a real backend endpoint is confirmed or
-    // this picker is rebuilt to derive group names client-side from the
-    // existing item-list responses (which already carry ItemGroupName).
-    setItemGroups([]);
-    setItemGroupError('Item groups are not available yet.');
-    setIsItemGroupLoading(false);
-  }, [isItemGroupLoading, itemGroups.length]);
+    getItemGroup({userId: ownerId})
+      .then(response => {
+        const rows = Array.isArray(response?.ResultData) ? response.ResultData : [];
+        const options = rows
+          .map(row => ({
+            id: Number(row.ItemGroupId) || 0,
+            name: String(row.ItemGroupName ?? '').trim(),
+          }))
+          .filter(option => option.name);
+        setItemGroups(options);
+        if (options.length === 0) {
+          setItemGroupError('No item groups found.');
+        }
+      })
+      .catch(error => {
+        setItemGroups([]);
+        setItemGroupError(
+          error instanceof Error ? error.message : 'Unable to load item groups.',
+        );
+      })
+      .finally(() => setIsItemGroupLoading(false));
+  }, [isItemGroupLoading, itemGroups.length, ownerId]);
 
   const loadItemUnits = useCallback(() => {
     if (itemUnits.length > 0 || isItemUnitLoading) {
@@ -301,7 +348,50 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
 
   const handleAddItemSubmit = async () => {
     if (!itemName.trim()) {
-      Alert.alert('Add Item', 'Please enter item name.');
+      Alert.alert(modalTitle, 'Please enter item name.');
+      return;
+    }
+
+    if (isEditMode) {
+      const itemId = getNumberField(item as Record<string, unknown>, ['id', 'Id', 'itemId', 'ItemId']);
+      const purchase = Number(purchasePrice) || 0;
+      const sales = Number(salesPrice) || 0;
+      // Java's edit dialog blocks saving when sales price < purchase price.
+      if (sales < purchase) {
+        Alert.alert(modalTitle, 'Sales price should be greater than or equal to purchase price.');
+        return;
+      }
+      setIsSubmitting(true);
+      try {
+        ensureSuccess(
+          await editItem({
+            Id: itemId,
+            Name: itemName.trim(),
+            SerialNumber: itemCode.trim(),
+            HSNCode: hsnCode.trim(),
+            ItemGroupId: selectedItemGroup?.id || 0,
+            ItemGroupName: selectedItemGroup?.name || '',
+            Quantity: Number(quantity) || 0,
+            ItemUnitTypeId: selectedItemUnit?.id || 0,
+            PurchasePrice: purchase,
+            SalesPrice: sales,
+            Description: description.trim() || 'NA',
+            ImageFileBase64Str: itemImageBase64,
+            ImageFileName: itemImage?.fileName || '',
+            ItemType: 1,
+            CreatedBy: ownerId,
+            UpdatedBy: ownerId,
+          } as unknown as Parameters<typeof editItem>[0]),
+        );
+        Alert.alert(modalTitle, 'Item updated successfully.');
+        resetForm();
+        onSaved?.();
+        onClose();
+      } catch (error) {
+        Alert.alert(modalTitle, error instanceof Error ? error.message : 'Unable to update item right now.');
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -336,6 +426,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
       ensureSuccess(await addItem(payload as Partial<AddItem>));
       Alert.alert('Add Item', 'Item added successfully.');
       resetForm();
+      onSaved?.();
       onClose();
     } catch (error) {
       const message =
@@ -357,7 +448,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalHeaderTitle}>Add Item</Text>
+              <Text style={styles.modalHeaderTitle}>{modalTitle}</Text>
               <TouchableOpacity onPress={handleClose}>
                 <Text style={styles.modalCloseIcon}>✕</Text>
               </TouchableOpacity>
@@ -529,7 +620,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   ) : (
                     <>
                       <Text style={styles.addButtonIcon}>📦</Text>
-                      <Text style={styles.addButtonText}>ADD</Text>
+                      <Text style={styles.addButtonText}>{isEditMode ? 'UPDATE' : 'ADD'}</Text>
                     </>
                   )}
                 </TouchableOpacity>

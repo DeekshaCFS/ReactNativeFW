@@ -35,6 +35,9 @@ type AssignItemModalProps = {
   visible: boolean;
   onClose: () => void;
   ownerId: number;
+  /** Opens with this item already chosen (assign from an inventory row). */
+  initialItem?: {id: number; name: string} | null;
+  onAssigned?: () => void;
 };
 
 type ItemOption = {
@@ -83,6 +86,8 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
   visible,
   onClose,
   ownerId,
+  initialItem = null,
+  onAssigned,
 }) => {
   const [selectedItem, setSelectedItem] = useState<ItemOption | null>(null);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -118,7 +123,13 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
       return;
     }
     resetForm();
-  }, [visible, resetForm]);
+    if (initialItem) {
+      setSelectedItem(initialItem);
+    }
+    // Keyed on the id: callers build initialItem inline, so its identity changes
+    // every render and would otherwise reset the form under the user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, resetForm, initialItem?.id]);
 
   const handleClose = () => {
     resetForm();
@@ -241,6 +252,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
       ensureSuccess(await issueItem(payload));
       Alert.alert('Assign Item', 'Item assigned successfully.');
       resetForm();
+      onAssigned?.();
       onClose();
     } catch (error) {
       const message =

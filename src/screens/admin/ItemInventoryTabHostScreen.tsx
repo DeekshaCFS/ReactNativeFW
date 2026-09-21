@@ -6,6 +6,7 @@ import {
   BackHandler,
   FlatList,
   Image,
+  Modal,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -22,7 +23,10 @@ import {
   type UsedItemListItem,
   type UsedItemListResponse,
 } from './adminLegacyApiTypes';
-import { getAllLargeItemList, getAllAssignItemlistTechwise, getUsedItemlist } from '../../api/item/itemService';
+import { getAllLargeItemList, getAllAssignItemlistTechwise, getUsedItemlist, getDeleteItemPortal, returnItem } from '../../api/item/itemService';
+import { ensureSuccess } from '../../utils/apiResponse';
+import AddItemModal from './AddItemModal';
+import AssignItemModal from './AssignItemModal';
 import FOCScreen from './FOCScreen';
 
 type ItemInventoryTabHostScreenProps = {
@@ -494,6 +498,14 @@ const ItemInventoryTabHostScreen = ({
   isFieldWorker = false,
 }: ItemInventoryTabHostScreenProps) => {
   const [activeTab, setActiveTab] = useState<InventoryTabKey>('primary');
+  // Row actions (Java ItemListAdapterNew): edit, assign, delete; plus return
+  // on an assigned row (ItemInventoryAdapter -> ItemDialog.updateReturnItem).
+  const [editingItem, setEditingItem] = useState<ItemInventoryListItem | null>(null);
+  const [assigningItem, setAssigningItem] = useState<ItemInventoryListItem | null>(null);
+  const [returningRow, setReturningRow] = useState<AssignedItemListItem | null>(null);
+  const [returnQuantity, setReturnQuantity] = useState('0');
+  const [returnNotes, setReturnNotes] = useState('');
+  const [isReturning, setIsReturning] = useState(false);
   const [items, setItems] = useState<ItemInventoryListItem[]>([]);
   const [itemSearchText, setItemSearchText] = useState('');
   const [submittedItemSearch, setSubmittedItemSearch] = useState('');
@@ -688,10 +700,85 @@ const ItemInventoryTabHostScreen = ({
   };
 
   const handleItemActionPress = (label: string, item: ItemInventoryListItem) => {
-    Alert.alert(
-      label,
-      `${getItemName(item)}\nItem ID: ${getItemId(item) || '-'}`,
-    );
+    if (label === 'Update item') {
+      setEditingItem(item);
+      return;
+    }
+    if (label === 'Item options') {
+      setAssigningItem(item);
+      return;
+    }
+    // Delete: Java refuses when the item is still assigned to someone, and
+    // otherwise asks for confirmation (SureTodeleteItemDialog) first.
+    const assigned = getItemNumber(item, ['assignedQuantity', 'AssignedQuantity']);
+    if (assigned > 0) {
+      Alert.alert('Delete item', 'This item is assigned to fieldworkers. Return it before deleting.');
+      return;
+    }
+    Alert.alert('Delete item', 'Are you sure do you want to delete the item ?', [
+      {text: 'No', style: 'cancel'},
+      {
+        text: 'Yes',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            ensureSuccess(await getDeleteItemPortal({Id: getItemId(item)}));
+            loadFirstItemPage(true);
+          } catch (error) {
+            Alert.alert('Delete item', error instanceof Error ? error.message : 'Unable to delete item.');
+          }
+        },
+      },
+    ]);
+  };
+
+  const openReturnDialog = (row: AssignedItemListItem) => {
+    setReturningRow(row);
+    setReturnQuantity('0');
+    setReturnNotes('');
+  };
+
+  const submitReturn = async () => {
+    if (!returningRow || !selectedItem) {
+      return;
+    }
+    const quantity = Math.trunc(Number(returnQuantity));
+    if (!quantity || quantity <= 0) {
+      Alert.alert('Return Item', 'Please enter a valid quantity.');
+      return;
+    }
+    if (quantity > getAssignedQuantity(returningRow)) {
+      Alert.alert('Return Item', 'Quantity cannot exceed the issued quantity.');
+      return;
+    }
+    if (!returnNotes.trim()) {
+      Alert.alert('Return Item', 'Please enter notes.');
+      return;
+    }
+    const workerId = getAssignedNumber(returningRow, ['userId', 'UserId']);
+    setIsReturning(true);
+    try {
+      // Java (ItemInventoryAdapter -> ItemDialog.updateReturnItem): the row's
+      // user id is used for both UserId and CreatedBy.
+      ensureSuccess(
+        await returnItem({
+          UserId: workerId,
+          ItemId: getItemId(selectedItem),
+          Quantity: quantity,
+          ItemIssuedId: getAssignedNumber(returningRow, ['id', 'Id']),
+          TaskId: getAssignedNumber(returningRow, ['taskId', 'TaskId']),
+          CreatedBy: workerId,
+          Notes: returnNotes.trim(),
+        }),
+      );
+      setReturningRow(null);
+      handleIssuedDetailsPress();
+      loadFirstItemPage(true);
+    } catch (error) {
+      Alert.alert('Return Item', error instanceof Error ? error.message : 'Unable to return item.');
+    } finally {
+      setIsReturning(false);
+    }
   };
 
   const handleItemPress = (item: ItemInventoryListItem) => {
@@ -1092,7 +1179,7 @@ const ItemInventoryTabHostScreen = ({
         <Pressable
           hitSlop={10}
           style={styles.assignedReturnButton}
-          onPress={() => Alert.alert('Return item', 'Return item is not migrated yet.')}>
+          onPress={() => openReturnDialog(item)}>
           <Text style={styles.assignedReturnText}>R</Text>
         </Pressable>
       </View>
@@ -1349,6 +1436,77 @@ const ItemInventoryTabHostScreen = ({
               : renderItemListTab()}
         </>
       )}
+      <AddItemModal
+        visible={editingItem !== null}
+        ownerId={ownerId}
+        item={editingItem as Record<string, unknown> | null}
+        onClose={() => setEditingItem(null)}
+        onSaved={() => loadFirstItemPage(true)}
+      />
+
+      <AssignItemModal
+        visible={assigningItem !== null}
+        ownerId={ownerId}
+        initialItem={
+          assigningItem
+            ? {id: getItemId(assigningItem), name: getItemName(assigningItem)}
+            : null
+        }
+        onClose={() => setAssigningItem(null)}
+        onAssigned={() => loadFirstItemPage(true)}
+      />
+
+      <Modal
+        visible={returningRow !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReturningRow(null)}>
+        <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: ms(24)}}>
+          <View style={{backgroundColor: '#FFFFFF', borderRadius: ms(12), padding: ms(16)}}>
+            <Text style={{fontSize: sp(16), fontWeight: '700', marginBottom: ms(10)}}>Return Item</Text>
+            <Text style={{marginBottom: ms(4)}}>{selectedItem ? getItemName(selectedItem) : ''}</Text>
+            <Text style={{color: '#6B7280', marginBottom: ms(10)}}>
+              {returningRow ? getAssignedFieldWorkerName(returningRow) : ''} · Issued{' '}
+              {returningRow ? getAssignedQuantity(returningRow) : 0}
+            </Text>
+            <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: ms(10)}}>
+              <Pressable
+                onPress={() => setReturnQuantity(String(Math.max(0, (Number(returnQuantity) || 0) - 1)))}
+                style={{padding: ms(10)}}>
+                <Text style={{fontSize: sp(20)}}>−</Text>
+              </Pressable>
+              <TextInput
+                style={{flex: 1, borderWidth: 1, borderColor: '#d5d7db', borderRadius: ms(8), textAlign: 'center', padding: ms(6)}}
+                keyboardType="number-pad"
+                value={returnQuantity}
+                onChangeText={setReturnQuantity}
+              />
+              <Pressable
+                onPress={() => setReturnQuantity(String((Number(returnQuantity) || 0) + 1))}
+                style={{padding: ms(10)}}>
+                <Text style={{fontSize: sp(20)}}>+</Text>
+              </Pressable>
+            </View>
+            <TextInput
+              style={{borderWidth: 1, borderColor: '#d5d7db', borderRadius: ms(8), padding: ms(8), minHeight: ms(70), textAlignVertical: 'top', marginBottom: ms(12)}}
+              placeholder="Note"
+              placeholderTextColor="#9aa0a6"
+              multiline
+              value={returnNotes}
+              onChangeText={setReturnNotes}
+            />
+            <Pressable
+              onPress={submitReturn}
+              disabled={isReturning}
+              style={{backgroundColor: THEME_PRIMARY, borderRadius: ms(24), paddingVertical: ms(12), alignItems: 'center', marginBottom: ms(8)}}>
+              <Text style={{color: '#FFFFFF', fontWeight: '700'}}>{isReturning ? 'RETURNING...' : 'RETURN'}</Text>
+            </Pressable>
+            <Pressable onPress={() => setReturningRow(null)} style={{alignItems: 'center', padding: ms(6)}}>
+              <Text style={{color: '#6B7280'}}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
