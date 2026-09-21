@@ -468,6 +468,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: ms(16),
     paddingTop: ms(16),
     paddingBottom: ms(32),
+    width: '100%',
+    maxWidth: ms(640),
+    alignSelf: 'center',
   },
   avatarWrap: {
     alignItems: 'center',

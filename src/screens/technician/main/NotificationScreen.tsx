@@ -1,7 +1,7 @@
 // src/screens/technician/main/NotificationScreen.tsx
 import { View, StyleSheet, Dimensions } from 'react-native';
 import { COLORS } from '../../../theme/theme';
-import { HEADER_TOP_PADDING, vs } from '../../../utils/responsive';
+import { HEADER_TOP_PADDING, vs, ms } from '../../../utils/responsive';
 
 const { height } = Dimensions.get('window');
 
@@ -27,8 +27,8 @@ const styles = StyleSheet.create({
   whiteSheet: {
     flex: 1,
     backgroundColor: '#fff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 10,
+    borderTopLeftRadius: ms(28),
+    borderTopRightRadius: ms(28),
+    padding: ms(10),
   },
 });

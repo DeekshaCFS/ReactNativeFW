@@ -1892,6 +1892,8 @@ export default function TaskClosure({ navigation, route }: any) {
 const usedItemStyles = StyleSheet.create({
   sheet: {
     backgroundColor: '#fff',
+    width: '100%',
+    maxWidth: scale(560),
     borderTopLeftRadius: scale(28),
     borderTopRightRadius: scale(28),
     paddingBottom: vs(24),
@@ -2062,6 +2064,8 @@ const usedItemStyles = StyleSheet.create({
 const fsrStyles = StyleSheet.create({
   sheet: {
     backgroundColor: '#fff',
+    width: '100%',
+    maxWidth: scale(560),
     borderTopLeftRadius: scale(28),
     borderTopRightRadius: scale(28),
     maxHeight: '95%',
@@ -2416,9 +2420,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   sheetContainer: {
     backgroundColor: '#FFFFFF',
+    width: '100%',
+    maxWidth: scale(560),
     borderTopLeftRadius: scale(30),
     borderTopRightRadius: scale(30),
     paddingHorizontal: scale(22),
@@ -2561,9 +2568,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   signatureSheet: {
     backgroundColor: '#FFF',
+    width: '100%',
+    maxWidth: scale(560),
     borderTopLeftRadius: scale(30),
     borderTopRightRadius: scale(30),
     paddingHorizontal: scale(22),
@@ -2690,6 +2700,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: scale(16),
     width: '100%',
+    maxWidth: scale(360),
     paddingVertical: vs(8),
     elevation: 10,
   },

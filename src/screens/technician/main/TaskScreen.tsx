@@ -845,6 +845,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     width: '100%',
+    maxWidth: scale(560),
+    alignSelf: 'center',
     backgroundColor: '#fff',
     borderTopLeftRadius: scale(24),
     borderTopRightRadius: scale(24),

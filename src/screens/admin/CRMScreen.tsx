@@ -3189,6 +3189,9 @@ export const styles = StyleSheet.create({
   },
   modalSheet: {
     backgroundColor: '#FFFFFF',
+    width: '100%',
+    maxWidth: ms(560),
+    alignSelf: 'center',
     maxHeight: '92%',
     borderTopLeftRadius: ms(8),
     borderTopRightRadius: ms(8),
@@ -3402,6 +3405,9 @@ export const styles = StyleSheet.create({
   },
   shareModalSheet: {
     backgroundColor: '#FFFFFF',
+    width: '100%',
+    maxWidth: ms(480),
+    alignSelf: 'center',
     borderTopLeftRadius: ms(16),
     borderTopRightRadius: ms(16),
     paddingHorizontal: ms(24),
@@ -3484,6 +3490,9 @@ export const styles = StyleSheet.create({
   },
   detailModalSheet: {
     backgroundColor: '#FFFFFF',
+    width: '100%',
+    maxWidth: ms(560),
+    alignSelf: 'center',
     maxHeight: '85%',
     borderTopLeftRadius: ms(12),
     borderTopRightRadius: ms(12),

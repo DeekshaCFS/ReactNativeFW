@@ -576,6 +576,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   dropdownSheet: {
     backgroundColor: '#fff',
@@ -583,6 +584,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: scale(16),
     maxHeight: '60%',
     paddingBottom: vs(10),
+    width: '100%',
+    maxWidth: scale(560),
   },
   dropdownTitle: {
     fontSize: sp(15),

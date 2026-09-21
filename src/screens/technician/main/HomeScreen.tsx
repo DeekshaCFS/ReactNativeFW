@@ -620,8 +620,8 @@ const styles = StyleSheet.create({
   dropdownItem: { padding: scale(12) },
   dropdownText: { fontSize: sp(14) },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  bottomSheet:  { backgroundColor: '#fff', padding: scale(20), borderTopLeftRadius: scale(28), borderTopRightRadius: scale(28), minHeight: vs(230), justifyContent: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end', alignItems: 'center' },
+  bottomSheet:  { backgroundColor: '#fff', width: '100%', maxWidth: scale(560), padding: scale(20), borderTopLeftRadius: scale(28), borderTopRightRadius: scale(28), minHeight: vs(230), justifyContent: 'center' },
   modalTitle:   { fontSize: sp(20), paddingVertical: vs(15), textAlign: 'center' },
   modalDate:    { fontSize: sp(26), textAlign: 'center', marginBottom: vs(30), fontWeight: '400' },
   confirmBtn:   { padding: scale(10), borderRadius: scale(30), backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', height: vs(56) },

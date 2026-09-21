@@ -5,6 +5,7 @@ import { COLORS } from '../../../theme/theme';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
+import { ms, sp } from '../../../utils/responsive';
 
 type NavigationProp = NativeStackNavigationProp<
   TechnicianStackParamList,
@@ -25,7 +26,7 @@ export default function HelpScreen() {
           style={styles.bannerImage}
         />
         <View style={styles.playIcon}>
-          <Ionicons name="logo-youtube" size={50} color="#cb0000" />
+          <Ionicons name="logo-youtube" size={sp(50)} color="#cb0000" />
         </View>
       </View>
 
@@ -45,7 +46,7 @@ export default function HelpScreen() {
             We typically reply in a few minutes
           </Text>
         </View>
-        <Ionicons name="send" size={22} color={COLORS.primary} />
+        <Ionicons name="send" size={sp(22)} color={COLORS.primary} />
       </Pressable>
 
       <View style={styles.footer}>
@@ -53,14 +54,14 @@ export default function HelpScreen() {
           <Pressable style={styles.footerItem}>
             <Ionicons
               name="home-outline"
-              size={24}
+              size={sp(24)}
               color={COLORS.primary}
             />
           </Pressable>
           <Pressable style={styles.footerItem} onPress={()=>navigation.navigate('helpMessages')}>
             <Ionicons
               name="chatbox-outline"
-              size={24}
+              size={sp(24)}
               color="#555"
             />
           </Pressable>
@@ -75,13 +76,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#c22025',
-    paddingHorizontal: 16,
+    paddingHorizontal: ms(16),
   },
   banner: {
-    marginTop: 100,
-    borderRadius: 12,
+    marginTop: ms(100),
+    borderRadius: ms(12),
     overflow: 'hidden',
-    height: 200,
+    height: ms(200),
     backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
@@ -91,48 +92,48 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   playIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: ms(56),
+    height: ms(56),
+    borderRadius: ms(28),
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   textSection: {
-    marginTop: 32,
+    marginTop: ms(32),
   },
   greeting: {
-    fontSize: 30,
+    fontSize: sp(30),
     fontWeight: '700',
     color: '#fff',
   },
   wave: {
-    fontSize: 30,
+    fontSize: sp(30),
   },
   subText: {
-    marginTop: 8,
-    fontSize: 17,
+    marginTop: ms(8),
+    fontSize: sp(17),
     color: '#f1f1f1',
   },
   card: {
-    marginTop: 24,
+    marginTop: ms(24),
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: ms(12),
+    padding: ms(16),
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     elevation: 6,
-    height: 100,
+    height: ms(100),
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '600',
     color: '#111',
   },
   cardSubtitle: {
-    marginTop: 4,
-    fontSize: 15,
+    marginTop: ms(4),
+    fontSize: sp(15),
     color: '#666',
   },
   footer: {
@@ -141,9 +142,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: ms(20),
     backgroundColor: '#fff',
-    height: 100,
+    height: ms(100),
   },
   footerRow: {
     flexDirection: 'row',
@@ -154,8 +155,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   footerText: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#666',
-    paddingTop: 15,
+    paddingTop: ms(15),
   },
 });

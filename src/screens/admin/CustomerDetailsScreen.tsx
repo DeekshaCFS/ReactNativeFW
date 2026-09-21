@@ -867,7 +867,8 @@ const styles = StyleSheet.create({
   modalPanel: {
     backgroundColor: '#FFFFFF',
     borderRadius: ms(8),
-    width: '80%',
+    width: '100%',
+    maxWidth: ms(360),
     maxHeight: '60%',
     padding: ms(12),
   },

@@ -814,6 +814,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: ms(16),
     paddingBottom: ms(32),
+    width: '100%',
+    maxWidth: ms(640),
+    alignSelf: 'center',
   },
   sectionLabel: {
     fontSize: sp(13),

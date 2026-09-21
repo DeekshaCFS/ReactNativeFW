@@ -949,6 +949,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: scale(20),
     width: '100%',
+    maxWidth: scale(400),
     paddingTop: vs(16),
     paddingBottom: vs(12),
     paddingHorizontal: scale(12),
