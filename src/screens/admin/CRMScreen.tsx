@@ -4,6 +4,8 @@ import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {getCustomerTagList} from '../../api/customerList/customerListService';
+import SearchPickerModal, {type PickerOption} from '../../components/SearchPickerModal';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
 import {
@@ -992,6 +994,11 @@ const CRMScreen = ({
     useState<CustomerLookupItem | null>(null);
   const [isEditCustomerModalOpen, setIsEditCustomerModalOpen] = useState(false);
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  // Customer tag filter (Java's CustomerListFragment: spin_cust_tag -> getCustomerList(userID, custTagId)).
+  const [customerTagFilter, setCustomerTagFilter] = useState<PickerOption | null>(null);
+  const [customerTagOptions, setCustomerTagOptions] = useState<PickerOption[]>([]);
+  const [isCustomerTagPickerOpen, setIsCustomerTagPickerOpen] = useState(false);
+  const [isLoadingCustomerTags, setIsLoadingCustomerTags] = useState(false);
 
   const [searchText, setSearchText] = useState('');
 
@@ -1110,6 +1117,28 @@ const CRMScreen = ({
     [ownerId],
   );
 
+  const openCustomerTagPicker = () => {
+    setIsCustomerTagPickerOpen(true);
+    if (customerTagOptions.length > 0 || isLoadingCustomerTags) {
+      return;
+    }
+    setIsLoadingCustomerTags(true);
+    getCustomerTagList({UserId: ownerId})
+      .then(response => {
+        const rows = extractArray<Record<string, unknown>>(response);
+        setCustomerTagOptions(
+          rows
+            .map(row => ({
+              id: getNumberField(row, ['customerTagId', 'CustomerTagId']),
+              label: getStringField(row, ['customerTagName', 'CustomerTagName']),
+            }))
+            .filter(option => option.label),
+        );
+      })
+      .catch(() => setCustomerTagOptions([]))
+      .finally(() => setIsLoadingCustomerTags(false));
+  };
+
   const fetchCustomers = useCallback(
     async (refreshing = false) => {
       if (refreshing) {
@@ -1123,7 +1152,7 @@ const CRMScreen = ({
         const response =
           await getCustomerList({
             UserId: ownerId,
-            CustomerTagId: 0,
+            CustomerTagId: customerTagFilter?.id ?? 0,
           });
         if (!isSuccessOrNoData(response)) {
           throw new Error(getMessage(response) || 'Unable to load customers.');
@@ -1147,7 +1176,7 @@ const CRMScreen = ({
         setIsRefreshingCustomers(false);
       }
     },
-    [ownerId],
+    [ownerId, customerTagFilter],
   );
 
   useEffect(() => {
@@ -2293,6 +2322,19 @@ const CRMScreen = ({
         )}
       </View>
 
+      {activeTab === 'customers' ? (
+        <TouchableOpacity style={styles.customerTagFilterPill} onPress={openCustomerTagPicker}>
+          <Text
+            style={
+              customerTagFilter ? styles.dropdownPillTextValue : styles.dropdownPillTextPlaceholder
+            }
+            numberOfLines={1}>
+            {customerTagFilter ? customerTagFilter.label : 'Select Customer Tag'}
+          </Text>
+          <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+        </TouchableOpacity>
+      ) : null}
+
       {activeTab === 'enquiries' ? (
         isLoadingEnquiries ? (
           <View style={styles.centerBox}>
@@ -2356,6 +2398,20 @@ const CRMScreen = ({
           }
         />
       )}
+
+      <SearchPickerModal
+        visible={isCustomerTagPickerOpen}
+        title="Select Customer Tag"
+        options={customerTagOptions}
+        loading={isLoadingCustomerTags}
+        emptyText="No customer tags found."
+        onSelect={option => {
+          setCustomerTagFilter(option);
+          setIsCustomerTagPickerOpen(false);
+          fetchCustomers();
+        }}
+        onClose={() => setIsCustomerTagPickerOpen(false)}
+      />
 
       <EditCustomerModal
         visible={isAddCustomerModalOpen}
@@ -3383,6 +3439,18 @@ export const styles = StyleSheet.create({
     fontSize: sp(16),
     color: '#8a8f98',
     marginLeft: ms(8),
+  },
+  customerTagFilterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: ms(1),
+    borderColor: '#d5d7db',
+    borderRadius: ms(20),
+    paddingHorizontal: ms(14),
+    height: ms(38),
+    marginHorizontal: ms(16),
+    marginBottom: ms(10),
   },
   photoRow: {
     flexDirection: 'row',

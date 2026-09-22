@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { getAmcReportDetails, getAmcDetailsForEdit, putAmcDetails, deleteAmc } from '../../api/amc/amcService';
+import { getAmcReportDetails, getAmcDetailsForEdit, putAmcDetails, deleteAmc, getAmcRenewalDetails, renewAmcDetails } from '../../api/amc/amcService';
 import type { EditAMCDTOResultData, DeleteAMCResultData } from '../../api/amc/amc.types';
 import { downloadAmcReport } from '../../api/report/reportService';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
@@ -156,7 +156,11 @@ const styles = StyleSheet.create({
   },
   toolbarContainer: {
     flexDirection: 'row',
+  },
+  toolbarContent: {
+    flexDirection: 'row',
     justifyContent: 'space-around',
+    flexGrow: 1,
     alignItems: 'center',
     borderBottomWidth: ms(1),
     borderBottomColor: THEME_BORDER,
@@ -334,6 +338,65 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: ms(180),
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: ms(20),
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: ms(12),
+    padding: ms(16),
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: ms(12),
+  },
+  modalTitle: {
+    fontSize: sp(16),
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  modalCloseIcon: {
+    fontSize: sp(18),
+    color: THEME_GRAY_TEXT,
+  },
+  modalEmptyText: {
+    textAlign: 'center',
+    color: THEME_GRAY_TEXT,
+    paddingVertical: ms(20),
+  },
+  historyRow: {
+    borderBottomWidth: ms(1),
+    borderBottomColor: THEME_BORDER,
+    paddingVertical: ms(10),
+  },
+  historyRowLabel: {
+    fontSize: sp(12),
+    fontWeight: '700',
+    color: THEME_PRIMARY,
+    marginBottom: ms(2),
+  },
+  historyRowValue: {
+    fontSize: sp(13),
+    color: '#1F2937',
+  },
+  saveButton: {
+    backgroundColor: THEME_PRIMARY,
+    borderRadius: ms(24),
+    height: ms(46),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: ms(14),
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: sp(14),
+  },
 });
 
 interface AMCReportData {
@@ -391,6 +454,16 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   
   // Edit Modal State
   const [editModalVisible, setEditModalVisible] = useState(false);
+  // History (Java: amcHistoryDialog, fed by GetAMCRenewalDetails) and Renew
+  // (Java: AMCDialog with fromWhere="Renewal", posts AddAMCRenewal).
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [historyRows, setHistoryRows] = useState<Record<string, unknown>[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [renewModalVisible, setRenewModalVisible] = useState(false);
+  const [renewActivationDate, setRenewActivationDate] = useState('');
+  const [renewContractDate, setRenewContractDate] = useState('');
+  const [renewExpiryDate, setRenewExpiryDate] = useState('');
+  const [isRenewing, setIsRenewing] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData | null>(null);
   const [editSourceData, setEditSourceData] = useState<Record<string, unknown> | null>(null);
@@ -571,6 +644,80 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     value: EditFormData[K],
   ) => {
     setEditFormData(current => (current ? { ...current, [key]: value } : current));
+  };
+
+  const openHistory = async () => {
+    setHistoryVisible(true);
+    setIsHistoryLoading(true);
+    try {
+      const response = await getAmcRenewalDetails({UserId: ownerId, AmcsId: amcsId});
+      setHistoryRows(Array.isArray(response?.ResultData) ? response.ResultData : []);
+    } catch {
+      setHistoryRows([]);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
+
+  const openRenewModal = () => {
+    setRenewActivationDate('');
+    setRenewContractDate('');
+    setRenewExpiryDate('');
+    setRenewModalVisible(true);
+  };
+
+  const submitRenewal = async () => {
+    if (!renewActivationDate.trim() || !renewContractDate.trim()) {
+      Alert.alert('Renew AMC', 'Please enter activation and contract dates.');
+      return;
+    }
+    const sourceData = (amcData || amcItem || {}) as Record<string, unknown>;
+    const productDetail = toRecord(getFirstValue(sourceData, ['ProductDetail', 'productDetail']));
+    const customerDetail = toRecord(getFirstValue(productDetail, ['CustomerDetail', 'customerDetail']));
+    const locationDetail = toRecord(getFirstValue(productDetail, ['Location', 'location']));
+    setIsRenewing(true);
+    try {
+      ensureSuccess(
+        await renewAmcDetails({
+          AMCsId: 0,
+          RenewalAMCsId: amcsId,
+          RootAMCsId: amcsId,
+          AMCName: String(getFirstValue(sourceData, ['AMCName']) ?? ''),
+          AMCAmount: toNumberValue(getFirstValue(sourceData, ['AMCAmount'])),
+          ReceivedAmount: 0,
+          AMCNotes: String(getFirstValue(sourceData, ['AMCNotes']) ?? ''),
+          AMCSetReminderId: toNumberValue(getFirstValue(sourceData, ['AMCSetReminderId'])),
+          ServiceOccuranceId: toNumberValue(getFirstValue(sourceData, ['ServiceOccuranceId'])),
+          TotalServices: toNumberValue(getFirstValue(sourceData, ['TotalServices'])),
+          ActivationDate: renewActivationDate.trim(),
+          ContractDate: renewContractDate.trim(),
+          ExpiryDate: renewExpiryDate.trim() || undefined,
+          CreatedBy: ownerId,
+          UpdatedBy: ownerId,
+          UserId: ownerId,
+          CustomerId: toNumberValue(getFirstValue(productDetail, ['CustomerId'])),
+          CustomerDetailsid: toNumberValue(getFirstValue(customerDetail, ['CustomerDetailsid'])),
+          CustomerName: String(getFirstValue(customerDetail, ['CustomerName']) ?? ''),
+          MobileNumber: String(getFirstValue(customerDetail, ['MobileNumber']) ?? ''),
+          EmailId: String(getFirstValue(customerDetail, ['EmailId']) ?? ''),
+          Address: String(getFirstValue(locationDetail, ['Address']) ?? ''),
+          PinCode: String(getFirstValue(locationDetail, ['PinCode']) ?? ''),
+          LocationId: toNumberValue(getFirstValue(locationDetail, ['Id'])),
+          ProductDetailsId: toNumberValue(getFirstValue(productDetail, ['ProductDetailsId'])),
+          ProductName: String(getFirstValue(productDetail, ['ProductName']) ?? ''),
+          ProductBrand: String(getFirstValue(productDetail, ['ProductBrand']) ?? ''),
+          ProductSerialNo: String(getFirstValue(productDetail, ['ProductSerialNo']) ?? ''),
+          UnderWarranty: Boolean(getFirstValue(productDetail, ['UnderWarranty'])),
+        }),
+      );
+      Alert.alert('Renew AMC', 'AMC renewed successfully.');
+      setRenewModalVisible(false);
+      fetchAMCDetails();
+    } catch (error) {
+      Alert.alert('Renew AMC', error instanceof Error ? error.message : 'Unable to renew AMC.');
+    } finally {
+      setIsRenewing(false);
+    }
   };
 
   const openEditModal = async () => {
@@ -1060,7 +1207,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Toolbar Below Header */}
-      <View style={styles.toolbarContainer}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toolbarContainer} contentContainerStyle={styles.toolbarContent}>
         <Pressable style={styles.toolbarButton} onPress={openEditModal} disabled={editLoading}>
           <Text style={styles.toolbarIcon}>✎</Text>
           <Text style={styles.toolbarButtonText}>{editLoading ? 'Loading' : 'Edit'}</Text>
@@ -1085,7 +1232,15 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           <Text style={styles.toolbarIcon}>🗑</Text>
           <Text style={styles.toolbarButtonText}>{isDeletingAmc ? 'Loading' : 'Delete'}</Text>
         </Pressable>
-      </View>
+        <Pressable style={styles.toolbarButton} onPress={openRenewModal}>
+          <Text style={styles.toolbarIcon}>🔄</Text>
+          <Text style={styles.toolbarButtonText}>Renew</Text>
+        </Pressable>
+        <Pressable style={styles.toolbarButton} onPress={openHistory}>
+          <Text style={styles.toolbarIcon}>🕘</Text>
+          <Text style={styles.toolbarButtonText}>History</Text>
+        </Pressable>
+      </ScrollView>
 
       <ScrollView style={styles.contentContainer} contentContainerStyle={{ paddingBottom: vs(20) }}>
         {/* Info Card */}
@@ -1205,6 +1360,78 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={historyVisible} animationType="fade" transparent onRequestClose={() => setHistoryVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>AMC History</Text>
+              <Pressable onPress={() => setHistoryVisible(false)} hitSlop={10}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </Pressable>
+            </View>
+            {isHistoryLoading ? (
+              <ActivityIndicator color={THEME_PRIMARY} style={{marginVertical: vs(24)}} />
+            ) : historyRows.length === 0 ? (
+              <Text style={styles.modalEmptyText}>No renewal history found.</Text>
+            ) : (
+              <ScrollView style={{maxHeight: vs(360)}}>
+                {historyRows.map((row, index) => (
+                  <View key={index} style={styles.historyRow}>
+                    <Text style={styles.historyRowLabel}>Sr.No {index + 1}</Text>
+                    <Text style={styles.historyRowValue}>
+                      {String(row.ActivationDate ?? row.activationDate ?? '-')}
+                    </Text>
+                    <Text style={styles.historyRowValue}>
+                      Rs.Amount {String(row.AMCAmount ?? row.amcAmount ?? 0)}
+                    </Text>
+                    <Text style={styles.historyRowValue}>
+                      Rs.Received {String(row.ReceivedAmount ?? row.receivedAmount ?? 0)}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={renewModalVisible} animationType="slide" transparent onRequestClose={() => setRenewModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Renew AMC</Text>
+              <Pressable onPress={() => setRenewModalVisible(false)} hitSlop={10}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.label}>Activation Date (YYYY-MM-DD) *</Text>
+            <TextInput
+              style={styles.editInput}
+              value={renewActivationDate}
+              onChangeText={setRenewActivationDate}
+              placeholder="YYYY-MM-DD"
+            />
+            <Text style={styles.label}>Contract Date (YYYY-MM-DD) *</Text>
+            <TextInput
+              style={styles.editInput}
+              value={renewContractDate}
+              onChangeText={setRenewContractDate}
+              placeholder="YYYY-MM-DD"
+            />
+            <Text style={styles.label}>Expiry Date (YYYY-MM-DD)</Text>
+            <TextInput
+              style={styles.editInput}
+              value={renewExpiryDate}
+              onChangeText={setRenewExpiryDate}
+              placeholder="YYYY-MM-DD"
+            />
+            <Pressable style={styles.saveButton} onPress={submitRenewal} disabled={isRenewing}>
+              <Text style={styles.saveButtonText}>{isRenewing ? 'RENEWING...' : 'RENEW'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={editModalVisible}

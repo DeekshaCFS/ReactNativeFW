@@ -283,6 +283,32 @@ const TaskDetailsScreen = ({
   const hasCodes = responseCodeNum > 0 && satisfactionCodeNum > 0;
   const responseCode = hasCodes ? String(responseCodeNum) : '';
   const satisfactionCode = hasCodes ? String(satisfactionCodeNum) : '';
+  // Java's setData(): TaskType drives the color (Urgent/Today/Schedule);
+  // EstimatedAmount is WagesPerHours, EarnedAmount is EarningAmount.
+  const taskType = getStringField(record, ['taskType', 'TaskType']);
+  const taskTypeColor =
+    taskType === 'Urgent' ? '#D32F2F' : taskType === 'Today' ? '#F57C00' : undefined;
+  const wagesPerHour = getNumberField(record, ['wagesPerHours', 'WagesPerHours']);
+  const earningAmount = getNumberField(record, ['earningAmount', 'EarningAmount']);
+  const estimatedAmount = wagesPerHour ? `Rs. ${wagesPerHour.toFixed(2)}` : '';
+  const earnedAmount = earningAmount ? `Rs. ${earningAmount.toFixed(2)}` : '';
+
+  // Warranty (Java's txtWarrantyType/.../txtWarrantySerialNo, sourced from
+  // TaskWarrantyDetailsModelDtoView on the same task record).
+  const warrantyDetail =
+    (record.taskWarrantyDetailsModelDtoView as Record<string, unknown> | undefined) ??
+    (record.TaskWarrantyDetailsModelDtoView as Record<string, unknown> | undefined) ??
+    {};
+  const warrantyTypeName = getStringField(warrantyDetail, ['warrantyTypeName', 'WarrantyTypeName']);
+  const warrantyStartDate = getStringField(warrantyDetail, ['startDate', 'StartDate']);
+  const warrantyEndDate = getStringField(warrantyDetail, ['endDate', 'EndDate']);
+  const warrantyBrandName = getStringField(warrantyDetail, ['brandName', 'BrandName']);
+  const warrantyModelName = getStringField(warrantyDetail, ['modelName', 'ModelName']);
+  const warrantySerialNo = getStringField(warrantyDetail, ['serialNoName', 'SerialNoName']);
+  const hasWarrantyDetails = Boolean(
+    warrantyTypeName || warrantyBrandName || warrantyModelName || warrantySerialNo,
+  );
+
   const fieldworkerAvailability = getFieldworkerAvailability(status);
 
   return (
@@ -357,6 +383,22 @@ const TaskDetailsScreen = ({
             <Text style={styles.fieldLabel}>Payment Mode</Text>
             <Text style={styles.fieldValue}>{valueOrNA(paymentMode)}</Text>
           </View>
+          {taskType ? (
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>Task Type</Text>
+              <Text style={[styles.fieldValue, taskTypeColor ? {color: taskTypeColor} : null]}>
+                {taskType}
+              </Text>
+            </View>
+          ) : null}
+          <View style={styles.fieldRow}>
+            <Text style={styles.fieldLabel}>Estimated Amount</Text>
+            <Text style={styles.fieldValue}>{valueOrNA(estimatedAmount)}</Text>
+          </View>
+          <View style={styles.fieldRow}>
+            <Text style={styles.fieldLabel}>Earned Amount</Text>
+            <Text style={styles.fieldValue}>{valueOrNA(earnedAmount)}</Text>
+          </View>
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>Fieldworker</Text>
             <Text style={styles.fieldValue}>{valueOrNA(employeeName)}</Text>
@@ -379,6 +421,38 @@ const TaskDetailsScreen = ({
                 <Text style={styles.itemQty}>{getUsedQty(item)}</Text>
               </View>
             ))
+          ) : null}
+
+          {hasWarrantyDetails ? (
+            <>
+              <Text style={[styles.sectionHeading, styles.sectionSpacing]}>
+                Warranty Details
+              </Text>
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>Warranty Type</Text>
+                <Text style={styles.fieldValue}>{valueOrNA(warrantyTypeName)}</Text>
+              </View>
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>Start Date</Text>
+                <Text style={styles.fieldValue}>{valueOrNA(warrantyStartDate)}</Text>
+              </View>
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>End Date</Text>
+                <Text style={styles.fieldValue}>{valueOrNA(warrantyEndDate)}</Text>
+              </View>
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>Brand Name</Text>
+                <Text style={styles.fieldValue}>{valueOrNA(warrantyBrandName)}</Text>
+              </View>
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>Model Name</Text>
+                <Text style={styles.fieldValue}>{valueOrNA(warrantyModelName)}</Text>
+              </View>
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>Serial No</Text>
+                <Text style={styles.fieldValue}>{valueOrNA(warrantySerialNo)}</Text>
+              </View>
+            </>
           ) : null}
 
           <Text style={[styles.sectionHeading, styles.sectionSpacing]}>
