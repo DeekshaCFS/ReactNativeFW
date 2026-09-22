@@ -1,9 +1,10 @@
 // src/screens/technician/drawer/SettingScreen.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, StyleSheet, Text, ScrollView, Pressable,
-  StatusBar, Platform,
+  StatusBar, Platform, Share,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -14,6 +15,30 @@ export default function SettingScreen() {
   const navigation = useNavigation<any>();
   const [expanded, setExpanded] = useState(false);
   const insets = useSafeAreaInsets();
+  // Java's SettingsFragment: cardView_invite_friends is visible for
+  // owner/subadmin only.
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem('role').then(role => {
+      const normalized = (role ?? '').toLowerCase();
+      setIsOwner(normalized === 'admin' || normalized === 'owner' || normalized === 'subadmin');
+    });
+  }, []);
+
+  const handleInviteFriends = () => {
+    Share.share({
+      message:
+        "Namaste \ud83d\ude4f,\nI am using India's #1 field business management app - \ud83d\udca5 FieldWeb \n\n" +
+        'Benefits of using FieldWeb: \n\n' +
+        '\u2022 Revenue increased \ud83d\udcc8 by 75% \n' +
+        '\u2022 Keeps data Safe \ud83d\udee1 and Secure. \n' +
+        "\u2022 Tracks fieldworker's \ud83d\udc68\u200d\ud83d\udd27 activity. \n" +
+        '\u2022 Assign task/job to fieldworkers \ud83d\udc68\u200d\ud83d\udd27. \n' +
+        '\u2022 Sends service reminder to customers \ud83d\udc68\u200d\ud83d\udc68\u200d\ud83d\udc67. \n\n' +
+        'Download Now: \n\n https://bit.ly/3MZiwEJ',
+    }).catch(() => {});
+  };
 
   const statusBarHeight =
     Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
@@ -24,7 +49,10 @@ export default function SettingScreen() {
     { icon: 'thumbs-up-outline',      title: 'Feedback' },
   ];
 
-  const listItems: { icon: string; title: string; route?: string }[] = [
+  const listItems: { icon: string; title: string; route?: string; onPress?: () => void }[] = [
+    ...(isOwner
+      ? [{ icon: 'people-outline', title: 'Invite Friends', onPress: handleInviteFriends }]
+      : []),
     { icon: 'language-outline',            title: 'Change Language' },
     { icon: 'trash-outline',               title: 'Delete Account' },
     { icon: 'document-text-outline',       title: 'Terms & Condition' },
@@ -56,10 +84,10 @@ export default function SettingScreen() {
           </View>
 
           {/* List items */}
-          {listItems.map(({ icon, title, route }) => (
+          {listItems.map(({ icon, title, route, onPress }) => (
             <Pressable
               key={title}
-              onPress={() => route && navigation.navigate(route)}
+              onPress={() => (onPress ? onPress() : route && navigation.navigate(route))}
               style={({ pressed }) => [styles.listItem, pressed && styles.pressed]}
             >
               <Ionicons name={icon} size={scale(26)} color={COLORS.primary} />

@@ -17,6 +17,10 @@ import {
   authenticateMobile,
   authenticateEmail,
 } from '../../api/users/usersService';
+import { getKycList } from '../../api/umEmployeeList/umEmployeeListService';
+import { pick } from '@react-native-documents/picker';
+import RNFS from 'react-native-fs';
+import SearchPickerModal, { type PickerOption } from '../../components/SearchPickerModal';
 import type { UserDetailsResultData, UpdateUserResultData } from '../../api/users/users.types';
 import { ms, sp, scale, vs } from '../../utils/responsive';
 
@@ -128,6 +132,14 @@ export default function AdminProfileScreen() {
   const [companyContactNo, setCompanyContactNo] = useState('');
   const [noOfEmployees, setNoOfEmployees] = useState('');
   const [docNumber, setDocNumber] = useState('');
+  const [companyDisplayName, setCompanyDisplayName] = useState('');
+  // KYC (Java's spin_kyc + attach file, actively submitted on the owner's own
+  // profile update: EmpDocumentType / EmployeeDocumentBase64).
+  const [kycDocType, setKycDocType] = useState<PickerOption | null>(null);
+  const [kycAttachment, setKycAttachment] = useState<{name: string; base64: string; ext: string} | null>(null);
+  const [kycDocTypeOptions, setKycDocTypeOptions] = useState<PickerOption[]>([]);
+  const [isKycPickerOpen, setIsKycPickerOpen] = useState(false);
+  const [isLoadingKycTypes, setIsLoadingKycTypes] = useState(false);
 
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
   // Which image is being picked: profile avatar or company logo. Mirrors
@@ -182,6 +194,13 @@ export default function AdminProfileScreen() {
       setCompanyWebsite(user?.CompanyWebsite ?? '');
       setCompanyContactNo(user?.CompanyContactNo != null ? String(user.CompanyContactNo) : '');
       setNoOfEmployees(user?.NoOfUsers != null ? String(user.NoOfUsers) : '');
+      setCompanyDisplayName(user?.CompanySortName ?? '');
+      setKycAttachment(null);
+      setKycDocType(
+        user?.EmpDocType
+          ? {id: user.EmpDocType, label: user?.EmpDocument || 'Document'}
+          : null,
+      );
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to load profile');
     } finally {
@@ -357,7 +376,17 @@ export default function AdminProfileScreen() {
         CompanyAddress: companyAddress,
         CompanyGSTorPanNo: gstOrPan,
         CompanyWebsite: companyWebsite,
+        CompanySortName: companyDisplayName,
       };
+
+      if (kycDocType) {
+        payload.EmpDocumentType = kycDocType.id;
+      }
+      if (kycAttachment) {
+        payload.EmployeeDocumentBase64 = kycAttachment.base64;
+        payload.EmployeeDocumentName = kycAttachment.name;
+        payload.EmployeeDocumentFileType = `.${kycAttachment.ext}`;
+      }
 
       if (companyContactNo.trim()) {
         payload.CompanyContactNo = Number(companyContactNo);
@@ -452,6 +481,15 @@ export default function AdminProfileScreen() {
         <Field label="Last Name" value={profile?.LastName}
           onChange={(v) => setProfile(prev => prev ? { ...prev, LastName: v } : prev)} />
 
+        {(profile?.OwnerFirstName || profile?.OwnerLastName) ? (
+          <Field
+            label="Reporting Manager"
+            value={`${profile?.OwnerFirstName ?? ''} ${profile?.OwnerLastName ?? ''}`.trim()}
+            editable={false}
+            onChange={() => {}}
+          />
+        ) : null}
+
         {/* Contact No — read-only once set, edit via OTP (imageView_editMobile) */}
         <Field
           label="Contact No"
@@ -536,11 +574,68 @@ export default function AdminProfileScreen() {
         </View>
 
         <Field label="Company Name" value={companyName} onChange={setCompanyName} />
+        <Field label="Company Display Name" value={companyDisplayName} onChange={setCompanyDisplayName} />
         <Field label="Company Address" value={companyAddress} onChange={setCompanyAddress} />
         <Field label="GST / PAN No" value={gstOrPan} maxLength={15} onChange={(v) => setGstOrPan(v.toUpperCase())} />
         <Field label="Company Website" keyboard="url" value={companyWebsite} onChange={setCompanyWebsite} />
         <Field label="Company Contact No" keyboard="phone-pad" value={companyContactNo} onChange={setCompanyContactNo} />
         <Field label="No. of Employees" keyboard="number-pad" value={noOfEmployees} onChange={setNoOfEmployees} />
+
+        {/* KYC Details */}
+        <Pressable
+          style={styles.kycPickerRow}
+          onPress={() => {
+            setIsKycPickerOpen(true);
+            if (kycDocTypeOptions.length === 0 && !isLoadingKycTypes && userId) {
+              setIsLoadingKycTypes(true);
+              getKycList({UserId: Number(userId)})
+                .then(response => {
+                  const rows = Array.isArray(response?.ResultData) ? response.ResultData : [];
+                  setKycDocTypeOptions(
+                    rows
+                      .map(row => ({id: Number(row.DocTypeId) || 0, label: String(row.DocTypeName ?? '')}))
+                      .filter(option => option.label),
+                  );
+                })
+                .catch(() => setKycDocTypeOptions([]))
+                .finally(() => setIsLoadingKycTypes(false));
+            }
+          }}>
+          <Text style={kycDocType ? styles.kycPickerValue : styles.kycPickerPlaceholder}>
+            {kycDocType ? kycDocType.label : 'Please Select Document'}
+          </Text>
+          <Ionicons name="chevron-down" size={scale(16)} color="#8a8f98" />
+        </Pressable>
+        <Pressable
+          style={styles.kycPickerRow}
+          onPress={async () => {
+            try {
+              const [file] = await pick({type: ['*/*']});
+              if (!file) return;
+              if (typeof file.size === 'number' && file.size > 6 * 1024 * 1024) {
+                Alert.alert('Attach File', 'File size must be 6 MB or less.');
+                return;
+              }
+              const base64 = await RNFS.readFile(file.uri, 'base64');
+              const name = file.name || 'document';
+              const dot = name.lastIndexOf('.');
+              setKycAttachment({
+                name: dot > 0 ? name.slice(0, dot) : name,
+                ext: dot > 0 ? name.slice(dot + 1) : '',
+                base64,
+              });
+            } catch (error: any) {
+              if (error?.code !== 'DOCUMENT_PICKER_CANCELED' && error?.code !== 'OPERATION_CANCELED') {
+                Alert.alert('Attach File', 'Unable to attach this file.');
+              }
+            }
+          }}>
+          <Text style={kycAttachment ? styles.kycPickerValue : styles.kycPickerPlaceholder} numberOfLines={1}>
+            {kycAttachment
+              ? `${kycAttachment.name}${kycAttachment.ext ? `.${kycAttachment.ext}` : ''}`
+              : 'Choose .pdf, .jpeg, .jpg, .png, .xlsx, .txt, .zip, etc. max file size is 6 MB'}
+          </Text>
+        </Pressable>
 
         {/* Update */}
         <Pressable
@@ -636,6 +731,18 @@ export default function AdminProfileScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <SearchPickerModal
+        visible={isKycPickerOpen}
+        title="Select Document"
+        options={kycDocTypeOptions}
+        loading={isLoadingKycTypes}
+        onSelect={option => {
+          setKycDocType(option);
+          setIsKycPickerOpen(false);
+        }}
+        onClose={() => setIsKycPickerOpen(false)}
+      />
     </View>
   );
 }
@@ -718,6 +825,28 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: sp(14),
     fontWeight: '500',
+  },
+
+  kycPickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#d5d7db',
+    borderRadius: scale(24),
+    paddingHorizontal: scale(16),
+    height: ms(46),
+    marginBottom: ms(12),
+  },
+  kycPickerValue: {
+    flex: 1,
+    fontSize: sp(13),
+    color: '#222',
+  },
+  kycPickerPlaceholder: {
+    flex: 1,
+    fontSize: sp(13),
+    color: '#9aa0a6',
   },
 
   /* Buttons */

@@ -229,6 +229,13 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
     );
   }, [fullName, userDetails]);
 
+  // Java: mUserDetails.getProgressBarPercentage() (owner_home_fragment_new's profileCompletion bar).
+  const profileCompletionPercent = useMemo(() => {
+    const raw = userDetails?.ProgressBarPercentage;
+    const parsed = raw != null ? parseFloat(String(raw)) : NaN;
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [userDetails]);
+
   const greetingText = useMemo(() => {
     return `${getGreetingPrefix(preferredLanguage)}, ${firstName}`;
   }, [firstName, preferredLanguage]);
@@ -431,6 +438,28 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
               </Text>
             </View>
           ) : null}
+          {/* Java's owner_home_fragment_new: profileCompletion bar, hidden
+              once the profile reaches 100% (OwnerDashboardFragment). */}
+          {profileCompletionPercent > 0 && profileCompletionPercent < 100 ? (
+            <View style={styles.profileCompletionRow}>
+              <View style={styles.profileCompletionBarTrack}>
+                <View
+                  style={[
+                    styles.profileCompletionBarFill,
+                    {width: `${Math.min(100, profileCompletionPercent)}%`},
+                  ]}
+                />
+              </View>
+              <Text style={styles.profileCompletionText}>
+                Profile {Math.round(profileCompletionPercent)}%
+              </Text>
+              <Pressable
+                onPress={() => (navigation.getParent() as any)?.navigate('Profile')}
+              >
+                <Text style={styles.profileCompletionUpdate}>Update</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       )}
 
@@ -621,6 +650,35 @@ const styles = StyleSheet.create({
     marginLeft: ms(8),
     color: '#FFFFFF',
     fontSize: sp(12),
+  },
+  profileCompletionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: ms(10),
+  },
+  profileCompletionBarTrack: {
+    flex: 1,
+    height: ms(6),
+    borderRadius: ms(3),
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    overflow: 'hidden',
+    marginRight: ms(8),
+  },
+  profileCompletionBarFill: {
+    height: '100%',
+    borderRadius: ms(3),
+    backgroundColor: '#FFFFFF',
+  },
+  profileCompletionText: {
+    color: '#FFFFFF',
+    fontSize: sp(11),
+    marginRight: ms(10),
+  },
+  profileCompletionUpdate: {
+    color: '#FFFFFF',
+    fontSize: sp(11),
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   homeScrollView: {
     flex: 1,

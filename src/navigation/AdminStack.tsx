@@ -11,8 +11,8 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 import AdminTabs, { AdminTabParamList } from './AdminTabs';
 
 import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
-import EmployeeManagementScreen from '../screens/admin/EmployeeManagementScreen';
 import TaskDetailsScreen from '../screens/admin/TaskDetailsScreen';
+import SettingScreen from '../screens/technician/drawer/SettingScreen';
 import type {TasksListResultData} from '../api/task/task.types';
 import AMCDetailsScreen from '../screens/admin/AMCDetailsScreen';
 
@@ -290,22 +290,16 @@ export default function AdminStack() {
           }}
         />
 
+        {/* Java's admin drawer "setting" item opens SettingsFragment (App
+            Tour/Rate Us/Invite Friends/Language/Terms/Privacy/Refund/About)
+            — Employee Management is its own bottom tab, not this route. */}
         <Stack.Screen
           name="Settings"
+          component={SettingScreen}
           options={{
             title: 'Settings',
           }}
-        >
-          {() =>
-            ownerId === null ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-              </View>
-            ) : (
-              <EmployeeManagementScreen ownerId={ownerId} />
-            )
-          }
-        </Stack.Screen>
+        />
 
         <Stack.Screen name="TaskDetails" options={{title: 'Task Details'}}>
           {({route, navigation}) =>

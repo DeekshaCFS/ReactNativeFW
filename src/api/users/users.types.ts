@@ -86,6 +86,7 @@ export interface UserDetailsResultData {
   CompanyContactNo?: number;
   CompanyAddress?: string;
   CompanyName?: string;
+  CompanySortName?: string;
   CompanyId?: number;
   CheckOutPlace?: string;
   ModifiedDate?: string;
@@ -195,6 +196,7 @@ export interface UpdateUser {
 }
 
 export interface UpdateUserResultData {
+  CompanySortName?: string;
   ReferralCodesId?: number;
   CompanyGSTorPanNo?: string;
   CompanyServiceTypeId?: number;
