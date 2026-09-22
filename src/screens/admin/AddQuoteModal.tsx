@@ -834,22 +834,22 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote'}: A
                       [0, 'Select Tax'],
                       [1, 'With Tax'],
                       [2, 'Without Tax'],
-                    ] as const).map(([mode, label]) => (
+                    ] as const).map(([taxModeOption, label]) => (
                       <TouchableOpacity
-                        key={mode}
+                        key={taxModeOption}
                         style={[
                           styles.pillInput,
                           styles.halfInput,
-                          taxMode === mode ? {borderColor: '#c3002f'} : null,
+                          taxMode === taxModeOption ? {borderColor: '#c3002f'} : null,
                         ]}
                         onPress={() => {
-                          setTaxMode(mode);
-                          if (mode !== 1) {
+                          setTaxMode(taxModeOption);
+                          if (taxModeOption !== 1) {
                             setTaxPercent('');
                             setTaxName('');
                           }
                         }}>
-                        <Text style={{color: taxMode === mode ? '#c3002f' : '#555'}}>{label}</Text>
+                        <Text style={{color: taxMode === taxModeOption ? '#c3002f' : '#555'}}>{label}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
