@@ -1,8 +1,8 @@
 // src/screens/technician/drawer/RequestedItems.tsx
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, Pressable,
-  Platform, StatusBar, ActivityIndicator,
+  View, Text, StyleSheet, FlatList, Pressable, Image,
+  Platform, StatusBar, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,8 +10,8 @@ import { COLORS } from '../../../theme/theme';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ms, sp, scale, hp } from '../../../utils/responsive';
 import { getFocList } from '../../../api/focItemRequest/focItemRequestService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { GetFOCListResultData } from '../../../api/focItemRequest/focItemRequest.types';
+import { getCurrentUserId } from '../../../state/session';
 
 const formatDate = (iso: string): string => {
   const d = new Date(iso);
@@ -29,16 +29,20 @@ export default function RequestedItems() {
 
   const [requests, setRequests] = useState<GetFOCListResultData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Maps to Java's FOC_Item_Request/GET_FOC_List, scoped to this technician's OwnerId.
+  // Maps to Java's FOC_Item_Request/GET_FOC_List (FOCFragment.getFOCList).
+  // Despite the query param's name, Java passes the technician's own
+  // SharedPrefManager userId as "OwnerId", not the employer/owner id --
+  // sending the employer id instead pulls in every technician's requests.
   const loadRequests = useCallback(async () => {
     try {
-      const ownerId = Number(await AsyncStorage.getItem('owner_id')) || 0;
+      const userId = getCurrentUserId();
       const res = await getFocList({
         Pageindex: 1,
         Pagesize: 50,
         ZoneId: 0,
-        OwnerId: ownerId,
+        OwnerId: userId,
         IssueTypeID: 0,
         FOCStatusTagID: 0,
         SearchParam: '',
@@ -48,8 +52,14 @@ export default function RequestedItems() {
       console.log(e);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadRequests();
+  }, [loadRequests]);
 
   useEffect(() => { loadRequests(); }, [loadRequests]);
   // Refresh whenever we come back from submitting a new request.
@@ -91,9 +101,13 @@ export default function RequestedItems() {
           <Text style={styles.filterText}>Issue</Text>
           <Ionicons name="chevron-down" size={scale(16)} color={COLORS.primary} />
         </Pressable>
-        <Pressable style={styles.filterItem} onPress={loadRequests}>
+        <Pressable style={styles.filterItem} onPress={onRefresh} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={styles.refreshText}>Refresh List</Text>
-          <Ionicons name="refresh" size={scale(16)} color={COLORS.primary} />
+          {refreshing ? (
+            <ActivityIndicator size="small" color={COLORS.primary} />
+          ) : (
+            <Ionicons name="refresh" size={scale(16)} color={COLORS.primary} />
+          )}
         </Pressable>
       </View>
 
@@ -106,7 +120,18 @@ export default function RequestedItems() {
           keyExtractor={(item) => String(item.FocRequestId)}
           contentContainerStyle={{ paddingBottom: ms(120), paddingHorizontal: ms(16) }}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={<Text style={styles.emptyText}>No item requests found.</Text>}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Image
+                source={require('../../../../assets/images/noresultfound.png')}
+                style={styles.emptyImage}
+                resizeMode="contain"
+              />
+            </View>
+          }
           renderItem={({ item }) => (
             <View style={styles.card}>
               {/* Status Badge */}
@@ -282,10 +307,12 @@ const styles = StyleSheet.create({
     color: '#555',
     fontSize: sp(13),
   },
-  emptyText: {
-    textAlign: 'center',
-    color: '#888',
-    fontSize: sp(14),
-    marginTop: ms(40),
+  emptyState: {
+    alignItems: 'center',
+    marginTop: ms(60),
+  },
+  emptyImage: {
+    width: scale(180),
+    height: scale(180),
   },
 });
