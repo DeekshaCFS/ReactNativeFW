@@ -49,6 +49,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
   const [phone, setPhone] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
 
   const isAdmin = role?.toLowerCase() === 'admin' || role?.toLowerCase() === 'owner';
   // Route name differs per role — see DrawerNavigator (AdminTabs → AdminStack,
@@ -81,6 +82,10 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
     };
     loadSession();
   }, []);
+
+  useEffect(() => {
+    setPhotoLoadFailed(false);
+  }, [profile?.Photo]);
 
   const handleCheckOut = async () => {
     try {
@@ -138,14 +143,14 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
       <View style={styles.profileRow}>
         <View style={[styles.profileWrapper, { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 }]}>
           <Image
-            source={
-              profile?.Photo
+              source={
+                profile?.Photo && !photoLoadFailed
                 ? { uri: profile.Photo }
                 : require('../../assets/images/image.png')
-            }
-            style={[styles.pfp, { borderRadius: AVATAR_SIZE / 2 }]}
-            resizeMode="cover"
-          />
+              }
+              onError={() => setPhotoLoadFailed(true)}
+              style={{ width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 }}
+            />
           <Pressable
             style={styles.editProfile}
             onPress={() => {

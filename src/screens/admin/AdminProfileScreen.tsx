@@ -145,6 +145,10 @@ export default function AdminProfileScreen() {
   // Which image is being picked: profile avatar or company logo. Mirrors
   // isProfileImage in the Java fragment.
   const [photoTarget, setPhotoTarget] = useState<'profile' | 'logo'>('profile');
+  // profile.Photo can be a truthy but unreachable/broken URL, which <Image>
+  // fails to load silently, leaving a blank circle instead of falling back
+  // to the placeholder -- so track load failures and fall back explicitly.
+  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
 
   // Java defers both images to the Save/UpdateUser call rather than
   // uploading immediately (mImageEncodeBaseStringProfile / …Company) —
@@ -174,6 +178,10 @@ export default function AdminProfileScreen() {
   useEffect(() => {
     if (userId) fetchProfile();
   }, [userId]);
+
+  useEffect(() => {
+    setPhotoLoadFailed(false);
+  }, [profile?.Photo]);
 
   // Source: ProfileFragmentNew.getProfileDetails() — GET Users/GetProfileDetails?UserId={userId}
   const fetchProfile = async () => {
@@ -465,10 +473,11 @@ export default function AdminProfileScreen() {
             source={
               profileImageBase64
                 ? { uri: `data:image/jpeg;base64,${profileImageBase64}` }
-                : profile?.Photo
+                : profile?.Photo && !photoLoadFailed
                   ? { uri: profile.Photo }
                   : require('../../../assets/images/image.png')
             }
+            onError={() => setPhotoLoadFailed(true)}
             style={[styles.avatar, { width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2 }]}
           />
           <Pressable style={styles.avatarEdit} onPress={() => openPhotoSource('profile')}>
