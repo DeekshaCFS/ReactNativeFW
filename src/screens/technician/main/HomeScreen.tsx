@@ -229,11 +229,9 @@ export default function HomeScreen({ navigation }: any) {
       const profile = response?.ResultData;
 
       if (profile) {
-        const fullName =
-          `${profile.FirstName ?? ''} ${profile.LastName ?? ''}`.trim();
-
-        setName(fullName);
-        await AsyncStorage.setItem('name', fullName);
+        const firstName = profile.FirstName ?? '';
+        setName(firstName);
+        await AsyncStorage.setItem('name', firstName);
 
         const pct = Number(profile.ProgressBarPercentage ?? 0);
         setProfilePercent(Number.isFinite(pct) ? pct : 0);
