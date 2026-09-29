@@ -7,9 +7,10 @@
 // with a photo via Expenditure/AddExpense.
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Modal, TextInput, Image, ActivityIndicator, Alert,
+  Modal, TextInput, Image, ActivityIndicator, Alert, Platform,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../../../theme/theme';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
@@ -34,9 +35,19 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const toApiDate = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 const toLabel = (d: Date) => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 
+// Java (ExpenseDetailsFragmentNew): DatePickerDialog bounds -- today minus
+// two months through today.
+const minSelectableDate = () => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 2);
+  return d;
+};
+
 export default function ExpenditureScreen() {
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [date, setDate] = useState(() => new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempDate, setTempDate] = useState(date);
   const [details, setDetails] = useState<ExpenseDetailsResultData | null>(null);
   const [loading, setLoading] = useState(false);
   const [fullScreenPhoto, setFullScreenPhoto] = useState<string | null>(null);
@@ -75,8 +86,43 @@ export default function ExpenditureScreen() {
     }
   }, [showAddExpenseModal]);
 
-  const shiftDay = (delta: number) =>
-    setDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + delta));
+  // Android's DateTimePicker always shows the OS's own dialog as soon as it's
+  // mounted -- it has no inline/embedded mode like iOS does -- so wrapping it
+  // in our own Modal+Cancel/OK just stacks a second dialog on top of the
+  // native one and reopens it on every re-render. Use the imperative API
+  // there instead (native rollable dialog, its own OK/Cancel, matches Java's
+  // DatePickerDialog exactly); keep the custom Modal only for iOS, which
+  // really does need it to host the inline spinner.
+  const openDatePicker = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: date,
+        mode: 'date',
+        display: 'spinner',
+        maximumDate: new Date(),
+        minimumDate: minSelectableDate(),
+        onChange: (event: DateTimePickerEvent, selected?: Date) => {
+          if (event.type === 'set' && selected) setDate(selected);
+        },
+      });
+      return;
+    }
+    setTempDate(date);
+    setShowDatePicker(true);
+  };
+
+  const onDatePickerChange = (event: DateTimePickerEvent, selected?: Date) => {
+    if (event.type === 'dismissed') {
+      setShowDatePicker(false);
+      return;
+    }
+    if (selected) setTempDate(selected);
+  };
+
+  const confirmDatePicker = () => {
+    setDate(tempDate);
+    setShowDatePicker(false);
+  };
 
   const money = (v?: number) => `${formatAmount(v)}`;
   const rows = [
@@ -190,12 +236,9 @@ export default function ExpenditureScreen() {
         </View>
 
         <View style={styles.headerRow}>
-          <Pressable onPress={() => shiftDay(-1)} hitSlop={10}>
-            <Ionicons name="chevron-back" size={scale(18)} color={COLORS.primary} />
-          </Pressable>
           <Text style={styles.headerSub}>{toLabel(date)}</Text>
-          <Pressable onPress={() => shiftDay(1)} hitSlop={10}>
-            <Ionicons name="chevron-forward" size={scale(18)} color={COLORS.primary} />
+          <Pressable onPress={openDatePicker}>
+            <Ionicons name="chevron-down" size={scale(18)} color={COLORS.primary} />
           </Pressable>
         </View>
 
@@ -325,11 +368,56 @@ export default function ExpenditureScreen() {
           ) : null}
         </Pressable>
       </Modal>
+
+      {/* Rollable date picker (Java: DatePickerDialog, min = today - 2 months).
+          iOS only -- Android uses the imperative DateTimePickerAndroid API
+          in openDatePicker() instead. */}
+      {Platform.OS === 'ios' && (
+        <Modal visible={showDatePicker} transparent animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
+          <Pressable style={styles.overlay} onPress={() => setShowDatePicker(false)} />
+          <View style={styles.centerModal}>
+            <Text style={styles.datePickerTitle}>Select Date</Text>
+            <DateTimePicker
+              value={tempDate}
+              mode="date"
+              display="spinner"
+              maximumDate={new Date()}
+              minimumDate={minSelectableDate()}
+              onChange={onDatePickerChange}
+            />
+            <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: '#eee', marginTop: ms(12) }}>
+              <Pressable style={{ flex: 1, paddingVertical: ms(14), alignItems: 'center' }} onPress={() => setShowDatePicker(false)}>
+                <Text style={{ fontSize: sp(15), color: '#888' }}>Cancel</Text>
+              </Pressable>
+              <Pressable style={{ flex: 1, paddingVertical: ms(14), alignItems: 'center' }} onPress={confirmDatePicker}>
+                <Text style={{ fontSize: sp(15), color: COLORS.primary, fontWeight: '600' }}>OK</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  centerModal: {
+    position: 'absolute',
+    top: '25%',
+    left: '8%',
+    right: '8%',
+    backgroundColor: '#fff',
+    padding: ms(16),
+    borderRadius: ms(12),
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  datePickerTitle: { fontSize: sp(17), fontWeight: '600', marginBottom: ms(8), color: COLORS.textPrimary, textAlign: 'center' },
+
   root: {
     flex: 1,
     backgroundColor: '#f7f7f7',
