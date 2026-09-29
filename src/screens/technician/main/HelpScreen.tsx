@@ -1,5 +1,5 @@
 // src/screens/technician/main/HelpScreen.tsx
-import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -12,6 +12,13 @@ type NavigationProp = NativeStackNavigationProp<
   'help'
 >;
 
+// Java: HomeActivityNew's R.id.help handler -> addFragment(new ChatFragment()),
+// which loads this same tawk.to widget in a WebView. Intercom was wired up
+// elsewhere in the Java app but never successfully initialized at runtime
+// (missing string resources meant Intercom.initialize() always threw and was
+// silently swallowed) — tawk.to is what technicians actually see today.
+export const HELP_CHAT_URL = 'https://tawk.to/chat/65eada4b8d261e1b5f6a7448/1hoem9egj';
+
 export default function HelpScreen() {
 
   const navigation = useNavigation<NavigationProp>();
@@ -19,15 +26,7 @@ export default function HelpScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.banner}>
-        <Image
-          source={{
-            uri: 'https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg',
-          }}
-          style={styles.bannerImage}
-        />
-        <View style={styles.playIcon}>
-          <Ionicons name="logo-youtube" size={sp(50)} color="#cb0000" />
-        </View>
+        <Ionicons name="chatbubbles-outline" size={sp(64)} color="#fff" />
       </View>
 
       <View style={styles.textSection}>
@@ -39,7 +38,7 @@ export default function HelpScreen() {
         </Text>
       </View>
 
-      <Pressable style={styles.card}>
+      <Pressable style={styles.card} onPress={() => navigation.navigate('helpChat')}>
         <View>
           <Text style={styles.cardTitle}>New Conversation</Text>
           <Text style={styles.cardSubtitle}>
@@ -83,19 +82,7 @@ const styles = StyleSheet.create({
     borderRadius: ms(12),
     overflow: 'hidden',
     height: ms(200),
-    backgroundColor: '#000',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bannerImage: {
-    ...StyleSheet.absoluteFill,
-    resizeMode: 'cover',
-  },
-  playIcon: {
-    width: ms(56),
-    height: ms(56),
-    borderRadius: ms(28),
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },

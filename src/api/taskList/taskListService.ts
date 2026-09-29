@@ -2,7 +2,7 @@
 // Auto-generated from URLConstant.java (TaskList endpoints actually used by the Android app)
 // Request/response types sourced from the shared DTO.zip — see taskList.types.ts
 import apiClient from '../apiClient';
-import type { AddTask, AddTaskResultData, GetBeforeAfterOnHoldTaskImgDTO, GetBeforeAfterOnHoldTaskImgDTOResultData, GetPostedTaskDocDTO, GetPostedTaskDocDTOResultData, RejectedTaskDetailsDTO, RejectedTaskDetailsDTOResultData, TaskClosure, TaskClosureResultData, TasksList, TasksListResultData, UploadTaskDocDTO } from './taskList.types';
+import type { AddTask, AddTaskResultData, GetBeforeAfterOnHoldTaskImgDTO, GetBeforeAfterOnHoldTaskImgDTOResultData, GetPostedTaskDocDTO, GetPostedTaskDocDTOResultData, DocAttachmentType, QRGetScannedDTO, QRPostDataDTO, RejectedTaskDetailsDTO, RejectedTaskDetailsDTOResultData, TaskClosure, TaskClosureResultData, TasksList, TasksListResultData, UploadTaskDocDTO } from './taskList.types';
 
 /**
  * Source: URLConstant.Task.ADD_TASK
@@ -41,6 +41,16 @@ export const getTaskListSearchNew = async (params?: Record<string, any>): Promis
 };
 
 /**
+ * Source: URLConstant.Task.GET_DOC_ATTACHMENT_TYPE
+ * Endpoint: GET TaskList/GetDocumentTypes
+ * Response is a bare array, not the usual {Code, Message, ResultData} wrapper.
+ */
+export const getDocumentTypes = async (params?: Record<string, any>): Promise<DocAttachmentType[]> => {
+  const response = await apiClient.get('TaskList/GetDocumentTypes', { params });
+  return response.data;
+};
+
+/**
  * Source: URLConstant.Task.UPLOAD_TASK_DOC
  * Endpoint: POST TaskList/UploadPostTaskDocs
  */
@@ -64,5 +74,25 @@ export const getTaskDoc = async (params?: Record<string, any>): Promise<GetPoste
  */
 export const getBeforeAfterOnholdTaskImg = async (params?: Record<string, any>): Promise<GetBeforeAfterOnHoldTaskImgDTO> => {
   const response = await apiClient.get('TaskList/GetBeforeAfterAndHoldTaskFiles', { params });
+  return response.data;
+};
+
+/**
+ * Source: URLConstant.QRCodeScanner.GET_QR_SCANNED_DATA (TechQRCodeScannerHistroy.getQRScannedDetails)
+ * Endpoint: GET TaskQRCodeScan/GetTaskQRCodeScan?taskId=
+ * ResultData.Fields: [{ QRcodeScanNo: "Scan 1", FieldName, FieldValue }]
+ */
+export const getQRScannedData = async (params: { taskId: number }): Promise<QRGetScannedDTO> => {
+  const response = await apiClient.get('TaskQRCodeScan/GetTaskQRCodeScan', { params });
+  return response.data;
+};
+
+/**
+ * Source: URLConstant.QRCodeScanner.POST_QR_SCANNED_DATA (TechQRCodeScannerHistroy.postQRScannedData)
+ * Endpoint: POST TaskQRCodeScan/SaveTaskQRCodeScan
+ * Note: Fields[].QRcodeScanNo is an int here, unlike the string form returned by the GET above.
+ */
+export const postQRScannedData = async (data: QRPostDataDTO): Promise<QRPostDataDTO> => {
+  const response = await apiClient.post('TaskQRCodeScan/SaveTaskQRCodeScan', data);
   return response.data;
 };

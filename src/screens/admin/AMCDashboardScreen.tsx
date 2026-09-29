@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
+import {sanitizeDecimalInput} from '../../utils/decimal';
 import {
   ActivityIndicator,
   Alert,
@@ -97,7 +98,7 @@ const MONTH_LABELS = [
   'Dec',
 ];
 
-const getResultData = <T,>(response: {
+export const getResultData = <T,>(response: {
   resultData?: T[] | null;
   ResultData?: T[] | null;
 }) => response.resultData ?? response.ResultData ?? [];
@@ -286,7 +287,7 @@ const normalizeAMCType = (item: AMCTypeItem): AMCTypeOption | null => {
   return { id, name };
 };
 
-const normalizeLookupOption = (
+export const normalizeLookupOption = (
   item: AMCLookupItem,
   index: number,
 ): AddAMCDropdownOption | null => {
@@ -966,6 +967,11 @@ const AMCDashboardScreen = ({
       return;
     }
 
+    if (!brandName.trim()) {
+      Alert.alert('Validation', 'Please enter Brand Name.');
+      return;
+    }
+
     if (!modelName.trim()) {
       Alert.alert('Validation', 'Please enter Model Name.');
       return;
@@ -1003,8 +1009,9 @@ const AMCDashboardScreen = ({
 
     // Same rules as Java's AMCDialog: amount is required when the product is
     // out of warranty, and the received amount can't exceed it.
-    const amcAmountValue = Number(amcAmount) || 0;
-    const receivedAmountValue = Number(receivedAmount) || 0;
+    // Amount fields are hidden under warranty, so don't send stale values.
+    const amcAmountValue = underWarranty ? 0 : Number(amcAmount) || 0;
+    const receivedAmountValue = underWarranty ? 0 : Number(receivedAmount) || 0;
     if (!underWarranty && !amcAmount.trim()) {
       Alert.alert('Validation', 'Please enter service amount.');
       return;
@@ -1065,7 +1072,7 @@ const AMCDashboardScreen = ({
             IsActive: true,
             Longitude: '',
             Name: '',
-            PinCode: '',
+            PinCode: '', // editText_pin_code is 'gone' in dialog_add_amc_new.xml
             UpdatedBy: owner,
             latitude: '',
           },
@@ -1318,7 +1325,7 @@ const AMCDashboardScreen = ({
       value?: string;
       onChangeText?: (text: string) => void;
       onFocus?: () => void;
-      keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'decimal-pad';
+      keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'decimal-pad' | 'number-pad';
     } = {},
   ) => (
     <View
@@ -1873,7 +1880,7 @@ const AMCDashboardScreen = ({
               value: customerLandmark,
               onChangeText: setCustomerLandmark,
             })}
-            {renderFormInput('Brand Name', {
+            {renderFormInput('Brand Name *', {
               value: brandName,
               onChangeText: setBrandName,
             })}
@@ -1924,17 +1931,9 @@ const AMCDashboardScreen = ({
               </View>
             </View>
 
-            {renderFormInput(underWarranty ? 'Service Amount' : 'Service Amount *', {
-              value: amcAmount,
-              onChangeText: setAmcAmount,
-              keyboardType: 'decimal-pad',
-            })}
-            {renderFormInput('Received Amount', {
-              value: receivedAmount,
-              onChangeText: setReceivedAmount,
-              keyboardType: 'decimal-pad',
-            })}
-
+            {/* Field order follows dialog_add_amc_new.xml. Service Amount and
+                Received Amount are only shown when Under Warranty = NO
+                (AMCDialog's segmentedGroupWarranty listener). */}
             <View style={styles.formPairRow}>
               {renderPickerInput(
                 'Activation Date *',
@@ -1971,6 +1970,13 @@ const AMCDashboardScreen = ({
               selectedOccurrence?.name ?? '',
               () => openAddDropdown('occurrence'),
             )}
+            {underWarranty
+              ? null
+              : renderFormInput('Service Amount *', {
+                  value: amcAmount,
+                  onChangeText: (t: string) => setAmcAmount(sanitizeDecimalInput(t)),
+                  keyboardType: 'decimal-pad',
+                })}
             <View style={styles.formPairRow}>
               {renderPickerInput(
                 'Expiry Date',
@@ -1985,6 +1991,13 @@ const AMCDashboardScreen = ({
                 true,
               )}
             </View>
+            {underWarranty
+              ? null
+              : renderFormInput('Received Amount', {
+                  value: receivedAmount,
+                  onChangeText: (t: string) => setReceivedAmount(sanitizeDecimalInput(t)),
+                  keyboardType: 'decimal-pad',
+                })}
             {renderFormInput('Note', {
               value: note,
               onChangeText: setNote,

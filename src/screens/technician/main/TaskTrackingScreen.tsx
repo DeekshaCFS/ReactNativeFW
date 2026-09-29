@@ -64,7 +64,13 @@ export default function TaskTrackingScreen({ navigation, route }: Props) {
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
 
-  const { actionState, errorMessage, acceptTask, rejectTask } = useTaskStatus();
+  const { actionState, errorMessage, wasTaskUnavailable, acceptTask, resumeTask, rejectTask } = useTaskStatus();
+
+  // Java: ValidateTaskDetails -> 201 "No Data Found." sends the user home to refresh.
+  const handleTaskUnavailable = () =>
+    Alert.alert('Task Unavailable', 'This task is no longer available. Refreshing your tasks.', [
+      { text: 'OK', onPress: () => navigation.popTo('TechnicianTabsRoot', { screen: 'Home' }) },
+    ]);
   const isLoading = actionState === 'loading';
   const userId    = task.UserId ?? 0;
 
@@ -117,13 +123,37 @@ export default function TaskTrackingScreen({ navigation, route }: Props) {
     const updated = await acceptTask(task, userId, responseCode);
 
     if (!updated) {
+      if (wasTaskUnavailable()) {
+        handleTaskUnavailable();
+        return;
+      }
       Alert.alert('Error', errorMessage ?? 'Could not accept task');
       return;
     }
 
     setFlow({ isTaskStart: true });
     setSheetVisible(false);
-    navigation.navigate('TaskRouteMap', { task: updated });
+    // replace, not push: Java swaps fragments without a back stack, so "back" from the
+    // next step must not land on this Accept sheet and post the accept again.
+    navigation.replace('TaskRouteMap', { task: updated });
+  };
+
+  // OnHold -> Ongoing. Java skips the route map and opens the countdown screen directly
+  // (TechDashboardFragmentNew.updateTask -> navigateToStartTaskCountDown).
+  const handleResume = async () => {
+    const resumed = await resumeTask(task, userId);
+
+    if (!resumed) {
+      if (wasTaskUnavailable()) {
+        handleTaskUnavailable();
+        return;
+      }
+      Alert.alert('Error', errorMessage ?? 'Could not resume task');
+      return;
+    }
+
+    setSheetVisible(false);
+    navigation.replace('TaskExecution', { task: resumed });
   };
 
   const handleRejectConfirm = async () => {
@@ -136,7 +166,14 @@ export default function TaskTrackingScreen({ navigation, route }: Props) {
     }
 
     const success = await rejectTask(task, userId, selectedReason, photosWithImage, rejectNote.trim() || undefined);
-    if (!success) { console.warn(errorMessage ?? 'Could not reject task'); return; }
+    if (!success) {
+      if (wasTaskUnavailable()) {
+        handleTaskUnavailable();
+        return;
+      }
+      Alert.alert('Error', errorMessage ?? 'Could not reject task');
+      return;
+    }
     setFlow({ isTaskRejected: true });
     setSheetVisible(false);
     navigation.goBack();
@@ -144,16 +181,26 @@ export default function TaskTrackingScreen({ navigation, route }: Props) {
 
   const handleClose = () => navigation.goBack();
 
+  // Android hardware back: one step back inside the sheet (reject -> actions), otherwise
+  // leave the screen. A late-task reject (autoReject) has no "actions" step to return to.
+  const handleBack = () => {
+    if (sheetStep === 'reject' && !autoReject) {
+      setSheetStep('actions');
+    } else {
+      handleClose();
+    }
+  };
+
   return (
     <View style={styles.root}>
       <View style={styles.bgOverlay} />
 
-      <Modal visible={sheetVisible} transparent animationType="slide">
+      <Modal visible={sheetVisible} transparent animationType="slide" onRequestClose={handleBack}>
         <View style={styles.modalOverlay} />
         <View style={[styles.sheet, { paddingBottom: insets.bottom + ms(8) }]}>
           {sheetStep === 'actions' && (
             isResumeFlow
-              ? <OnHoldResumeSheet task={task} onClose={handleClose} onResume={handleAccept} isLoading={isLoading} />
+              ? <OnHoldResumeSheet task={task} onClose={handleClose} onResume={handleResume} isLoading={isLoading} />
               : <ActionSheet task={task} onClose={handleClose} onAccept={handleAccept} onReject={() => setSheetStep('reject')} isLoading={isLoading} />
           )}
           {sheetStep === 'reject' && (
@@ -164,7 +211,7 @@ export default function TaskTrackingScreen({ navigation, route }: Props) {
               note={rejectNote}
               onNoteChange={setRejectNote}
               onConfirm={handleRejectConfirm}
-              onBack={() => setSheetStep('actions')}
+              onBack={handleBack}
               isLoading={isLoading}
               photos={rejectPhotos}
               onOpenPhotoPicker={openPhotoPicker}

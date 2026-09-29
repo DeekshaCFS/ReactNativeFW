@@ -21,6 +21,7 @@ import AddQuoteModal from './AddQuoteModal';
 import QuotationDetailsScreen from './QuotationDetailsScreen';
 import InvoiceDetailsScreen from './InvoiceDetailsScreen';
 import {scale, sp, vs} from '../../utils/responsive';
+import {formatAmount} from '../../utils/decimal';
 
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
@@ -278,7 +279,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
             Customer: <Text style={styles.metaCustomer}>{getQuoteCustomerName(item)}</Text>
           </Text>
           <Text style={styles.metaLabel} numberOfLines={1}>
-            Amount: <Text style={styles.metaAmount}>Rs. {getQuoteAmount(item)}</Text>
+            Amount: <Text style={styles.metaAmount}>Rs. {formatAmount(getQuoteAmount(item))}</Text>
           </Text>
         </View>
       </TouchableOpacity>
@@ -317,7 +318,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
             Customer: <Text style={styles.metaCustomer}>{getInvoiceCustomerName(item)}</Text>
           </Text>
           <Text style={styles.metaLabel} numberOfLines={1}>
-            Amount: <Text style={styles.metaAmount}>Rs. {getInvoiceAmount(item)}</Text>
+            Amount: <Text style={styles.metaAmount}>Rs. {formatAmount(getInvoiceAmount(item))}</Text>
           </Text>
         </View>
       </TouchableOpacity>

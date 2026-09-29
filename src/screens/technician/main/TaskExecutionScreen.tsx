@@ -34,6 +34,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import Video, { VideoRef } from 'react-native-video';
 import { TASK_STATUS_ID } from '../../../constants/taskStatus';
+import { buildImagesPayload } from '../../../utils/imagePayload';
+import { nowAsJavaTime } from '../../../utils/taskStatus.utils';
+import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
 
 type Task = TasksListResultData;
 type AssignedItem = TasksListMultipleItemAssigned;
@@ -70,6 +73,15 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
   const [trackingLoading, setTrackingLoading] = useState(false);
 
   const [showContinue, setShowContinue] = useState(false);
+
+  // Java (TaskRequestItems_FW.setRefresh): after items are requested from the on-hold
+  // dialog, the on-hold dialog opens again with what the user had already entered.
+  useEffect(() => {
+    if (route.params?.reopenOnHold) {
+      setShowOnHoldSheet(true);
+      navigation.setParams({ reopenOnHold: undefined });
+    }
+  }, [route.params?.reopenOnHold, navigation]);
 
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
 
@@ -117,7 +129,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       if (
         routeTask.StartDate &&
         (routeTask.TaskState === 1 ||
-          (routeTask.TaskState === 0 && routeTask.TaskStatus === 'On Hold'))
+          (routeTask.TaskState === 0 && routeTask.TaskStatus === 'OnHold'))
       ) {
         setShowContinue(true);
       }
@@ -245,7 +257,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         UserId: Number(uid),
         TaskStatus: TASK_STATUS_ID.Ongoing,
         TaskState: 1,
-        Time: seconds,
+        Time: nowAsJavaTime(),
       });
       console.log('START RESPONSE', response);
 
@@ -279,7 +291,16 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
     try {
       setUploading(true);
 
+      const now = new Date();
+      const p2 = (n: number) => String(n).padStart(2, '0');
+      // Java: mPhotoName = "yyyyMMdd_HHmmss_<which>.jpg"
+      const photoName =
+        `${now.getFullYear()}${p2(now.getMonth() + 1)}${p2(now.getDate())}_` +
+        `${p2(now.getHours())}${p2(now.getMinutes())}${p2(now.getSeconds())}_1.jpg`;
+
       const response = await addPhotoBeforeTask({
+        DeviceInfoImageName: photoName,
+        Images: buildImagesPayload(presentPhotos.map(p => p.base64)),
         DeviceInfoImagePath: presentPhotos[0]?.base64 || '',
         DeviceInfoImagePath1: presentPhotos[1]?.base64 || '',
         DeviceInfoImagePath2: presentPhotos[2]?.base64 || '',
@@ -330,7 +351,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         TaskState: 0, // TaskState.NOT_STARTED
         RejectedTaskNotes: rejectReason.trim(),
         TotalDistance: 0,
-        Time: seconds,
+        Time: nowAsJavaTime(),
         Task_Rejected_Image_Dtls: taskRejectedImageDtls,
       });
 
@@ -371,10 +392,12 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         Pick1: onHoldPhotos[0]?.base64 || '',
         Pick2: onHoldPhotos[1]?.base64 || '',
         Pick3: onHoldPhotos[2]?.base64 || '',
-        CreatedBy: Number(uid),
-        CreatedDate: new Date().toISOString(),
-        UpdatedBy: Number(uid),
-        UpdatedDate: new Date().toISOString(),
+        Images: buildImagesPayload(presentHoldPhotos.map(p => p.base64), true),
+        // Java copies these from the task (resultData) rather than using "now".
+        CreatedBy: routeTask.CreatedBy ?? Number(uid),
+        CreatedDate: routeTask.CreatedDate ?? new Date().toISOString(),
+        UpdatedBy: Number(routeTask.UpdatedBy ?? uid),
+        UpdatedDate: routeTask.UpdatedDate ?? new Date().toISOString(),
         TaskStatus: 5,
       });
 
@@ -400,17 +423,41 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
   const handleEndTask = async () => {
     setIsRunning(false);
     try {
-      await updateTaskStatus({
+      const res = await updateTaskStatus({
         TaskId: routeTask.Id,
         UserId: Number(uid),
         TaskStatus: TASK_STATUS_ID.Ongoing,
         TaskState: 2,
-        Time: seconds,
+        Time: nowAsJavaTime(),
       });
+      // Java only moves on to Closure after the server confirms ENDED_NO_PAYMENT.
+      if (res?.Code !== '200') {
+        setIsRunning(true);
+        Alert.alert('Error', res?.Message || 'Could not end the task. Please try again.');
+        return;
+      }
     } catch (err: any) {
-      console.warn('[TaskExecution] handleEndTask: updateTaskStatus failed, continuing to closure:', err?.message);
+      // Keep the task running so the technician can retry instead of reaching
+      // Closure while the server still thinks the task is in progress.
+      setIsRunning(true);
+      Alert.alert('Error', err?.message || 'Could not end the task. Please try again.');
+      return;
     }
-    navigation.navigate('TaskClosure', { task: routeTask, elapsedSeconds: seconds });
+    // Java sets TaskState = ENDED_NO_PAYMENT before opening Closure (HomeActivityNew
+    // updateTaskStatus success). Closure derives Rate-mode handling from this state, so
+    // it must not receive the stale pre-end task.
+    const endedTask: Task = {
+      ...routeTask,
+      TaskStatus: 'Ongoing',
+      TaskStatusId: TASK_STATUS_ID.Ongoing,
+      TaskState: 2,
+    };
+    // The task has ended on the server: back from Closure goes to the tab bar, never to
+    // this screen (where START would post TaskState 1 and regress the task).
+    resetToTabsThen(navigation, {
+      name: 'TaskClosure',
+      params: { task: endedTask, elapsedSeconds: seconds },
+    });
   };
 
   const handlePlayAudio = () => {

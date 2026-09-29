@@ -1,7 +1,10 @@
 // src/navigation/TechnicianTabs.tsx
 
 import { View, StyleSheet } from 'react-native';
+import { useEffect, useRef } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Geolocation from 'react-native-geolocation-service';
 
 import AppHeader from '../components/AppHeader';
 import BottomTabBar from '../components/BottomTabBar';
@@ -10,6 +13,8 @@ import HomeScreen from '../screens/technician/main/HomeScreen';
 import TaskScreen from '../screens/technician/main/TaskScreen';
 import AttendanceScreen from '../screens/technician/main/AttendanceScreen';
 import PassbookScreen from '../screens/technician/main/PassbookScreen';
+import { requestLocationPermission } from '../utils/locationPermision';
+import { putLiveLocation } from '../utils/firebaseLiveLocation';
 
 export type TechnicianTabParamList = {
   Home: undefined;
@@ -21,6 +26,45 @@ export type TechnicianTabParamList = {
 const Tab = createBottomTabNavigator<TechnicianTabParamList>();
 
 export default function TechnicianTabs() {
+  const watchIdRef = useRef<number | null>(null);
+
+  // Pushes this technician's location to the same Firebase Realtime
+  // Database node the Android app's admin-side live map reads from (see
+  // firebaseLiveLocation.ts). Runs for as long as this tab navigator is
+  // mounted, i.e. the whole logged-in technician session -- but only while
+  // the app is foregrounded (watchPosition, like all JS timers, pauses
+  // when the app backgrounds). Android's equivalent runs as a persistent
+  // foreground Service so it keeps tracking in the background too; that's
+  // a separate, larger native undertaking, not replicated here.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const uid = await AsyncStorage.getItem('uid');
+      if (cancelled || !uid) return;
+
+      const granted = await requestLocationPermission();
+      if (cancelled || !granted) return;
+
+      const userId = Number(uid);
+      watchIdRef.current = Geolocation.watchPosition(
+        position => {
+          putLiveLocation(userId, position.coords.latitude, position.coords.longitude);
+        },
+        () => {},
+        { enableHighAccuracy: true, distanceFilter: 20, interval: 5000 },
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+      if (watchIdRef.current !== null) {
+        Geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <View style={styles.container}>
       <Tab.Navigator

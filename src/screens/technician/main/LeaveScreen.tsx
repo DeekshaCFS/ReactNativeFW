@@ -398,7 +398,7 @@ export default function LeaveScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }}>
         {/* Tabs */}
         <View style={styles.tabRow}>
-          <Pressable style={styles.inactiveTab} onPress={() => navigation.navigate('TechnicianTabsRoot', { screen: 'Attendance' })}>
+          <Pressable style={styles.inactiveTab} onPress={() => navigation.popTo('TechnicianTabsRoot', { screen: 'Attendance' })}>
             <Text style={styles.inactiveTabText}>ATTENDANCE</Text>
           </Pressable>
           <Pressable style={styles.activeTab}>

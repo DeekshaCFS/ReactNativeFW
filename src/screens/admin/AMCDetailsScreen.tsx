@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {ms, sp, vs} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
+import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import {
   View,
   Text,
@@ -17,7 +18,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { getAmcReportDetails, getAmcDetailsForEdit, putAmcDetails, deleteAmc, getAmcRenewalDetails, renewAmcDetails } from '../../api/amc/amcService';
+import { getAmcReportDetails, getAmcDetailsForEdit, putAmcDetails, deleteAmc, getAmcRenewalDetails, renewAmcDetails, getServiceOccurrenceList, getReminderModeList, getAmcUpcomingValidation } from '../../api/amc/amcService';
+import SearchPickerModal, { type PickerOption } from '../../components/SearchPickerModal';
+import { getResultData, normalizeLookupOption } from './AMCDashboardScreen';
 import type { EditAMCDTOResultData, DeleteAMCResultData } from '../../api/amc/amc.types';
 import { downloadAmcReport } from '../../api/report/reportService';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
@@ -259,6 +262,14 @@ const styles = StyleSheet.create({
   editField: {
     marginBottom: ms(12),
   },
+  editSelectValue: {
+    fontSize: sp(14),
+    color: '#111827',
+  },
+  editSelectPlaceholder: {
+    fontSize: sp(14),
+    color: '#9CA3AF',
+  },
   editLabel: {
     color: '#374151',
     fontSize: sp(12),
@@ -432,6 +443,7 @@ type EditFormData = {
   customerEmail: string;
   address: string;
   landmark: string;
+  pinCode: string;
   productBrand: string;
   productName: string;
   serialNumber: string;
@@ -444,7 +456,35 @@ type EditFormData = {
   receivedAmount: string;
   expiryDate: string;
   note: string;
+  occurrenceId: number;
+  reminderId: number;
 };
+
+const OCCURRENCE_ID_PATHS = [
+  'ServiceOccuranceId',
+  'ServiceOccuranceID',
+  'ServiceOccurrenceId',
+  'ServiceOccurrenceID',
+  'AMCServiceOccuranceId',
+  'AMCServiceOccuranceID',
+  'AMCServiceOccuranceTypeId',
+  'AMCServiceOccuranceTypeID',
+  'ServiceOccuranceTypeId',
+  'ServiceOccuranceTypeID',
+];
+const REMINDER_ID_PATHS = [
+  'AMCSetReminderId',
+  'AMCSetReminderID',
+  'AMCSetReminderModeId',
+  'AMCSetReminderModeID',
+  'AMCSetReminderTypeId',
+  'AMCSetReminderTypeID',
+  'ReminderId',
+  'ReminderID',
+];
+// Util/TaskStatus.java codes -> Constant.TaskCategories names (ServiceListAdapter).
+const SERVICE_STATUS_LABELS: Record<number, string> = {1: 'Completed', 2: 'Rejected', 3: 'Ongoing', 4: 'InActive'};
+const SERVICE_COUNT_OPTIONS: PickerOption[] = Array.from({length: 20}, (_, i) => ({id: i + 1, label: String(i + 1)}));
 
 const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }) => {
   const { amcItem, amcServiceDetailsId, amcsId, ownerId } = route.params || {};
@@ -466,6 +506,9 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   const [isRenewing, setIsRenewing] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData | null>(null);
+  const [occurrenceOptions, setOccurrenceOptions] = useState<PickerOption[]>([]);
+  const [reminderOptions, setReminderOptions] = useState<PickerOption[]>([]);
+  const [editPicker, setEditPicker] = useState<'services' | 'occurrence' | 'reminder' | null>(null);
   const [editSourceData, setEditSourceData] = useState<Record<string, unknown> | null>(null);
 
   // Toolbar action state (Call / WhatsApp / Download / Add task / Delete)
@@ -625,6 +668,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       'ProductDetail.CustomerLocationInfoDto.Description',
       'City',
     ]) || ''),
+    pinCode: String(getFirstValue(data, [
+      'ProductDetail.Location.PinCode',
+      'ProductDetail.CustomerLocationInfoDto.PinCode',
+      'PinCode',
+    ]) || ''),
     productBrand: String(getFirstValue(data, ['ProductDetail.ProductBrand', 'ProductBrand']) || ''),
     productName: String(getFirstValue(data, ['ProductDetail.ProductName', 'ProductName']) || ''),
     serialNumber: String(getFirstValue(data, ['ProductDetail.ProductSerialNo', 'ProductSerialNo']) || ''),
@@ -637,6 +685,8 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     receivedAmount: String(getFirstValue(data, ['ReceivedAmount', 'ReceivedAmt']) ?? ''),
     expiryDate: toDateInputValue(getFirstValue(data, ['ExpiryDate'])),
     note: String(getFirstValue(data, ['AMCNotes', 'Note']) || ''),
+    occurrenceId: getNumberFromPaths(data, OCCURRENCE_ID_PATHS),
+    reminderId: getNumberFromPaths(data, REMINDER_ID_PATHS),
   });
 
   const updateEditField = <K extends keyof EditFormData>(
@@ -720,6 +770,29 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     }
   };
 
+  // Occurrence / Reminder options for the edit form -- same lists the Add AMC
+  // form uses (AMCDialog.editAMC receives serviceOccTypeList + reminderModeList).
+  const loadEditLookups = async () => {
+    if (occurrenceOptions.length && reminderOptions.length) {
+      return;
+    }
+    try {
+      const [occurrenceResponse, reminderResponse] = await Promise.all([
+        getServiceOccurrenceList(),
+        getReminderModeList(),
+      ]);
+      const toOptions = (rows: unknown[]) =>
+        rows
+          .map((row, index) => normalizeLookupOption(row as never, index))
+          .filter((o): o is {id: number; name: string} => Boolean(o))
+          .map(o => ({id: o.id, label: o.name}));
+      setOccurrenceOptions(toOptions(getResultData(occurrenceResponse)));
+      setReminderOptions(toOptions(getResultData(reminderResponse)));
+    } catch (err) {
+      console.warn('[AMC Edit Lookup Error]', err);
+    }
+  };
+
   const openEditModal = async () => {
     const editAmcsId = toNumberValue(amcsId || getFirstValue((amcData || amcItem || {}) as Record<string, unknown>, ['AMCsId', 'amCsId', 'Id', 'id']));
     const userId = ownerId || toNumberValue(getFirstValue((amcData || amcItem || {}) as Record<string, unknown>, ['UserId', 'userId']));
@@ -744,6 +817,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
 
       setEditSourceData(fetchedData);
       setEditFormData(buildEditFormData(fetchedData));
+      loadEditLookups();
       setEditModalVisible(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load AMC edit data';
@@ -799,28 +873,8 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         'ProductDetail.ProductDetailsId',
         'ProductDetail.ProductId',
       ]);
-      const reminderId = getNumberFromPaths(sourceRecord, [
-        'AMCSetReminderId',
-        'AMCSetReminderID',
-        'AMCSetReminderModeId',
-        'AMCSetReminderModeID',
-        'AMCSetReminderTypeId',
-        'AMCSetReminderTypeID',
-        'ReminderId',
-        'ReminderID',
-      ]);
-      const occurrenceId = getNumberFromPaths(sourceRecord, [
-        'ServiceOccuranceId',
-        'ServiceOccuranceID',
-        'ServiceOccurrenceId',
-        'ServiceOccurrenceID',
-        'AMCServiceOccuranceId',
-        'AMCServiceOccuranceID',
-        'AMCServiceOccuranceTypeId',
-        'AMCServiceOccuranceTypeID',
-        'ServiceOccuranceTypeId',
-        'ServiceOccuranceTypeID',
-      ]);
+      const reminderId = editFormData.reminderId || getNumberFromPaths(sourceRecord, REMINDER_ID_PATHS);
+      const occurrenceId = editFormData.occurrenceId || getNumberFromPaths(sourceRecord, OCCURRENCE_ID_PATHS);
 
       if (toNumberValue(editFormData.receivedAmount) > toNumberValue(editFormData.amcAmount)) {
         Alert.alert('Error', 'Received amount cannot be greater than service amount !');
@@ -878,7 +932,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
             IsActive: true,
             Longitude: String(locationDetail.Longitude || ''),
             Name: '',
-            PinCode: String(locationDetail.PinCode || ''),
+            PinCode: editFormData.pinCode.trim(),
             UpdatedBy: toNumberValue(locationDetail.UpdatedBy),
             latitude: String(locationDetail.latitude || locationDetail.Latitude || ''),
           },
@@ -969,14 +1023,22 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       return 'NA';
     };
 
+    const serviceTasks = (Array.isArray(data.TaskDetails) ? data.TaskDetails : []) as Array<{
+      TaskDate?: string;
+      TaskTime?: string;
+      TaskStatus?: number;
+      TechnicianName?: string;
+    }>;
+
     // Calculate remaining amount
     let remainingAmt = 'NA';
     const totalAmount = getNestedValue(data, 'AMCAmount');
     const receivedAmount = getNestedValue(data, 'ReceivedAmt');
     if (typeof totalAmount === 'number' && typeof receivedAmount === 'number') {
       const remaining = totalAmount - receivedAmount;
-      remainingAmt = String(remaining);
+      remainingAmt = formatAmount(remaining);
     }
+    const serviceAmount = getValue(['AMCAmount', 'ServiceAmount']);
 
     const extractedDetails = {
       amcName: getValue(['AMCName', 'ProductDetail.ProductName']),
@@ -990,17 +1052,21 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       productBrand: getValue(['ProductDetail.ProductBrand', 'BrandName']),
       productName: getValue(['ProductDetail.ProductName', 'ModelName']),
       serialNumber: getValue(['ProductDetail.ProductSerialNo', 'SerialNumber']),
-      serviceAmount: getValue(['AMCAmount', 'ServiceAmount']),
+      serviceAmount: serviceAmount === 'NA' ? serviceAmount : formatAmount(serviceAmount),
       remainingAmount: remainingAmt,
       underWarranty: getValue(['ProductDetail.UnderWarranty', 'Warranty']),
       activationDate: formatDate(getNestedValue(data, 'ActivationDate')),
       contractDate: formatDate(getNestedValue(data, 'ContractDate')),
       expiryDate: formatDate(getNestedValue(data, 'ExpiryDate')),
       noOfServices: getValue(['TotalServices', 'ServiceCount']),
-      serviceCompleted: getValue(['AMCServiceDetailDto', 'ServiceCompleted']),
+      // Java (AMCDetailsFragment.setTaskDetails) counts TaskDetails with TaskStatus == COMPLETED (1).
+      serviceCompleted: serviceTasks.length
+        ? String(serviceTasks.filter(t => Number(t.TaskStatus) === 1).length)
+        : getValue(['AMCServiceDetailDto', 'ServiceCompleted']),
       reminder: getValue(['AMCSetReminderType', 'ReminderMode']),
       occurrence: getValue(['ServiceOccuranceType', 'OccurrenceType']),
       note: getValue(['AMCNotes', 'Note']),
+      serviceTasks,
     };
     
     console.log('[Extracted Details]', extractedDetails);
@@ -1101,25 +1167,23 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     ]);
   };
 
-  const handleAddTaskPress = () => {
+  // Java (AMCDetailsFragment add-task icon) replaced its local expired /
+  // upcoming-date checks with the server's AMCs/GetUpcommingValidationFromAmcId:
+  // only "allow to task assing" opens Add Task; any other message is shown.
+  const handleAddTaskPress = async () => {
     const sourceRecord = getRawRecord();
-
-    const amcTypeName = String(
-      getFirstValue(sourceRecord, ['AMCTypeName']) ||
-        getFirstValue((amcItem || {}) as Record<string, unknown>, ['AMCTypeName', 'amcTypeName']) ||
-        '',
-    ).trim();
-
-    if (amcTypeName.toLowerCase() === 'expired') {
-      Alert.alert('AMC Expired', 'AMC expired, can not add task');
-      return;
-    }
-
-    const isUpcomingServiceActive = Boolean(getFirstValue(sourceRecord, ['IsUpcomingServiceActive']));
-    const upcomingServiceDate = getFirstValue(sourceRecord, ['UpcomingAmcsServiceDate']);
-
-    if (!isUpcomingServiceActive || !upcomingServiceDate) {
-      Alert.alert('Add Task', 'Can not add task for the selected date');
+    const validationAmcId = toNumberValue(
+      amcsId || getFirstValue(sourceRecord, ['AMCsId', 'amCsId', 'Id', 'id']),
+    );
+    try {
+      const validation = await getAmcUpcomingValidation({OwnerId: ownerId, AMCId: validationAmcId});
+      const message = String(validation?.Message ?? '');
+      if (validation?.Code !== '200' || message.toLowerCase() !== 'allow to task assing') {
+        Alert.alert('Add Task', message || 'Can not add task at this moment');
+        return;
+      }
+    } catch (err) {
+      Alert.alert('Add Task', err instanceof Error ? err.message : 'Can not add task at this moment');
       return;
     }
 
@@ -1169,6 +1233,24 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       />
     </View>
   );
+
+  const renderEditSelect = (label: string, value: string, onPress: () => void) => (
+    <View style={styles.editField}>
+      <Text style={styles.editLabel}>{label}</Text>
+      <Pressable style={styles.editInput} onPress={onPress}>
+        <Text style={value ? styles.editSelectValue : styles.editSelectPlaceholder}>{value || label}</Text>
+      </Pressable>
+    </View>
+  );
+
+  const editPickerConfig =
+    editPicker === 'services'
+      ? {title: 'No. of Services', options: SERVICE_COUNT_OPTIONS}
+      : editPicker === 'occurrence'
+        ? {title: 'Occurrence', options: occurrenceOptions}
+        : editPicker === 'reminder'
+          ? {title: 'Reminder', options: reminderOptions}
+          : null;
 
   if (loading) {
     return (
@@ -1351,14 +1433,33 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
             <Text style={styles.label}>Status</Text>
             <Text style={styles.value}>{details.status}</Text>
           </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Note</Text>
+            <Text style={styles.value}>{details.note}</Text>
+          </View>
         </View>
 
-        {/* Services Details Section */}
-        {details.note && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Services Details: {details.note}</Text>
-          </View>
-        )}
+        {/* Services Details: one row per scheduled AMC service (Java ServiceListAdapter). */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {details.serviceTasks.length ? 'Services Details' : 'Services Details : NA'}
+          </Text>
+          {details.serviceTasks.map((task, index) => (
+            <View key={index} style={styles.row}>
+              <Text style={styles.label}>{`Service ${index + 1}`}</Text>
+              <Text style={styles.value}>
+                {[
+                  task.TechnicianName,
+                  String(task.TaskDate ?? '').split('T')[0],
+                  task.TaskTime,
+                  SERVICE_STATUS_LABELS[Number(task.TaskStatus)] ?? '',
+                ]
+                  .filter(Boolean)
+                  .join('  ')}
+              </Text>
+            </View>
+          ))}
+        </View>
       </ScrollView>
 
       <Modal visible={historyVisible} animationType="fade" transparent onRequestClose={() => setHistoryVisible(false)}>
@@ -1383,10 +1484,10 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                       {String(row.ActivationDate ?? row.activationDate ?? '-')}
                     </Text>
                     <Text style={styles.historyRowValue}>
-                      Rs.Amount {String(row.AMCAmount ?? row.amcAmount ?? 0)}
+                      Rs.Amount {formatAmount(row.AMCAmount ?? row.amcAmount)}
                     </Text>
                     <Text style={styles.historyRowValue}>
-                      Rs.Received {String(row.ReceivedAmount ?? row.receivedAmount ?? 0)}
+                      Rs.Received {formatAmount(row.ReceivedAmount ?? row.receivedAmount)}
                     </Text>
                   </View>
                 ))}
@@ -1442,7 +1543,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         <View style={styles.editModalRoot}>
           <View style={styles.editModalPanel}>
             <View style={styles.editModalHeader}>
-              <Text style={styles.editModalTitle}>Edit AMC</Text>
+              <Text style={styles.editModalTitle}>Update AMC</Text>
               <Pressable
                 style={styles.editModalClose}
                 onPress={() => setEditModalVisible(false)}
@@ -1458,42 +1559,57 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 contentContainerStyle={styles.editFormContent}
                 keyboardShouldPersistTaps="handled"
               >
-                {renderEditInput('AMC Name', editFormData.amcName, value => updateEditField('amcName', value))}
-                {renderEditInput('Customer Name', editFormData.customerName, value => updateEditField('customerName', value))}
-                {renderEditInput('Customer Number', editFormData.customerNumber, value => updateEditField('customerNumber', value), { keyboardType: 'phone-pad' })}
-                {renderEditInput('Customer Email', editFormData.customerEmail, value => updateEditField('customerEmail', value), { keyboardType: 'email-address' })}
-                {renderEditInput('Address', editFormData.address, value => updateEditField('address', value), { multiline: true })}
-                {renderEditInput('Landmark', editFormData.landmark, value => updateEditField('landmark', value))}
-                {renderEditInput('Product Brand', editFormData.productBrand, value => updateEditField('productBrand', value))}
-                {renderEditInput('Product Name', editFormData.productName, value => updateEditField('productName', value))}
-                {renderEditInput('Serial Number', editFormData.serialNumber, value => updateEditField('serialNumber', value))}
+                {/* Same field order as dialog_add_amc_new.xml (AMCDialog.editAMC). */}
+                {renderEditInput('AMC Name *', editFormData.amcName, value => updateEditField('amcName', value))}
+                {renderEditInput('Customer Name *', editFormData.customerName, value => updateEditField('customerName', value))}
+                {renderEditInput('Customer Number *', editFormData.customerNumber, value => updateEditField('customerNumber', value), { keyboardType: 'phone-pad' })}
+                {renderEditInput('Email ID', editFormData.customerEmail, value => updateEditField('customerEmail', value), { keyboardType: 'email-address' })}
+                {renderEditInput('Address *', editFormData.address, value => updateEditField('address', value), { multiline: true })}
+                {renderEditInput('Landmark *', editFormData.landmark, value => updateEditField('landmark', value))}
+                {renderEditInput('Brand Name *', editFormData.productBrand, value => updateEditField('productBrand', value))}
+                {renderEditInput('Model Name *', editFormData.productName, value => updateEditField('productName', value))}
+                {renderEditInput('Serial No. *', editFormData.serialNumber, value => updateEditField('serialNumber', value))}
 
                 <View style={styles.editToggleRow}>
                   <Text style={styles.editLabel}>Under Warranty</Text>
                   <View style={styles.editToggle}>
+                    <Pressable
+                      style={[styles.editToggleOption, !editFormData.underWarranty ? styles.editToggleOptionActive : null]}
+                      onPress={() => updateEditField('underWarranty', false)}
+                    >
+                      <Text style={[styles.editToggleText, !editFormData.underWarranty ? styles.editToggleTextActive : null]}>NO</Text>
+                    </Pressable>
                     <Pressable
                       style={[styles.editToggleOption, editFormData.underWarranty ? styles.editToggleOptionActive : null]}
                       onPress={() => updateEditField('underWarranty', true)}
                     >
                       <Text style={[styles.editToggleText, editFormData.underWarranty ? styles.editToggleTextActive : null]}>Yes</Text>
                     </Pressable>
-                    <Pressable
-                      style={[styles.editToggleOption, !editFormData.underWarranty ? styles.editToggleOptionActive : null]}
-                      onPress={() => updateEditField('underWarranty', false)}
-                    >
-                      <Text style={[styles.editToggleText, !editFormData.underWarranty ? styles.editToggleTextActive : null]}>No</Text>
-                    </Pressable>
                   </View>
                 </View>
 
-                {renderEditInput('Activation Date (YYYY-MM-DD)', editFormData.activationDate, value => updateEditField('activationDate', value))}
-                {renderEditInput('Activation Time', editFormData.activationTime, value => updateEditField('activationTime', value))}
-                {renderEditInput('Contract Date (YYYY-MM-DD)', editFormData.contractDate, value => updateEditField('contractDate', value))}
+                {renderEditInput('Activation Date * (YYYY-MM-DD)', editFormData.activationDate, value => updateEditField('activationDate', value))}
+                {renderEditInput('Time *', editFormData.activationTime, value => updateEditField('activationTime', value))}
+                {renderEditInput('Contract Date * (YYYY-MM-DD)', editFormData.contractDate, value => updateEditField('contractDate', value))}
+                {renderEditSelect('No. of Services', editFormData.totalServices, () => setEditPicker('services'))}
+                {renderEditSelect(
+                  'Occurrence',
+                  occurrenceOptions.find(o => o.id === editFormData.occurrenceId)?.label ?? '',
+                  () => setEditPicker('occurrence'),
+                )}
+                {editFormData.underWarranty
+                  ? null
+                  : renderEditInput('Service Amount *', editFormData.amcAmount, value => updateEditField('amcAmount', sanitizeDecimalInput(value)), { keyboardType: 'decimal-pad' })}
                 {renderEditInput('Expiry Date (YYYY-MM-DD)', editFormData.expiryDate, value => updateEditField('expiryDate', value))}
-                {renderEditInput('Total Services', editFormData.totalServices, value => updateEditField('totalServices', value), { keyboardType: 'numeric' })}
-                {renderEditInput('Service Amount', editFormData.amcAmount, value => updateEditField('amcAmount', value), { keyboardType: 'decimal-pad' })}
-                {renderEditInput('Received Amount', editFormData.receivedAmount, value => updateEditField('receivedAmount', value), { keyboardType: 'decimal-pad' })}
-                {renderEditInput('Notes', editFormData.note, value => updateEditField('note', value), { multiline: true })}
+                {renderEditSelect(
+                  'Reminder',
+                  reminderOptions.find(o => o.id === editFormData.reminderId)?.label ?? '',
+                  () => setEditPicker('reminder'),
+                )}
+                {editFormData.underWarranty
+                  ? null
+                  : renderEditInput('Received Amount', editFormData.receivedAmount, value => updateEditField('receivedAmount', sanitizeDecimalInput(value)), { keyboardType: 'decimal-pad' })}
+                {renderEditInput('Note', editFormData.note, value => updateEditField('note', value), { multiline: true })}
 
                 <Pressable
                   style={[styles.editSaveButton, editLoading ? styles.editSaveButtonDisabled : null]}
@@ -1503,7 +1619,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                   {editLoading ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.editSaveButtonText}>Save</Text>
+                    <Text style={styles.editSaveButtonText}>UPDATE</Text>
                   )}
                 </Pressable>
 
@@ -1520,6 +1636,24 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 <ActivityIndicator color={THEME_PRIMARY} />
               </View>
             )}
+            {editPickerConfig ? (
+              <SearchPickerModal
+                visible
+                title={editPickerConfig.title}
+                options={editPickerConfig.options}
+                onClose={() => setEditPicker(null)}
+                onSelect={option => {
+                  if (editPicker === 'services') {
+                    updateEditField('totalServices', String(option.id));
+                  } else if (editPicker === 'occurrence') {
+                    updateEditField('occurrenceId', option.id);
+                  } else if (editPicker === 'reminder') {
+                    updateEditField('reminderId', option.id);
+                  }
+                  setEditPicker(null);
+                }}
+              />
+            ) : null}
           </View>
         </View>
       </Modal>

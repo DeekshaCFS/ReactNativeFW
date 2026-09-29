@@ -803,6 +803,8 @@ export type FocStatusTagResponse = {
 };
 
 export type ItemInventoryListItem = {
+  serialNoValue?: string | null;
+  SerialNoValue?: string | null;
   id?: number;
   Id?: number;
   ownerId?: number | null;

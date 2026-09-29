@@ -1,8 +1,8 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
+import {formatAmount} from '../../utils/decimal';
 import {
-  ActivityIndicator,
-  Alert,
+  ActivityIndicator,
   FlatList,
   Image,
   Modal,
@@ -28,6 +28,7 @@ import {
 import { getTodayPassbook, getMonthlyPassbook, getYearlyPassbook } from '../../api/passbook/passbookService';
 import { getExpenseUserList } from '../../api/expenditure/expenditureService';
 import ManageBalanceModal from './ManageBalanceModal';
+import TechnicianExpenseDetailsModal from './TechnicianExpenseDetailsModal';
 
 type PassbookExpenditureTabHostScreenProps = {
   userId: number;
@@ -238,7 +239,7 @@ const valuesFromYearly = (data: MonthlyPassbookData | null): PassbookValues => (
   remaining: getSummaryNumber(data, ['totalOpening', 'TotalOpening']),
 });
 
-const formatMoney = (value: number) => `Rs. ${value}`;
+const formatMoney = (value: number) => `Rs. ${formatAmount(value)}`;
 
 const getExpenseString = (
   item: ExpenseTechnicianItem,
@@ -315,6 +316,7 @@ const PassbookExpenditureTabHostScreen = ({
   userId,
 }: PassbookExpenditureTabHostScreenProps) => {
   const [activeTab, setActiveTab] = useState<MainTab>('passbook');
+  const [expenseTechnician, setExpenseTechnician] = useState<{id: number; name: string} | null>(null);
   const [period, setPeriod] = useState<PassbookPeriod>('today');
   const [passbookValues, setPassbookValues] =
     useState<PassbookValues>(emptyPassbookValues);
@@ -713,10 +715,8 @@ const PassbookExpenditureTabHostScreen = ({
         activeOpacity={0.78}
         style={styles.technicianCard}
         onPress={() =>
-          Alert.alert(
-            getTechnicianName(item),
-            `Balance: ${formatMoney(getTechnicianBalance(item))}`,
-          )
+          // ExpenseTechnicianListFragment.onClick -> ExpenseDetailsFragment.
+          setExpenseTechnician({id: getTechnicianId(item), name: getTechnicianName(item)})
         }>
         <Image
           source={photo ? {uri: photo} : DEFAULT_PROFILE_ICON}
@@ -901,6 +901,10 @@ const PassbookExpenditureTabHostScreen = ({
         </Pressable>
       </Modal>
 
+      <TechnicianExpenseDetailsModal
+        technician={expenseTechnician}
+        onClose={() => setExpenseTechnician(null)}
+      />
       <ManageBalanceModal
         visible={isBalanceModalOpen}
         userId={userId}

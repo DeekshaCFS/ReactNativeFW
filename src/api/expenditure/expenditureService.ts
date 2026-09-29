@@ -4,14 +4,22 @@
 import apiClient from '../apiClient';
 import type { AddCredit, AddExpense, DeductBalance, ExpenseDetails, ExpenseDetailsResultData, ExpenseTechList, ExpenseTechListResultData } from './expenditure.types';
 
-// Java's Expenditure/AddCredit and Expenditure/AddDeduction are both
-// @FormUrlEncoded — posting a JSON body against them silently no-ops on the
-// live API. See src/api/signUp/signUpService.ts for the same fix pattern.
+// Java's Expenditure/AddCredit, Expenditure/AddDeduction and
+// Expenditure/AddExpense are all @FormUrlEncoded — posting a JSON body
+// against them silently no-ops on the live API. See
+// src/api/signUp/signUpService.ts for the same fix pattern.
 export type UpdateAddCreditRequest = {
   Amount: number;
   CredidDescription?: string;
   GivenBy: number;
   ReceivedBy: number;
+};
+
+export type UpdateAddExpenseRequest = {
+  Amount: number;
+  ExpenseName: string;
+  UserId: number;
+  ExpensePhoto?: string;
 };
 
 export type UpdateDeductBalanceRequest = {
@@ -42,8 +50,16 @@ export const updateAddCredit = async (data: UpdateAddCreditRequest): Promise<Add
  * Source: URLConstant.Expenditure.UPDATE_ADD_EXPENSE
  * Endpoint: POST Expenditure/AddExpense
  */
-export const updateAddExpense = async (data?: Partial<AddExpense>): Promise<AddExpense> => {
-  const response = await apiClient.post('Expenditure/AddExpense', data);
+export const updateAddExpense = async (data: UpdateAddExpenseRequest): Promise<AddExpense> => {
+  const body = new URLSearchParams();
+  body.append('Amount', String(data.Amount));
+  body.append('ExpenseName', data.ExpenseName);
+  body.append('UserId', String(data.UserId));
+  body.append('ExpensePhoto', data.ExpensePhoto ?? '');
+
+  const response = await apiClient.post('Expenditure/AddExpense', body.toString(), {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
   return response.data;
 };
 

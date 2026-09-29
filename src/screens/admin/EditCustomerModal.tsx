@@ -617,14 +617,32 @@ const EditCustomerModal = ({
               </View>
             </View>
 
-            <LabeledField
-              label="Pin Code"
-              required
-              value={form.pinCode}
-              keyboardType="number-pad"
-              maxLength={6}
-              onChangeText={text => setField('pinCode', text.replace(/[^0-9]/g, '').slice(0, 6))}
-            />
+            {/* Row order follows dialog_add_customer.xml:
+                [Pin Code | Mobile Number], then [Landmark/PACI | Telephone]. */}
+            <View style={styles.fieldRow}>
+              <View style={styles.halfWrap}>
+                <LabeledField
+                  label="Pin Code"
+                  required
+                  half
+                  value={form.pinCode}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  onChangeText={text => setField('pinCode', text.replace(/[^0-9]/g, '').slice(0, 6))}
+                />
+              </View>
+              <View style={styles.halfWrap}>
+                <LabeledField
+                  label="Mobile Number"
+                  required
+                  half
+                  value={form.mobileNumber}
+                  keyboardType="phone-pad"
+                  icon="👤"
+                  onChangeText={text => setField('mobileNumber', text)}
+                />
+              </View>
+            </View>
 
             <View style={styles.fieldRow}>
               <View style={styles.halfWrap}>
@@ -634,17 +652,6 @@ const EditCustomerModal = ({
                   half
                   value={form.description}
                   onChangeText={text => setField('description', text)}
-                />
-              </View>
-              <View style={styles.halfWrap}>
-                <LabeledField
-                  label="Phone Number"
-                  required
-                  half
-                  value={form.mobileNumber}
-                  keyboardType="phone-pad"
-                  icon="👤"
-                  onChangeText={text => setField('mobileNumber', text)}
                 />
               </View>
               {isAddMode ? (

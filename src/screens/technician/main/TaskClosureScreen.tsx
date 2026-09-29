@@ -17,11 +17,12 @@ import {
   PanResponder,
   GestureResponderEvent,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Rect } from 'react-native-svg';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { sanitizeDecimalInput } from '../../../utils/decimal';
 import {
   GetAllTaskListDTOResultData as Task,
   GetAllTaskListDTODeviceInfoList as DeviceInfo,
@@ -33,6 +34,10 @@ import {
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { getAllchkpointCategory, postChkpointData } from '../../../api/fsrManagement/fsrManagementService';
 import { requestLocationPermission, getCurrentPosition, getAddressFromCoordinates, Coordinates } from '../../../utils/locationPermision';
+import { buildImagesPayload } from '../../../utils/imagePayload';
+import { getCustomFieldData } from '../../../api/users/usersService';
+import { pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import RNFS from 'react-native-fs';
 
 // ─── Local Types ──────────────────────────────────────────────────────────────
 
@@ -41,9 +46,33 @@ interface PhotoAsset {
   base64?: string;
 }
 
+// Java: callFileAttachmentIntent() accepted only these types, up to 5 MB.
+const ATTACHMENT_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'application/pdf',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/zip',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+];
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+// Same placeholder Java (TaskClosureFragmentNew.validate) uses when no signature is drawn.
+const EMPTY_SIGNATURE_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jK3sAAAAASUVORK5CYII=';
+
+interface AttachmentAsset {
+  uri: string;
+  name: string;
+  type: string;
+  base64: string;
+}
+
 type PendingPhoto =
   | { type: 'field'; index: number }
-  | { type: 'attachment' }
   | { type: 'customerPhoto' }
   | { type: 'techPhoto' }
   | { type: 'devicePhoto'; deviceIndex: number; photoKey: 'DevicePhoto1' | 'DevicePhoto2' | 'DevicePhoto3' };
@@ -56,6 +85,8 @@ interface DeviceEntry extends Partial<DeviceInfo> {
   DevicePhoto1Uri?: string;
   DevicePhoto2Uri?: string;
   DevicePhoto3Uri?: string;
+  // Raw text of the reading while typing, so a trailing '.' isn't lost to Number().
+  DeviceReadingText?: string;
 }
 
 interface WorkModeOption {
@@ -160,9 +191,10 @@ interface SignaturePadProps {
   paths: SignaturePath[];
   onPathsChange: (paths: SignaturePath[]) => void;
   height?: number;
+  onSizeChange?: (size: { width: number; height: number }) => void;
 }
 
-function SignaturePad({ paths, onPathsChange, height = 160 }: SignaturePadProps) {
+function SignaturePad({ paths, onPathsChange, height = 160, onSizeChange }: SignaturePadProps) {
   const currentPathRef = useRef<{ x: number; y: number }[]>([]);
   const pathsRef = useRef(paths);
   const [, forceUpdate] = useState(0);
@@ -196,7 +228,11 @@ function SignaturePad({ paths, onPathsChange, height = 160 }: SignaturePadProps)
   ).current;
 
   return (
-    <View style={[sigStyles.padContainer, { height }]} {...panResponder.panHandlers}>
+    <View
+      style={[sigStyles.padContainer, { height }]}
+      onLayout={e => onSizeChange?.(e.nativeEvent.layout)}
+      {...panResponder.panHandlers}
+    >
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
         {paths.map((path, idx) => (
           <Path
@@ -270,38 +306,44 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
   );
 }
 
-// ─── SVG → base64 ────────────────────────────────────────────────────────────
+// ─── Signature → PNG ─────────────────────────────────────────────────────────
+//
+// Java posts the signature as a PNG bitmap (base64). The old code here base64-encoded the
+// text of an SVG, which the server would store as a broken .png. react-native-svg can
+// rasterise a mounted <Svg> with toDataURL(), so an off-screen replica of each pad is
+// kept mounted (see SignatureSnapshot) and captured when the closure is built.
 
-function signaturePathsToBase64(paths: SignaturePath[]): string | undefined {
-  if (paths.length === 0) return undefined;
-  const W = 400, H = 200;
-  const buildD = (points: { x: number; y: number }[]) => {
-    if (points.length < 2) return '';
-    let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
-    for (let i = 1; i < points.length; i++) {
-      d += ` L ${points[i].x.toFixed(1)} ${points[i].y.toFixed(1)}`;
-    }
-    return d;
-  };
-  const pathTags = paths
-    .map(p => `<path d="${buildD(p.points)}" stroke="#1C1C1E" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`)
-    .join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="background:#fff">${pathTags}</svg>`;
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  let result = '';
-  let i = 0;
-  while (i < svg.length) {
-    const a = svg.charCodeAt(i++);
-    const b = i < svg.length ? svg.charCodeAt(i++) : 0;
-    const c = i < svg.length ? svg.charCodeAt(i++) : 0;
-    result +=
-      chars[a >> 2] +
-      chars[((a & 3) << 4) | (b >> 4)] +
-      (i - 2 < svg.length ? chars[((b & 15) << 2) | (c >> 6)] : '=') +
-      (i - 1 < svg.length ? chars[c & 63] : '=');
-  }
-  return result;
-}
+const DEFAULT_PAD_SIZE = { width: 300, height: 150 };
+
+const SignatureSnapshot = React.forwardRef<any, { paths: SignaturePath[]; size: { width: number; height: number } }>(
+  ({ paths, size }, ref) => (
+    <Svg ref={ref} width={size.width} height={size.height}>
+      <Rect x={0} y={0} width={size.width} height={size.height} fill="#FFFFFF" />
+      {paths.map((path, idx) => (
+        <Path
+          key={idx}
+          d={buildPathD(path.points)}
+          stroke="#1C1C1E"
+          strokeWidth={2.2}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+    </Svg>
+  ),
+);
+
+/** Base64 PNG (no data: prefix) of a mounted snapshot Svg, or undefined if it can't be captured. */
+const snapshotToPngBase64 = (ref: React.RefObject<any>): Promise<string | undefined> =>
+  new Promise(resolve => {
+    if (!ref.current?.toDataURL) return resolve(undefined);
+    const timer = setTimeout(() => resolve(undefined), 3000);
+    ref.current.toDataURL((b64: string) => {
+      clearTimeout(timer);
+      resolve(b64 || undefined);
+    });
+  });
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -312,6 +354,12 @@ export default function TaskClosure({ navigation, route }: any) {
   };
 
   const [submitting, setSubmitting] = useState(false);
+
+  // Off-screen copies of the signature pads, captured to PNG on submit.
+  const customerSnapshotRef = useRef<any>(null);
+  const techSnapshotRef = useRef<any>(null);
+  const [customerPadSize, setCustomerPadSize] = useState(DEFAULT_PAD_SIZE);
+  const [techPadSize, setTechPadSize] = useState(DEFAULT_PAD_SIZE);
 
   // ── Current location (Source: TaskClosureFragmentNew.getLastLocation() /
   // getAddressFromLocation()) — requests location permission and resolves
@@ -357,7 +405,35 @@ export default function TaskClosure({ navigation, route }: any) {
   const [deviceNotAllowed, setDeviceNotAllowed] = useState(false);
 
   // ── Attachment ──
-  const [attachment, setAttachment] = useState<PhotoAsset | null>(null);
+  const [attachment, setAttachment] = useState<AttachmentAsset | null>(null);
+
+  // Mirrors TaskClosureFragmentNew.openFilePicker(): any allowed file type, 5 MB cap.
+  const pickAttachment = async () => {
+    try {
+      const [file] = await pick({ type: ATTACHMENT_MIME_TYPES });
+      if (!file) return;
+
+      const base64 = await RNFS.readFile(file.uri, 'base64');
+      // Decoded size, as Java's isValidBase64Size() checks.
+      const bytes = Math.floor((base64.length * 3) / 4);
+      if (bytes > MAX_ATTACHMENT_BYTES) {
+        Alert.alert('', 'File size exceeds 5 MB.');
+        return;
+      }
+
+      setAttachment({
+        uri: file.uri,
+        name: file.name ?? 'attachment',
+        type: file.type ?? 'application/octet-stream',
+        base64,
+      });
+    } catch (err: any) {
+      // Picker cancelled -> no-op; anything else is worth surfacing.
+      if (!isErrorWithCode(err) || err.code !== errorCodes.OPERATION_CANCELED) {
+        Alert.alert('Error', 'Could not read the selected file.');
+      }
+    }
+  };
 
   // ── Photo source modal ──
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
@@ -651,8 +727,6 @@ export default function TaskClosure({ navigation, route }: any) {
         updated[pending.index] = photo;
         return updated;
       });
-    } else if (pending.type === 'attachment') {
-      setAttachment(photo);
     } else if (pending.type === 'customerPhoto') {
       setCustomerPhoto(photo);
     } else if (pending.type === 'techPhoto') {
@@ -732,10 +806,31 @@ export default function TaskClosure({ navigation, route }: any) {
         Alert.alert('Error', 'User session not found. Please log in again.');
         return;
       }
+      // Java (getCustomFieldData -> isCustomLabelRequired): every required Task Input
+      // field must have a value before the closure can continue.
+      try {
+        const customFields = await getCustomFieldData({ UserId: Number(freshUid), TaskId: routeTask.Id });
+        const missingRequired = (customFields.ResultData ?? []).some(
+          f => f.IsRequired && (f.UserValue == null || String(f.UserValue).trim() === ''),
+        );
+        if (missingRequired) {
+          Alert.alert('Required', 'Please Add all the mandatory Task Input to proceed !!');
+          return;
+        }
+      } catch {
+        // Java simply does not proceed when this check fails; do the same, visibly.
+        Alert.alert('Error', 'Could not verify the required task inputs. Please try again.');
+        return;
+      }
+
       const now = new Date().toISOString();
 
-      const customerSignatureImage = signaturePathsToBase64(customerSignPaths);
-      const techSignatureImage = signaturePathsToBase64(techSignPaths);
+      const customerSignatureImage = customerSignPaths.length > 0
+        ? await snapshotToPngBase64(customerSnapshotRef)
+        : undefined;
+      const techSignatureImage = techSignPaths.length > 0
+        ? await snapshotToPngBase64(techSnapshotRef)
+        : undefined;
 
       const isRateMode =
         routeTask.TaskState === TASK_STATE.ENDED_NO_PAYMENT &&
@@ -825,6 +920,9 @@ export default function TaskClosure({ navigation, route }: any) {
         WorkModeType: selectedWorkMode!.WorkModeType,
 
         ...buildFieldPhotoFields(fieldPhotos),
+        // Java also posts every field photo as AfterImages[] (the source for the
+        // new before/after image API), not just FieldPhoto/1/2.
+        AfterImages: buildImagesPayload(fieldPhotos.map(p => p?.base64)),
 
         TechnicalNotedto: technicalNotedto,
 
@@ -833,7 +931,9 @@ export default function TaskClosure({ navigation, route }: any) {
         SignedBy: customerName || undefined,
         MobileNo: customerNumber ? Number(customerNumber) : 0,
         ...(customerPhoto?.base64 && { CustomerImage: customerPhoto.base64 }),
-        ...(customerSignatureImage && { CustomerSignatureImage: customerSignatureImage }),
+        // Java always sends a customer signature; when none was captured it posts a
+        // 1x1 transparent PNG so the server field is never empty.
+        CustomerSignatureImage: customerSignatureImage ?? EMPTY_SIGNATURE_PNG_BASE64,
 
         ...(techPhoto?.base64 && { TechImage: techPhoto.base64 }),
         ...(techSignatureImage && { TechSignatureImage: techSignatureImage }),
@@ -842,10 +942,13 @@ export default function TaskClosure({ navigation, route }: any) {
         RatingBarId: 0,
         ...(ratingRemark.trim() && { RatingRemark: ratingRemark.trim() }),
 
-        ...(attachment?.base64 && {
+        // Java: name without extension + "." + extension of the picked file.
+        ...(attachment && {
           Tsk_Doc_Base64: attachment.base64,
-          Tsk_Doc_Name: 'attachment',
-          Tsk_Doc_Extension: '.jpg',
+          Tsk_Doc_Name: attachment.name.replace(/\.[^.]+$/, ''),
+          Tsk_Doc_Extension: attachment.name.includes('.')
+            ? `.${attachment.name.split('.').pop()}`
+            : '',
         }),
 
         SelectedCheckpointList: [],
@@ -1134,17 +1237,23 @@ export default function TaskClosure({ navigation, route }: any) {
                       style={styles.deviceInput}
                     />
                     <TextInput
-                      value={device.DeviceReading ? String(device.DeviceReading) : ''}
-                      onChangeText={val =>
+                      value={
+                        device.DeviceReadingText ??
+                        (device.DeviceReading ? String(device.DeviceReading) : '')
+                      }
+                      onChangeText={val => {
+                        const text = sanitizeDecimalInput(val);
                         setDevices(prev =>
                           prev.map((d, i) =>
-                            i === idx ? { ...d, DeviceReading: Number(val) } : d
+                            i === idx
+                              ? { ...d, DeviceReadingText: text, DeviceReading: Number(text) || 0 }
+                              : d
                           )
-                        )
-                      }
+                        );
+                      }}
                       placeholder="Device Reading"
                       placeholderTextColor="#ABABAB"
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
                       style={styles.deviceInput}
                     />
                     <View style={styles.photoRow}>
@@ -1222,6 +1331,13 @@ export default function TaskClosure({ navigation, route }: any) {
             <Text style={styles.tileTitle}>Add Task Input</Text>
             <Text style={styles.tileSub}>{'Click Here to add Task\nInput'}</Text>
           </Pressable>
+          <Pressable
+            style={[styles.tile, { backgroundColor: '#eef7ec' }]}
+            onPress={() => navigation.navigate('QRScanHistory', { task: routeTask })}
+          >
+            <Text style={styles.tileTitle}>Attach Item QR</Text>
+            <Text style={styles.tileSub}>{'Click Here to Scan\nQR Codes'}</Text>
+          </Pressable>
         </View>
 
         {/* ──────────────── CHECKPOINTS (FSR) ──────────────────── */}
@@ -1283,10 +1399,17 @@ export default function TaskClosure({ navigation, route }: any) {
           <Text style={styles.cardTitle}>* Upload Attachment Here [Upto 5 MB Limit]</Text>
           <Pressable
             style={styles.dashedBox}
-            onPress={() => openPhotoPicker({ type: 'attachment' })}
+            onPress={pickAttachment}
           >
-            {attachment?.uri ? (
-              <Image source={{ uri: attachment.uri }} style={styles.attachThumb} />
+            {attachment ? (
+              attachment.type.startsWith('image/') ? (
+                <Image source={{ uri: attachment.uri }} style={styles.attachThumb} />
+              ) : (
+                <View style={styles.dashedInner}>
+                  <Ionicons name="document-outline" size={sp(24)} color={COLORS.primary} />
+                  <Text style={styles.attachLabel} numberOfLines={1}>{attachment.name}</Text>
+                </View>
+              )
             ) : (
               <View style={styles.dashedInner}>
                 <Ionicons name="cloud-upload-outline" size={sp(24)} color={COLORS.primary} />
@@ -1399,6 +1522,7 @@ export default function TaskClosure({ navigation, route }: any) {
                   <SignaturePad
                     paths={customerSignPaths}
                     onPathsChange={setCustomerSignPaths}
+                    onSizeChange={setCustomerPadSize}
                     height={150}
                   />
 
@@ -1472,6 +1596,7 @@ export default function TaskClosure({ navigation, route }: any) {
                   <SignaturePad
                     paths={techSignPaths}
                     onPathsChange={setTechSignPaths}
+                    onSizeChange={setTechPadSize}
                     height={130}
                   />
                 </View>
@@ -1883,6 +2008,16 @@ export default function TaskClosure({ navigation, route }: any) {
         </Pressable>
       </Modal>
 
+
+      {/* Off-screen signature replicas used only to produce PNGs (see SignatureSnapshot). */}
+      <View pointerEvents="none" style={{ position: 'absolute', left: -10000, top: 0 }}>
+        {customerSignPaths.length > 0 && (
+          <SignatureSnapshot ref={customerSnapshotRef} paths={customerSignPaths} size={customerPadSize} />
+        )}
+        {techSignPaths.length > 0 && (
+          <SignatureSnapshot ref={techSnapshotRef} paths={techSignPaths} size={techPadSize} />
+        )}
+      </View>
     </KeyboardAvoidingView>
   );
 }

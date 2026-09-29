@@ -134,6 +134,7 @@ export default function AMCListScreen() {
                   navigation.navigate('AMCDetails', {
                     amcsId: item.AMCsId,
                     amcServiceDetailsId: item.AMCServiceDetailsId,
+                    rootAmcsId: item.RootAMCsId,
                   })
                 }
               >

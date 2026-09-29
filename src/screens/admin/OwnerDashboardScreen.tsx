@@ -14,6 +14,7 @@ import {getDashboardData} from '../../api/dashboard/dashboardService';
 import {getPassbookForDashboard} from '../../api/passbook/passbookService';
 import {getAmcDashboardCountDetails} from '../../api/amc/amcService';
 import {ms, sp} from '../../utils/responsive';
+import {formatAmount} from '../../utils/decimal';
 
 export type DayFilter = 'Today' | 'Week' | 'Month' | 'Year';
 
@@ -339,7 +340,7 @@ const OwnerDashboardScreen = ({
               <Text style={styles.metricLabel}>Earnings</Text>
               <Text style={styles.infoIcon}>ⓘ</Text>
             </View>
-            <Text style={styles.metricValueGreen}>Rs. {earningAmount.toFixed(0)}</Text>
+            <Text style={styles.metricValueGreen}>Rs. {formatAmount(earningAmount)}</Text>
           </Pressable>
           <Pressable style={styles.metricBlock} onPress={onAmcStatusPress}>
             <View style={[styles.metricLabelRow, styles.metricLabelRowCenter]}>

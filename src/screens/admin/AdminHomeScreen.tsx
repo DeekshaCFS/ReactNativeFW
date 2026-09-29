@@ -42,6 +42,8 @@ import AccountsScreen from './AccountsScreen';
 // 'Services', 'Help & Support' — see the `isXSection` checks below, which
 // compare `selectedDrawerLabel` against them.
 import AMCDashboardScreen from './AMCDashboardScreen';
+import ServiceCategoryTabHost from './ServiceCategoryTabHost';
+import BrandModelTabHost from './BrandModelTabHost';
 
 const LANGUAGE_GREETINGS: Record<string, string> = {
   English: 'Hello',
@@ -177,6 +179,8 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
   const isAMCSection = selectedDrawerLabel === 'AMC';
   const isLeadSection = selectedDrawerLabel === 'Leads';
   const isAccountsSection = selectedDrawerLabel === 'Accounts';
+  const isServicesSection = selectedDrawerLabel === 'Services';
+  const isBrandManagementSection = selectedDrawerLabel === 'Brand Management';
   const isHomeDashboard = selectedDrawerLabel === 'Dashboard';
 
   // Back from a drawer section (Leads, Accounts, AMC...) returns to the
@@ -355,6 +359,14 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
       return <AccountsScreen ownerId={ownerId} />;
     }
 
+    if (isServicesSection) {
+      return <ServiceCategoryTabHost ownerId={ownerId} />;
+    }
+
+    if (isBrandManagementSection) {
+      return <BrandModelTabHost ownerId={ownerId} />;
+    }
+
     if (isAMCSection) {
       return (
         <AMCDashboardScreen
@@ -416,7 +428,9 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
       isLeadSection ||
       isAccountsSection ||
       isItemInventorySection ||
-      isPassbookSection ? null : (
+      isPassbookSection ||
+      isServicesSection ||
+      isBrandManagementSection ? null : (
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
             <Text numberOfLines={1} style={styles.headerName}>
@@ -467,6 +481,8 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
       isPassbookSection ||
       isLeadSection ||
       isAccountsSection ||
+      isServicesSection ||
+      isBrandManagementSection ||
       isAMCSection ? (
         <View style={styles.taskContentContainer}>{renderContent()}</View>
       ) : (

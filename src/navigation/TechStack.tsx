@@ -14,6 +14,7 @@ import LeaveScreen from '../screens/technician/main/LeaveScreen';
 
 import ItemRequestScreen from '../screens/technician/main/ItemRequestScreen';
 import TaskInputScreen from '../screens/technician/main/TaskInputScreen';
+import QRScanHistoryScreen from '../screens/technician/main/QRScanHistoryScreen';
 
 import AddQuoteScreen from '../screens/technician/main/AddQuoteScreen';
 import AddInvoiceScreen from '../screens/technician/main/AddInvoiceScreen';
@@ -30,11 +31,13 @@ import ExpenditureScreen from '../screens/technician/drawer/ExpenditureScreen';
 import ServiceScreen from '../screens/technician/drawer/ServiceScreen';
 import AIScreen from '../screens/technician/drawer/AIScreen';
 import SettingScreen from '../screens/technician/drawer/SettingScreen';
-import PrivacyPolicyScreen from '../screens/technician/drawer/PrivacyPolicyScreen';
+import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
+import { HELP_CHAT_URL } from '../screens/technician/main/HelpScreen';
 import RefundPolicyScreen from '../screens/technician/drawer/RefundPolicy';
 import AboutFieldwebScreen from '../screens/technician/drawer/AboutFieldweb';
 import AMCListScreen from '../screens/technician/drawer/AMCListScreen';
 import AMCDetailsScreen from '../screens/technician/main/AMCDetailsScreen';
+import DocumentUploadScreen from '../screens/technician/main/DocumentUploadScreen';
 
 import { COLORS } from '../theme/theme';
 
@@ -51,16 +54,19 @@ export type TechnicianStackParamList = {
   notification: undefined;
   help: undefined;
   helpMessages: undefined;
+  helpChat: { url?: string } | undefined;
   Profile: undefined;
   'Issued Items': undefined;
   'Requested Items': undefined;
   ItemRequest: { routeTask?: any };
   TaskInput: { routeTask: any };
+  QRScanHistory: { task: any };
   Expenditure: undefined;
   'Routine Service': undefined;
   'FieldWeb AI': undefined;
   Settings: undefined;
   PrivacyPolicy: undefined;
+  TermsAndConditions: { url?: string } | undefined;
   RefundPolicy: undefined;
   AboutFieldweb: undefined;
   AMC: undefined;
@@ -71,6 +77,7 @@ export type TechnicianStackParamList = {
   PaymentReceived: { task: any; elapsedSeconds?: number };
   TaskClosure: { task: any; elapsedSeconds?: number };
   TaskSummary: { task: any; elapsedSeconds?: number; payload: any; preview: any };
+  DocumentUpload: { task: any };
 };
 
 const Stack = createNativeStackNavigator<TechnicianStackParamList>();
@@ -99,8 +106,10 @@ export default function TechnicianStack() {
       <Stack.Screen name="TaskClosure" component={TaskClosureScreen} options={{ title: 'Task Details' }} />
       <Stack.Screen name="TaskSummary" component={TaskSummaryScreen} options={{ title: 'Task Details' }} />
       <Stack.Screen name="PaymentReceived" component={PaymentReceivedScreen} options={{ title: 'Payment' }} />
+      <Stack.Screen name="DocumentUpload" component={DocumentUploadScreen} options={{ title: 'Upload Documents', headerShown: false }} />
       <Stack.Screen name="ItemRequest" component={ItemRequestScreen} options={{ title: 'Task Details' }} />
       <Stack.Screen name="TaskInput" component={TaskInputScreen} options={{ title: 'Task Details' }} />
+      <Stack.Screen name="QRScanHistory" component={QRScanHistoryScreen} options={{ title: 'Scan Item QR' }} />
 
       <Stack.Screen name="Leave" component={LeaveScreen} options={{ title: 'Attendance' }} />
 
@@ -113,6 +122,12 @@ export default function TechnicianStack() {
       <Stack.Screen name="notification" component={NotificationScreen} options={{ title: 'Notification' }} />
       <Stack.Screen name="help" component={HelpScreen} options={{ title: 'Help & Support' }} />
       <Stack.Screen name="helpMessages" component={HelpMessagesScreen} options={{ title: 'Help & Support' }} />
+      <Stack.Screen
+        name="helpChat"
+        component={PrivacyPolicyScreen}
+        initialParams={{ url: HELP_CHAT_URL }}
+        options={{ title: 'Help & Support' }}
+      />
 
       {/* Drawer destinations */}
       <Stack.Screen name="Profile" component={TechProfileScreen} options={{ title: 'Profile' }} />
@@ -123,6 +138,12 @@ export default function TechnicianStack() {
       <Stack.Screen name="FieldWeb AI" component={AIScreen} options={{ title: 'FieldWeb AI' }} />
       <Stack.Screen name="Settings" component={SettingScreen} options={{ title: 'Settings' }} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ title: 'Privacy Policy' }} />
+      <Stack.Screen
+        name="TermsAndConditions"
+        component={PrivacyPolicyScreen}
+        initialParams={{ url: TERMS_AND_CONDITIONS_URL }}
+        options={{ title: 'Terms & Conditions' }}
+      />
       <Stack.Screen name="RefundPolicy" component={RefundPolicyScreen} options={{ title: 'Refund Policy' }} />
       <Stack.Screen name="AboutFieldweb" component={AboutFieldwebScreen} options={{ title: 'About FieldWeb' }} />
       <Stack.Screen name="AMC" component={AMCListScreen} options={{ title: 'AMC' }} />

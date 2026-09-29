@@ -196,6 +196,11 @@ export interface UpdateUser {
 }
 
 export interface UpdateUserResultData {
+  // Bank Details & Tax (BankDetailsAndTaxFragmentTabHost) -- sent when
+  // updating either tab; the rest of the profile fields below are omitted
+  // in that case, matching AdminProfileScreen.tsx's partial-payload convention.
+  ownerAccountDetailsDto?: UserDetailsOwnerAccountDetailsDto;
+  lstOwnerTaxDetailsDtos?: UserDetailsLstOwnerTaxDetailsDtos[];
   CompanySortName?: string;
   ReferralCodesId?: number;
   CompanyGSTorPanNo?: string;

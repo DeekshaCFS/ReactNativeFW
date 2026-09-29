@@ -19,7 +19,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, hp, wp } from '../../../utils/responsive';
-import { getAllItemAssignedUnassigned } from '../../../api/item/itemService';
+import { getLargeItemAssignedUnassigned } from '../../../api/item/itemService';
 import { postFocDetails } from '../../../api/focItemRequest/focItemRequestService';
 import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
@@ -109,6 +109,14 @@ interface RequestItem {
 interface DropdownOption {
   id: number;
   label: string;
+  description?: string;
+}
+
+// Java: getLargeItemList() -> Item/AllItemList (OwnerId + SearchParam). Item Name and
+// Product Id are searched on the server; Product Id also accepts free text.
+interface DropdownConfig {
+  remote?: boolean;
+  allowCustom?: boolean;
 }
 
 type DateField = 'invoiceDate' | 'installDate';
@@ -153,13 +161,16 @@ export default function ItemRequestScreen({ navigation, route }: any) {
 
   const [uid, setUid] = useState<number>(0);
   const [token, setToken] = useState<string>('');
+  const [ownerId, setOwnerId] = useState<number>(routeTask?.OwnerId ?? 0);
 
   useEffect(() => {
     const loadSession = async () => {
       const storedUid   = await AsyncStorage.getItem('uid');
       const storedToken = await AsyncStorage.getItem('token');
+      const storedOwner = await AsyncStorage.getItem('owner_id');
       if (storedUid)   setUid(Number(storedUid));
       if (storedToken) setToken(storedToken);
+      if (storedOwner) setOwnerId(Number(storedOwner));
     };
     loadSession();
   }, []);
@@ -170,6 +181,8 @@ export default function ItemRequestScreen({ navigation, route }: any) {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const [dropdownSearch, setDropdownSearch]     = useState('');
   const dropdownCallback = useRef<((option: DropdownOption) => void) | null>(null);
+  const [dropdownConfig, setDropdownConfig]     = useState<DropdownConfig>({});
+  const [dropdownLoading, setDropdownLoading]   = useState(false);
 
   // ── Date picker state ──
   const [datePickerVisible, setDatePickerVisible] = useState(false);
@@ -192,10 +205,12 @@ export default function ItemRequestScreen({ navigation, route }: any) {
     ref: React.RefObject<View | null>,
     options: DropdownOption[],
     callback: (option: DropdownOption) => void,
+    config: DropdownConfig = {},
   ) => {
     ref.current?.measureInWindow((x, y, width, height) => {
       setDropdownPosition({ top: y + height + 4, left: x, width });
       setDropdownOptions(options);
+      setDropdownConfig(config);
       setDropdownSearch('');
       dropdownCallback.current = callback;
       setDropdownVisible(true);
@@ -231,24 +246,44 @@ export default function ItemRequestScreen({ navigation, route }: any) {
     pendingDateRef.current = null;
   };
 
-  // ── API data ──
-  const [itemNameOptions, setItemNameOptions] = useState<DropdownOption[]>([]);
-
+  // ── Server-side item search (debounced, min 3 chars) ──
+  // Item Name and Product Id both use Item/AllItemList with SearchParam, as Java does.
   useEffect(() => {
-    getAllItemAssignedUnassigned({ OwnerId: routeTask?.OwnerId ?? 0 }).then(res => {
-      const mapped = (res.ResultData ?? []).map((item: any) => ({
-        id: item.Id,
-        label: item.Name,
-      }));
-      setItemNameOptions(mapped);
-    }).catch(console.error);
-  }, []);
+    if (!dropdownVisible || !dropdownConfig.remote) return;
+    if (dropdownSearch.trim().length < 3) {
+      setDropdownOptions([]);
+      return;
+    }
 
-  const productIdOptions: DropdownOption[] = [
-    { id: 101, label: 'PRD-101' },
-    { id: 102, label: 'PRD-102' },
-    { id: 103, label: 'PRD-103' },
-  ];
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        setDropdownLoading(true);
+        const res = await getLargeItemAssignedUnassigned({
+          OwnerId: ownerId,
+          SearchParam: dropdownSearch.trim(),
+        });
+        if (cancelled) return;
+        setDropdownOptions(
+          (res.ResultData ?? []).map((item: any) => ({
+            id: item.Id,
+            label: item.Name,
+            description: item.Description,
+          })),
+        );
+      } catch {
+        if (!cancelled) setDropdownOptions([]);
+      } finally {
+        if (!cancelled) setDropdownLoading(false);
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [dropdownSearch, dropdownVisible, dropdownConfig.remote, ownerId]);
+
   const attachmentTypeOptions: DropdownOption[] = [
     { id: 1, label: 'Invoice' },
     { id: 2, label: 'Warranty Card' },
@@ -353,16 +388,18 @@ export default function ItemRequestScreen({ navigation, route }: any) {
 
       const payload: FOCRequestPayload = {
         FocRequestId:      0,
-        SourceTypeId:      0,
-        SourceName:        '',
+        // Java (TaskRequestItems_FW): SourceTypeId=1; "InDirect" when raised from a
+        // task (closure / on-hold / execution), "Direct" otherwise.
+        SourceTypeId:      1,
+        SourceName:        routeTask?.Id ? 'InDirect' : 'Direct',
         TaskId:            routeTask?.Id ?? 0,
         FocStatusTagId:    0,
         ChangedBy:         uid,
         IsActive:          true,
-        IsItemRecieved:    false,
+        IsItemRecieved:    true,   // Java sets the request-level flag true; per-item stays false
         IsAnyIssue:        false,
         Notes:             '',
-        CustomerDetailsId: routeTask?.CustomerDetailsId ?? 0,
+        CustomerDetailsId: routeTask?.CustomerDetailsid ?? 0,
         UserId:            uid,
         CreatedBy:         uid,
         CreatedDate:       now,
@@ -376,7 +413,17 @@ export default function ItemRequestScreen({ navigation, route }: any) {
 
       if (response.Code === '200') {
         Alert.alert('Success', 'Item request submitted successfully.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
+          {
+            text: 'OK',
+            onPress: () => {
+              // From the on-hold sheet: return to Execution and reopen that sheet.
+              if (route?.params?.fromOnHold) {
+                navigation.popTo('TaskExecution', { task: routeTask, reopenOnHold: true });
+              } else {
+                navigation.goBack();
+              }
+            },
+          },
         ]);
       } else {
         Alert.alert('Error', response.Message || 'Submission failed.');
@@ -389,11 +436,14 @@ export default function ItemRequestScreen({ navigation, route }: any) {
   };
 
   // ── Filtered options (min 3 chars) ──
+  // Remote dropdowns are already filtered by the server; local ones filter here.
   const filteredOptions =
     dropdownSearch.length >= 3
-      ? dropdownOptions.filter(o =>
-          o.label.toLowerCase().includes(dropdownSearch.toLowerCase())
-        )
+      ? dropdownConfig.remote
+        ? dropdownOptions
+        : dropdownOptions.filter(o =>
+            o.label.toLowerCase().includes(dropdownSearch.toLowerCase())
+          )
       : [];
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -444,8 +494,9 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                   onPress={() =>
                     openDropdown(
                       getTriggerRef(item.id, 'itemName'),
-                      itemNameOptions,
+                      [],
                       opt => updateItem(item.id, { itemName: opt.label, itemNameId: opt.id }),
+                      { remote: true },
                     )
                   }
                 >
@@ -483,8 +534,15 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                 onPress={() =>
                   openDropdown(
                     getTriggerRef(item.id, 'productId'),
-                    productIdOptions,
-                    opt => updateItem(item.id, { productId: opt.label, productIdValue: opt.id }),
+                    [],
+                    // Java: picking a product fills (and locks) its description;
+                    // typing a value that isn't in the list is kept as free text.
+                    opt => updateItem(item.id, {
+                      productId: opt.label,
+                      productIdValue: opt.id > 0 ? opt.id : null,
+                      productDescription: opt.description ?? '',
+                    }),
+                    { remote: true, allowCustom: true },
                   )
                 }
               >
@@ -707,8 +765,23 @@ export default function ItemRequestScreen({ navigation, route }: any) {
               <Text style={styles.inlineSearchHint}>
                 Type at least 3 characters to search
               </Text>
+            ) : dropdownLoading ? (
+              <Text style={styles.inlineSearchHint}>Searching...</Text>
             ) : filteredOptions.length === 0 ? (
-              <Text style={styles.inlineSearchHint}>No results found</Text>
+              <>
+                <Text style={styles.inlineSearchHint}>No results found</Text>
+                {dropdownConfig.allowCustom && (
+                  <Pressable
+                    style={styles.inlineDropdownItem}
+                    onPress={() => {
+                      dropdownCallback.current?.({ id: 0, label: dropdownSearch.trim() });
+                      closeDropdown();
+                    }}
+                  >
+                    <Text style={styles.inlineDropdownText}>Use "{dropdownSearch.trim()}"</Text>
+                  </Pressable>
+                )}
+              </>
             ) : (
               <ScrollView
                 keyboardShouldPersistTaps="handled"

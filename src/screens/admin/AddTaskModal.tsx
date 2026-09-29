@@ -2,6 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ensureSuccess} from '../../utils/apiResponse';
+import {sanitizeDecimalInput} from '../../utils/decimal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
@@ -32,7 +33,8 @@ import {getFsrBindList} from '../../api/fsrManagement/fsrManagementService';
 import type {FSRBindListDTOResultData} from '../../api/fsrManagement/fsrManagement.types';
 import {getLargeItemAssignedUnassigned} from '../../api/item/itemService';
 import type {ItemsListResultData} from '../../api/item/item.types';
-import {getTaskTagList} from '../../api/task/taskService';
+import {getTaskTagList, reassignTaskNew, updateTask} from '../../api/task/taskService';
+import type {TasksListResultData} from '../../api/task/task.types';
 import type {TagListResultData} from '../../api/task/task.types';
 import {addTask} from '../../api/taskList/taskListService';
 import {
@@ -85,6 +87,116 @@ export type AddTaskInitialValues = {
   productBrand?: string;
   modelNumber?: string;
   amcServiceDetailsId?: number;
+  // Self-assignment lock, used by the technician-side Routine Service flow
+  // (mirrors Java's TaskDialogNew.startTaskSelfCreation, which hardcodes
+  // the assignee to the logged-in user with no fieldworker picker).
+  assignedFieldworkerId?: number;
+  assignedFieldworkerName?: string;
+  lockAssignedFieldworker?: boolean;
+  // Edit / re-assign an existing task. Built by buildTaskFormValues() from a
+  // task-list row; see TaskFormMode for which Java dialog each mode mirrors.
+  mode?: TaskFormMode;
+  sourceTaskId?: number;
+  newTaskId?: string;
+  taskDate?: string;
+  taskTime?: string;
+  email?: string;
+  serialNo?: string;
+  wagesPerHour?: number;
+  paymentModeId?: number;
+  description?: string;
+  locationId?: number;
+  latitude?: string;
+  longitude?: string;
+  items?: {itemId: number; itemName: string; quantity: number}[];
+  warranty?: {
+    typeId: number;
+    typeName: string;
+    brandId: number;
+    brandName: string;
+    modelId: number;
+    modelName: string;
+    serialId: number;
+    serialName: string;
+    startDate: string;
+    endDate: string;
+  };
+  fsrId?: number;
+  fsrName?: string;
+};
+
+/**
+ * - 'add': new task (addTaskDialog -> Task/AddTask).
+ * - 'edit': InActive task, TaskDialogNew.updateTaskDialog -> Task/UpdateTaskDetailsByTaskID.
+ * - 'reassign': Rejected / OnHold task, reAssignTaskDialog / reAssignOnholdTaskDialog
+ *   -> Task/ReassignTask (same Id, TaskStatus 4).
+ * - 'reassignCompleted': Completed task, reAssignCompletedTaskDialog -> Task/AddTask
+ *   with Id 0 and OnHoldTaskId = the completed task's Id.
+ */
+export type TaskFormMode = 'add' | 'edit' | 'reassign' | 'reassignCompleted';
+
+const toDateOnly = (value: string) => value.split('T')[0];
+
+/** Prefill for edit / re-assign, from a task-list row (TasksList.ResultData). */
+export const buildTaskFormValues = (
+  task: TasksListResultData,
+  mode: Exclude<TaskFormMode, 'add'>,
+): AddTaskInitialValues => {
+  const record = task as Record<string, unknown>;
+  const warranty =
+    ((record.TaskWarrantyDetailsModelDtoView ?? record.taskWarrantyDetailsModelDtoView) as
+      | Record<string, unknown>
+      | undefined) ?? {};
+  const items = Array.isArray(task.MultipleItemAssigned) ? task.MultipleItemAssigned : [];
+  return {
+    mode,
+    sourceTaskId: Number(task.Id) || 0,
+    newTaskId: String(task.NewTaskId ?? ''),
+    title: String(task.Name ?? ''),
+    taskDate: toDateOnly(String(task.TaskDate ?? '')),
+    taskTime: String(task.TaskTime ?? ''),
+    address: String(task.FullAddress ?? ''),
+    state: String(task.State ?? ''),
+    city: String(task.CityName ?? ''),
+    pinCode: String(task.PinCode ?? task.Zipcode ?? ''),
+    landmark: String(task.LocationDesc ?? ''),
+    customerId: Number(task.CustomerDetailsid) || 0,
+    customerName: String(task.CustomerName ?? ''),
+    customerNumber: String(task.ContactNo ?? ''),
+    email: String(task.CustomerEmailId ?? ''),
+    taskTagId: Number(task.Task_TagId) || 0,
+    taskTagName: String(task.Task_TagName ?? ''),
+    assignedFieldworkerId: Number(task.UserId) || undefined,
+    assignedFieldworkerName: String(task.FirstNameLastName ?? task.AssignedTo ?? ''),
+    productBrand: String(task.BrandName ?? ''),
+    modelNumber: String(task.ModelNumber ?? ''),
+    serialNo: getStringField(warranty, ['serialNoName', 'SerialNoName']),
+    wagesPerHour: Number(task.WagesPerHours) || 0,
+    paymentModeId: Number(task.PaymentModeId) || 0,
+    description: String(task.Description ?? ''),
+    locationId: Number(task.LocationId) || 0,
+    latitude: String(task.Latitude ?? ''),
+    longitude: String(task.Longitude ?? ''),
+    items: items.map(item => ({
+      itemId: Number(item.ItemId) || 0,
+      itemName: String(item.ItemName ?? ''),
+      quantity: Number(item.ItemQuantity) || 0,
+    })),
+    warranty: {
+      typeId: getNumberField(warranty, ['warrantyTypeId', 'WarrantyTypeId']),
+      typeName: getStringField(warranty, ['warrantyTypeName', 'WarrantyTypeName']),
+      brandId: getNumberField(warranty, ['brandId', 'BrandId']),
+      brandName: getStringField(warranty, ['brandName', 'BrandName']),
+      modelId: getNumberField(warranty, ['modelId', 'ModelId']),
+      modelName: getStringField(warranty, ['modelName', 'ModelName']),
+      serialId: getNumberField(warranty, ['serialNoId', 'SerialNoId']),
+      serialName: getStringField(warranty, ['serialNoName', 'SerialNoName']),
+      startDate: toDateOnly(getStringField(warranty, ['startDate', 'StartDate'])),
+      endDate: toDateOnly(getStringField(warranty, ['endDate', 'EndDate'])),
+    },
+    fsrId: Number(task.FSRId) || 0,
+    fsrName: String(task.FSRName ?? ''),
+  };
 };
 
 type AddTaskModalProps = {
@@ -92,6 +204,8 @@ type AddTaskModalProps = {
   onClose: () => void;
   ownerId: number;
   initialValues?: AddTaskInitialValues | null;
+  /** Called after a successful add / update / re-assign (e.g. to refresh a list). */
+  onSaved?: () => void;
 };
 
 type TaskFormTabKey = 'cust' | 'items' | 'service' | 'quote' | 'fsr' | 'inst';
@@ -250,7 +364,15 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   onClose,
   ownerId,
   initialValues,
+  onSaved,
 }) => {
+  const formMode: TaskFormMode = initialValues?.mode ?? 'add';
+  // Java titles/buttons: addTaskDialog "Add Task"/Add, updateTaskDialog
+  // "Edit Task"/Update, the re-assign dialogs "Re-Assign"/Re-Assign.
+  const formTitle =
+    formMode === 'edit' ? 'Edit Task' : formMode === 'add' ? 'Add Task' : 'Re-Assign';
+  const submitLabel =
+    formMode === 'edit' ? 'UPDATE' : formMode === 'add' ? 'ADD' : 'RE-ASSIGN';
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDate, setTaskDate] = useState(getTodayDateString());
   const [taskTime, setTaskTime] = useState(getCurrentTimeString());
@@ -384,9 +506,13 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       return;
     }
     setTaskTitle(initialValues?.title ?? '');
-    setTaskDate(getTodayDateString());
-    setTaskTime(getCurrentTimeString());
-    setSelectedFieldworker(null);
+    setTaskDate(initialValues?.taskDate || getTodayDateString());
+    setTaskTime(initialValues?.taskTime || getCurrentTimeString());
+    setSelectedFieldworker(
+      initialValues?.assignedFieldworkerId
+        ? {id: initialValues.assignedFieldworkerId, name: initialValues.assignedFieldworkerName ?? 'Me'}
+        : null,
+    );
     setFieldworkerSearch('');
     const tagId = initialValues?.taskTagId ?? 0;
     const tagName = initialValues?.taskTagName ?? '';
@@ -394,8 +520,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       tagId || tagName ? {id: tagId, label: tagName || 'Task'} : null,
     );
     setAddTaskTagSearch('');
-    setWarrantyMode('in');
-    setAmcAmount('');
+    // PaymentModeId 2 = Rate (Out of Warranty), 1 = AMC (In Warranty).
+    setWarrantyMode(initialValues?.paymentModeId === 2 ? 'out' : 'in');
+    setAmcAmount(initialValues?.wagesPerHour ? String(initialValues.wagesPerHour) : '');
     setTaskAmcServiceDetailsId(initialValues?.amcServiceDetailsId ?? 0);
     setTaskAddress(initialValues?.address ?? '');
     setTaskState(initialValues?.state ?? '');
@@ -410,17 +537,18 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setTaskLandmark(initialValues?.landmark ?? '');
     setTaskProductBrand(initialValues?.productBrand ?? '');
     setTaskModelNumber(initialValues?.modelNumber ?? '');
-    setTaskEmail('');
-    setTaskSerialNo('');
-    setSelectedBrand(null);
-    setSelectedModel(null);
-    setSelectedSerial(null);
-    setSelectedWarrantyType(null);
-    setWarrantyStartDate('');
-    setWarrantyEndDate('');
+    setTaskEmail(initialValues?.email ?? '');
+    setTaskSerialNo(initialValues?.serialNo ?? '');
+    const w = initialValues?.warranty;
+    setSelectedBrand(w?.brandId ? {id: w.brandId, label: w.brandName} : null);
+    setSelectedModel(w?.modelId ? {id: w.modelId, label: w.modelName} : null);
+    setSelectedSerial(w?.serialId ? {id: w.serialId, label: w.serialName} : null);
+    setSelectedWarrantyType(w?.typeId ? {id: w.typeId, label: w.typeName} : null);
+    setWarrantyStartDate(w?.startDate ?? '');
+    setWarrantyEndDate(w?.endDate ?? '');
     setProductPicker(null);
-    setTaskLatitude('');
-    setTaskLongitude('');
+    setTaskLatitude(initialValues?.latitude ?? '');
+    setTaskLongitude(initialValues?.longitude ?? '');
     setActiveTaskFormTab('cust');
     setTaskCustomerId(initialValues?.customerId ?? 0);
     setTaskCustomerName(initialValues?.customerName ?? '');
@@ -431,14 +559,26 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setTaskServiceTypeSearch('');
     setSelectedQuote(null);
     setQuoteSearch('');
-    setSelectedFsr(null);
+    setSelectedFsr(
+      initialValues?.fsrId ? {id: initialValues.fsrId, label: initialValues.fsrName || 'FSR'} : null,
+    );
     setFsrSearch('');
-    setTaskSpecialInstructions('');
+    setTaskSpecialInstructions(initialValues?.description ?? '');
     setInstructionAudioPath('');
     setInstructionRecordSeconds(0);
     setIsRecordingInstruction(false);
     setIsPlayingInstruction(false);
-    setTaskItemRows([createEmptyTaskItemRow()]);
+    const prefillItems = (initialValues?.items ?? []).filter(item => item.itemId > 0);
+    setTaskItemRows(
+      prefillItems.length
+        ? prefillItems.map(item => ({
+            ...createEmptyTaskItemRow(),
+            itemId: item.itemId,
+            itemName: item.itemName,
+            quantity: String(item.quantity),
+          }))
+        : [createEmptyTaskItemRow()],
+    );
     setActiveItemRowId(null);
     setIsItemSearchModalOpen(false);
     setItemSearchQuery('');
@@ -1466,16 +1606,45 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       latitude: resolvedLatitude,
     };
 
+    const sourceTaskId = initialValues?.sourceTaskId ?? 0;
+    // Edit / re-assign keep the task's own location record (Java:
+    // setLocationId(mResultData.getLocationId())) and reset it to TaskStatus 4.
+    const existingTaskFields = {
+      Id: sourceTaskId,
+      LocationId: initialValues?.locationId || payload.LocationId,
+      TaskStatus: 4,
+    };
+
     try {
-      ensureSuccess(await addTask(payload));
-      Alert.alert('Add Task', 'Task added successfully.');
+      if (formMode === 'edit') {
+        ensureSuccess(
+          await updateTask({...payload, ...existingTaskFields} as unknown as Parameters<typeof updateTask>[0]),
+        );
+        Alert.alert(formTitle, 'Task updated successfully.');
+      } else if (formMode === 'reassign') {
+        ensureSuccess(
+          await reassignTaskNew({
+            ...payload,
+            ...existingTaskFields,
+            NewTaskId: initialValues?.newTaskId ?? '',
+          } as unknown as Parameters<typeof reassignTaskNew>[0]),
+        );
+        Alert.alert(formTitle, 'Task re-assigned successfully.');
+      } else if (formMode === 'reassignCompleted') {
+        ensureSuccess(await addTask({...payload, Id: 0, OnHoldTaskId: sourceTaskId}));
+        Alert.alert(formTitle, 'Task re-assigned successfully.');
+      } else {
+        ensureSuccess(await addTask(payload));
+        Alert.alert('Add Task', 'Task added successfully.');
+      }
+      onSaved?.();
       onClose();
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : 'Unable to add task right now.';
-      Alert.alert('Add Task', message);
+          : 'Unable to save the task right now.';
+      Alert.alert(formTitle, message);
     } finally {
       setIsSubmittingTask(false);
     }
@@ -1492,7 +1661,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalHeaderTitle}>Add Task</Text>
+              <Text style={styles.modalHeaderTitle}>{formTitle}</Text>
               <TouchableOpacity onPress={onClose}>
                 <Text style={styles.modalCloseIcon}>✕</Text>
               </TouchableOpacity>
@@ -1541,6 +1710,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
                 <TouchableOpacity
                   style={styles.dropdownPill}
+                  disabled={initialValues?.lockAssignedFieldworker}
                   onPress={() => {
                     loadFieldworkers();
                     setIsFieldworkerModalOpen(true);
@@ -1558,7 +1728,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       ? selectedFieldworker.name
                       : 'Select Fieldworker'}
                   </Text>
-                  <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                  {initialValues?.lockAssignedFieldworker ? null : (
+                    <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1632,16 +1804,59 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       ]}
                       value={warrantyMode === 'out' ? amcAmount : ''}
                       onChangeText={text =>
-                        setAmcAmount(text.replace(/[^0-9.]/g, ''))
+                        setAmcAmount(sanitizeDecimalInput(text))
                       }
                       editable={warrantyMode === 'out'}
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
                       placeholder={
                         warrantyMode === 'out'
                           ? 'Please Enter Amount'
                           : 'Not Applicable In AMC Mode'
                       }
                       placeholderTextColor="#9aa0a6"
+                    />
+                  </View>
+                </View>
+
+                {/* Warranty type + dates sit right under the wages row, before
+                    the address block -- same order as dialog_add_task_new.xml
+                    (spinWarranty, taskWarrantyStartDate/EndDate). */}
+                <View style={styles.fieldWrap}>
+                  <TouchableOpacity
+                      style={styles.dropdownPill}
+                      onPress={() => openProductPicker('warranty')}
+                    >
+                      <Text
+                        style={
+                          selectedWarrantyType?.label
+                            ? styles.dropdownPillTextValue
+                            : styles.dropdownPillTextPlaceholder
+                        }
+                        numberOfLines={1}
+                      >
+                        {selectedWarrantyType?.label || 'Select Warranty Type'}
+                      </Text>
+                      <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.fieldRow}>
+                  <View style={styles.floatingFieldHalf}>
+                    <TextInput
+                      style={styles.floatingInput}
+                      placeholder="Start Date (YYYY-MM-DD)"
+                      placeholderTextColor="#9aa0a6"
+                      value={warrantyStartDate}
+                      onChangeText={setWarrantyStartDate}
+                    />
+                  </View>
+                  <View style={styles.floatingFieldHalf}>
+                    <TextInput
+                      style={styles.floatingInput}
+                      placeholder="End Date (YYYY-MM-DD)"
+                      placeholderTextColor="#9aa0a6"
+                      value={warrantyEndDate}
+                      onChangeText={setWarrantyEndDate}
                     />
                   </View>
                 </View>
@@ -1802,7 +2017,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                         }
                         numberOfLines={1}
                       >
-                        {taskProductBrand || 'Product Brand'}
+                        {taskProductBrand || 'Brand Name'}
                       </Text>
                       <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                     </TouchableOpacity>
@@ -1820,7 +2035,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                         }
                         numberOfLines={1}
                       >
-                        {taskModelNumber || 'Model Number'}
+                        {taskModelNumber || 'Model No'}
                       </Text>
                       <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                     </TouchableOpacity>
@@ -1844,46 +2059,6 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       </Text>
                       <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                     </TouchableOpacity>
-                </View>
-
-                <View style={styles.fieldWrap}>
-                  <TouchableOpacity
-                      style={styles.dropdownPill}
-                      onPress={() => openProductPicker('warranty')}
-                    >
-                      <Text
-                        style={
-                          selectedWarrantyType?.label
-                            ? styles.dropdownPillTextValue
-                            : styles.dropdownPillTextPlaceholder
-                        }
-                        numberOfLines={1}
-                      >
-                        {selectedWarrantyType?.label || 'Select Warranty Type'}
-                      </Text>
-                      <Ionicons name="chevron-down" style={styles.dropdownChevron} />
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.fieldRow}>
-                  <View style={styles.floatingFieldHalf}>
-                    <TextInput
-                      style={styles.floatingInput}
-                      placeholder="Start Date (YYYY-MM-DD)"
-                      placeholderTextColor="#9aa0a6"
-                      value={warrantyStartDate}
-                      onChangeText={setWarrantyStartDate}
-                    />
-                  </View>
-                  <View style={styles.floatingFieldHalf}>
-                    <TextInput
-                      style={styles.floatingInput}
-                      placeholder="End Date (YYYY-MM-DD)"
-                      placeholderTextColor="#9aa0a6"
-                      value={warrantyEndDate}
-                      onChangeText={setWarrantyEndDate}
-                    />
-                  </View>
                 </View>
 
                 <View style={styles.taskFormTabsRow}>
@@ -2192,7 +2367,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   ) : (
                     <>
                       <Text style={styles.addButtonIcon}>📄</Text>
-                      <Text style={styles.darkAddButtonText}>ADD</Text>
+                      <Text style={styles.darkAddButtonText}>{submitLabel}</Text>
                     </>
                   )}
                 </TouchableOpacity>

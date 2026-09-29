@@ -1,13 +1,24 @@
 // src/screens/technician/drawer/ServiceScreen.tsx
+//
+// Android's RoutineServiceFragment: a lookup form (Asset ID or Customer No.)
+// that finds a customer/asset then opens task creation pre-filled and
+// self-assigned to the logged-in technician (TaskDialogNew.
+// startTaskSelfCreation -- hardcoded self-assignment, no fieldworker
+// picker). This screen is Fieldworker/Technician-only in Android (hidden
+// from Owner/Manager/Sub-Admin in HomeActivityNew's drawer setup), so
+// there's no admin-side equivalent to build.
 import {
   View, StyleSheet, Text, TextInput,
-  Pressable, Modal, Platform, StatusBar,
+  Pressable, Modal, Platform, StatusBar, ActivityIndicator,
 } from 'react-native';
 import { COLORS } from '../../../theme/theme';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ms, sp, scale, hp, vs, wp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { getRoutineCustomerList } from '../../../api/fsrManagement/fsrManagementService';
+import AddTaskModal, { type AddTaskInitialValues } from '../../admin/AddTaskModal';
 
 type FilterType = 'Asset' | 'Customer No.';
 const FILTER_OPTIONS: FilterType[] = ['Asset', 'Customer No.'];
@@ -16,7 +27,68 @@ export default function ServiceScreen() {
   const [filter, setFilter] = useState<FilterType>('Asset');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorText, setErrorText] = useState('');
+  const [ownerId, setOwnerId] = useState<number | null>(null);
+  const [taskInitialValues, setTaskInitialValues] = useState<AddTaskInitialValues | null>(null);
   const insets = useSafeAreaInsets();
+
+  const handleSubmit = async () => {
+    const value = inputValue.trim();
+    if (!value || submitting) return;
+
+    setErrorText('');
+    setSubmitting(true);
+    try {
+      const [storedOwnerId, storedUid, storedName] = await Promise.all([
+        AsyncStorage.getItem('owner_id'),
+        AsyncStorage.getItem('uid'),
+        AsyncStorage.getItem('name'),
+      ]);
+
+      if (!storedOwnerId || !storedUid) {
+        setErrorText('Unable to identify your account. Please log in again.');
+        return;
+      }
+
+      const params =
+        filter === 'Asset'
+          ? {userId: Number(storedOwnerId), assetId: value}
+          : {userId: Number(storedOwnerId), customerNum: value};
+
+      const response = await getRoutineCustomerList(params);
+      const result = response?.ResultData;
+
+      if (!result || (!result.CustomerName && !result.Address)) {
+        setErrorText('Customer does not exist.');
+        return;
+      }
+
+      setOwnerId(Number(storedOwnerId));
+      setTaskInitialValues({
+        title: '',
+        address: result.Address ?? '',
+        state: '',
+        city: '',
+        pinCode: result.PinCode ?? '',
+        landmark: '',
+        customerName: result.CustomerName ?? '',
+        customerNumber: result.MobileNumber ?? '',
+        taskTagId: 0,
+        taskTagName: '',
+        customerId: result.CustomerDetailsid,
+        productBrand: result.BrandName,
+        modelNumber: result.ModelNumber,
+        assignedFieldworkerId: Number(storedUid),
+        assignedFieldworkerName: storedName ?? 'Me',
+        lockAssignedFieldworker: true,
+      });
+    } catch (e) {
+      setErrorText(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -40,20 +112,40 @@ export default function ServiceScreen() {
 
         {/* Text input */}
         <TextInput
-          placeholder="Enter Asset ID/Model No."
+          placeholder={filter === 'Asset' ? 'Enter Asset ID/Model No.' : 'Enter Customer Number'}
           placeholderTextColor="#9ca3af"
           style={styles.input}
           cursorColor={COLORS.primary}
           value={inputValue}
-          onChangeText={setInputValue}
+          onChangeText={text => {
+            setInputValue(text);
+            if (errorText) setErrorText('');
+          }}
+          keyboardType={filter === 'Customer No.' ? 'phone-pad' : 'default'}
           returnKeyType="done"
         />
 
+        {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
+
         {/* Submit */}
-        <Pressable style={styles.submitBtn}>
-          <Text style={styles.submitText}>SUBMIT</Text>
+        <Pressable
+          style={[styles.submitBtn, (!inputValue.trim() || submitting) && styles.submitBtnDisabled]}
+          onPress={handleSubmit}
+          disabled={!inputValue.trim() || submitting}>
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitText}>SUBMIT</Text>
+          )}
         </Pressable>
       </View>
+
+      <AddTaskModal
+        visible={!!taskInitialValues}
+        onClose={() => setTaskInitialValues(null)}
+        ownerId={ownerId ?? 0}
+        initialValues={taskInitialValues}
+      />
 
       {/* Dropdown Modal */}
       <Modal
@@ -162,11 +254,21 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
   },
+  submitBtnDisabled: {
+    opacity: 0.5,
+  },
   submitText: {
     color: '#fff',
     fontSize: sp(17),
     fontWeight: '600',
     letterSpacing: 1,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: sp(13),
+    textAlign: 'center',
+    marginBottom: ms(12),
+    width: FIELD_WIDTH,
   },
 
   // Dropdown popup — centred, no magic absolute top

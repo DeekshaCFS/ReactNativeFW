@@ -3,6 +3,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
+import {sanitizeDecimalInput} from '../../utils/decimal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
@@ -103,9 +104,12 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
   onSaved,
 }) => {
   const isEditMode = item !== null;
-  const modalTitle = isEditMode ? 'Update Item' : 'Add Item';
   const [itemName, setItemName] = useState('');
   const [itemCode, setItemCode] = useState('');
+  const [serialNo, setSerialNo] = useState('');
+  // Java uses dialog_update_edit_item_new for edits: title 'Update Quantity for <name>',
+  // no Item Name or Serial No inputs.
+  const modalTitle = isEditMode ? `Update Quantity for ${itemName}` : 'Add Item';
   const [hsnCode, setHsnCode] = useState('');
 
   const [itemGroups, setItemGroups] = useState<LookupOption[]>([]);
@@ -175,6 +179,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
   const resetForm = () => {
     setItemName('');
     setItemCode('');
+    setSerialNo('');
     setHsnCode('');
     setSelectedItemGroup(null);
     setItemGroupSearch('');
@@ -404,6 +409,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
       Id: 0,
       Name: itemName.trim(),
       SerialNumber: itemCode.trim(),
+      SerialNoValue: serialNo.trim(),
       HSNCode: hsnCode.trim(),
       ItemGroupId: selectedItemGroup?.id || 0,
       ItemGroupName: selectedItemGroup?.name || '',
@@ -462,15 +468,17 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                 contentContainerStyle={styles.modalScrollContent}
                 keyboardShouldPersistTaps="handled"
               >
-                <View style={styles.fieldWrap}>
-                  <TextInput
-                    style={styles.pillInput}
-                    placeholder="Item Name"
-                    placeholderTextColor="#9aa0a6"
-                    value={itemName}
-                    onChangeText={setItemName}
-                  />
-                </View>
+                {isEditMode ? null : (
+                  <View style={styles.fieldWrap}>
+                    <TextInput
+                      style={styles.pillInput}
+                      placeholder="Item Name"
+                      placeholderTextColor="#9aa0a6"
+                      value={itemName}
+                      onChangeText={setItemName}
+                    />
+                  </View>
+                )}
 
                 <View style={styles.fieldRow}>
                   <TextInput
@@ -562,22 +570,34 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   </View>
                 </View>
 
+                {isEditMode ? null : (
+                  <View style={styles.fieldWrap}>
+                    <TextInput
+                      style={styles.pillInput}
+                      placeholder="Serial No"
+                      placeholderTextColor="#9aa0a6"
+                      value={serialNo}
+                      onChangeText={setSerialNo}
+                    />
+                  </View>
+                )}
+
                 <View style={styles.fieldRow}>
                   <TextInput
                     style={[styles.pillInput, itemStyles.halfInput]}
                     placeholder="Purchase Price"
                     placeholderTextColor="#9aa0a6"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     value={purchasePrice}
-                    onChangeText={setPurchasePrice}
+                    onChangeText={t => setPurchasePrice(sanitizeDecimalInput(t))}
                   />
                   <TextInput
                     style={[styles.pillInput, itemStyles.halfInput]}
                     placeholder="Sales Price"
                     placeholderTextColor="#9aa0a6"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     value={salesPrice}
-                    onChangeText={setSalesPrice}
+                    onChangeText={t => setSalesPrice(sanitizeDecimalInput(t))}
                   />
                 </View>
 

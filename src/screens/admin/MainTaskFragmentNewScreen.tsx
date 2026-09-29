@@ -24,6 +24,29 @@ import type {TasksList, TasksListResultData, TagList, TagListResultData} from '.
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
 import {ms, sp} from '../../utils/responsive';
+import AddTaskModal, {
+  buildTaskFormValues,
+  type AddTaskInitialValues,
+  type TaskFormMode,
+} from './AddTaskModal';
+
+// TasksListAdapter's textView_reassign_from_list: edit icon for InActive,
+// re-assign icon for Completed / Rejected / OnHold, nothing for Ongoing.
+// MainTaskFragmentNew then opens updateTaskDialog / reAssignCompletedTaskDialog /
+// reAssignOnholdTaskDialog / reAssignTaskDialog respectively.
+const getTaskRowAction = (status: string): Exclude<TaskFormMode, 'add'> | null => {
+  switch (status.replace(/\s/g, '').toLowerCase()) {
+    case 'inactive':
+      return 'edit';
+    case 'completed':
+      return 'reassignCompleted';
+    case 'onhold':
+    case 'rejected':
+      return 'reassign';
+    default:
+      return null;
+  }
+};
 
 type MainTaskFragmentNewScreenProps = {
   userId: number;
@@ -518,6 +541,8 @@ const MainTaskFragmentNewScreen = ({
     }, [loadCleanMonthTasks]),
   );
 
+  const [taskFormValues, setTaskFormValues] = useState<AddTaskInitialValues | null>(null);
+
   const resetAndLoad = () => {
     setSearchText('');
     setSubmittedSearch('');
@@ -559,12 +584,19 @@ const MainTaskFragmentNewScreen = ({
     const customerName = getString(item, 'CustomerName');
     const taskDateTime = formatTaskDateTime(item);
     const newTaskId = getNewTaskId(item);
+    const rowAction = getTaskRowAction(status);
+    // Java: TasksListAdapter's per-status color switch (R.color.green/red/onhold/orange/light_gray).
+    // Matches the technician TaskScreen's ribbon colors for consistency across the app.
     const statusColor =
-      status.toLowerCase() === 'ongoing'
-        ? '#FF9800'
-        : status.toLowerCase() === 'inactive'
-          ? '#7E8794'
-          : THEME_PRIMARY;
+      status.toLowerCase() === 'completed'
+        ? '#16A34A'
+        : status.toLowerCase() === 'onhold'
+          ? '#000'
+          : status.toLowerCase() === 'ongoing'
+            ? '#FF9800'
+            : status.toLowerCase() === 'inactive'
+              ? '#7E8794'
+              : THEME_PRIMARY; // Rejected, and any other status, stays red
 
     return (
       <TouchableOpacity
@@ -595,6 +627,17 @@ const MainTaskFragmentNewScreen = ({
               </Text>
             ) : null}
           </View>
+          {rowAction ? (
+            <TouchableOpacity
+              style={styles.rowActionButton}
+              hitSlop={10}
+              onPress={() => setTaskFormValues(buildTaskFormValues(item, rowAction))}>
+              <Ionicons
+                name={rowAction === 'edit' ? 'create-outline' : 'refresh'}
+                style={styles.rowActionIcon}
+              />
+            </TouchableOpacity>
+          ) : null}
           {taskDateTime ? (
             <Text numberOfLines={1} style={styles.taskDateText}>
               {taskDateTime}
@@ -910,6 +953,14 @@ const MainTaskFragmentNewScreen = ({
           </Pressable>
         </Pressable>
       </Modal>
+
+      <AddTaskModal
+        visible={taskFormValues !== null}
+        ownerId={userId}
+        initialValues={taskFormValues}
+        onClose={() => setTaskFormValues(null)}
+        onSaved={resetAndLoad}
+      />
     </View>
   );
 
@@ -1250,6 +1301,16 @@ const styles = StyleSheet.create({
     paddingTop: ms(48),
     paddingHorizontal: ms(16),
     paddingBottom: ms(16),
+  },
+  rowActionButton: {
+    position: 'absolute',
+    right: ms(12),
+    bottom: ms(10),
+    padding: ms(4),
+  },
+  rowActionIcon: {
+    fontSize: sp(20),
+    color: THEME_PRIMARY,
   },
   taskTitleRow: {
     flexDirection: 'row',

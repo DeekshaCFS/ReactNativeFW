@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
+import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import {
   Alert,
   Modal,
@@ -91,7 +92,7 @@ const getTechnicianBalance = (item: ExpenseTechnicianItem) =>
     'Balance',
   ]);
 
-const formatMoney = (value: number) => `Rs. ${value}`;
+const formatMoney = (value: number) => `Rs. ${formatAmount(value)}`;
 
 type ManageBalanceModalProps = {
   visible: boolean;
@@ -198,7 +199,7 @@ const ManageBalanceModal = ({
             ReceivedBy: getTechnicianId(selectedTechnician),
           }));
 
-          Alert.alert('Add Balance', `₹${balanceAmount} added to ${getTechnicianName(selectedTechnician)}.`);
+          Alert.alert('Add Balance', `₹${formatAmount(balanceAmount)} added to ${getTechnicianName(selectedTechnician)}.`);
         } else {
           ensureSuccess(await updateDeductBalance({
             Amount: Number(balanceAmount),
@@ -206,7 +207,7 @@ const ManageBalanceModal = ({
             DeductBy: userId,
             UserId: getTechnicianId(selectedTechnician),
           }));
-          Alert.alert('Deduct Balance', `₹${balanceAmount} deducted from ${getTechnicianName(selectedTechnician)}.`);
+          Alert.alert('Deduct Balance', `₹${formatAmount(balanceAmount)} deducted from ${getTechnicianName(selectedTechnician)}.`);
         }
 
         onSuccess?.();
@@ -296,10 +297,10 @@ const ManageBalanceModal = ({
 
           <TextInput
             value={balanceAmount}
-            onChangeText={setBalanceAmount}
+            onChangeText={t => setBalanceAmount(sanitizeDecimalInput(t))}
             placeholder="Enter Amount"
             placeholderTextColor="#9E9E9E"
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             style={styles.balanceInput}
           />
           <TextInput

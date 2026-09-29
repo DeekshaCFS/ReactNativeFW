@@ -12,11 +12,10 @@ import { attendanceCheckOut, getUserDetails } from '../api';
 import type { UserDetailsResultData } from '../api/users/users.types';
 import { authEvents, AUTH_CHANGED } from '../utils/authEvents';
 import { ms, sp, scale } from '../utils/responsive';
+import { checkedInTodayKey } from '../utils/attendanceKey';
 
-const todayKey = () => {
-  const today = new Date().toISOString().split('T')[0];
-  return `checked_in_${today}`;
-};
+// Same local-date key Home writes on check-in (see utils/attendanceKey.ts).
+const todayKey = checkedInTodayKey;
 
 const requestLocationPermission = async (): Promise<boolean> => {
   if (Platform.OS !== 'android') return true;
@@ -188,9 +187,10 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
       {/* Drawer Items */}
       {(isAdmin
         ? [
-            // These five render inside HomeActivityNewScreen as internal
+            // `section` items render inside HomeActivityNewScreen as internal
             // sections (not their own stack screens), so they're opened via
-            // a `drawerSection` param on the Home tab rather than `screen`.
+            // a `drawerSection` param on the Home tab. `screen` items are
+            // AdminStack routes.
             { icon: 'cube-outline',                   label: 'Item Inventory',   section: 'Item Inventory' },
             { icon: 'wallet-outline',                 label: 'Passbook',         section: 'Passbook' },
             { icon: 'construct-outline',              label: 'AMC',              section: 'AMC' },
@@ -199,11 +199,14 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
             { icon: 'people-outline',                 label: 'Leads',            section: 'Leads' },
             { icon: 'bar-chart-outline',              label: 'Brand Management', section: 'Brand Management' },
             { icon: 'chatbox-ellipses-outline',       label: 'FieldWeb AI',      screen: 'FieldWeb AI' },
-            { icon: 'phone-portrait-outline',         label: 'Book App Demo',    section: 'Book App Demo' },
+            { icon: 'phone-portrait-outline',         label: 'Book App Demo',    screen: 'Book App Demo' },
             { icon: 'settings-outline',               label: 'Settings',         screen: 'Settings' },
           ]
         : [
             { icon: 'cube-outline',                   label: 'Item Inventory',  screen: 'Issued Items' },
+            // Java shows AMC to technicians (only hidden for roles that lack it); the screen
+            // and its route already existed but nothing could open it.
+            { icon: 'construct-outline',              label: 'AMC',             screen: 'AMC' },
             { icon: 'cash-outline',                   label: 'Expenditure',     screen: 'Expenditure' },
             { icon: 'list-outline',                   label: 'Routine Service', screen: 'Routine Service' },
             { icon: 'chatbox-ellipses-outline',       label: 'FieldWeb AI',     screen: 'FieldWeb AI' },

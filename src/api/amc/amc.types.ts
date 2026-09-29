@@ -109,6 +109,9 @@ export interface AMCList {
 }
 
 export interface AMCListResultData {
+  // Present in Java's AMCList.ResultData; the renewal chain (0 when never renewed).
+  RootAMCsId?: number;
+  RenewalAMCsId?: number;
   TaskDetails?: AMCListTaskDetails;
   AMCTypeName?: string;
   ActualAMCSeriveDate?: string;

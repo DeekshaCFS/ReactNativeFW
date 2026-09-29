@@ -144,3 +144,17 @@ export const renewAmcDetails = async (data?: Record<string, unknown>): Promise<{
   const response = await apiClient.post('AMCs/AddAMCRenewal', data);
   return response.data;
 };
+
+/**
+ * Source: URLConstant.AMC.GET_AMC_UPCOMING_Validation (AMCDetailsFragment.getAMCUpcomingValidation)
+ * Endpoint: GET AMCs/GetUpcommingValidationFromAmcId?OwnerId=&AMCId=
+ * Message is "allow to task assing" when a task may be added; otherwise
+ * e.g. "Task already assigned." / "AMC has been expired, you can not add the task".
+ */
+export const getAmcUpcomingValidation = async (params: { OwnerId: number; AMCId: number }): Promise<{
+  Code?: string;
+  Message?: string;
+}> => {
+  const response = await apiClient.get('AMCs/GetUpcommingValidationFromAmcId', { params });
+  return response.data;
+};

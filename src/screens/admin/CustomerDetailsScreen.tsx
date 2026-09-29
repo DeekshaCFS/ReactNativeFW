@@ -15,26 +15,28 @@ import {
 } from 'react-native';
 import {
   type EnquiryListItem,
-  type EnquiryListResponse,
   type TaskListItem,
   type TaskListResponse,
   type AMCListItem,
   type AMCListResponse,
 } from './adminLegacyApiTypes';
-import { getTaskListSearchNew } from '../../api/taskList/taskListService';
-import { getAmcServiceMonthList } from '../../api/amc/amcService';
-import { getEnquiryList } from '../../api/customerInquiry/customerInquiryService';
+import { getCrmTasklist } from '../../api/task/taskService';
+import { getCrmAmclist } from '../../api/amc/amcService';
+import { getCrmEnquiryList } from '../../api/customerInquiry/customerInquiryService';
+import { getCrmQuotationList } from '../../api/quotation/quotationService';
+import { getCrmInvoiceList } from '../../api/accountManagement/accountManagementService';
+import { formatAmount } from '../../utils/decimal';
+import QuotationDetailsScreen from './QuotationDetailsScreen';
+import InvoiceDetailsScreen from './InvoiceDetailsScreen';
 import {
   CUSTOMER_ADDRESS_KEYS,
   CUSTOMER_NAME_KEYS,
   CUSTOMER_PHONE_KEYS,
   formatPhoneWithCountryCode,
   getEnquiryAddress,
-  getEnquiryCustomerName,
   getEnquiryDate,
   getEnquiryDisplayNo,
   getEnquiryId,
-  getEnquiryPhone,
   getNumberField,
   getStringField,
 } from './CRMScreen';
@@ -75,37 +77,6 @@ const MONTH_NAMES = [
 ];
 
 const pad2 = (value: number) => String(value).padStart(2, '0');
-
-const normalizeText = (value: string) => value.trim().toLowerCase();
-
-const normalizeDigits = (value: string) => value.replace(/\D/g, '');
-
-const matchesCustomer = (
-  record: Record<string, unknown>,
-  nameKeys: string[],
-  phoneKeys: string[],
-  customerNameNorm: string,
-  customerPhoneDigits: string,
-) => {
-  const itemName = normalizeText(getStringField(record, nameKeys));
-  if (customerNameNorm && itemName && itemName.includes(customerNameNorm)) {
-    return true;
-  }
-  const itemPhoneDigits = normalizeDigits(getStringField(record, phoneKeys));
-  if (customerPhoneDigits && itemPhoneDigits) {
-    const custTail = customerPhoneDigits.slice(-10);
-    const itemTail = itemPhoneDigits.slice(-10);
-    if (custTail && itemTail && custTail === itemTail) {
-      return true;
-    }
-  }
-  return false;
-};
-
-const TASK_NAME_KEYS = ['customerName', 'CustomerName'];
-const TASK_PHONE_KEYS = ['contactNo', 'ContactNo'];
-const AMC_NAME_KEYS = ['customerName', 'CustomerName', 'name', 'Name'];
-const AMC_PHONE_KEYS: string[] = [];
 
 const getString = (
   item: Record<string, unknown>,
@@ -227,8 +198,14 @@ const CustomerDetailsScreen = ({
   const customerPhone = getStringField(customer, CUSTOMER_PHONE_KEYS);
   const customerAddress = getStringField(customer, CUSTOMER_ADDRESS_KEYS) || 'NA';
 
-  const customerNameNorm = normalizeText(customerName);
-  const customerPhoneDigits = normalizeDigits(customerPhone);
+  // Java passes the customer's CustomerDetailsid to every CRM tab endpoint.
+  const customerId = getNumberField(customer, [
+    'customerDetailsid',
+    'CustomerDetailsid',
+    'CustomerDetailsId',
+    'customerId',
+    'CustomerId',
+  ]);
 
   const [activeTab, setActiveTab] = useState<CustomerTabKey>('task');
   const [selectedTask, setSelectedTask] = useState<TaskListItem | null>(null);
@@ -255,30 +232,28 @@ const CustomerDetailsScreen = ({
   const [enquiryError, setEnquiryError] = useState('');
   const [hasLoadedEnquiries, setHasLoadedEnquiries] = useState(false);
 
+  const [quotations, setQuotations] = useState<Record<string, unknown>[]>([]);
+  const [invoices, setInvoices] = useState<Record<string, unknown>[]>([]);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [docsError, setDocsError] = useState('');
+  const [selectedQuotation, setSelectedQuotation] = useState<Record<string, unknown> | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<Record<string, unknown> | null>(null);
+
   const fetchTasks = useCallback(async () => {
     setIsLoadingTasks(true);
     setTaskError('');
     try {
-      const response = (await getTaskListSearchNew({
+      const response = (await getCrmTasklist({
         UserId: ownerId,
-        searchparam: customerName,
+        searchparam: '',
         TaskStatusID: selectedStatus.id,
+        TaskTypeID: 0,
+        pageIndex: 1,
         TaskMonth: monthYear.month,
         TaskYear: monthYear.year,
-        pageIndex: 1,
-        AllData: true,
-      })) as TaskListResponse;
-      const list = response.resultData ?? response.ResultData ?? [];
-      const filtered = list.filter(item =>
-        matchesCustomer(
-          item as Record<string, unknown>,
-          TASK_NAME_KEYS,
-          TASK_PHONE_KEYS,
-          customerNameNorm,
-          customerPhoneDigits,
-        ),
-      );
-      setTasks(filtered.length > 0 ? filtered : list);
+        CustomerDetailsId: customerId,
+      })) as unknown as TaskListResponse;
+      setTasks(response.resultData ?? response.ResultData ?? []);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load tasks.';
@@ -287,30 +262,18 @@ const CustomerDetailsScreen = ({
     } finally {
       setIsLoadingTasks(false);
     }
-  }, [ownerId, customerName, selectedStatus.id, monthYear.month, monthYear.year, customerNameNorm, customerPhoneDigits]);
+  }, [ownerId, customerId, selectedStatus.id, monthYear.month, monthYear.year]);
 
   const fetchAmc = useCallback(async () => {
     setIsLoadingAmc(true);
     setAmcError('');
     try {
-      const today = new Date();
-      const dateStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
-      const response = (await getAmcServiceMonthList({
-        OwnerId: ownerId,
-        Date: dateStr,
-        AMCTypeId: 0,
-      })) as AMCListResponse;
-      const list = response.resultData ?? response.ResultData ?? [];
-      const filtered = list.filter(item =>
-        matchesCustomer(
-          item as Record<string, unknown>,
-          AMC_NAME_KEYS,
-          AMC_PHONE_KEYS,
-          customerNameNorm,
-          customerPhoneDigits,
-        ),
-      );
-      setAmcItems(filtered);
+      const response = (await getCrmAmclist({
+        UserId: ownerId,
+        CustomerDetailsId: customerId,
+        pageIndex: 1,
+      })) as unknown as AMCListResponse;
+      setAmcItems(response.resultData ?? response.ResultData ?? []);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load AMC records.';
@@ -320,32 +283,20 @@ const CustomerDetailsScreen = ({
       setIsLoadingAmc(false);
       setHasLoadedAmc(true);
     }
-  }, [ownerId, customerNameNorm, customerPhoneDigits]);
+  }, [ownerId, customerId]);
 
   const fetchEnquiries = useCallback(async () => {
     setIsLoadingEnquiries(true);
     setEnquiryError('');
     try {
-      const response = (await getEnquiryList({
+      const response = (await getCrmEnquiryList({
         UserId: ownerId,
-      })) as EnquiryListResponse;
-      const data = response as unknown as Record<string, unknown>;
-      const list =
-        (data.resultData as EnquiryListItem[] | undefined) ??
-        (data.ResultData as EnquiryListItem[] | undefined) ??
-        [];
-      const filtered = list.filter(item => {
-        const name = normalizeText(getEnquiryCustomerName(item));
-        const phoneDigits = normalizeDigits(getEnquiryPhone(item));
-        if (customerNameNorm && name.includes(customerNameNorm)) {
-          return true;
-        }
-        if (customerPhoneDigits && phoneDigits) {
-          return phoneDigits.slice(-10) === customerPhoneDigits.slice(-10);
-        }
-        return false;
-      });
-      setEnquiries(filtered);
+        pageIndex: 1,
+        CustomerId: customerId,
+      })) as unknown as Record<string, unknown>;
+      setEnquiries(
+        ((response.resultData ?? response.ResultData) as EnquiryListItem[] | undefined) ?? [],
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load enquiries.';
@@ -355,7 +306,35 @@ const CustomerDetailsScreen = ({
       setIsLoadingEnquiries(false);
       setHasLoadedEnquiries(true);
     }
-  }, [ownerId, customerNameNorm, customerPhoneDigits]);
+  }, [ownerId, customerId]);
+
+  // Quotation / Invoice: CRMQuotationFragment + CRMCustomerInvoice.
+  const fetchDocs = useCallback(
+    async (kind: 'quotation' | 'invoice') => {
+      setIsLoadingDocs(true);
+      setDocsError('');
+      try {
+        const params = {UserId: ownerId, pageIndex: 1, CustomerId: customerId};
+        const response = (kind === 'quotation'
+          ? await getCrmQuotationList(params)
+          : await getCrmInvoiceList(params)) as unknown as Record<string, unknown>;
+        const list = ((response.resultData ?? response.ResultData) as Record<string, unknown>[] | undefined) ?? [];
+        (kind === 'quotation' ? setQuotations : setInvoices)(Array.isArray(list) ? list : []);
+      } catch (error) {
+        setDocsError(error instanceof Error ? error.message : 'Unable to load records.');
+        (kind === 'quotation' ? setQuotations : setInvoices)([]);
+      } finally {
+        setIsLoadingDocs(false);
+      }
+    },
+    [ownerId, customerId],
+  );
+
+  useEffect(() => {
+    if (activeTab === 'quotation' || activeTab === 'invoice') {
+      fetchDocs(activeTab);
+    }
+  }, [activeTab, fetchDocs]);
 
   useEffect(() => {
     if (activeTab === 'task') {
@@ -461,6 +440,35 @@ const CustomerDetailsScreen = ({
   );
 
   const monthLabel = `${MONTH_NAMES[monthYear.month - 1]?.slice(0, 3)} ${monthYear.year}`;
+
+  if (selectedQuotation) {
+    return (
+      <QuotationDetailsScreen
+        ownerId={ownerId}
+        quotationId={getNumberField(selectedQuotation, ['id', 'Id'])}
+        onBack={() => setSelectedQuotation(null)}
+        onDeleted={() => {
+          setSelectedQuotation(null);
+          fetchDocs('quotation');
+        }}
+      />
+    );
+  }
+
+  if (selectedInvoice) {
+    return (
+      <InvoiceDetailsScreen
+        ownerId={ownerId}
+        invoiceId={getNumberField(selectedInvoice, ['id', 'Id'])}
+        initialTaskName={getStringField(selectedInvoice, ['quoteTaskName', 'QuoteTaskName'])}
+        onBack={() => setSelectedInvoice(null)}
+        onDeleted={() => {
+          setSelectedInvoice(null);
+          fetchDocs('invoice');
+        }}
+      />
+    );
+  }
 
   if (selectedTask) {
     return (
@@ -605,8 +613,55 @@ const CustomerDetailsScreen = ({
             ListEmptyComponent={() => renderEmpty('No enquiries found.')}
           />
         )
+      ) : isLoadingDocs ? (
+        <View style={styles.centerBox}>
+          <ActivityIndicator color={THEME_PRIMARY} size="large" />
+        </View>
+      ) : docsError ? (
+        renderEmpty(docsError)
+      ) : activeTab === 'quotation' ? (
+        <FlatList
+          data={quotations}
+          keyExtractor={(item, index) => String(getNumberField(item, ['id', 'Id']) || index)}
+          renderItem={({item}) => (
+            <TouchableOpacity style={styles.docCard} onPress={() => setSelectedQuotation(item)}>
+              <Text style={styles.docTitle} numberOfLines={1}>
+                {getStringField(item, ['quoteName', 'QuoteName'])}{' '}
+                <Text style={styles.docId}>[QUO{getNumberField(item, ['id', 'Id'])}]</Text>
+              </Text>
+              <Text style={styles.docSub} numberOfLines={1}>
+                {getStringField(item, ['customerName', 'CustomerName'])}
+              </Text>
+              <Text style={styles.docAmount}>
+                Rs. {formatAmount(getNumberField(item, ['grandTotalAmount', 'GrandTotalAmount']))}
+              </Text>
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={() => renderEmpty('No quotations found.')}
+        />
       ) : (
-        renderEmpty('No records found.')
+        <FlatList
+          data={invoices}
+          keyExtractor={(item, index) => String(getNumberField(item, ['id', 'Id']) || index)}
+          renderItem={({item}) => (
+            <TouchableOpacity style={styles.docCard} onPress={() => setSelectedInvoice(item)}>
+              <Text style={styles.docTitle} numberOfLines={1}>
+                {getStringField(item, ['quoteTaskName', 'QuoteTaskName'])}{' '}
+                <Text style={styles.docId}>[INV{getNumberField(item, ['id', 'Id'])}]</Text>
+              </Text>
+              <Text style={styles.docSub} numberOfLines={1}>
+                {getStringField(item, ['customerName', 'CustomerName'])}
+              </Text>
+              <Text style={styles.docAmount}>
+                Total: Rs. {formatAmount(getNumberField(item, ['invoiceAmount', 'InvoiceAmount']))}
+                {'   '}Pending: Rs. {formatAmount(getNumberField(item, ['remainingAmount', 'RemainingAmount']))}
+              </Text>
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={() => renderEmpty('No invoices found.')}
+        />
       )}
 
       <Modal
@@ -675,6 +730,16 @@ const CustomerDetailsScreen = ({
 };
 
 const styles = StyleSheet.create({
+  docCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: ms(10),
+    padding: ms(12),
+    marginBottom: ms(10),
+  },
+  docTitle: {fontSize: sp(14), fontWeight: '700', color: '#20283A'},
+  docId: {fontSize: sp(12), fontWeight: '400', color: '#5f6368'},
+  docSub: {fontSize: sp(12), color: '#5f6368', marginTop: ms(2)},
+  docAmount: {fontSize: sp(13), color: '#20283A', marginTop: ms(4)},
   screen: {
     flex: 1,
     backgroundColor: '#FFFFFF',

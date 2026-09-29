@@ -16,8 +16,18 @@ import { getCountrySymbol } from '../../../api/countryDetails/countryDetailsServ
 import { setCurrentCountryDetails } from '../../../state/session';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { formatAmount } from '../../../utils/decimal';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { useFocusEffect } from '@react-navigation/native';
+import { useOpenTask } from '../../../hooks/useOpenTask';
+import { checkedInTodayKey } from '../../../utils/attendanceKey';
+import DisclaimerModal from '../../../components/DisclaimerModal';
+import {
+  getUserDisclaimer,
+  acceptDisclaimer,
+  isDisclaimerAcceptedResponse,
+} from '../../../api/userDisclaimer/userDisclaimerService';
+import { getCurrentLocationAndAddress } from '../../../utils/locationPermision';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,6 +72,12 @@ export default function HomeScreen({ navigation }: any) {
 
   const [profilePercent, setProfilePercent] = useState(0);
 
+  // Disclaimer the technician must accept before using the app (Java: checkDisclaimer /
+  // acceptDisclaimer in HomeActivityNew, run once attendance is confirmed for the day).
+  const [disclaimerHtml, setDisclaimerHtml] = useState<string | null>(null);
+  const [disclaimerDcn, setDisclaimerDcn] = useState('');
+  const [acceptingDisclaimer, setAcceptingDisclaimer] = useState(false);
+
   useDoubleBackExit();
 
   // ── session ────────────────────────────────────────────────────────────────
@@ -83,7 +99,6 @@ export default function HomeScreen({ navigation }: any) {
   useEffect(() => {
     if (token && userId) {
       loadProfile();
-      loadTaskCounts();
       loadCountrySymbol();
       if (!attendanceChecked) {
         checkAttendance();
@@ -92,28 +107,72 @@ export default function HomeScreen({ navigation }: any) {
     }
   }, [token, userId]);
 
-  useEffect(() => {
-    if (userId) loadTaskCounts();
-  }, [filter, ownerId]);
-
   useFocusEffect(
     useCallback(() => {
-      if (userId) loadTodayTasks();
-    }, [userId])
+      if (userId) {
+        loadTodayTasks();
+        // Counts also refresh when returning from a task (accept / reject / complete)
+        // and when the Today/Week/Month/Year filter changes.
+        loadTaskCounts();
+      }
+    }, [userId, filter])
   );
 
   // ── data loaders ──────────────────────────────────────────────────────────
 
+  // GET UserDisclaimer/GetUserDisclaimer; shows the blocking modal unless already accepted.
+  const checkDisclaimer = async () => {
+    try {
+      if (!userId) return;
+      const response = await getUserDisclaimer(userId);
+
+      if (isDisclaimerAcceptedResponse(response)) {
+        setDisclaimerHtml(null);
+        return;
+      }
+      if (response?.ResultData) {
+        setDisclaimerHtml(response.ResultData.DisclaimerHtml ?? '');
+        setDisclaimerDcn(response.ResultData.DCN ?? '');
+      }
+    } catch {
+      // Java retries the check on a null response; a failed lookup here is retried the
+      // next time Home opens rather than looping.
+    }
+  };
+
+  const handleAcceptDisclaimer = async () => {
+    if (!userId) return;
+    try {
+      setAcceptingDisclaimer(true);
+      const response = await acceptDisclaimer({ UserId: userId, DCN: disclaimerDcn });
+      if (isDisclaimerAcceptedResponse(response)) {
+        setDisclaimerHtml(null);
+      } else {
+        // Java: "Unable to Accept Disclaimer" -> check again so the modal reflects the server.
+        await checkDisclaimer();
+      }
+    } catch {
+      await checkDisclaimer();
+    } finally {
+      setAcceptingDisclaimer(false);
+    }
+  };
+
   const checkAttendance = async () => {
     try {
       if (!userId) return;
-      const todayKey = `checked_in_${new Date().toISOString().split('T')[0]}`;
+      const todayKey = checkedInTodayKey();
       const local = await AsyncStorage.getItem(todayKey);
-      if (local === 'true') return;
+      if (local === 'true') {
+        // Java runs the disclaimer check on every launch once attendance exists.
+        checkDisclaimer();
+        return;
+      }
 
       const response = await attendanceCheck({ UserId: userId });
       if (response?.Code === '200' && response?.Message?.toLowerCase() === 'attendance already added.') {
         await AsyncStorage.setItem(todayKey, 'true');
+        checkDisclaimer();
       } else {
         setShowCheckInModal(true);
       }
@@ -122,23 +181,37 @@ export default function HomeScreen({ navigation }: any) {
     }
   };
 
+  // Mirrors Java UserDialog.showAttendanceMarkDialog(): type 2 (Present), date
+  // as yyyy-M-d, the device's coordinates and reverse-geocoded address.
   const handleCheckIn = async () => {
     try {
+      const { coords, address } = await getCurrentLocationAndAddress();
+      const now = new Date();
+      const attendanceDate = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+
       const response = await addAttendance({
         UserId: userId!,
-        AttendanceDate: new Date().toISOString(),
-        AttendanceTypeId: 0,
+        AttendanceDate: attendanceDate,
+        AttendanceTypeId: 2,
         CreatedBy: userId!,
-        Latitude: '',
-        Longitude: '',
-        AttendanceMarkedPlace: '',
+        UpdatedBy: userId!,
+        IsModelError: true,
+        IsSuccessful: true,
+        Latitude: coords ? String(coords.latitude) : '',
+        Longitude: coords ? String(coords.longitude) : '',
+        AttendanceMarkedPlace: address ?? 'Phone GPS is OFF',
       });
 
+      // Java also accepts "Attendance already added." as a success.
+      const alreadyAdded = response?.Message?.toLowerCase() === 'attendance already added.';
+
       if (response?.Code === '200') {
-        const todayKey = `checked_in_${new Date().toISOString().split('T')[0]}`;
+        const todayKey = checkedInTodayKey();
         await AsyncStorage.setItem(todayKey, 'true');
         setShowCheckInModal(false);
-        Alert.alert('Success', 'Checked in successfully!');
+        if (!alreadyAdded) Alert.alert('Success', 'Checked in successfully!');
+        // Java: disclaimer is checked right after a successful (or already-added) check-in.
+        checkDisclaimer();
       } else {
         Alert.alert('Check-in Failed', response?.Message || 'Please try again');
       }
@@ -151,7 +224,8 @@ export default function HomeScreen({ navigation }: any) {
     try {
       if (!userId) return;
 
-      const response = await getProfileDetails({ UserId: userId });
+      // Java passes IsOnlyUserProgress=false explicitly.
+      const response = await getProfileDetails({ UserId: userId, IsOnlyUserProgress: false });
       const profile = response?.ResultData;
 
       if (profile) {
@@ -309,94 +383,12 @@ export default function HomeScreen({ navigation }: any) {
 
   // ── task navigation ───────────────────────────
 
-  const openTask = async (task: Task) => {
-      // ── Terminal states ──────────────────────────────────────────
-      if (task.TaskStatus === 'Completed') {
-        Alert.alert('Task Completed', 'This task has already been completed.');
-        return;
-      }
-      if (task.TaskStatus === 'Rejected') {
-        Alert.alert('Task Rejected', 'This task has been rejected.');
-        return;
-      }
-  
-      if (task.TaskStatus === 'Ongoing') {
-        switch (task.TaskState) {
-          case 0: // Not started → tracking/accept flow
-          case 1: // Started but not ended → still in execution
-            navigation.navigate('TaskRouteMap', { task });
-            break;
-          case 2: // ENDED_NO_PAYMENT
-            // Rate mode + closure already submitted → go straight to payment
-            if (task.PaymentMode === 'Rate' && task.PaymentModeId === 2 && task.TaskClosureStatus === true) {
-              navigation.navigate('PaymentReceived', { task });
-            } else {
-              navigation.navigate('TaskClosure', { task });
-            }
-            break;
-          case 3: // Payment received → already done
-            Alert.alert('Task Completed', 'This task is completed and payment is received.');
-            break;
-          case 4: // Fully closed
-            Alert.alert('Task Closed', 'This task has already been closed.');
-            break;
-          default:
-            navigation.navigate('TaskRouteMap', { task });
-        }
-        return;
-      }
-  
-      // ── Pending / Not yet started (State 0 or 1) ────────────────
-      if (task.TaskState === 0 || task.TaskState === 1) {
-  
-        if (task.TaskStatus === 'InActive') {
-          const taskDate = new Date(task.TaskDate ?? '');
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          taskDate.setHours(0, 0, 0, 0);
-          const diffDays = Math.round(
-            (today.getTime() - taskDate.getTime()) / (1000 * 60 * 60 * 24)
-          );
-  
-          if (taskDate > today) {
-            Alert.alert('Too Early', "It's too early to accept this task!");
-            return;
-          }
-  
-          navigation.navigate('TaskTracking', { task });
-          return;
-        }
-  
-        if (task.TaskStatus === 'OnHold') {
-          navigation.navigate('TaskTracking', { task, resumeOnHold: true });
-          return;
-        }
-      }
-  
-      // ── Work done, pending closure (State 2) ────────────────────
-      if (task.TaskState === 2) {
-        if (
-          task.PaymentMode === 'Rate' &&
-          task.PaymentModeId === 2 &&
-          task.TaskClosureStatus === true
-        ) {
-          navigation.navigate('PaymentReceived', { task });
-        } else {
-          navigation.navigate('TaskClosure', { task });
-        }
-        return;
-      }
-  
-      // ── Closure submitted, awaiting payment (State 3) ───────────
-      if (task.TaskState === 3) {
-        if (!task.TaskClosureStatus) {
-          navigation.navigate('TaskClosure', { task });
-        } else {
-          Alert.alert('Task Completed', 'This task is completed and payment is received.');
-        }
-        return;
-      }
-    };
+  // Same routing as the Task tab (Java's tap handler is shared by both lists).
+  const openTask = useOpenTask(navigation, {
+    // Java rejects an InActive task more than 3 days old instead of accepting it;
+    // TaskTracking opens directly on its reject step for that case.
+    onLateInactive: t => navigation.navigate('TaskTracking', { task: t, autoReject: true }),
+  });
 
   // ── task card ─────────────────────────────────────────────────────────────
 
@@ -435,7 +427,7 @@ export default function HomeScreen({ navigation }: any) {
                 {item.FSRName && item.FSRName.toUpperCase() !== 'NA' ? item.FSRName : ''}
               </Text>
               {!!item.WagesPerHours && (
-                <Text style={styles.itemPrice}>Rs.{item.WagesPerHours}</Text>
+                <Text style={styles.itemPrice}>Rs.{formatAmount(item.WagesPerHours)}</Text>
               )}
             </View>
           </View>
@@ -575,6 +567,14 @@ export default function HomeScreen({ navigation }: any) {
           ))}
         </View>
       </Modal>
+
+      {/* Disclaimer (blocking until accepted) */}
+      <DisclaimerModal
+        visible={!!disclaimerHtml}
+        disclaimerHtml={disclaimerHtml ?? ''}
+        loading={acceptingDisclaimer}
+        onAccept={handleAcceptDisclaimer}
+      />
 
       {/* Check-in modal */}
       <Modal transparent visible={showCheckInModal} animationType="slide">

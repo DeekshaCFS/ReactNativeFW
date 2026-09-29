@@ -15,7 +15,9 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, HEADER_TOP_PADDING } from '../../../utils/responsive';
 import { addTaskClosure } from '../../../api/task/taskService';
+import { getIsHNGClient } from '../../../api/users/usersService';
 import type { TasksListResultData as Task, TaskClosureResultData as TaskClosurePayload } from '../../../api/task/task.types';
+import { resetToTabsThen, finishTaskFlowToHome } from '../../../navigation/taskFlowNavigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface SignaturePath {
@@ -124,17 +126,33 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
         return;
       }
 
-      const isRateMode = task.PaymentMode === 'Rate' && task.PaymentModeId === 2;
+      const isRateMode =
+        (task.PaymentMode ?? '').toLowerCase() === 'rate' && task.PaymentModeId === 2;
 
-      if (isRateMode) {
-        navigation.navigate('PaymentReceived', { task, elapsedSeconds });
+      // Java (getHNGVerification): users under an HNG client always go to the payment
+      // screen after closure, whatever the task's payment mode. A failed lookup means
+      // "not HNG", same as Java.
+      let isHngClient = false;
+      try {
+        const hng = await getIsHNGClient({ UserId: Number(freshUid) });
+        isHngClient = hng?.Code === '200';
+      } catch {
+        isHngClient = false;
+      }
+
+      if (isHngClient || isRateMode) {
+        // The closure is already saved: back from Payment must not return to Summary,
+        // where Submit would post the closure a second time.
+        resetToTabsThen(navigation, { name: 'PaymentReceived', params: { task, elapsedSeconds } });
         return;
       }
 
+      // Java: after a non-Rate, non-HNG closure the technician is offered the document
+      // upload screen (skippable) before returning to the dashboard.
       Alert.alert('Task Completed', 'The task has been closed successfully.', [
         {
           text: 'OK',
-          onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Home' }] }),
+          onPress: () => resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task } }),
         },
       ]);
     } catch (err: any) {

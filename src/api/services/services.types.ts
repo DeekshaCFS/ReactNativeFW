@@ -14,6 +14,7 @@ export interface ServiceTypeListDTO {
 
 export interface ServiceTypeListDTOResultData {
   UserId?: number;
+  SACCode?: string;
   ServiceTypeSubCategoryId?: number;
   ImageFileBase64Str2?: string;
   ImageFileName2?: string;

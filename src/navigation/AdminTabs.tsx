@@ -189,6 +189,7 @@ export default function AdminTabs() {
                   customerName: getRecordString(record, 'customerName', 'CustomerName'),
                   customerPhone: getRecordString(record, 'contactNo', 'ContactNo'),
                   customerAddress: getRecordString(record, 'fullAddress', 'FullAddress'),
+                  source: 'taskList',
                 });
               }}
             />
@@ -210,6 +211,7 @@ export default function AdminTabs() {
               ownerId={ownerId}
               contentTopOffset={headerOffset}
               openLeaveTabTrigger={route.params?.openLeaveTabTrigger}
+              onAddEmployee={() => setIsAddFieldworkerModalOpen(true)}
             />
           )}
         </Tab.Screen>

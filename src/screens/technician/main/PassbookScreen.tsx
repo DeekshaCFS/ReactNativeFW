@@ -1,20 +1,33 @@
 // src/screens/technician/main/PassbookScreen.tsx
+//
+// Port of Java's HomePassbookFragmentNew (layout home_passbook_fragment_new).
+// Today/Monthly/Yearly tabs each hit a different Passbook endpoint; the field
+// mapping below (which API field feeds which row) mirrors the Java fragment
+// exactly, including its quirks (e.g. Yearly's "Credit Given" and "Remaining
+// Amount" both read TotalOpening — that's what the live app does).
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Platform, StatusBar,
+  Platform, StatusBar, ActivityIndicator,
 } from 'react-native';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, ms, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { scale, vs, sp, ms, HEADER_TOP_PADDING } from '../../../utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { TechnicianTabParamList } from '../../../navigation/TechnicianTabs';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CompositeNavigationProp } from '@react-navigation/native';
+import {
+  getTodayPassbook,
+  getMonthlyPassbook,
+  getYearlyPassbook,
+} from '../../../api/passbook/passbookService';
+import { formatAmount } from '../../../utils/decimal';
+import { getCurrentUserId } from '../../../state/session';
 
 // Passbook is a real tab, but also needs to push 'Expenditure', which now
 // lives one level up in TechnicianStack — so the nav type is a composite.
@@ -24,13 +37,21 @@ type NavigationProp = CompositeNavigationProp<
 >;
 type Period = 'today' | 'monthly' | 'yearly';
 
-const PERIOD_ROWS = [
-  { label: 'Estimated Earnings', value: 'Rs. 0' },
-  { label: 'Credit Given',       value: 'Rs. 0' },
-  { label: 'Expenses',           value: 'Rs. 0' },
-  { label: 'Received',           value: 'Rs. 0' },
-  { label: 'Remaining Amount',   value: 'Rs. 0' },
-];
+// Java: DateUtils.getMonthName() — new DateFormatSymbols(ENGLISH).getShortMonths().
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+type PassbookFields = {
+  estimated: number;
+  credit: number;
+  expenses: number;
+  received: number;
+  remaining: number;
+  earnings: number;
+};
+
+const EMPTY_FIELDS: PassbookFields = {
+  estimated: 0, credit: 0, expenses: 0, received: 0, remaining: 0, earnings: 0,
+};
 
 export default function PassbookScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -39,6 +60,99 @@ export default function PassbookScreen() {
     Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
 
   const [activePeriod, setActivePeriod] = useState<Period>('today');
+  // Drives the Monthly/Yearly caret navigation (Java opens a month/year picker dialog).
+  const [refDate, setRefDate] = useState(() => new Date());
+  const [fields, setFields] = useState<PassbookFields>(EMPTY_FIELDS);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async (period: Period, date: Date) => {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      return;
+    }
+    setLoading(true);
+    try {
+      if (period === 'today') {
+        const res = await getTodayPassbook({ UserId: userId });
+        const d = res?.ResultData;
+        // Java: txtEstimatedEarning and txtEarnings both read EarningAmount here.
+        setFields({
+          estimated: d?.EarningAmount ?? 0,
+          credit: d?.Credit ?? 0,
+          expenses: d?.Expenses ?? 0,
+          received: d?.Return ?? 0,
+          remaining: d?.Balance ?? 0,
+          earnings: d?.EarningAmount ?? 0,
+        });
+      } else if (period === 'monthly') {
+        const month = date.getMonth();
+        const year = date.getFullYear();
+        const res = await getMonthlyPassbook({ UserId: userId, PassbookMonth: month + 1, PassbookYear: year });
+        const d = res?.ResultData;
+        const monthName = MONTHS[month];
+        const row = d?.MonthlyALlDataList?.find(
+          item => item.Month?.includes(monthName) && String(item.Year) === String(year),
+        );
+        setFields({
+          estimated: row?.Estimated ?? 0,
+          credit: d?.TotalCredit ?? 0,
+          expenses: row?.Expenses ?? 0,
+          received: d?.TotalDeduction ?? 0,
+          remaining: d?.TotalOpening ?? 0,
+          earnings: row?.Earning ?? 0,
+        });
+      } else {
+        const year = date.getFullYear();
+        const res = await getYearlyPassbook({ UserId: userId, PassbookYear: year });
+        const d = res?.ResultData;
+        // Java: Credit Given and Remaining Amount both read TotalOpening for Yearly.
+        setFields({
+          estimated: d?.TotalEstimated ?? 0,
+          credit: d?.TotalOpening ?? 0,
+          expenses: d?.TotalExpenses ?? 0,
+          received: d?.TotalDeduction ?? 0,
+          remaining: d?.TotalOpening ?? 0,
+          earnings: d?.TotalEarned ?? 0,
+        });
+      }
+    } catch {
+      setFields(EMPTY_FIELDS);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => { load(activePeriod, refDate); }, [load, activePeriod, refDate]),
+  );
+
+  const selectPeriod = (period: Period) => {
+    setActivePeriod(period);
+    const now = new Date();
+    setRefDate(now);
+    load(period, now);
+  };
+
+  const shiftRef = (delta: number) => {
+    if (activePeriod === 'today') {
+      return;
+    }
+    const next = new Date(refDate);
+    if (activePeriod === 'monthly') {
+      next.setMonth(next.getMonth() + delta);
+    } else {
+      next.setFullYear(next.getFullYear() + delta);
+    }
+    setRefDate(next);
+  };
+
+  const title = activePeriod === 'today'
+    ? "Today's Earnings"
+    : activePeriod === 'monthly'
+      ? `${MONTHS[refDate.getMonth()]} ${refDate.getFullYear()}'s Earnings`
+      : `${refDate.getFullYear()}'s Earnings`;
+
+  const money = (v: number) => `Rs. ${formatAmount(v)}`;
 
   return (
     <View style={styles.root}>
@@ -62,7 +176,7 @@ export default function PassbookScreen() {
             <Pressable
               key={period}
               style={[styles.periodBtn, activePeriod === period && styles.activePeriod]}
-              onPress={() => setActivePeriod(period)}
+              onPress={() => selectPeriod(period)}
             >
               <Text style={[styles.periodText, activePeriod === period && styles.activePeriodText]}>
                 {period.charAt(0).toUpperCase() + period.slice(1)}
@@ -75,15 +189,29 @@ export default function PassbookScreen() {
         <View style={styles.whiteCard}>
           {/* Earnings row */}
           <View style={styles.earnRow}>
-            <Pressable style={styles.caretButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="caret-back" size={sp(22)} color="#111" />
+            <Pressable
+              style={styles.caretButton}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              onPress={() => shiftRef(-1)}
+              disabled={activePeriod === 'today'}
+            >
+              <Ionicons name="caret-back" size={sp(22)} color={activePeriod === 'today' ? '#ccc' : '#111'} />
             </Pressable>
             <View style={{ alignItems: 'center' }}>
-              <Text style={styles.earningTitle}>Today's Earnings</Text>
-              <Text style={styles.earningAmount}>Rs. 0</Text>
+              <Text style={styles.earningTitle}>{title}</Text>
+              {loading ? (
+                <ActivityIndicator style={{ marginTop: vs(4) }} color={COLORS.primary} />
+              ) : (
+                <Text style={styles.earningAmount}>{money(fields.earnings)}</Text>
+              )}
             </View>
-            <Pressable style={styles.caretButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="caret-forward" size={sp(22)} color="#111" />
+            <Pressable
+              style={styles.caretButton}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              onPress={() => shiftRef(1)}
+              disabled={activePeriod === 'today'}
+            >
+              <Ionicons name="caret-forward" size={sp(22)} color={activePeriod === 'today' ? '#ccc' : '#111'} />
             </Pressable>
           </View>
 
@@ -94,32 +222,35 @@ export default function PassbookScreen() {
             end={{ x: 0, y: 1 }}
             style={styles.gradientSheet}
           >
+            {/* Java: RoundCornerProgressBar is static (rcProgress="8.0" out of 10,
+                never bound to a real value in HomePassbookFragmentNew) — kept as
+                the same static decoration here. */}
             <View style={styles.progressBarBg}>
               <View style={styles.progressBarFill} />
             </View>
 
             <View style={styles.rowBetween}>
               <Text style={styles.mutedText}>
-                Estimated Earnings <Text style={styles.bold}>Rs. 0</Text>
+                Estimated Earnings <Text style={styles.bold}>{money(fields.estimated)}</Text>
               </Text>
               <Text style={styles.percentText}>80%</Text>
             </View>
 
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: sp(18) }]}>Credit Given</Text>
-              <Text style={[styles.bold, { fontSize: sp(18) }]}>Rs. 0</Text>
+              <Text style={[styles.bold, { fontSize: sp(18) }]}>{money(fields.credit)}</Text>
             </View>
 
             {[
-              { label: 'Expenses',          value: 'Rs. 0' },
-              { label: 'Received',          value: 'Rs. 0' },
-              { label: 'Remaining Amount',  value: 'Rs. 0' },
+              { label: 'Expenses', value: fields.expenses },
+              { label: 'Received', value: fields.received },
+              { label: 'Remaining Amount', value: fields.remaining },
             ].map(({ label, value }) => (
               <View key={label}>
                 <View style={styles.divider} />
                 <View style={styles.rowBetween}>
                   <Text style={styles.rowText}>{label}</Text>
-                  <Text style={styles.bold}>{value}</Text>
+                  <Text style={styles.bold}>{money(value)}</Text>
                 </View>
               </View>
             ))}
@@ -206,6 +337,7 @@ const styles = StyleSheet.create({
   },
   progressBarBg:   { height: vs(6), backgroundColor: '#ededed', borderRadius: 4, marginBottom: vs(12) },
   progressBarFill: { width: '80%', height: vs(6), backgroundColor: COLORS.primary, borderRadius: 4 },
+  percentText: { color: COLORS.primary, fontWeight: '600', fontSize: sp(13) },
 
   rowBetween: {
     flexDirection: 'row',
@@ -221,6 +353,5 @@ const styles = StyleSheet.create({
   },
   bold:        { fontWeight: '600', fontSize: sp(16), color: COLORS.textPrimary },
   mutedText:   { color: '#374151', fontSize: sp(13), flexShrink: 1 },
-  percentText: { color: COLORS.primary, fontWeight: '600', fontSize: sp(13) },
   rowText:     { fontSize: sp(15), color: COLORS.textPrimary },
 });

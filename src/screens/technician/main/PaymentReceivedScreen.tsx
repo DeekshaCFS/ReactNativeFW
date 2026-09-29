@@ -12,10 +12,13 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp } from '../../../utils/responsive';
+import { formatAmount, sanitizeDecimalInput } from '../../../utils/decimal';
 import { getTaskClosureDetails } from '../../../api/taskList/taskListService';
 import { getPgActivationStatus } from '../../../api/paymentGateway/paymentGatewayService';
 import { updateTaskWithEarnedAmount } from '../../../api/passbook/passbookService';
@@ -23,10 +26,18 @@ import type { UpdateTaskWithEarnedAmountExcessDtl as ExcessAmountDetail } from '
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TASK_STATUS_ID } from '../../../constants/taskStatus';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
+import { finishTaskFlowToHome } from '../../../navigation/taskFlowNavigation';
 
 const PAYMENT_TRANSACTION_TYPES = ['Cash', 'UPI', 'Online', 'NEFT', 'Cheque', 'Credit', 'Other'] as const;
 
 const PAYMENT_RECEIVED_STATE = 3; // TaskState.PAYMENT_RECEIVED
+
+// Java: DateUtils.getDate(now, "yyyyMMdd_HHmmss")
+const proofFileTimestamp = () => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+};
 
 interface AdjustmentRow {
   description: string;
@@ -47,6 +58,31 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
   );
 
   const [paymentType, setPaymentType] = useState<string>('');
+
+  // Java (TechPaymentReceivedFragmentNew): an optional "Proof of Payment" photo is
+  // offered for UPI / Online payments and posted as QRCodeImageFileName / ...Base64Str.
+  const [proofPhoto, setProofPhoto] = useState<{ uri: string; base64: string } | null>(null);
+  const showProofPicker = paymentType === 'UPI' || paymentType === 'Online';
+
+  const pickProofPhoto = (source: 'camera' | 'gallery') => {
+    const options = { mediaType: 'photo' as const, includeBase64: true, quality: 0.8 as const };
+    const launch = source === 'camera' ? launchCamera : launchImageLibrary;
+    launch(options).then(result => {
+      const asset = result.assets?.[0];
+      if (asset?.uri && asset.base64) {
+        setProofPhoto({ uri: asset.uri, base64: asset.base64 });
+      }
+    }).catch(() => {
+      Alert.alert('Error', 'Could not load the photo.');
+    });
+  };
+
+  const openProofPicker = () =>
+    Alert.alert('Proof of Payment', 'Select an option', [
+      { text: 'Take Photo', onPress: () => pickProofPhoto('camera') },
+      { text: 'Choose from Gallery', onPress: () => pickProofPhoto('gallery') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   const [earnedAmount, setEarnedAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [adjustments, setAdjustments] = useState<AdjustmentRow[]>([]);
@@ -63,7 +99,8 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
 
         const results = await Promise.allSettled([
           getTaskClosureDetails({ UserId: userId, TaskID: routeTask.Id }),
-          getPgActivationStatus({ UserId: routeTask.OwnerId ?? userId }),
+          // Java (getPG_ActivationStatus) passes the logged-in user's own id.
+          getPgActivationStatus({ UserId: userId }),
         ]);
 
         const [closureRes, pgRes] = results;
@@ -192,6 +229,11 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
         // adjustments (unchanged from the base task amount when no adjustments were made).
         NewWagePerHours: (taskAmount ?? 0) + (markPending ? 0 : adjustmentTotal),
         Task_Excess_Amount_Dtls: excessDtls,
+        // Only attach proof when it applies to the chosen payment type.
+        ...(!markPending && showProofPicker && proofPhoto && {
+          QRCodeImageFileName: `${proofFileTimestamp()}_ProofOfPaymntImg_.jpg`,
+          QRCodeImageFileBase64Str: proofPhoto.base64,
+        }),
       });
 
       if (res.Code !== '200') {
@@ -200,7 +242,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
       }
 
       Alert.alert('Task Completed', 'Payment recorded and the task has been closed.', [
-        { text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Home' }] }) },
+        { text: 'OK', onPress: () => finishTaskFlowToHome(navigation) },
       ]);
     } catch (err: any) {
       Alert.alert('Error', err?.response?.data?.Message || err?.message || 'Something went wrong.');
@@ -239,7 +281,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
         <View style={styles.card}>
           <Text style={styles.taskName}>{routeTask.Name}</Text>
           {taskAmount != null && (
-            <Text style={styles.taskAmount}>Task Amount: ₹{taskAmount}</Text>
+            <Text style={styles.taskAmount}>Task Amount: ₹{formatAmount(taskAmount)}</Text>
           )}
         </View>
 
@@ -274,14 +316,30 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
             ))}
           </View>
 
+          {showProofPicker && (
+            <>
+              <Text style={[styles.cardTitle, { marginTop: vs(16) }]}>Proof of Payment (optional)</Text>
+              <Pressable style={styles.proofBox} onPress={openProofPicker}>
+                {proofPhoto ? (
+                  <Image source={{ uri: proofPhoto.uri }} style={styles.proofImage} resizeMode="cover" />
+                ) : (
+                  <View style={styles.proofPlaceholder}>
+                    <Ionicons name="camera-outline" size={sp(24)} color={COLORS.primary} />
+                    <Text style={styles.chipText}>Add Proof of Payment</Text>
+                  </View>
+                )}
+              </Pressable>
+            </>
+          )}
+
           <Text style={[styles.cardTitle, { marginTop: vs(16) }]}>Amount Received</Text>
           <TextInput
             style={styles.input}
             placeholder="Enter amount"
             placeholderTextColor={COLORS.textTertiary}
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             value={earnedAmount}
-            onChangeText={setEarnedAmount}
+            onChangeText={t => setEarnedAmount(sanitizeDecimalInput(t))}
           />
 
           <Text style={[styles.cardTitle, { marginTop: vs(16) }]}>Notes (optional)</Text>
@@ -323,9 +381,9 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
                 style={[styles.input, styles.adjustmentAmount]}
                 placeholder="Amount"
                 placeholderTextColor={COLORS.textTertiary}
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 value={row.amount}
-                onChangeText={v => updateAdjustmentRow(index, 'amount', v)}
+                onChangeText={v => updateAdjustmentRow(index, 'amount', sanitizeDecimalInput(v))}
               />
               <Pressable onPress={() => removeAdjustmentRow(index)} style={styles.removeRowButton}>
                 <Ionicons name="close-circle" size={scale(20)} color={COLORS.textTertiary} />
@@ -407,6 +465,19 @@ const styles = StyleSheet.create({
     marginTop: vs(6),
   },
   notesInput: { minHeight: vs(60), textAlignVertical: 'top' },
+  proofBox: {
+    marginTop: vs(8),
+    height: vs(110),
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: COLORS.primary,
+    borderRadius: scale(10),
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  proofImage: { width: '100%', height: '100%' },
+  proofPlaceholder: { alignItems: 'center', gap: vs(4) },
   adjustmentsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   addRowButton: { flexDirection: 'row', alignItems: 'center', gap: scale(4) },
   addRowText: { color: COLORS.primary, fontSize: sp(13), fontWeight: '600' },

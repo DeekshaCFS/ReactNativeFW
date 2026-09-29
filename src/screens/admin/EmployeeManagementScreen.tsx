@@ -29,9 +29,12 @@ import {
 import { getAllDesignation } from '../../api/umDesignations/umDesignationsService';
 import { getAllEmpList } from '../../api/umEmployeeList/umEmployeeListService';
 import { getAllEmployeeLeaveList } from '../../api/leaveManagement/leaveManagementService';
-import { deleteEmpAccount } from '../../api/users/usersService';
+import LeaveApprovalModal from './LeaveApprovalModal';
+import { deleteEmpAccount, downloadTechList } from '../../api/users/usersService';
 import { ensureSuccess } from '../../utils/apiResponse';
 import EditEmployeeModal from './EditEmployeeModal';
+import EmployeeAttendanceModal from './EmployeeAttendanceModal';
+import TechnicianLiveMapScreen from './TechnicianLiveMapScreen';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 type EmployeeManagementScreenProps = {
@@ -45,6 +48,8 @@ type EmployeeManagementScreenProps = {
   // dashboard's "Today's Attendance" card is tapped, so this screen opens
   // directly on the Leave tab instead of the default Employee tab.
   openLeaveTabTrigger?: number;
+  // "+ Emp" (Java: EmployeeListFragment plus_tech -> AddBulkTechFragment).
+  onAddEmployee?: () => void;
 };
 
 type EmployeeTab = 'employee' | 'leave';
@@ -182,6 +187,7 @@ const EmployeeManagementScreen = ({
   ownerId,
   contentTopOffset = 0,
   openLeaveTabTrigger,
+  onAddEmployee,
 }: EmployeeManagementScreenProps) => {
   const [activeTab, setActiveTab] = useState<EmployeeTab>('employee');
 
@@ -195,6 +201,8 @@ const EmployeeManagementScreen = ({
   }, [openLeaveTabTrigger]);
   const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
   const [leaves, setLeaves] = useState<LeaveListItem[]>([]);
+  // EmpAdminLeaveListAdapter.onClick -> LeaveApproveRejectFragmnt.
+  const [selectedLeave, setSelectedLeave] = useState<LeaveListItem | null>(null);
   const [employeeTypes, setEmployeeTypes] = useState<FilterOption[]>([]);
   const [zones, setZones] = useState<FilterOption[]>([]);
   const [statuses, setStatuses] = useState<FilterOption[]>([]);
@@ -242,6 +250,12 @@ const EmployeeManagementScreen = ({
   );
   const [editingEmployee, setEditingEmployee] = useState<EmployeeListItem | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeListItem | null>(
+    null,
+  );
+  const [attendanceEmployee, setAttendanceEmployee] = useState<EmployeeListItem | null>(
+    null,
+  );
+  const [trackingEmployee, setTrackingEmployee] = useState<EmployeeListItem | null>(
     null,
   );
   const latestRequestId = useRef(0);
@@ -586,14 +600,31 @@ const EmployeeManagementScreen = ({
     setEditingEmployee(item);
   };
 
+  // EmployeeListFragment.getDownloadTechList: the server builds the file and
+  // returns its URL in ResultData.TechFilePath.
+  const handleDownloadEmployees = async () => {
+    try {
+      const response = await downloadTechList({OwnerId: ownerId});
+      const url = String(response?.ResultData?.TechFilePath ?? '');
+      if (response?.Code === '200' && url) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Download', response?.Message || 'Unable to download the employee list.');
+      }
+    } catch (error) {
+      Alert.alert('Download', error instanceof Error ? error.message : 'Unable to download the employee list.');
+    }
+  };
+
   const handleDeleteEmployee = (item: EmployeeListItem) => {
+    // delete_tech_account.xml wording.
     Alert.alert(
-      'Delete Employee',
-      `Are you sure you want to delete ${getEmployeeName(item)}?`,
+      `Do you wish to Delete ${getEmployeeName(item)}`,
+      'It will completely remove all the data associated with this account.',
       [
-        {text: 'Cancel', style: 'cancel'},
+        {text: 'Nope. Not Now', style: 'cancel'},
         {
-          text: 'Delete',
+          text: 'Yes. Delete',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -681,8 +712,20 @@ const EmployeeManagementScreen = ({
             {zone}
           </Text>
           <View style={styles.trackRow}>
-            <Text style={styles.calendarIcon}>▣</Text>
-            <Pressable style={styles.trackButton}>
+            <Pressable
+              hitSlop={8}
+              onPress={() => setAttendanceEmployee(item)}>
+              <Text style={styles.calendarIcon}>▣</Text>
+            </Pressable>
+            <Pressable
+              style={styles.trackButton}
+              onPress={() => {
+                if (attendanceLower === 'absent') {
+                  Alert.alert('Track', 'Technician is marked absent.');
+                  return;
+                }
+                setTrackingEmployee(item);
+              }}>
               <Text style={styles.trackButtonText}>Track</Text>
             </Pressable>
           </View>
@@ -733,7 +776,7 @@ const EmployeeManagementScreen = ({
     const endDate = formatDate(item.LeaveEndDate);
 
     return (
-      <View style={styles.leaveCard}>
+      <Pressable style={styles.leaveCard} onPress={() => setSelectedLeave(item)}>
         <View
           style={[
             styles.leaveTypeRibbon,
@@ -780,7 +823,7 @@ const EmployeeManagementScreen = ({
             {String(item.ReasonOfLeave ?? '').trim() || 'NA'}
           </Text>
         </View>
-      </View>
+      </Pressable>
     );
   };
 
@@ -836,10 +879,10 @@ const EmployeeManagementScreen = ({
               </Pressable>
             ) : null}
           </View>
-          <Pressable style={styles.addButton}>
+          <Pressable style={styles.addButton} onPress={onAddEmployee}>
             <Text style={styles.addButtonText}>+ Emp</Text>
           </Pressable>
-          <Pressable style={styles.downloadButton} onPress={refreshList}>
+          <Pressable style={styles.downloadButton} onPress={handleDownloadEmployees}>
             <Text style={styles.downloadIcon}>⇩</Text>
           </Pressable>
         </View>
@@ -914,25 +957,6 @@ const EmployeeManagementScreen = ({
         }}
       />
     </>
-  );
-
-  const renderLeaveTab = () => (
-    <View style={styles.leaveShell}>
-      <View style={styles.searchBox}>
-        <Text style={styles.searchIcon}>⌕</Text>
-        <TextInput
-          editable={false}
-          placeholder="Search"
-          placeholderTextColor="#A3A3A3"
-          style={styles.searchInput}
-        />
-      </View>
-      <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>!</Text>
-        <Text style={styles.emptyTitle}>No Result Found</Text>
-        <Text style={styles.emptyText}>Leave request data is not available.</Text>
-      </View>
-    </View>
   );
 
   const renderLeaveRequestTab = () => (
@@ -1056,6 +1080,16 @@ const EmployeeManagementScreen = ({
       </View>
 
       {activeTab === 'employee' ? renderEmployeeTab() : renderLeaveRequestTab()}
+
+      <LeaveApprovalModal
+        leave={selectedLeave}
+        ownerId={ownerId}
+        onClose={() => setSelectedLeave(null)}
+        onActioned={() => {
+          setSelectedLeave(null);
+          fetchLeavePage({nextPage: PAGE_START, replace: true});
+        }}
+      />
 
       <Modal
         visible={filterModal !== null}
@@ -1298,6 +1332,16 @@ const EmployeeManagementScreen = ({
           </Pressable>
         </Pressable>
       </Modal>
+      <EmployeeAttendanceModal
+        visible={attendanceEmployee !== null}
+        employee={attendanceEmployee}
+        onClose={() => setAttendanceEmployee(null)}
+      />
+      <TechnicianLiveMapScreen
+        visible={trackingEmployee !== null}
+        employee={trackingEmployee}
+        onClose={() => setTrackingEmployee(null)}
+      />
       <EditEmployeeModal
         visible={editingEmployee !== null}
         ownerId={ownerId}

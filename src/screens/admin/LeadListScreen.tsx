@@ -42,7 +42,7 @@ import {
   type StateItem,
   type StateListResponse,
 } from './adminLegacyApiTypes';
-import { getLeadstatusList, getAllLEADList } from '../../api/lead/leadService';
+import { getLeadstatusList, getAllLEADList, deleteLeadDetails } from '../../api/lead/leadService';
 import { getEnquiryServiceTypeList } from '../../api/services/servicesService';
 import { getCustomerList, getStateList, getCityList } from '../../api/customerList/customerListService';
 import { postExternalLeadForm } from '../../api/leadForm/leadFormService';
@@ -1929,6 +1929,32 @@ const LeadListScreen = ({userId}: LeadListScreenProps) => {
         userId={userId}
         leadId={selectedLeadId}
         onBack={() => setSelectedLeadId(null)}
+        onDelete={() => {
+          // LeadDetailsFragment.deleteLeadDetailsDialog (delete_leaddetails_dialog).
+          Alert.alert(
+            '',
+            'Do you want to delete this Lead ? It will delete all customer history.',
+            [
+              { text: 'NO', style: 'cancel' },
+              {
+                text: 'Yes',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    const response = await deleteLeadDetails({ UserId: userId, Id: selectedLeadId });
+                    Alert.alert('', response?.Message ?? 'Lead deleted.');
+                    if (response?.Code === '200') {
+                      setSelectedLeadId(null);
+                      fetchLeadPage({ nextPage: PAGE_START, replace: true });
+                    }
+                  } catch (error) {
+                    Alert.alert('', error instanceof Error ? error.message : 'Unable to delete lead.');
+                  }
+                },
+              },
+            ],
+          );
+        }}
       />
     );
   }

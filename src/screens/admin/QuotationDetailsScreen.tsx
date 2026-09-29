@@ -23,6 +23,7 @@ import {
 import type {QuotationDetailsDTOResultData} from '../../api/quotation/quotation.types';
 import {sp, ms, vs, scale} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
+import {formatAmount} from '../../utils/decimal';
 import BackBar from '../../components/BackBar';
 
 const THEME_PRIMARY = '#c3002f';
@@ -36,14 +37,12 @@ const RED = '#c3002f';
 // to from here is "Lost" (StatusId 4) — there's no full status picker.
 const LOST_STATUS_ID = 4;
 
-const formatAmount = (value: unknown) => {
-  const num = Number(value ?? 0);
-  return Number.isFinite(num) ? num.toFixed(1) : '0.0';
-};
-
 const formatPercent = (value: unknown) => {
   const num = Number(value ?? 0);
-  return Number.isFinite(num) ? num.toFixed(1) : '0.0';
+  if (!Number.isFinite(num)) {
+    return '0.0';
+  }
+  return Number.isInteger(num) ? num.toFixed(1) : String(Number(num.toFixed(3)));
 };
 
 const formatDateOnly = (raw?: string | null) => {

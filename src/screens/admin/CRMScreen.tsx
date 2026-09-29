@@ -36,7 +36,7 @@ import {
 import RNFS from 'react-native-fs';
 import {getEnquiryList, addEnquiry, updateEnquiry} from '../../api/customerInquiry/customerInquiryService';
 import type {EnquiryListResultData} from '../../api/customerInquiry/customerInquiry.types';
-import {getCustomerList, getStateList, getCityList} from '../../api/customerList/customerListService';
+import {getCustomerList, getStateList, getCityList, deleteCustomerDetails} from '../../api/customerList/customerListService';
 import type {CustomerListResultData, StateDTOResultData, CityDTOResultData} from '../../api/customerList/customerList.types';
 import {getServiceTypeList} from '../../api/services/servicesService';
 import type {ServiceTypeListDTOResultData} from '../../api/services/services.types';
@@ -2219,6 +2219,35 @@ const CRMScreen = ({
           onEdit={record => {
             setCustomerBeingEdited(record);
             setIsEditCustomerModalOpen(true);
+          }}
+          onDelete={record => {
+            // CRMTaskAmcTabHostFragment.deleteCustomer (delete_customer_dialog).
+            Alert.alert(
+              '',
+              'Do you want to delete this Customer ? It will delete all customer history.',
+              [
+                {text: 'NO', style: 'cancel'},
+                {
+                  text: 'Yes',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      const response = await deleteCustomerDetails({
+                        UserId: ownerId,
+                        CustomerId: getNumberField(record, ['customerDetailsid', 'CustomerDetailsid']),
+                      });
+                      Alert.alert('', response?.Message ?? 'Customer deleted.');
+                      if (response?.Code === '200') {
+                        setSelectedCustomer(null);
+                        fetchCustomers(true);
+                      }
+                    } catch (error) {
+                      Alert.alert('', error instanceof Error ? error.message : 'Unable to delete customer.');
+                    }
+                  },
+                },
+              ],
+            );
           }}
         />
         <EditCustomerModal

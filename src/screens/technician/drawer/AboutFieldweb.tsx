@@ -7,7 +7,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ms, sp, scale } from '../../../utils/responsive';
 
-const ABOUT_URL = 'https://policies.google.com/privacy';
+const ABOUT_URL = 'https://www.thefieldweb.com/about-us'; // Java: AboutUsFragment
 const WHATSAPP_NUMBER = '919315228028';
 
 export default function AboutFieldwebScreen() {

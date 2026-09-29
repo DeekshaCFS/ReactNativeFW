@@ -7,6 +7,7 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { formatAmount } from '../../../utils/decimal';
 import { getTaskListSearchNew } from '../../../api/taskList/taskListService';
 import { getTaskTagList } from '../../../api/task/taskService';
 import { userPermissions } from '../../../api/userPermission/userPermissionService';
@@ -17,6 +18,7 @@ import DrumPicker from '../../../components/DrumPicker';
 import { launchCamera } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTaskStatus } from '../../../hooks/useTaskStatus';
+import { useOpenTask } from '../../../hooks/useOpenTask';
 
 const getStatusStyle = (status: string) => {
   switch (status) {
@@ -58,7 +60,7 @@ export default function TaskScreen({ navigation, route }: any) {
   const [showMonthPicker, setShowMonthPicker] = useState(false);
 
   const errorMessageRef = React.useRef<string | null>(null);
-  const { acceptTask, rejectTask, errorMessage } = useTaskStatus();
+  const { acceptTask, rejectTask, errorMessage, wasTaskUnavailable } = useTaskStatus();
 
   const [showLateRejectSheet, setShowLateRejectSheet] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -248,6 +250,11 @@ export default function TaskScreen({ navigation, route }: any) {
         photosWithImage,
       );
       if (!success) {
+        if (wasTaskUnavailable()) {
+          // Java refreshes the list when the task no longer exists.
+          closeLateRejectSheet();
+          fetchTasks(1, true);
+        }
         Alert.alert('Error', errorMessageRef.current ?? 'Failed to reject task');
         return;
       }
@@ -283,81 +290,12 @@ export default function TaskScreen({ navigation, route }: any) {
     fetchTasks(nextPage);
   };
 
-  const openTask = async (task: Task) => {
-    // ── Terminal states ──────────────────────────────────────────
-    if (task.TaskStatus === 'Completed') {
-      Alert.alert('Task Completed', 'This task has already been completed.');
-      return;
-    }
-    if (task.TaskStatus === 'Rejected') {
-      Alert.alert('Task Rejected', 'This task has been rejected.');
-      return;
-    }
-
-    if (task.TaskStatus === 'Ongoing') {
-      switch (task.TaskState) {
-        case 0: // NOT_STARTED 
-        case 1: // STARTED_NOT_ENDED 
-          navigation.navigate('TaskRouteMap', { task });
-          break;
-        case 2: // ENDED_NO_PAYMENT
-          if (task.PaymentMode === 'Rate') {
-            if (task.TaskClosureStatus === true) {
-              navigation.navigate('PaymentReceived', { task });
-            } else {
-              navigation.navigate('TaskClosure', { task });
-            }
-          } else {
-            navigation.navigate('TaskClosure', { task });
-          }
-          break;
-        case 3: // PAYMENT_RECEIVED
-          if (task.TaskClosureStatus !== true) {
-            navigation.navigate('TaskClosure', { task });
-          } else {
-            Alert.alert('Task Completed', 'This task is completed and payment is received.');
-          }
-          break;
-        case 4: // TASK_CLOSURE → fully closed (e.g. AMC, no payment step)
-          Alert.alert('Task Closed', 'This task has already been closed.');
-          break;
-        default:
-          navigation.navigate('TaskRouteMap', { task });
-      }
-      return;
-    }
-
-    // ── Pending / Not yet started ───────────────────────────────
-    if (task.TaskState === 0 || task.TaskState === 1) {
-      if (task.TaskStatus === 'InActive') {
-        const taskDate = new Date(task.TaskDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        taskDate.setHours(0, 0, 0, 0);
-        const diffDays = Math.round(
-          (today.getTime() - taskDate.getTime()) / (1000 * 60 * 60 * 24)
-        );
-
-        if (taskDate > today) {
-          Alert.alert('Too Early', "It's too early to accept this task!");
-          return;
-        }
-        if (diffDays > 3) {
-          setSelectedTask(task);
-          setShowLateRejectSheet(true);
-          return;
-        }
-
-        navigation.navigate('TaskTracking', { task });
-        return;
-      }
-
-      if (task.TaskStatus === 'OnHold') {
-        navigation.navigate('TaskTracking', { task, resumeOnHold: true });
-        return;
-      }
-    }
-  };
+  const openTask = useOpenTask(navigation, {
+    onLateInactive: t => {
+      setSelectedTask(t);
+      setShowLateRejectSheet(true);
+    },
+  });
 
   const getTaskTag = (task: Task) => {
     return task.Task_TagName &&
@@ -411,7 +349,7 @@ export default function TaskScreen({ navigation, route }: any) {
                 {item.FSRName && item.FSRName.toUpperCase() !== 'NA' ? item.FSRName : ''}
               </Text>
               {!!item.WagesPerHours && (
-                <Text style={styles.itemPrice}>Rs.{item.WagesPerHours}</Text>
+                <Text style={styles.itemPrice}>Rs.{formatAmount(item.WagesPerHours)}</Text>
               )}
             </View>
           </View>

@@ -1,8 +1,9 @@
 // src/screens/technician/main/TaskRouteMapScreen.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, Animated, LayoutAnimation, ActivityIndicator, Linking, Alert,
+  View, Text, StyleSheet, Pressable, Animated, LayoutAnimation, ActivityIndicator, Linking, Alert, Platform,
 } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
@@ -10,6 +11,7 @@ import { GetAllTaskListDTOResultData as Task } from '../../../api/task/task.type
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { requestLocationPermission, getCurrentPosition, Coordinates } from '../../../utils/locationPermision';
+import { fetchDrivingRoute, DrivingRoute } from '../../../utils/routing';
 
 type Props = NativeStackScreenProps<TechnicianStackParamList, 'TaskRouteMap'>;
 
@@ -37,6 +39,39 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
       }
     })();
   }, []);
+
+  const mapRef = useRef<MapView | null>(null);
+
+  // Real driving route + distance/time (Java: fetchRoute -> Directions API). Falls back to
+  // the straight line and "—" if the router is unreachable.
+  const [route_, setRoute] = useState<DrivingRoute | null>(null);
+
+  const destination = task.Latitude && task.Longitude
+    ? { latitude: parseFloat(task.Latitude), longitude: parseFloat(task.Longitude) }
+    : null;
+
+  useEffect(() => {
+    if (currentPosition && destination) {
+      mapRef.current?.fitToCoordinates([currentPosition, destination], {
+        edgePadding: { top: vs(160), right: scale(60), bottom: vs(200), left: scale(60) },
+        animated: true,
+      });
+    }
+    // destination is derived from task.Latitude/Longitude each render; depend on those primitives instead of the object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPosition, task.Latitude, task.Longitude]);
+
+  useEffect(() => {
+    if (!currentPosition || !destination) return;
+    let cancelled = false;
+    fetchDrivingRoute(currentPosition, destination).then(r => {
+      if (!cancelled) setRoute(r);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPosition, task.Latitude, task.Longitude]);
 
   const chevronRotation = useRef(new Animated.Value(0));
 
@@ -91,7 +126,9 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
 
   const handleYes = () => {
     setShowPrompt(false);
-    navigation.navigate('TaskExecution', { task });
+    // replace, not push: back from Execution must not return to a stale map (Java has no
+    // back stack between these steps, and reject / on-hold would land here otherwise).
+    navigation.replace('TaskExecution', { task });
   };
 
   const handleCall = () => {
@@ -121,13 +158,13 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
           {
             text: 'Not Yet',
             style: 'cancel',
-            onPress: () => navigation.navigate('Task' as never),
+            onPress: () => navigation.popTo('TechnicianTabsRoot', { screen: 'Task' }),
           },
           {
             text: 'Yes, Proceed',
             onPress: () => {
               const taskWithFallbackCoords = { ...task, Latitude: '0.00', Longitude: '0.00' };
-              navigation.navigate('TaskExecution', { task: taskWithFallbackCoords });
+              navigation.replace('TaskExecution', { task: taskWithFallbackCoords });
             },
           },
         ],
@@ -139,15 +176,33 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
   return (
     <View style={styles.root}>
 
-      <View style={styles.mapPlaceholder}>
-        <Ionicons name="map-outline" size={sp(56)} color="#D1D5DB" />
-        <Text style={styles.mapPlaceholderText}>Map view coming soon</Text>
-        {currentPosition ? (
-          <Text style={styles.mapPlaceholderText}>
-            Current location: {currentPosition.latitude.toFixed(4)}, {currentPosition.longitude.toFixed(4)}
-          </Text>
-        ) : null}
-      </View>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        showsUserLocation
+        showsMyLocationButton
+        initialRegion={{
+          latitude: (currentPosition ?? destination)?.latitude ?? 20.5937,
+          longitude: (currentPosition ?? destination)?.longitude ?? 78.9629,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}>
+        {destination && (
+          <Marker
+            coordinate={destination}
+            title={task.Name ?? 'Destination'}
+            description={address}
+          />
+        )}
+        {currentPosition && destination && (
+          <Polyline
+            coordinates={route_?.coordinates ?? [currentPosition, destination]}
+            strokeColor="#000000"
+            strokeWidth={2}
+          />
+        )}
+      </MapView>
 
       {/* Floating Task Card */}
       <View style={styles.taskCard}>
@@ -176,11 +231,11 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
             <View style={styles.twoColRow}>
               <View style={styles.twoColItem}>
                 <Text style={styles.detailLabel}>Distance</Text>
-                <Text style={styles.detailValuePrimary}>{task.DistanceTravelled ?? '—'}</Text>
+                <Text style={styles.detailValuePrimary}>{route_?.distanceText ?? '—'}</Text>
               </View>
               <View style={styles.twoColItem}>
                 <Text style={styles.detailLabel}>Time</Text>
-                <Text style={styles.detailValuePrimary}>{task.TimeConsumed ?? '—'}</Text>
+                <Text style={styles.detailValuePrimary}>{route_?.durationText ?? '—'}</Text>
               </View>
             </View>
 
@@ -244,13 +299,9 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#eeeeee' },
 
-  mapPlaceholder: {
+  map: {
     ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: scale(12),
   },
-  mapPlaceholderText: { fontSize: sp(14), color: '#828282' },
 
   taskCard: {
     marginTop: HEADER_TOP_PADDING,

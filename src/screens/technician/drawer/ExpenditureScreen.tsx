@@ -1,45 +1,174 @@
 // src/screens/technician/drawer/ExpenditureScreen.tsx
+//
+// Port of Java's ExpenseDetailsFragmentNew (technician's own passbook/expenditure
+// self-service screen). Loads Expenditure/GetTechnicianExpenditure for the
+// selected day (prev/next day arrows, same as the owner's read-only
+// TechnicianExpenseDetailsModal) and lets the technician add a new expense
+// with a photo via Expenditure/AddExpense.
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Modal, TextInput, Platform, StatusBar,
+  Modal, TextInput, Image, ActivityIndicator, Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ms, sp, scale, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { ms, sp, scale } from '../../../utils/responsive';
 import { requestLocationPermission } from '../../../utils/locationPermision';
+import { launchCamera, launchImageLibrary, Asset } from 'react-native-image-picker';
+import {
+  getExpenditureDetails,
+  updateAddExpense,
+} from '../../../api/expenditure/expenditureService';
+import type { ExpenseDetailsExpenseList, ExpenseDetailsResultData } from '../../../api/expenditure/expenditure.types';
+import { formatAmount } from '../../../utils/decimal';
+import { getCurrentUserId, getCurrentUserProfile } from '../../../state/session';
 
 type NavigationProp = NativeStackNavigationProp<TechnicianStackParamList, 'Expenditure'>;
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Java: mDate = year + "-" + (month + 1) + "-" + day (no zero padding).
+const toApiDate = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+const toLabel = (d: Date) => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+
 export default function ExpenditureScreen() {
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const [date, setDate] = useState(() => new Date());
+  const [details, setDetails] = useState<ExpenseDetailsResultData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [fullScreenPhoto, setFullScreenPhoto] = useState<string | null>(null);
+
+  const [expenseName, setExpenseName] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [expensePhoto, setExpensePhoto] = useState<Asset | null>(null);
+  const [saving, setSaving] = useState(false);
+
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
 
+  const load = useCallback(async () => {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await getExpenditureDetails({ UserId: userId, ExpsDate: toApiDate(date) });
+      setDetails(res?.ResultData ?? null);
+    } catch {
+      setDetails(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [date]);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
   // Source: ExpenseDetailsFragmentNew.getLastLocation() — requests location permission as soon
-  // as the add-expense sheet opens. The Java fragment reverse-geocodes this into an address
-  // alongside the expense record; this form has no fields/state wired up for that yet (see the
-  // ADD button below, which is still a no-op), so this only primes the permission for now.
+  // as the add-expense sheet opens.
   useEffect(() => {
     if (showAddExpenseModal) {
       requestLocationPermission();
     }
   }, [showAddExpenseModal]);
 
-  const statusBarHeight =
-    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
+  const shiftDay = (delta: number) =>
+    setDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + delta));
 
+  const money = (v?: number) => `${formatAmount(v)}`;
   const rows = [
-    { label: 'Credited Amount:',  value: '0' },
-    { label: 'Opening Amount:',   value: '0' },
-    { label: 'Earned Amount:',    value: '0' },
-    { label: 'Total Expense:',    value: '0' },
-    { label: 'Return:',           value: '0' },
+    { label: 'Credited Amount:', value: details?.CreditedAmonut },
+    { label: 'Opening Amount:', value: details?.OpeningBalance },
+    { label: 'Earned Amount:', value: details?.EarnedAmount },
+    { label: 'Total Expense:', value: details?.Expenses },
+    { label: 'Return:', value: details?.ReturnAmount },
   ];
+  const expenses: ExpenseDetailsExpenseList[] = Array.isArray(details?.ExpenseList)
+    ? (details?.ExpenseList as ExpenseDetailsExpenseList[])
+    : [];
+
+  const applyPickedImage = (asset: Asset) => {
+    if (!asset.base64) {
+      Alert.alert('Photo', 'Unable to read the selected image. Please try again.');
+      return;
+    }
+    setExpensePhoto(asset);
+  };
+
+  const captureImageFromCamera = async () => {
+    const result = await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true });
+    if (result.didCancel) return;
+    if (result.errorCode) {
+      Alert.alert('Camera', result.errorMessage || 'Unable to open camera.');
+      return;
+    }
+    const asset = result.assets?.[0];
+    if (asset) applyPickedImage(asset);
+  };
+
+  const pickImageFromGallery = async () => {
+    const result = await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.6, selectionLimit: 1 });
+    if (result.didCancel) return;
+    if (result.errorCode) {
+      Alert.alert('Gallery', result.errorMessage || 'Unable to open gallery.');
+      return;
+    }
+    const asset = result.assets?.[0];
+    if (asset) applyPickedImage(asset);
+  };
+
+  const choosePhotoSource = () => {
+    Alert.alert('Add/Capture Image', 'Choose an option', [
+      { text: 'Camera', onPress: () => captureImageFromCamera() },
+      { text: 'Gallery', onPress: () => pickImageFromGallery() },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const closeAddExpenseModal = () => {
+    setShowAddExpenseModal(false);
+    setExpenseName('');
+    setExpenseAmount('');
+    setExpensePhoto(null);
+  };
+
+  const submitExpense = async () => {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      return;
+    }
+    if (!expenseName.trim()) {
+      Alert.alert('Add Expense', 'Please enter an expense name.');
+      return;
+    }
+    const amount = Number(expenseAmount);
+    if (!expenseAmount || !Number.isFinite(amount) || amount <= 0) {
+      Alert.alert('Add Expense', 'Please enter a valid amount.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await updateAddExpense({
+        Amount: amount,
+        ExpenseName: expenseName.trim(),
+        UserId: userId,
+        ExpensePhoto: expensePhoto?.base64 ?? '',
+      });
+      if (res?.Code === '200' || /success/i.test(res?.Message ?? '')) {
+        closeAddExpenseModal();
+        load();
+      } else {
+        Alert.alert('Add Expense', res?.Message || 'Unable to add expense right now.');
+      }
+    } catch (e) {
+      Alert.alert('Add Expense', e instanceof Error ? e.message : 'Unable to add expense right now.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -54,62 +183,97 @@ export default function ExpenditureScreen() {
           </Pressable>
           <Pressable
             style={styles.inactiveTab}
-            onPress={() => navigation.navigate('TechnicianTabsRoot', { screen: 'Passbook' })}
+            onPress={() => navigation.popTo('TechnicianTabsRoot', { screen: 'Passbook' })}
           >
             <Text style={styles.inactiveTabText}>PASSBOOK</Text>
           </Pressable>
         </View>
 
         <View style={styles.headerRow}>
-          <Text style={styles.headerSub}>16 Feb 2026</Text>
-          <Ionicons name="chevron-down" size={scale(18)} color={COLORS.primary} />
-        </View>
-
-        <Text style={styles.bold}>Technician Name</Text>
-
-        <View style={styles.whiteCard}>
-          {rows.map(({ label, value }) => (
-            <View key={label} style={styles.rowBetween}>
-              <Text style={styles.label}>{label}</Text>
-              <Text style={styles.bold}>{value}</Text>
-            </View>
-          ))}
-
-          <View style={styles.divider} />
-
-          <View style={styles.rowBetween}>
-            <Text style={styles.bold}>Remaining Amount:</Text>
-            <Text style={styles.bold}>0</Text>
-          </View>
-          {/* bottom padding inside card */}
-          <View style={{ height: ms(12) }} />
-        </View>
-
-        <View style={styles.lowerRow}>
-          <Text style={styles.lowerTitle}>Expense List</Text>
-          <Pressable
-            onPress={() => setShowAddExpenseModal(true)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="add" size={scale(30)} color={COLORS.primary} />
+          <Pressable onPress={() => shiftDay(-1)} hitSlop={10}>
+            <Ionicons name="chevron-back" size={scale(18)} color={COLORS.primary} />
+          </Pressable>
+          <Text style={styles.headerSub}>{toLabel(date)}</Text>
+          <Pressable onPress={() => shiftDay(1)} hitSlop={10}>
+            <Ionicons name="chevron-forward" size={scale(18)} color={COLORS.primary} />
           </Pressable>
         </View>
 
-        <View style={styles.whiteCard}>
-          <Text style={styles.naText}>NA</Text>
-        </View>
+        <Text style={styles.bold} numberOfLines={1}>{details?.FullName || getCurrentUserProfile().userFirstName}</Text>
+
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: ms(20) }} color={COLORS.primary} />
+        ) : (
+          <>
+            <View style={styles.whiteCard}>
+              {rows.map(({ label, value }) => (
+                <View key={label} style={styles.rowBetween}>
+                  <Text style={styles.label}>{label}</Text>
+                  <Text style={styles.bold}>{money(value)}</Text>
+                </View>
+              ))}
+
+              <View style={styles.divider} />
+
+              <View style={styles.rowBetween}>
+                <Text style={styles.bold}>Remaining Amount:</Text>
+                <Text style={styles.bold}>{money(details?.RemainingBalance)}</Text>
+              </View>
+              {/* bottom padding inside card */}
+              <View style={{ height: ms(12) }} />
+            </View>
+
+            <View style={styles.lowerRow}>
+              <Text style={styles.lowerTitle}>Expense List</Text>
+              <Pressable
+                onPress={() => setShowAddExpenseModal(true)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="add" size={scale(30)} color={COLORS.primary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.whiteCard}>
+              {expenses.length === 0 ? (
+                <Text style={styles.naText}>NA</Text>
+              ) : (
+                expenses.map((item, index) => (
+                  <View key={index} style={styles.expenseRow}>
+                    {item.ExpensePhoto ? (
+                      <Pressable onPress={() => setFullScreenPhoto(item.ExpensePhoto ?? null)}>
+                        <Image source={{ uri: item.ExpensePhoto }} style={styles.expensePhoto} />
+                      </Pressable>
+                    ) : (
+                      <View style={[styles.expensePhoto, styles.photoPlaceholder]}>
+                        <Ionicons name="image-outline" size={scale(20)} color="#9aa0a6" />
+                      </View>
+                    )}
+                    <Text style={styles.expenseName} numberOfLines={1}>{item.ExpenseName}</Text>
+                    <Text style={styles.bold}>{money(item.Amount)}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
 
       {/* Add Expense Modal */}
-      <Modal transparent visible={showAddExpenseModal} animationType="slide">
+      <Modal transparent visible={showAddExpenseModal} animationType="slide" onRequestClose={closeAddExpenseModal}>
         <View style={styles.modalOverlay}>
           <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + ms(16) }]}>
             <Text style={styles.modalTitle}>Add Expense</Text>
 
             {/* Photo Upload */}
-            <Pressable style={styles.expImage}>
-              <Ionicons name="image-outline" size={scale(52)} color="#999" />
-              <Text style={styles.uploadHint}>Upload Expense Photo</Text>
+            <Pressable style={styles.expImage} onPress={choosePhotoSource}>
+              {expensePhoto?.uri ? (
+                <Image source={{ uri: expensePhoto.uri }} style={styles.expImagePreview} />
+              ) : (
+                <>
+                  <Ionicons name="image-outline" size={scale(52)} color="#999" />
+                  <Text style={styles.uploadHint}>Upload Expense Photo</Text>
+                </>
+              )}
             </Pressable>
 
             <TextInput
@@ -117,6 +281,8 @@ export default function ExpenditureScreen() {
               placeholderTextColor="#999"
               style={styles.expInput}
               returnKeyType="next"
+              value={expenseName}
+              onChangeText={setExpenseName}
             />
 
             <TextInput
@@ -125,20 +291,39 @@ export default function ExpenditureScreen() {
               style={styles.expInput}
               keyboardType="numeric"
               returnKeyType="done"
+              value={expenseAmount}
+              onChangeText={setExpenseAmount}
             />
 
             <Pressable
-              style={styles.confirmBtn}
-              onPress={() => setShowAddExpenseModal(false)}
+              style={[styles.confirmBtn, saving && { opacity: 0.6 }]}
+              onPress={submitExpense}
+              disabled={saving}
             >
-              <Text style={styles.confirmText}>ADD</Text>
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmText}>ADD</Text>}
             </Pressable>
 
-            <Pressable onPress={() => setShowAddExpenseModal(false)}>
+            <Pressable onPress={closeAddExpenseModal}>
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
           </View>
         </View>
+      </Modal>
+
+      {/* Full-screen photo viewer */}
+      <Modal
+        visible={!!fullScreenPhoto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFullScreenPhoto(null)}>
+        <Pressable style={styles.fullScreenBackdrop} onPress={() => setFullScreenPhoto(null)}>
+          <Pressable style={styles.fullScreenClose} onPress={() => setFullScreenPhoto(null)} hitSlop={10}>
+            <Ionicons name="close" size={sp(28)} color="#fff" />
+          </Pressable>
+          {fullScreenPhoto ? (
+            <Image source={{ uri: fullScreenPhoto }} style={styles.fullScreenImage} resizeMode="contain" />
+          ) : null}
+        </Pressable>
       </Modal>
     </View>
   );
@@ -191,7 +376,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: ms(8),
     paddingHorizontal: ms(20),
-    gap: ms(4),
+    gap: ms(8),
   },
   headerSub: {
     fontSize: sp(16),
@@ -260,6 +445,17 @@ const styles = StyleSheet.create({
     paddingBottom: ms(14),
   },
 
+  expenseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: ms(10),
+    paddingHorizontal: ms(12),
+    paddingVertical: ms(10),
+  },
+  expensePhoto: { width: ms(40), height: ms(40), borderRadius: ms(8) },
+  photoPlaceholder: { backgroundColor: '#f1f3f4', alignItems: 'center', justifyContent: 'center' },
+  expenseName: { flex: 1, fontSize: sp(14), color: COLORS.textPrimary },
+
   // Modal
   modalOverlay: {
     flex: 1,
@@ -290,7 +486,9 @@ const styles = StyleSheet.create({
     height: ms(160),
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
+  expImagePreview: { width: '100%', height: '100%', borderRadius: ms(18) },
   uploadHint: {
     color: '#999',
     fontSize: sp(15),
@@ -328,4 +526,8 @@ const styles = StyleSheet.create({
     marginTop: ms(20),
     paddingVertical: ms(8),
   },
+
+  fullScreenBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' },
+  fullScreenClose: { position: 'absolute', top: ms(40), right: ms(20), zIndex: 1 },
+  fullScreenImage: { width: '100%', height: '80%' },
 });

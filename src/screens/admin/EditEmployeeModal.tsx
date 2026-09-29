@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   ScrollView,
@@ -83,6 +84,8 @@ const EditEmployeeModal: React.FC<Props> = ({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [contactNo, setContactNo] = useState('');
+  // Java shows Contact No only when the employee already has one (txtInputContactNo).
+  const [hasContactNo, setHasContactNo] = useState(false);
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [landmark, setLandmark] = useState('');
@@ -118,7 +121,8 @@ const EditEmployeeModal: React.FC<Props> = ({
           {}) as Record<string, unknown>;
         setFirstName(String(data.FirstnameM ?? ''));
         setLastName(String(data.LastnameM ?? ''));
-        setContactNo(String(data.ContactNo ?? ''));
+        setHasContactNo(data.ContactNo != null && String(data.ContactNo).trim() !== '');
+        setContactNo(String(data.ContactNo ?? '').replace('+91-', ''));
         setEmail(String(data.EmailId ?? ''));
         setAddress(String(data.EmpAddress ?? ''));
         setLandmark(String(data.LandMark ?? ''));
@@ -245,7 +249,7 @@ const EditEmployeeModal: React.FC<Props> = ({
       Alert.alert('Edit Profile', 'Space is not allowed in last name.');
       return;
     }
-    if (!/^\d{10,12}$/.test(contactNo.trim())) {
+    if (hasContactNo && !/^\d{10,12}$/.test(contactNo.trim())) {
       Alert.alert('Edit Profile', 'Please enter a valid contact number.');
       return;
     }
@@ -325,6 +329,13 @@ const EditEmployeeModal: React.FC<Props> = ({
     />
   );
 
+  // Same role rules as EditEmpFragment: sub-admin (7) hides designation, zone
+  // and manager; zone head / HR / accountant (3, 5, 6) hide zone and manager;
+  // manager (4) hides manager.
+  const showDesignation = userGroupCodeId !== 7;
+  const showZone = ![3, 5, 6, 7].includes(userGroupCodeId);
+  const showManager = ![3, 4, 5, 6, 7].includes(userGroupCodeId);
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.screen}>
@@ -342,10 +353,10 @@ const EditEmployeeModal: React.FC<Props> = ({
               <Text style={styles.section}>Employee Details</Text>
               {input(firstName, setFirstName, 'First Name')}
               {input(lastName, setLastName, 'Last Name')}
-              {input(contactNo, setContactNo, 'Contact No', {keyboardType: 'phone-pad', maxLength: 12})}
-              {pill(designation?.label === 'Designation' ? '' : designation?.label ?? '', 'Select Designation', () => openPicker('designation'))}
-              {pill(zone?.label === 'Zone' ? '' : zone?.label ?? '', 'Select Zone', () => openPicker('zone'))}
-              {pill(manager?.label === 'Manager' ? '' : manager?.label ?? '', 'Select Manager', () => openPicker('manager'))}
+              {hasContactNo ? input(contactNo, setContactNo, 'Contact No', {keyboardType: 'phone-pad', maxLength: 12}) : null}
+              {showDesignation ? pill(designation?.label === 'Designation' ? '' : designation?.label ?? '', 'Select Designation', () => openPicker('designation')) : null}
+              {showZone ? pill(zone?.label === 'Zone' ? '' : zone?.label ?? '', 'Select Zone', () => openPicker('zone')) : null}
+              {showManager ? pill(manager?.label === 'Manager' ? '' : manager?.label ?? '', 'Select Manager', () => openPicker('manager')) : null}
 
               <Text style={styles.section}>Other Details</Text>
               {input(address, setAddress, 'Address')}
@@ -363,6 +374,15 @@ const EditEmployeeModal: React.FC<Props> = ({
                     : 'Choose .pdf, .jpeg, .jpg, .png, .xlsx, .txt, .zip, etc. max file size is 6 MB'}
                 </Text>
               </TouchableOpacity>
+              {/* Existing KYC document link (Java's docTinyUrl, Linkify'd). */}
+              {/^https?:\/\//i.test(kycDocName) ? (
+                <Text
+                  style={styles.docLink}
+                  numberOfLines={1}
+                  onPress={() => Linking.openURL(kycDocName).catch(() => {})}>
+                  {kycDocName}
+                </Text>
+              ) : null}
 
               <TouchableOpacity style={styles.updateButton} onPress={handleUpdate} disabled={isSubmitting}>
                 {isSubmitting ? (
@@ -438,6 +458,7 @@ const styles = StyleSheet.create({
   },
   pillValue: {flex: 1, fontSize: sp(13), color: '#222'},
   pillPlaceholder: {flex: 1, fontSize: sp(13), color: '#9aa0a6'},
+  docLink: {fontSize: sp(13), color: '#1a73e8', textDecorationLine: 'underline', marginTop: vs(6)},
   updateButton: {
     backgroundColor: COLORS.primary,
     borderRadius: ms(24),

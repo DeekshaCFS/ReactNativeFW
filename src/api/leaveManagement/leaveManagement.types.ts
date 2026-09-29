@@ -128,3 +128,13 @@ export interface LeavaBalanceSummaryDTOResultData {
   LeaveTypeName?: string;
   LeaveTypeId?: number;
 }
+
+// ---- request body for POST Leave/Approve-Reject-Leave (GetAllLeavesListDTO.LeaveDetails,
+// as sent by LeaveApproveRejectFragmnt) ----
+export interface LeaveApproveRejectRequest {
+  UserID: number;
+  LeaveID: number;
+  CommentsByApprover: string;
+  IsApproved: boolean;
+  ActionedBy: number;
+}

@@ -25,6 +25,10 @@ import {
 } from './adminLegacyApiTypes';
 import { getAllLargeItemList, getAllAssignItemlistTechwise, getUsedItemlist, getDeleteItemPortal, returnItem } from '../../api/item/itemService';
 import { ensureSuccess } from '../../utils/apiResponse';
+import UsedItemUpdateModal from './UsedItemUpdateModal';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import type { GetUsedItemListResultData } from '../../api/item/item.types';
+import { formatAmount } from '../../utils/decimal';
 import AddItemModal from './AddItemModal';
 import AssignItemModal from './AssignItemModal';
 import FOCScreen from './FOCScreen';
@@ -352,7 +356,7 @@ const getPurchasePrice = (item: ItemInventoryListItem) =>
 const getSalesPrice = (item: ItemInventoryListItem) =>
   getItemNumber(item, ['salesPrice', 'SalesPrice']);
 
-const formatCurrency = (value: number) => `Rs. ${value}`;
+const formatCurrency = (value: number) => `Rs. ${formatAmount(value)}`;
 
 const getAssignedTaskId = (item: AssignedItemListItem) =>
   getAssignedString(item, ['newTaskID', 'NewTaskID', 'taskId', 'TaskId']) ||
@@ -843,6 +847,8 @@ const ItemInventoryTabHostScreen = ({
     }
   };
 
+  const [usedItemToUpdate, setUsedItemToUpdate] = useState<GetUsedItemListResultData | null>(null);
+
   const handleUsedDetailsPress = async () => {
     if (!selectedItem) {
       return;
@@ -1128,6 +1134,7 @@ const ItemInventoryTabHostScreen = ({
           {renderDetailRow('Item Code', getItemCodeValue(selectedItem))}
           {renderDetailRow('HSN Code', getItemHsnCode(selectedItem))}
           {renderDetailRow('Group Name', getItemGroupName(selectedItem))}
+          {renderDetailRow('Serial No.', getItemString(selectedItem, 'serialNoValue', 'SerialNoValue'))}
           {renderDetailRow(
             'Purchase Price',
             formatCurrency(purchasePrice),
@@ -1201,9 +1208,14 @@ const ItemInventoryTabHostScreen = ({
           {getUsedDetailQuantity(item)}
         </Text>
       </View>
-      <Text numberOfLines={1} style={styles.assignedWorkerName}>
-        {getUsedFieldWorkerName(item)}
-      </Text>
+      <View style={styles.usedRowFooter}>
+        <Text numberOfLines={1} style={styles.assignedWorkerName}>
+          {getUsedFieldWorkerName(item)}
+        </Text>
+        <Pressable hitSlop={10} onPress={() => setUsedItemToUpdate(item as GetUsedItemListResultData)}>
+          <Ionicons name="refresh" style={styles.usedRowRefresh} />
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -1507,11 +1519,30 @@ const ItemInventoryTabHostScreen = ({
           </View>
         </View>
       </Modal>
+
+      <UsedItemUpdateModal
+        row={usedItemToUpdate}
+        onClose={() => setUsedItemToUpdate(null)}
+        onUpdated={() => {
+          // Java reloads ItemInventoryTabHost after the update; reload the used list.
+          setUsedItemToUpdate(null);
+          handleUsedDetailsPress();
+        }}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  usedRowFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  usedRowRefresh: {
+    fontSize: sp(18),
+    color: THEME_PRIMARY,
+  },
   shell: {
     flex: 1,
     backgroundColor: '#FFFFFF',

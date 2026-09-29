@@ -2,7 +2,7 @@
 // Auto-generated from URLConstant.java (LeaveManagement endpoints actually used by the Android app)
 // Request/response types sourced from the shared DTO.zip — see leaveManagement.types.ts
 import apiClient from '../apiClient';
-import type { ApplyForLeaveDTO, DeleteLeaveDTO, GetAllLeavesListDTO, GetAllLeavesListRequest, GetLeaveTypesDTO, GetLeaveTypesDTOResultData, LeavaBalanceSummaryDTO, LeavaBalanceSummaryDTOResultData } from './leaveManagement.types';
+import type { ApplyForLeaveDTO, DeleteLeaveDTO, GetAllLeavesListDTO, GetAllLeavesListRequest, GetLeaveTypesDTO, GetLeaveTypesDTOResultData, LeavaBalanceSummaryDTO, LeavaBalanceSummaryDTOResultData, LeaveApproveRejectRequest } from './leaveManagement.types';
 
 /**
  * Source: URLConstant.LeaveManagement.GET_LEAVE_TYPES_LIST
@@ -52,7 +52,7 @@ export const getAllEmployeeLeaveList = async (data: GetAllLeavesListRequest): Pr
  * Source: URLConstant.LeaveManagement.POST_LEAVE_APPROV_REJECT
  * Endpoint: POST Leave/Approve-Reject-Leave
  */
-export const postLeaveApprovReject = async (data?: Partial<ApplyForLeaveDTO>): Promise<ApplyForLeaveDTO> => {
+export const postLeaveApprovReject = async (data: LeaveApproveRejectRequest): Promise<ApplyForLeaveDTO> => {
   const response = await apiClient.post('Leave/Approve-Reject-Leave', data);
   return response.data;
 };

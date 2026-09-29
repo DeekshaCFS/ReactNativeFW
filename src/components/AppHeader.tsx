@@ -1,13 +1,16 @@
 // src/components/AppHeader.tsx
 
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
+  AppState,
 } from 'react-native';
+
+import { refreshUnreadCount, useUnreadCount } from '../state/notificationBadge';
 
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -44,6 +47,21 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 }) => {
 
   const insets = useSafeAreaInsets();
+  const unread = useUnreadCount();
+
+  // Bell badge: refresh on mount, whenever the host screen regains focus (e.g. back from
+  // the notification list) and when the app returns to the foreground.
+  useEffect(() => {
+    refreshUnreadCount();
+    const unsubscribeFocus = navigation.addListener('focus', refreshUnreadCount);
+    const appStateSub = AppState.addEventListener('change', state => {
+      if (state === 'active') refreshUnreadCount();
+    });
+    return () => {
+      unsubscribeFocus();
+      appStateSub.remove();
+    };
+  }, [navigation]);
 
   // Use safe-area insets on both platforms for consistency across devices
   const topInset = insets.top;
@@ -108,6 +126,13 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               size={ms(22)}
               color="#fff"
             />
+            {unread > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText} allowFontScaling={false}>
+                  {unread > 99 ? '99+' : unread}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
         </View>
       </View>
@@ -169,5 +194,24 @@ const styles = StyleSheet.create({
   iconBtn: {
     padding: ms(5),
     marginLeft: wp(1.5),
+  },
+
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    minWidth: ms(16),
+    height: ms(16),
+    borderRadius: ms(8),
+    paddingHorizontal: ms(3),
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  badgeText: {
+    color: COLORS.primary,
+    fontSize: sp(10),
+    fontWeight: '700',
   },
 });

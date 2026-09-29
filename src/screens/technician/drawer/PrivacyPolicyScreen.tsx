@@ -4,16 +4,20 @@ import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { ms, sp } from '../../../utils/responsive';
 
-const POLICY_URL = 'https://policies.google.com/privacy';
+// Java: R.string.policy_url. The same screen also serves Terms & Conditions, which Java
+// shows on a different page (TermsAndConditionsFragment) -- pass `url` as a route param.
+export const PRIVACY_POLICY_URL = 'https://fieldweb.co.in/privacy-policy';
+export const TERMS_AND_CONDITIONS_URL = 'https://www.thefieldweb.com/terms-and-conditions';
 
-export default function PrivacyPolicyScreen() {
+export default function PrivacyPolicyScreen({ route }: any) {
+  const pageUrl: string = route?.params?.url ?? PRIVACY_POLICY_URL;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   return (
     <View style={styles.container}>
       <WebView
-        source={{ uri: POLICY_URL }}
+        source={{ uri: pageUrl }}
         onLoadStart={() => setLoading(true)}
         onLoadEnd={() => setLoading(false)}
         onError={() => { setLoading(false); setError(true); }}

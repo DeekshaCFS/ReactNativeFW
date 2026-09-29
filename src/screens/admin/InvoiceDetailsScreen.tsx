@@ -21,10 +21,12 @@ import {
   getInvoicePdf,
   saveInvoicePaymmentDetails,
   invoiceFollowUpNotes,
+  getInvoicePaymentStatus,
 } from '../../api/accountManagement/accountManagementService';
 import type {InvoiceDetailsDTOResultData} from '../../api/accountManagement/accountManagement.types';
 import {scale, sp, vs, ms} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
+import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import BackBar from '../../components/BackBar';
 
 const THEME_PRIMARY = '#c3002f';
@@ -45,14 +47,12 @@ const getTodayDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
-const formatAmount = (value: unknown) => {
-  const num = Number(value ?? 0);
-  return Number.isFinite(num) ? num.toFixed(1) : '0.0';
-};
-
 const formatPercent = (value: unknown) => {
   const num = Number(value ?? 0);
-  return Number.isFinite(num) ? num.toFixed(1) : '0.0';
+  if (!Number.isFinite(num)) {
+    return '0.0';
+  }
+  return Number.isInteger(num) ? num.toFixed(1) : String(Number(num.toFixed(3)));
 };
 
 const formatDateOnly = (raw?: string | null) => {
@@ -101,6 +101,13 @@ const InvoiceDetailsScreen = ({
   const [isDownloading, setIsDownloading] = useState(false);
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  // Java (InvoiceDetailsFragment.getInvoicePaymentStatus) refreshes Total /
+  // Received / Remaining from GetPaymentStatusByInvoiceId when the dialog opens.
+  const [paymentStatus, setPaymentStatus] = useState<{
+    total?: number;
+    received?: number;
+    remaining?: number;
+  } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentType, setPaymentType] = useState<string>('');
   const [isPaymentTypeOpen, setIsPaymentTypeOpen] = useState(false);
@@ -183,6 +190,19 @@ const InvoiceDetailsScreen = ({
     setPaymentType('');
     setIsPaymentTypeOpen(false);
     setIsPaymentModalOpen(true);
+    setPaymentStatus(null);
+    getInvoicePaymentStatus({Id: invoiceId, UserId: ownerId})
+      .then(response => {
+        const row = Array.isArray(response?.ResultData) ? response.ResultData[0] : undefined;
+        if (row) {
+          setPaymentStatus({
+            total: row.TotalAmount,
+            received: row.RecievedAmount,
+            remaining: row.RemainingAmount,
+          });
+        }
+      })
+      .catch(() => {});
   };
 
   const handleSavePayment = async () => {
@@ -454,17 +474,24 @@ const InvoiceDetailsScreen = ({
         onRequestClose={() => setIsPaymentModalOpen(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setIsPaymentModalOpen(false)}>
           <Pressable style={styles.modalSheet} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Record Payment</Text>
+            {/* Same content/order as dialog_update_payment_status.xml. */}
+            <Text style={styles.modalTitle}>Update Payment Status</Text>
             <Text style={styles.modalSubtitle}>
-              Remaining: Rs. {formatAmount(details?.RemainingAmount)}
+              Total Amount: Rs. {formatAmount(paymentStatus?.total ?? details?.GrandTotalAmount)}
+            </Text>
+            <Text style={styles.modalSubtitle}>
+              Received Amount: Rs. {formatAmount(paymentStatus?.received ?? details?.ReceivedAmount)}
+            </Text>
+            <Text style={styles.modalSubtitle}>
+              Remaining Amount: Rs. {formatAmount(paymentStatus?.remaining ?? details?.RemainingAmount)}
             </Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="Amount"
+              placeholder="Enter Amount"
               placeholderTextColor="#9aa0a6"
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={paymentAmount}
-              onChangeText={setPaymentAmount}
+              onChangeText={t => setPaymentAmount(sanitizeDecimalInput(t))}
             />
             <Pressable
               style={styles.modalDropdownField}

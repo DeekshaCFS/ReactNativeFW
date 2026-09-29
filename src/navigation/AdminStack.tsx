@@ -12,17 +12,28 @@ import AdminTabs, { AdminTabParamList } from './AdminTabs';
 
 import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
 import TaskDetailsScreen from '../screens/admin/TaskDetailsScreen';
-import SettingScreen from '../screens/technician/drawer/SettingScreen';
+import AdminSettingScreen from '../screens/admin/AdminSettingScreen';
+import BankDetailsTaxScreen from '../screens/admin/BankDetailsTaxScreen';
 import type {TasksListResultData} from '../api/task/task.types';
 import AMCDetailsScreen from '../screens/admin/AMCDetailsScreen';
 
-// Header destinations (headset/notification icons on the shared AppHeader).
-// Admin doesn't have its own versions of these, so it reuses the same
-// generic screens the technician stack already registers under the same
-// route names -- same reasoning as sharing AppHeader/BottomTabBar.
-import NotificationScreen from '../screens/technician/main/NotificationScreen';
+// Header destinations (headset icon on the shared AppHeader). Admin reuses
+// the technician stack's help screens under the same route names; the
+// notification route has its own admin screen (AdminNotificationScreen).
 import HelpScreen from '../screens/technician/main/HelpScreen';
 import HelpMessagesScreen from '../screens/technician/main/HelpMsgScreen';
+
+// Settings destinations (Privacy/Refund/About rows) -- same reuse pattern
+// as the header destinations above; these screens are role-agnostic.
+import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
+import RefundPolicyScreen from '../screens/technician/drawer/RefundPolicy';
+import AboutFieldwebScreen from '../screens/technician/drawer/AboutFieldweb';
+
+// Drawer destinations. AIScreen is role-agnostic (Java's OpenAIFragment is the
+// same for owner and technician); BookDemoScreen ports BookDemoFragment.
+import AIScreen from '../screens/technician/drawer/AIScreen';
+import BookDemoScreen from '../screens/admin/BookDemoScreen';
+import AdminNotificationScreen from '../screens/admin/AdminNotificationScreen';
 
 import { COLORS } from '../theme/theme';
 
@@ -43,6 +54,15 @@ export type AdminStackParamList = {
 
   Profile: undefined;
   Settings: undefined;
+  BankDetailsTax: undefined;
+  PrivacyPolicy: undefined;
+  TermsAndConditions: { url?: string } | undefined;
+  RefundPolicy: undefined;
+  AboutFieldweb: undefined;
+
+  // Drawer destinations (route names match the drawer labels).
+  'FieldWeb AI': undefined;
+  'Book App Demo': undefined;
 
   // Task drill-down. Previously rendered inline by HomeActivityNewScreen via
   // its `selectedTaskDetail` state; now a real route so the Task tab can push
@@ -53,6 +73,8 @@ export type AdminStackParamList = {
     customerName?: string;
     customerPhone?: string;
     customerAddress?: string;
+    /** See TaskDetailsScreen.source. */
+    source?: 'crm' | 'taskList';
   };
 
   AMCDetails: {
@@ -295,11 +317,36 @@ export default function AdminStack() {
             — Employee Management is its own bottom tab, not this route. */}
         <Stack.Screen
           name="Settings"
-          component={SettingScreen}
+          component={AdminSettingScreen}
           options={{
             title: 'Settings',
           }}
         />
+
+        <Stack.Screen name="BankDetailsTax" options={{title: 'Bank Details & Tax'}}>
+          {() =>
+            ownerId === null ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+              </View>
+            ) : (
+              <BankDetailsTaxScreen ownerId={ownerId} />
+            )
+          }
+        </Stack.Screen>
+
+        <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{title: 'Privacy Policy'}} />
+        <Stack.Screen
+          name="TermsAndConditions"
+          component={PrivacyPolicyScreen}
+          initialParams={{ url: TERMS_AND_CONDITIONS_URL }}
+          options={{title: 'Terms & Conditions'}}
+        />
+        <Stack.Screen name="RefundPolicy" component={RefundPolicyScreen} options={{title: 'Refund Policy'}} />
+        <Stack.Screen name="AboutFieldweb" component={AboutFieldwebScreen} options={{title: 'About FieldWeb'}} />
+
+        <Stack.Screen name="FieldWeb AI" component={AIScreen} options={{title: 'FieldWeb AI'}} />
+        <Stack.Screen name="Book App Demo" component={BookDemoScreen} options={{title: 'Book App Demo'}} />
 
         <Stack.Screen name="TaskDetails" options={{title: 'Task Details'}}>
           {({route, navigation}) =>
@@ -315,6 +362,7 @@ export default function AdminStack() {
                 customerName={route.params.customerName}
                 customerPhone={route.params.customerPhone}
                 customerAddress={route.params.customerAddress}
+                source={route.params.source}
                 onBack={() => navigation.goBack()}
                 hideBackBar
               />
@@ -331,11 +379,19 @@ export default function AdminStack() {
         {/* Header icon destinations (headset / notification bell on the
             shared AppHeader) -- same routes and screens the technician
             stack uses. */}
-        <Stack.Screen
-          name="notification"
-          component={NotificationScreen}
-          options={{ title: 'Notification' }}
-        />
+        {/* Owner notifications (Java NotificationFragment); the technician
+            stack keeps its own NotificationScreen. */}
+        <Stack.Screen name="notification" options={{ title: 'Notification' }}>
+          {() =>
+            ownerId === null ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+              </View>
+            ) : (
+              <AdminNotificationScreen ownerId={ownerId} />
+            )
+          }
+        </Stack.Screen>
         <Stack.Screen
           name="help"
           component={HelpScreen}
