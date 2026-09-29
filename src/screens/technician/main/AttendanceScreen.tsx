@@ -308,9 +308,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: vs(4),
   },
-  lineText:  { flex: 1, fontSize: sp(13), fontWeight: '500', color: COLORS.textPrimary },
+  lineText:  { flex: 1, fontSize: sp(13), fontWeight: '600', color: COLORS.textPrimary },
   lineLabel: { width: scale(80), fontSize: sp(13), color: COLORS.textPrimary },
-  lineTime:  { flex: 1, fontSize: sp(13), fontWeight: '500', textAlign: 'right', color: COLORS.textPrimary },
+  lineTime:  { flex: 1, fontSize: sp(13), fontWeight: '600', color: COLORS.textPrimary },
 
   statusRow: { alignItems: 'flex-end', paddingVertical: vs(6) },
   statusTag: {
@@ -319,5 +319,5 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: scale(12),
     borderBottomLeftRadius: scale(12),
   },
-  statusTagText: { color: '#fff', fontSize: sp(12), fontWeight: '500' },
+  statusTagText: { color: '#3c3c3c', fontSize: sp(12), fontWeight: '500' },
 });

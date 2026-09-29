@@ -24,7 +24,9 @@ import type {
 const LeaveStatusId = { PENDING: 1, APPROVED: 2, DECLINED: 3 } as const;
 const LEAVE_STATUS_OPTIONS = ['Status', 'Approved', 'Declined', 'Pending'] as const;
 type LeaveStatusOption = (typeof LEAVE_STATUS_OPTIONS)[number];
-const SINGLE_DATE_LEAVE_TYPES: number[] = [1]; // Half Day
+// Java (AddUpdateServiceDialog): Full Day/Casual/Sick show From-To date;
+// everything else (including no type picked yet) shows a single Date field.
+const RANGE_DATE_LEAVE_TYPES: number[] = [2, 4, 5]; // Full Day, Casual, Sick
 
 interface LeaveFormState {
   leaveTypeId: number | null;
@@ -48,17 +50,17 @@ type NavigationProp = NativeStackNavigationProp<TechnicianStackParamList, 'Leave
 const PAGE_SIZE = 50;
 
 const LEAVE_TYPE_COLORS: Record<number, string> = {
-  1: '#1A1A1A', // Half Day - black
-  2: '#22c55e', // Full Day - green
-  4: '#2563eb', // Casual Leave - blue
-  5: '#f59e0b', // Sick Leave - orange
+  1: '#0e0e0e', // Half Day - black
+  2: '#4CAF50', // Full Day - green_500
+  4: '#2776ff', // Casual Leave - blue
+  5: '#ff9b00', // Sick Leave - orange
 };
 
 const statusBg: Record<string, string> = {
-  Approved: '#22c55e',
-  Rejected: '#f87171',
-  Declined: '#f87171',
-  Pending: '#f59e0b',
+  Approved: '#4CAF50', // green_500
+  Rejected: '#c3002f', // colorPrimaryDark
+  Declined: '#c3002f', // colorPrimaryDark
+  Pending: '#ff9b00', // orange
 };
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -76,14 +78,19 @@ const formatDisplayDate = (iso?: string) => {
   return `${day}/${m}/${y}`;
 };
 
+// Java: DateUtils.convertDateFormat(...) + timeFormatConversion(..., "hh:mm aa")
 const formatRequestedAt = (iso?: string) => {
   if (!iso) return '';
   const [d, t] = iso.split('T');
   const parts = d.split('-');
   if (parts.length !== 3) return '';
   const [y, m, day] = parts;
-  const time = t ? t.split('.')[0] : '';
-  return `${day}-${m}-${y}  ${time}`;
+  if (!t) return `${day}-${m}-${y}`;
+  const [hStr, minStr] = t.split(':');
+  const h24 = Number(hStr);
+  const suffix = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 || 12;
+  return `${day}-${m}-${y}  ${pad2(h12)}:${minStr} ${suffix}`;
 };
 
 export default function LeaveScreen() {
@@ -132,7 +139,7 @@ export default function LeaveScreen() {
   const [errorLabel, setErrorLabel] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const isSingleDateType = form.leaveTypeId != null && SINGLE_DATE_LEAVE_TYPES.includes(form.leaveTypeId);
+  const isSingleDateType = form.leaveTypeId == null || !RANGE_DATE_LEAVE_TYPES.includes(form.leaveTypeId);
 
   // ── Bootstrap ──
   useFocusEffect(
@@ -241,9 +248,9 @@ export default function LeaveScreen() {
     setForm({
       leaveTypeId,
       leaveTypeName: leave.LeaveType ?? '',
-      leaveDate: leaveTypeId !== null && SINGLE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveStartDate) : '',
-      fromDate: leaveTypeId === null || !SINGLE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveStartDate) : '',
-      toDate: leaveTypeId === null || !SINGLE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveEndDate) : '',
+      leaveDate: leaveTypeId === null || !RANGE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveStartDate) : '',
+      fromDate: leaveTypeId !== null && RANGE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveStartDate) : '',
+      toDate: leaveTypeId !== null && RANGE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveEndDate) : '',
       reason: leave.ReasonOfLeave ?? '',
     });
     setErrorLabel('');
@@ -374,85 +381,93 @@ export default function LeaveScreen() {
     return (
       <Pressable style={styles.card} onPress={() => openUpdateSheet(item)}>
         <View style={styles.cardTopRow}>
-          <Text style={[styles.leaveType, { color: typeColor }]}>{item.LeaveType}</Text>
           <View style={[styles.statusPill, { backgroundColor: statusBg[statusName] ?? '#9ca3af' }]}>
             <Text style={styles.statusPillText}>{statusName}</Text>
           </View>
+          <Text style={styles.requestedAt}>{formatRequestedAt(item.LeaveCreatedDate)}</Text>
         </View>
 
-        <Text style={styles.leaveDateRange}>
-          {formatDisplayDate(item.LeaveStartDate)} - {formatDisplayDate(item.LeaveEndDate)}
-        </Text>
+        <View style={styles.leaveDateRow}>
+          <Text style={styles.leaveDateLabel}>Leave Date : </Text>
+          <Text style={styles.leaveDateValue}>
+            {formatDisplayDate(item.LeaveStartDate)} - {formatDisplayDate(item.LeaveEndDate)}
+          </Text>
+          <Text style={[styles.leaveType, { color: typeColor }]}>{item.LeaveType}</Text>
+        </View>
 
-        {!!item.ReasonOfLeave && (
-          <Text style={styles.leaveNotes} numberOfLines={2}>{item.ReasonOfLeave}</Text>
-        )}
-
-        <Text style={styles.requestedAt}>Requested on {formatRequestedAt(item.LeaveCreatedDate)}</Text>
+        <View style={styles.leaveNotesRow}>
+          <Text style={styles.leaveNotesLabel}>Leave Remarks : </Text>
+          <Text style={styles.leaveNotes} numberOfLines={2}>{item.ReasonOfLeave || 'NA'}</Text>
+        </View>
       </Pressable>
     );
   };
 
+  const listHeader = (
+    <>
+      {/* Tabs */}
+      <View style={styles.tabRow}>
+        <Pressable style={styles.inactiveTab} onPress={() => navigation.popTo('TechnicianTabsRoot', { screen: 'Attendance' })}>
+          <Text style={styles.inactiveTabText}>ATTENDANCE</Text>
+        </Pressable>
+        <Pressable style={styles.activeTab}>
+          <Text style={styles.activeTabText}>LEAVES</Text>
+        </Pressable>
+      </View>
+
+      {/* Filter row */}
+      <View style={styles.content}>
+        <View style={styles.filterRow}>
+          <Pressable style={styles.filterItem} onPress={() => setShowMonthPicker(true)}>
+            <Text style={styles.filterText}>{monthLabel(filterYear, filterMonth)}</Text>
+            <Ionicons name="chevron-down" size={scale(16)} color={COLORS.primary} />
+          </Pressable>
+
+          <Pressable style={styles.filterItem} onPress={() => setActiveDropdown('status')}>
+            <Text style={styles.filterText}>{statusFilter}</Text>
+            <Ionicons name="chevron-down" size={scale(16)} color={COLORS.primary} />
+          </Pressable>
+
+          <Pressable style={styles.leaveBtn} onPress={openRequestSheet}>
+            <Text style={styles.leaveText}>+ Leave</Text>
+          </Pressable>
+        </View>
+      </View>
+    </>
+  );
+
+  const listEmpty = loading ? (
+    <ActivityIndicator color={COLORS.primary} style={{ marginTop: vs(60) }} />
+  ) : (
+    <View style={styles.emptyState}>
+      <Image
+        style={styles.emptyImage}
+        resizeMode="contain"
+        source={require('../../../../assets/images/noresultfound.png')}
+      />
+    </View>
+  );
+
   return (
     <View style={styles.root}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }}>
-        {/* Tabs */}
-        <View style={styles.tabRow}>
-          <Pressable style={styles.inactiveTab} onPress={() => navigation.popTo('TechnicianTabsRoot', { screen: 'Attendance' })}>
-            <Text style={styles.inactiveTabText}>ATTENDANCE</Text>
-          </Pressable>
-          <Pressable style={styles.activeTab}>
-            <Text style={styles.activeTabText}>LEAVES</Text>
-          </Pressable>
-        </View>
+      <FlatList
+        data={leaves}
+        keyExtractor={(item, idx) => `${item.LeaveID}-${idx}`}
+        renderItem={renderItem}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        contentContainerStyle={{ paddingBottom: vs(40) }}
+        onEndReachedThreshold={0.4}
+        onEndReached={onEndReached}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+        }
+        ListFooterComponent={loadingMore ? <ActivityIndicator color={COLORS.primary} style={{ marginVertical: vs(12) }} /> : null}
+      />
 
-        <View style={styles.content}>
-          {/* Filter row */}
-          <View style={styles.filterRow}>
-            <Pressable style={styles.filterItem} onPress={() => setShowMonthPicker(true)}>
-              <Text style={styles.filterText}>{monthLabel(filterYear, filterMonth)}</Text>
-              <Ionicons name="chevron-down" size={scale(16)} color={COLORS.primary} />
-            </Pressable>
-
-            <Pressable style={styles.filterItem} onPress={() => setActiveDropdown('status')}>
-              <Text style={styles.filterText}>{statusFilter}</Text>
-              <Ionicons name="chevron-down" size={scale(16)} color={COLORS.primary} />
-            </Pressable>
-
-            <Pressable style={styles.leaveBtn} onPress={openRequestSheet}>
-              <Text style={styles.leaveText}>+ Leave</Text>
-            </Pressable>
-          </View>
-
-          {loading ? (
-            <ActivityIndicator color={COLORS.primary} style={{ marginTop: vs(60) }} />
-          ) : leaves.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Image
-                style={styles.emptyImage}
-                resizeMode="contain"
-                source={require('../../../../assets/images/noresultfound.png')}
-              />
-            </View>
-          ) : (
-            <FlatList
-              data={leaves}
-              keyExtractor={(item, idx) => `${item.LeaveID}-${idx}`}
-              renderItem={renderItem}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: vs(24) }}
-              onEndReachedThreshold={0.4}
-              onEndReached={onEndReached}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
-              }
-              ListFooterComponent={loadingMore ? <ActivityIndicator color={COLORS.primary} style={{ marginVertical: vs(12) }} /> : null}
-            />
-          )}
-        </View>
-
-        {/* Month picker */}
-        {showMonthPicker && (
+      {/* Month picker */}
+      {showMonthPicker && (
           <DateTimePicker
             value={new Date(filterYear, filterMonth, 1)}
             mode="date"
@@ -494,45 +509,50 @@ export default function LeaveScreen() {
           <Pressable style={styles.sheetBackdrop} onPress={closeSheet} />
           <View style={styles.sheet}>
             <View style={styles.sheetHeaderRow}>
-              <Text style={styles.sheetTitle}>{sheetMode === 'request' ? 'Request Leave' : 'Update Leave'}</Text>
+              <Text style={styles.sheetTitle}>{sheetMode === 'request' ? 'Apply for Leave' : 'Update Leave'}</Text>
               <Pressable onPress={closeSheet}>
-                <Ionicons name="close" size={scale(22)} color={COLORS.textPrimary} />
+                <Ionicons name="close" size={scale(22)} color={COLORS.white} />
               </Pressable>
             </View>
 
+            <View style={styles.sheetBody}>
             {sheetMode === 'request' && (
-              <View style={styles.balanceRow}>
+              <View style={styles.balanceCard}>
                 {([
-                  ['Half Day', 1], ['Full Day', 2], ['Casual', 4], ['Sick', 5],
-                ] as [string, number][]).map(([label, id]) => {
-                  const bal = balanceFor(id);
-                  return (
-                    <View key={id} style={styles.balanceCard}>
-                      <Text style={styles.balanceLabel}>{label}</Text>
-                      <Text style={styles.balanceValue}>
-                        {bal ? `${bal.LeavesTaken}/${bal.TotalLeaves}` : '0/0'}
-                      </Text>
-                    </View>
-                  );
-                })}
-                <View style={styles.balanceCard}>
-                  <Text style={styles.balanceLabel}>Available</Text>
-                  <Text style={[styles.balanceValue, { color: COLORS.primary }]}>{totalAvailable}</Text>
+                  [['Half Day', 1], ['Full Day', 2]],
+                  [['Casual Leave', 4], ['Sick Leave', 5]],
+                ] as [string, number][][]).map((pair, rowIndex) => (
+                  <View key={rowIndex} style={styles.balanceGridRow}>
+                    {pair.map(([label, id]) => {
+                      const bal = balanceFor(id);
+                      return (
+                        <View key={id} style={styles.balanceCell}>
+                          <Text style={styles.balanceLabel}>{label}: </Text>
+                          <Text style={styles.balanceValue}>
+                            {bal ? `${bal.LeavesTaken} / ${bal.TotalLeaves}` : '0 / 0'}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ))}
+                <View style={styles.balanceGridRow}>
+                  <Text style={styles.balanceLabel}>Total Available Leave : </Text>
+                  <Text style={styles.balanceTotalValue}>{totalAvailable}</Text>
                 </View>
               </View>
             )}
 
             {/* Leave Type */}
-            <Text style={styles.fieldLabel}>Leave Type</Text>
-            <Pressable style={styles.inputBox} onPress={() => setShowLeaveTypeDropdown(prev => !prev)}>
+            <Pressable style={[styles.inputBox, styles.fieldSpacingTop]} onPress={() => setShowLeaveTypeDropdown(prev => !prev)}>
               <Text style={{ fontSize: sp(15), color: form.leaveTypeName ? '#333' : '#aaa' }}>
-                {form.leaveTypeName || 'Select leave type'}
+                {form.leaveTypeName || 'Leave Type'}
               </Text>
               <Ionicons name="chevron-down" size={scale(18)} color="#333" />
             </Pressable>
 
             {showLeaveTypeDropdown && (
-              <View style={styles.inlineDropdown}>
+              <ScrollView style={styles.inlineDropdown} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                 {leaveTypes.map(lt => (
                   <Pressable
                     key={lt.Id}
@@ -542,42 +562,39 @@ export default function LeaveScreen() {
                     <Text style={{ fontSize: sp(15) }}>{lt.Name}</Text>
                   </Pressable>
                 ))}
-              </View>
+              </ScrollView>
             )}
 
             {/* Dates */}
             {isSingleDateType ? (
-              <>
-                <Text style={styles.fieldLabel}>Leave Date</Text>
-                <Pressable style={styles.inputBox} onPress={() => setActiveDateField('leaveDate')}>
-                  <Text style={{ fontSize: sp(15), color: form.leaveDate ? '#333' : '#aaa' }}>
-                    {form.leaveDate || 'Select date'}
-                  </Text>
-                  <Ionicons name="calendar-outline" size={scale(18)} color="#333" />
-                </Pressable>
-              </>
+              <Pressable
+                style={[styles.inputBox, styles.fieldSpacingTop]}
+                onPress={() => setActiveDateField('leaveDate')}
+              >
+                <Text style={{ fontSize: sp(15), color: form.leaveDate ? '#333' : '#aaa' }}>
+                  {form.leaveDate || 'Date'}
+                </Text>
+                <Ionicons name="calendar-outline" size={scale(18)} color="#333" />
+              </Pressable>
             ) : (
-              <View style={styles.rangeRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>From Date</Text>
-                  <Pressable style={styles.inputBox} onPress={() => setActiveDateField('fromDate')}>
-                    <Text style={{ fontSize: sp(15), color: form.fromDate ? '#333' : '#aaa' }}>
-                      {form.fromDate || 'Select'}
-                    </Text>
-                  </Pressable>
-                </View>
+              <View style={[styles.rangeRow, styles.fieldSpacingTop]}>
+                <Pressable
+                  style={[styles.inputBox, { flex: 1 }]}
+                  onPress={() => setActiveDateField('fromDate')}
+                >
+                  <Text style={{ fontSize: sp(15), color: form.fromDate ? '#333' : '#aaa' }}>
+                    {form.fromDate || 'From'}
+                  </Text>
+                </Pressable>
                 <View style={{ width: scale(12) }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>To Date</Text>
-                  <Pressable
-                    style={styles.inputBox}
-                    onPress={() => { if (form.fromDate) setActiveDateField('toDate'); }}
-                  >
-                    <Text style={{ fontSize: sp(15), color: form.toDate ? '#333' : '#aaa' }}>
-                      {form.toDate || 'Select'}
-                    </Text>
-                  </Pressable>
-                </View>
+                <Pressable
+                  style={[styles.inputBox, { flex: 1 }]}
+                  onPress={() => { if (form.fromDate) setActiveDateField('toDate'); }}
+                >
+                  <Text style={{ fontSize: sp(15), color: form.toDate ? '#333' : '#aaa' }}>
+                    {form.toDate || 'To'}
+                  </Text>
+                </Pressable>
               </View>
             )}
 
@@ -598,10 +615,9 @@ export default function LeaveScreen() {
             {!!errorLabel && <Text style={styles.errorLabel}>{errorLabel}</Text>}
 
             {/* Reason */}
-            <Text style={styles.fieldLabel}>Reason</Text>
             <TextInput
-              style={styles.reasonInput}
-              placeholder="Enter reason for leave"
+              style={[styles.reasonInput, styles.fieldSpacingTop]}
+              placeholder="Leave Reason*"
               placeholderTextColor="#aaa"
               multiline
               value={form.reason}
@@ -610,11 +626,6 @@ export default function LeaveScreen() {
 
             {/* Actions */}
             <View style={styles.sheetActions}>
-              {sheetMode === 'update' && (
-                <Pressable style={styles.deleteBtn} onPress={handleDelete} disabled={submitting}>
-                  <Text style={styles.deleteBtnText}>Delete</Text>
-                </Pressable>
-              )}
               <Pressable
                 style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
                 onPress={handleSubmit}
@@ -626,17 +637,26 @@ export default function LeaveScreen() {
                   <Text style={styles.submitBtnText}>{sheetMode === 'request' ? 'Apply' : 'Update'}</Text>
                 )}
               </Pressable>
+              {sheetMode === 'update' && (
+                <Pressable style={styles.deleteBtn} onPress={handleDelete} disabled={submitting}>
+                  <Text style={styles.deleteBtnText}>Delete</Text>
+                </Pressable>
+              )}
+            </View>
+
+            <Pressable style={styles.cancelLink} onPress={closeSheet}>
+              <Text style={styles.cancelLinkText}>Cancel</Text>
+            </Pressable>
             </View>
           </View>
         </Modal>
-      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root:    { flex: 1, backgroundColor: COLORS.white },
-  content: { flex: 1, padding: scale(16), marginTop: vs(8) },
+  content: { padding: scale(16), paddingBottom: 0 },
 
   tabRow: {
     flexDirection: 'row',
@@ -691,6 +711,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: scale(12),
     padding: scale(14),
+    marginHorizontal: scale(16),
     marginBottom: vs(12),
     elevation: 2,
     shadowColor: '#000',
@@ -699,21 +720,34 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
   },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  leaveType: { fontSize: sp(15), fontWeight: '700' },
-  statusPill: { paddingHorizontal: scale(10), paddingVertical: vs(3), borderRadius: scale(10) },
-  statusPillText: { color: '#fff', fontSize: sp(11), fontWeight: '600' },
-  leaveDateRange: { marginTop: vs(6), fontSize: sp(13), color: COLORS.textPrimary, fontWeight: '500' },
-  leaveNotes: { marginTop: vs(4), fontSize: sp(13), color: COLORS.textMuted },
-  requestedAt: { marginTop: vs(8), fontSize: sp(11), color: COLORS.textTertiary },
+  statusPill: {
+    minWidth: scale(90),
+    alignItems: 'center',
+    paddingHorizontal: scale(14),
+    paddingVertical: vs(4),
+    borderTopLeftRadius: scale(10),
+    borderBottomRightRadius: scale(10),
+  },
+  statusPillText: { color: '#fff', fontSize: sp(12), fontWeight: '700' },
+  requestedAt: { fontSize: sp(13), color: '#535353' },
+
+  leaveDateRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(10) },
+  leaveDateLabel: { fontSize: sp(13), fontWeight: '700', color: COLORS.primary },
+  leaveDateValue: { flex: 1, fontSize: sp(13), color: COLORS.primary },
+  leaveType: { fontSize: sp(14), fontWeight: '700' },
+
+  leaveNotesRow: { flexDirection: 'row', marginTop: vs(10) },
+  leaveNotesLabel: { fontSize: sp(13), fontWeight: '700', color: '#535353' },
+  leaveNotes: { flex: 1, fontSize: sp(13), color: '#9a9faa' },
 
   // Dropdown — centred, positioned below filter row
   dropdown: {
     position: 'absolute',
-    top: '28%',
+    top: '20%',
     alignSelf: 'center',
     backgroundColor: '#fff',
     width: scale(220),
-    left: scale(16),
+    left: scale(80),
     elevation: 8,
     borderRadius: scale(10),
     shadowColor: '#000',
@@ -736,27 +770,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: scale(20),
     borderTopRightRadius: scale(20),
-    padding: scale(20),
+    overflow: 'hidden',
     maxHeight: '90%',
     width: '100%',
     maxWidth: scale(560),
     alignSelf: 'center',
   },
-  sheetHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(12) },
-  sheetTitle: { fontSize: sp(17), fontWeight: '700', color: COLORS.textPrimary },
+  sheetHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#353935',
+    paddingHorizontal: scale(20),
+    paddingVertical: vs(16),
+  },
+  sheetTitle: { fontSize: sp(17), fontWeight: '700', color: COLORS.white },
+  sheetBody: { padding: scale(20) },
 
-  balanceRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: vs(16), gap: scale(6) },
   balanceCard: {
-    flex: 1,
     backgroundColor: '#f7f7f7',
     borderRadius: scale(10),
-    paddingVertical: vs(8),
-    alignItems: 'center',
+    padding: scale(10),
+    marginBottom: vs(16),
   },
-  balanceLabel: { fontSize: sp(10), color: COLORS.textMuted },
-  balanceValue: { fontSize: sp(14), fontWeight: '700', color: COLORS.textPrimary, marginTop: vs(2) },
+  balanceGridRow: { flexDirection: 'row', alignItems: 'center', marginBottom: vs(6) },
+  balanceCell: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  balanceLabel: { fontSize: sp(12), fontWeight: '700', color: COLORS.textPrimary },
+  balanceValue: { fontSize: sp(13), color: COLORS.textPrimary },
+  balanceTotalValue: { fontSize: sp(15), fontWeight: '700', color: '#22c55e' },
 
   fieldLabel: { fontSize: sp(13), color: COLORS.textMuted, marginTop: vs(10), marginBottom: vs(6) },
+  fieldSpacingTop: { marginTop: vs(14) },
   inputBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -785,15 +829,14 @@ const styles = StyleSheet.create({
     borderRadius: scale(10),
     paddingHorizontal: scale(14),
     paddingVertical: vs(10),
-    minHeight: ms(70),
+    minHeight: ms(90),
     fontSize: sp(14),
     color: '#333',
     textAlignVertical: 'top',
   },
 
-  sheetActions: { flexDirection: 'row', gap: scale(10), marginTop: vs(18) },
+  sheetActions: { gap: vs(10), marginTop: vs(18) },
   deleteBtn: {
-    flex: 1,
     height: ms(46),
     borderRadius: scale(23),
     borderWidth: 1,
@@ -803,12 +846,13 @@ const styles = StyleSheet.create({
   },
   deleteBtnText: { color: '#d32f2f', fontWeight: '600', fontSize: sp(14) },
   submitBtn: {
-    flex: 2,
     height: ms(46),
     borderRadius: scale(23),
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#353935',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  submitBtnText: { color: COLORS.white, fontWeight: '600', fontSize: sp(14) },
+  submitBtnText: { color: COLORS.white, fontWeight: '600', fontSize: sp(15) },
+  cancelLink: { alignItems: 'center', marginTop: vs(12), paddingVertical: vs(4) },
+  cancelLinkText: { color: COLORS.primary, fontSize: sp(15), fontWeight: '600' },
 });
