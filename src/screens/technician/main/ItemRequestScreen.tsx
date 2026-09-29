@@ -18,7 +18,7 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, hp, wp } from '../../../utils/responsive';
+import { scale, vs, sp, wp } from '../../../utils/responsive';
 import { getLargeItemAssignedUnassigned } from '../../../api/item/itemService';
 import { postFocDetails } from '../../../api/focItemRequest/focItemRequestService';
 import { pick } from '@react-native-documents/picker';
@@ -27,7 +27,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Local request-body shapes for FOC_Item_Request/Add_FOC_Request_Details — kept
 // inline since the generated DTO (AddFocDTOResultData) is missing several
-// fields the live endpoint expects (ShipToParty, ProductID, ItemDescription, etc).
+// fields the live endpoint expects (ProductID, ItemDescription, etc).
+// Verified field-by-field against Java's AddFocDTO.java / TaskRequestItems_FW.java
+// (no ShipToParty on either side — an earlier version of this file sent it,
+// but it isn't part of the DTO Java actually posts).
 interface FOCItemRequestDetail {
   ItemRequestId: number;
   FocRequestId: number;
@@ -79,7 +82,6 @@ interface FOCRequestPayload {
   CreatedDate: string;
   UpdatedBy: number;
   UpdatedDate: string;
-  ShipToParty: number;
   FOC_Item_Request_Details: FOCItemRequestDetail[];
 }
 
@@ -405,7 +407,6 @@ export default function ItemRequestScreen({ navigation, route }: any) {
         CreatedDate:       now,
         UpdatedBy:         uid,
         UpdatedDate:       now,
-        ShipToParty:       0,
         FOC_Item_Request_Details: details,
       };
 
@@ -462,9 +463,6 @@ export default function ItemRequestScreen({ navigation, route }: any) {
         {/* ── Header ── */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Item Request</Text>
-          <Pressable style={styles.closeBtn} onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="close" size={sp(20)} color="#fff" />
-          </Pressable>
         </View>
 
         <View style={styles.headerDivider} />
@@ -597,7 +595,10 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                     )
                   }
                 >
-                  <Text style={{ color: item.attachmentType ? '#000' : '#a6a6a6', fontSize: sp(18), flex: 1 }}>
+                  <Text
+                    style={{ color: item.attachmentType ? '#000' : '#a6a6a6', fontSize: sp(15), flex: 1 }}
+                    numberOfLines={1}
+                  >
                     {item.attachmentType || 'Attachment Type'}
                   </Text>
                   <Ionicons name="chevron-down" size={sp(22)} color="#000" />
@@ -822,7 +823,7 @@ const styles = StyleSheet.create({
   },
 
   redBg: {
-    height: hp(10),
+    height: vs(10),
     backgroundColor: COLORS.primary,
   },
 
@@ -1073,6 +1074,7 @@ const styles = StyleSheet.create({
   // ── Anchored inline dropdown ──
   inlineDropdown: {
     position: 'absolute',
+    marginTop: vs(-100),
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#a6a6a6',
