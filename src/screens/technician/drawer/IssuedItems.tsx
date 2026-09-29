@@ -1,7 +1,7 @@
 // src/screens/technician/drawer/IssuedItems.tsx
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput,
+  View, Text, StyleSheet, FlatList, TextInput, Image,
   Pressable, Platform, StatusBar, ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -87,7 +87,13 @@ export default function IssuedItems() {
             contentContainerStyle={{ paddingBottom: ms(120), paddingHorizontal: ms(16), paddingTop: ms(8) }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>No issued items found.</Text>
+              <View style={styles.emptyState}>
+                <Image
+                  source={require('../../../../assets/images/noresultfound.png')}
+                  style={styles.emptyImage}
+                  resizeMode="contain"
+                />
+              </View>
             }
             renderItem={({ item }) => (
               <View style={styles.card}>
@@ -211,10 +217,12 @@ const styles = StyleSheet.create({
     color: '#555',
     marginBottom: ms(2),
   },
-  emptyText: {
-    textAlign: 'center',
-    color: '#888',
-    fontSize: sp(14),
-    marginTop: ms(40),
+  emptyState: {
+    alignItems: 'center',
+    marginTop: ms(60),
+  },
+  emptyImage: {
+    width: scale(180),
+    height: scale(180),
   },
 });
