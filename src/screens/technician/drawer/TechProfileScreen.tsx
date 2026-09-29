@@ -5,6 +5,7 @@ import {
   Pressable, Alert, ActivityIndicator, Platform, StatusBar, TouchableOpacity, Linking,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/theme';
 import { pick, types as pickerTypes } from '@react-native-documents/picker';
@@ -133,6 +134,7 @@ const fieldStyles = StyleSheet.create({
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
 export default function TechProfileScreen() {
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const statusBarHeight =
     Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
@@ -142,6 +144,11 @@ export default function TechProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
+  // profile.Photo can be a truthy but unreachable/broken URL (e.g. no photo
+  // ever uploaded), which <Image> fails to load silently, leaving a blank
+  // circle instead of falling back to the placeholder -- so track load
+  // failures and fall back explicitly.
+  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
   const [docNumber, setDocNumber] = useState('');
   // Tracks cursor position for the Aadhar field. Reformatting the string on
   // every keystroke (inserting spaces) can desync Android's native cursor
@@ -183,6 +190,10 @@ export default function TechProfileScreen() {
   useEffect(() => {
     AsyncStorage.getItem('uid').then(setUserId);
   }, []);
+
+  useEffect(() => {
+    setPhotoLoadFailed(false);
+  }, [profile?.Photo]);
 
   useEffect(() => {
     if (userId) {
@@ -525,10 +536,11 @@ export default function TechProfileScreen() {
         <View style={styles.avatarWrapper}>
           <Image
             source={
-              profile?.Photo
+              profile?.Photo && !photoLoadFailed
                 ? { uri: profile.Photo }
                 : require('../../../../assets/images/image.png')
             }
+            onError={() => setPhotoLoadFailed(true)}
             style={{ width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2 }}
           />
           <Pressable
@@ -677,7 +689,7 @@ export default function TechProfileScreen() {
             : <Text style={styles.updateText}>UPDATE</Text>}
         </Pressable>
 
-        <Pressable onPress={() => {}}>
+        <Pressable onPress={() => navigation.navigate('TechnicianTabsRoot', { screen: 'Home' })}>
           <Text style={styles.cancelText}>Cancel</Text>
         </Pressable>
       </ScrollView>
