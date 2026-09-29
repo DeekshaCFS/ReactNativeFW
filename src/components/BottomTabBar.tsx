@@ -27,17 +27,11 @@ export type QuickAction = {
   label: string;
 };
 
-const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
-  { route: 'AddQuote', icon: 'cube-outline', label: 'Add Quote' },
-  { route: 'AddInvoice', icon: 'document-text-outline', label: 'Add Invoice' },
-  { route: 'AddLead', icon: 'people-outline', label: 'Add Lead' },
-];
-
 type Props = BottomTabBarProps & {
   quickActions?: QuickAction[];
 };
 
-const BottomTabBar = ({ state, navigation, quickActions = DEFAULT_QUICK_ACTIONS }: Props) => {
+const BottomTabBar = ({ state, navigation, quickActions = [] }: Props) => {
   const [fabOpen, setFabOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const current = state.routes[state.index].name;

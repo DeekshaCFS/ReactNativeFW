@@ -1,13 +1,15 @@
 // src/navigation/TechnicianTabs.tsx
 
 import { View, StyleSheet } from 'react-native';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from 'react-native-geolocation-service';
 
 import AppHeader from '../components/AppHeader';
-import BottomTabBar from '../components/BottomTabBar';
+import BottomTabBar, { QuickAction } from '../components/BottomTabBar';
+import AddQuoteModal from '../screens/admin/AddQuoteModal';
+import AddLeadModal from '../screens/admin/AddLeadModal';
 
 import HomeScreen from '../screens/technician/main/HomeScreen';
 import TaskScreen from '../screens/technician/main/TaskScreen';
@@ -27,6 +29,14 @@ const Tab = createBottomTabNavigator<TechnicianTabParamList>();
 
 export default function TechnicianTabs() {
   const watchIdRef = useRef<number | null>(null);
+  const [ownerId, setOwnerId] = useState<number | null>(null);
+  const [isAddQuoteModalOpen, setIsAddQuoteModalOpen] = useState(false);
+  const [isAddInvoiceModalOpen, setIsAddInvoiceModalOpen] = useState(false);
+  const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem('owner_id').then(v => setOwnerId(Number(v) || 0));
+  }, []);
 
   // Pushes this technician's location to the same Firebase Realtime
   // Database node the Android app's admin-side live map reads from (see
@@ -65,6 +75,28 @@ export default function TechnicianTabs() {
     };
   }, []);
 
+  // "Add Quote"/"Add Invoice" open the shared AddQuoteModal as an overlay
+  // right here (same pattern as AdminTabs), instead of navigating to a
+  // pushed screen -- the FAB should only ever present a sheet on top of
+  // the current tab, never a full page transition.
+  const quickActions: QuickAction[] = [
+    {
+      icon: 'cube-outline',
+      label: 'Add Quote',
+      onPress: () => setIsAddQuoteModalOpen(true),
+    },
+    {
+      icon: 'document-text-outline',
+      label: 'Add Invoice',
+      onPress: () => setIsAddInvoiceModalOpen(true),
+    },
+    {
+      icon: 'people-outline',
+      label: 'Add Lead',
+      onPress: () => setIsAddLeadModalOpen(true),
+    },
+  ];
+
   return (
     <View style={styles.container}>
       <Tab.Navigator
@@ -90,7 +122,7 @@ export default function TechnicianTabs() {
               />
 
               {/* {!hideTabBar && <BottomTabBar {...props} />} */}
-              <BottomTabBar {...props} />
+              <BottomTabBar {...props} quickActions={quickActions} />
             </>
           );
         }}
@@ -100,6 +132,30 @@ export default function TechnicianTabs() {
         <Tab.Screen name="Attendance" component={AttendanceScreen} />
         <Tab.Screen name="Passbook" component={PassbookScreen} />
       </Tab.Navigator>
+
+      {ownerId !== null && (
+        <AddQuoteModal
+          technician
+          visible={isAddQuoteModalOpen}
+          ownerId={ownerId}
+          onClose={() => setIsAddQuoteModalOpen(false)}
+        />
+      )}
+      {ownerId !== null && (
+        <AddQuoteModal
+          technician
+          mode="invoice"
+          visible={isAddInvoiceModalOpen}
+          ownerId={ownerId}
+          onClose={() => setIsAddInvoiceModalOpen(false)}
+        />
+      )}
+
+      <AddLeadModal
+        technician
+        visible={isAddLeadModalOpen}
+        onClose={() => setIsAddLeadModalOpen(false)}
+      />
     </View>
   );
 }

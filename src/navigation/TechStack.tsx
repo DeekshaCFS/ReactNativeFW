@@ -16,16 +16,13 @@ import ItemRequestScreen from '../screens/technician/main/ItemRequestScreen';
 import TaskInputScreen from '../screens/technician/main/TaskInputScreen';
 import QRScanHistoryScreen from '../screens/technician/main/QRScanHistoryScreen';
 
-import AddQuoteScreen from '../screens/technician/main/AddQuoteScreen';
-import AddInvoiceScreen from '../screens/technician/main/AddInvoiceScreen';
-import AddLeadScreen from '../screens/technician/main/AddLeadScreen';
-
 import NotificationScreen from '../screens/technician/main/NotificationScreen';
 import HelpScreen from '../screens/technician/main/HelpScreen';
 import HelpMessagesScreen from '../screens/technician/main/HelpMsgScreen';
 
 import TechProfileScreen from '../screens/technician/drawer/TechProfileScreen';
 import IssuedItems from '../screens/technician/drawer/IssuedItems';
+import LeadsScreen from '../screens/technician/drawer/LeadsScreen';
 import RequestedItems from '../screens/technician/drawer/RequestedItems';
 import ExpenditureScreen from '../screens/technician/drawer/ExpenditureScreen';
 import ServiceScreen from '../screens/technician/drawer/ServiceScreen';
@@ -48,9 +45,6 @@ import { COLORS } from '../theme/theme';
 export type TechnicianStackParamList = {
   TechnicianTabsRoot: NavigatorScreenParams<TechnicianTabParamList>;
   Leave: undefined;
-  AddQuote: undefined;
-  AddInvoice: undefined;
-  AddLead: undefined;
   notification: undefined;
   help: undefined;
   helpMessages: undefined;
@@ -58,6 +52,7 @@ export type TechnicianStackParamList = {
   Profile: undefined;
   'Issued Items': undefined;
   'Requested Items': undefined;
+  Leads: undefined;
   ItemRequest: { routeTask?: any };
   TaskInput: { routeTask: any };
   QRScanHistory: { task: any };
@@ -113,10 +108,8 @@ export default function TechnicianStack() {
 
       <Stack.Screen name="Leave" component={LeaveScreen} options={{ title: 'Attendance' }} />
 
-      {/* Quick-action FAB destinations */}
-      <Stack.Screen name="AddQuote" component={AddQuoteScreen} options={{ title: 'Add Quote' }} />
-      <Stack.Screen name="AddInvoice" component={AddInvoiceScreen} options={{ title: 'Add Invoice' }} />
-      <Stack.Screen name="AddLead" component={AddLeadScreen} options={{ title: 'Add Lead' }} />
+      {/* Add Quote/Add Invoice/Add Lead all now open as an overlay from
+          TechnicianTabs instead of a pushed screen. */}
 
       {/* Header icon / misc */}
       <Stack.Screen name="notification" component={NotificationScreen} options={{ title: 'Notification' }} />
@@ -133,6 +126,7 @@ export default function TechnicianStack() {
       <Stack.Screen name="Profile" component={TechProfileScreen} options={{ title: 'Profile' }} />
       <Stack.Screen name="Issued Items" component={IssuedItems} options={{ title: 'Item Inventory' }} />
       <Stack.Screen name="Requested Items" component={RequestedItems} options={{ title: 'Item Inventory' }} />
+      <Stack.Screen name="Leads" component={LeadsScreen} options={{ title: 'Leads' }} />
       <Stack.Screen name="Expenditure" component={ExpenditureScreen} options={{ title: 'Expenditure' }} />
       <Stack.Screen name="Routine Service" component={ServiceScreen} options={{ title: 'Routine Service' }} />
       <Stack.Screen name="FieldWeb AI" component={AIScreen} options={{ title: 'FieldWeb AI' }} />

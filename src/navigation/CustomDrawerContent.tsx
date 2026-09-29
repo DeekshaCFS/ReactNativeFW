@@ -207,6 +207,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
             // Java shows AMC to technicians (only hidden for roles that lack it); the screen
             // and its route already existed but nothing could open it.
             { icon: 'construct-outline',              label: 'AMC',             screen: 'AMC' },
+            { icon: 'people-outline',                 label: 'Leads',           screen: 'Leads' },
             { icon: 'cash-outline',                   label: 'Expenditure',     screen: 'Expenditure' },
             { icon: 'list-outline',                   label: 'Routine Service', screen: 'Routine Service' },
             { icon: 'chatbox-ellipses-outline',       label: 'FieldWeb AI',     screen: 'FieldWeb AI' },

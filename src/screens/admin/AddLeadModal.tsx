@@ -1,9 +1,11 @@
-// src/screens/technician/main/AddLeadScreen.tsx
+// src/screens/admin/AddLeadModal.tsx
 //
-// Port of Java's LeadManagement/AddEditLeadDialog.addLead for the fieldworker.
-// Posts LeadForm/AddInternalCustomerLeadByTechnician (Java: addExternalLeadFormByTech).
-// Not ported: Google Places address picker (plain text address, lat/long "0"),
-// contact-book picker.
+// Port of Java's LeadManagement/AddEditLeadDialog.addLead -- a single shared
+// dialog for both owner and technician, differing only in which endpoint the
+// submit goes to (Java: addExternalLeadForm vs addExternalLeadFormByTech,
+// picked by SharedPrefManager's user group) and how Created/UpdatedBy/UserId
+// are stamped. Not ported: Google Places address picker (plain text address,
+// lat/long "0"), contact-book picker. Opens as a sliding-up modal from the FAB.
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -17,24 +19,25 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
-import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp } from '../../../utils/responsive';
-import SearchPickerModal, { PickerOption } from '../../../components/SearchPickerModal';
-import { ensureSuccess } from '../../../utils/apiResponse';
+import { COLORS } from '../../theme/theme';
+import { scale, vs, sp } from '../../utils/responsive';
+import SearchPickerModal, { PickerOption } from '../../components/SearchPickerModal';
+import { ensureSuccess } from '../../utils/apiResponse';
 import {
   getCurrentUserId,
   getCurrentUserProfile,
   isIndiaCountryDetailsId,
-} from '../../../state/session';
-import { getCustomerList, getStateList, getCityList } from '../../../api/customerList/customerListService';
-import type { CustomerListResultData } from '../../../api/customerList/customerList.types';
-import { getEnquiryServiceTypeList } from '../../../api/services/servicesService';
-import { postExternalLeadFormByTech } from '../../../api/leadForm/leadFormService';
+} from '../../state/session';
+import { getCustomerList, getStateList, getCityList } from '../../api/customerList/customerListService';
+import type { CustomerListResultData } from '../../api/customerList/customerList.types';
+import { getEnquiryServiceTypeList } from '../../api/services/servicesService';
+import { postExternalLeadForm, postExternalLeadFormByTech } from '../../api/leadForm/leadFormService';
 
 type Photo = { base64: string; uri: string; fileName: string };
 
@@ -50,7 +53,14 @@ const photoName = (slot: number) => {
   return `${ts}_AddUpdateLead${slot}_.jpg`;
 };
 
-export default function AddLeadScreen({ navigation }: any) {
+type AddLeadModalProps = {
+  visible: boolean;
+  onClose: () => void;
+  onSuccess?: () => void;
+  technician?: boolean;
+};
+
+export default function AddLeadModal({ visible, onClose, onSuccess, technician = false }: AddLeadModalProps) {
   const { isStateEnable, isCityEnable, isPincodeEnable } = getCurrentUserProfile().taskConfiguration;
 
   const [customers, setCustomers] = useState<CustomerListResultData[]>([]);
@@ -229,7 +239,7 @@ export default function AddLeadScreen({ navigation }: any) {
 
     setSubmitting(true);
     try {
-      const res = await postExternalLeadFormByTech({
+      const payload = {
         CustomerName: name,
         MobileNumber: mobile,
         Address: address,
@@ -239,10 +249,11 @@ export default function AddLeadScreen({ navigation }: any) {
         ServicesId: service?.id ?? 0,
         CustomerDetailsid: customerId,
         Description: notes,
-        // Java: non-owner branch zeroes Created/UpdatedBy and sends UserId.
-        UpdatedBy: 0,
-        CreatedBy: 0,
-        UserId: userId,
+        // Java: owner branch stamps Created/UpdatedBy with the owner's id;
+        // the technician branch zeroes both and sends UserId instead.
+        UpdatedBy: technician ? 0 : userId,
+        CreatedBy: technician ? 0 : userId,
+        ...(technician ? { UserId: userId } : {}),
         latitude,
         Longitude: longitude,
         IsActive: true,
@@ -261,10 +272,13 @@ export default function AddLeadScreen({ navigation }: any) {
               ImageFileBase64Str2: photos[2]?.base64 ?? '',
             }
           : {}),
-      });
+      };
+      const res = technician
+        ? await postExternalLeadFormByTech(payload)
+        : await postExternalLeadForm(payload as unknown as Parameters<typeof postExternalLeadForm>[0]);
       ensureSuccess(res, 'Failed to update, please try again');
       Alert.alert('Lead', res?.Message || 'Lead added successfully.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+        { text: 'OK', onPress: () => { onSuccess?.(); onClose(); } },
       ]);
     } catch (e) {
       Alert.alert('Lead', e instanceof Error ? e.message : 'Failed to update, please try again');
@@ -274,15 +288,25 @@ export default function AddLeadScreen({ navigation }: any) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.sheet}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Lead Form</Text>
+            <Pressable onPress={onClose} hitSlop={12}>
+              <Text style={styles.headerClose}>{'✕'}</Text>
+            </Pressable>
+          </View>
+
+          <KeyboardAvoidingView
+            style={styles.flexShrink}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.content}
+            >
         <Text style={styles.label}>Customer Name *</Text>
         <TextInput
           style={styles.input}
@@ -317,7 +341,7 @@ export default function AddLeadScreen({ navigation }: any) {
           placeholderTextColor={COLORS.textTertiary}
         />
 
-        <Text style={styles.label}>Address *</Text>
+        <Text style={styles.label}>Customer Address *</Text>
         <TextInput
           style={[styles.input, styles.multiline]}
           value={address}
@@ -326,23 +350,6 @@ export default function AddLeadScreen({ navigation }: any) {
           placeholder="Enter address"
           placeholderTextColor={COLORS.textTertiary}
         />
-
-        <Text style={styles.label}>Landmark *</Text>
-        <TextInput
-          style={styles.input}
-          value={landmark}
-          onChangeText={setLandmark}
-          placeholder="Enter landmark"
-          placeholderTextColor={COLORS.textTertiary}
-        />
-
-        <Text style={styles.label}>Service Type *</Text>
-        <Pressable style={styles.select} onPress={() => setPicker('service')}>
-          <Text style={service ? styles.selectText : styles.selectPlaceholder}>
-            {service?.label ?? 'Select service type'}
-          </Text>
-          <Ionicons name="chevron-down" size={sp(18)} color={COLORS.icon} />
-        </Pressable>
 
         <Text style={styles.label}>State{isStateEnable ? ' *' : ''}</Text>
         <Pressable style={styles.select} onPress={() => setPicker('state')}>
@@ -371,15 +378,22 @@ export default function AddLeadScreen({ navigation }: any) {
           placeholderTextColor={COLORS.textTertiary}
         />
 
-        <Text style={styles.label}>Notes</Text>
+        <Text style={styles.label}>Landmark *</Text>
         <TextInput
-          style={[styles.input, styles.multiline]}
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          placeholder="Enter notes"
+          style={styles.input}
+          value={landmark}
+          onChangeText={setLandmark}
+          placeholder="Enter landmark"
           placeholderTextColor={COLORS.textTertiary}
         />
+
+        <Text style={styles.label}>Service Type *</Text>
+        <Pressable style={styles.select} onPress={() => setPicker('service')}>
+          <Text style={service ? styles.selectText : styles.selectPlaceholder}>
+            {service?.label ?? 'Select service type'}
+          </Text>
+          <Ionicons name="chevron-down" size={sp(18)} color={COLORS.icon} />
+        </Pressable>        
 
         <Text style={styles.label}>Photos</Text>
         <View style={styles.photoRow}>
@@ -389,7 +403,7 @@ export default function AddLeadScreen({ navigation }: any) {
                 {p ? (
                   <Image source={{ uri: p.uri }} style={styles.photoImg} />
                 ) : (
-                  <Ionicons name="camera-outline" size={sp(28)} color={COLORS.textTertiary} />
+                  <Ionicons name="camera-outline" size={sp(50)} color={COLORS.textTertiary} />
                 )}
               </Pressable>
               {p && (
@@ -407,10 +421,17 @@ export default function AddLeadScreen({ navigation }: any) {
           ))}
         </View>
 
+        <Text style={styles.label}>Notes</Text>
+        <TextInput
+          style={[styles.input, styles.multiline]}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          placeholder="Enter notes"
+          placeholderTextColor={COLORS.textTertiary}
+        />
+
         <View style={styles.btnRow}>
-          <Pressable style={[styles.btn, styles.btnGhost]} onPress={() => navigation.goBack()}>
-            <Text style={styles.btnGhostText}>Cancel</Text>
-          </Pressable>
           <Pressable
             style={[styles.btn, styles.btnPrimary, submitting && { opacity: 0.6 }]}
             onPress={submit}
@@ -419,53 +440,83 @@ export default function AddLeadScreen({ navigation }: any) {
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.btnPrimaryText}>Add Lead</Text>
+              <Text style={styles.btnPrimaryText}>ADD</Text>
             )}
           </Pressable>
+          <Pressable style={[styles.btn]} onPress={onClose}>
+            <Text style={styles.btnGhostText}>Cancel</Text>
+          </Pressable>
         </View>
-      </ScrollView>
+            </ScrollView>
+          </KeyboardAvoidingView>
 
-      <SearchPickerModal
-        visible={picker === 'service'}
-        title="Select Service Type"
-        options={services}
-        onSelect={o => {
-          setService(o);
-          setPicker(null);
-        }}
-        onClose={() => setPicker(null)}
-      />
-      <SearchPickerModal
-        visible={picker === 'state'}
-        title="Select State"
-        options={states}
-        onSelect={o => {
-          setStateText(o.label);
-          setCityText('');
-          setPicker(null);
-          loadCities(o.id);
-        }}
-        onClose={() => setPicker(null)}
-      />
-      <SearchPickerModal
-        visible={picker === 'city'}
-        title="Select City"
-        options={cities}
-        loading={cityLoading}
-        emptyText="Select a state first."
-        onSelect={o => {
-          setCityText(o.label);
-          setPicker(null);
-        }}
-        onClose={() => setPicker(null)}
-      />
-    </KeyboardAvoidingView>
+          <SearchPickerModal
+            visible={picker === 'service'}
+            title="Select Service Type"
+            options={services}
+            onSelect={o => {
+              setService(o);
+              setPicker(null);
+            }}
+            onClose={() => setPicker(null)}
+          />
+          <SearchPickerModal
+            visible={picker === 'state'}
+            title="Select State"
+            options={states}
+            onSelect={o => {
+              setStateText(o.label);
+              setCityText('');
+              setPicker(null);
+              loadCities(o.id);
+            }}
+            onClose={() => setPicker(null)}
+          />
+          <SearchPickerModal
+            visible={picker === 'city'}
+            title="Select City"
+            options={cities}
+            loading={cityLoading}
+            emptyText="Select a state first."
+            onSelect={o => {
+              setCityText(o.label);
+              setPicker(null);
+            }}
+            onClose={() => setPicker(null)}
+          />
+        </View>
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.background },
-  content: { paddingHorizontal: scale(16), paddingVertical: vs(16), paddingBottom: vs(140) },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  sheet: {
+    backgroundColor: COLORS.background,
+    width: '100%',
+    maxHeight: '94%',
+    overflow: 'hidden',
+    borderTopLeftRadius: scale(20),
+    borderTopRightRadius: scale(20),
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.textQuaternary,
+    paddingHorizontal: scale(18),
+    paddingVertical: vs(16),
+  },
+  headerTitle: { color: '#fff', fontSize: sp(17), fontWeight: '700' },
+  headerClose: { color: '#fff', fontSize: sp(18) },
+  flexShrink: { flexShrink: 1 },
+  content: { paddingHorizontal: scale(16), paddingVertical: vs(16), paddingBottom: vs(24) },
   label: {
     fontSize: sp(13),
     fontWeight: '600',
@@ -475,8 +526,8 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: scale(8),
+    borderColor: COLORS.textQuaternary,
+    borderRadius: scale(20),
     paddingHorizontal: scale(12),
     paddingVertical: vs(10),
     fontSize: sp(14),
@@ -489,8 +540,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: scale(8),
+    borderColor: COLORS.textQuaternary,
+    borderRadius: scale(15),
     paddingHorizontal: scale(12),
     paddingVertical: vs(12),
     backgroundColor: '#fff',
@@ -499,8 +550,8 @@ const styles = StyleSheet.create({
   selectPlaceholder: { fontSize: sp(14), color: COLORS.textTertiary, flex: 1 },
   suggestBox: {
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: scale(8),
+    borderColor: COLORS.textQuaternary,
+    borderRadius: scale(15),
     backgroundColor: '#fff',
     marginTop: vs(4),
   },
@@ -515,28 +566,26 @@ const styles = StyleSheet.create({
   photoRow: { flexDirection: 'row', gap: scale(12) },
   photoWrap: { position: 'relative' },
   photoBox: {
-    width: scale(90),
-    height: scale(90),
-    borderRadius: scale(8),
+    width: scale(110),
+    height: scale(110),
+    borderRadius: scale(15),
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderStyle: 'dashed',
+    borderColor: COLORS.textQuaternary,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   photoImg: { width: '100%', height: '100%' },
   photoRemove: { position: 'absolute', top: -scale(6), right: -scale(6) },
-  btnRow: { flexDirection: 'row', gap: scale(12), marginTop: vs(28) },
+  btnRow: { flexDirection: 'column', gap: scale(12), marginTop: vs(28) },
   btn: {
     flex: 1,
     height: vs(46),
-    borderRadius: scale(8),
+    borderRadius: scale(25),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnPrimary: { backgroundColor: COLORS.primary },
-  btnPrimaryText: { color: '#fff', fontSize: sp(15), fontWeight: '600' },
-  btnGhost: { borderWidth: 1, borderColor: COLORS.primary },
-  btnGhostText: { color: COLORS.primary, fontSize: sp(15), fontWeight: '600' },
+  btnPrimary: { backgroundColor: COLORS.textQuaternary },
+  btnPrimaryText: { color: '#fff', fontSize: sp(18), fontWeight: '600' },
+  btnGhostText: { color: COLORS.primary, fontSize: sp(18), fontWeight: '600' },
 });
