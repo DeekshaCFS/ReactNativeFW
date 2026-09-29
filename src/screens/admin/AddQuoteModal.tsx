@@ -1194,7 +1194,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               </View>
 
               {/* Attach File exists only on dialog_add_quote.xml; dialog_add_invoice.xml has none. */}
-              {isInvoice ? null : (
+              {/* {isInvoice ? null : (
                 <>
                   <Text style={styles.extraLabel}>Attach File</Text>
                   <TouchableOpacity style={styles.attachBox} onPress={handlePickAttachment}>
@@ -1204,7 +1204,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                     </Text>
                   </TouchableOpacity>
                 </>
-              )}
+              )} */}
 
               <TextInput
                 style={[styles.pillInput, styles.termInput]}
