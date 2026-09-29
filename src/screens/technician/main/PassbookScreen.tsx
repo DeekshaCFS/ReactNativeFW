@@ -6,13 +6,14 @@
 // exactly, including its quirks (e.g. Yearly's "Credit Given" and "Remaining
 // Amount" both read TotalOpening — that's what the live app does).
 import {
-  View, Text, StyleSheet, ScrollView, Pressable,
+  View, Text, StyleSheet, ScrollView, Pressable, Modal,
   Platform, StatusBar, ActivityIndicator,
 } from 'react-native';
 import { useCallback, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import { COLORS } from '../../../theme/theme';
+import DrumPicker from '../../../components/DrumPicker';
 import { scale, vs, sp, ms, HEADER_TOP_PADDING } from '../../../utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -65,6 +66,20 @@ export default function PassbookScreen() {
   const [fields, setFields] = useState<PassbookFields>(EMPTY_FIELDS);
   const [loading, setLoading] = useState(false);
 
+  // Java (btnMonthYear/btnYear): switching to Monthly/Yearly always opens a
+  // month/year roller dialog rather than assuming the current month/year.
+  // Monthly allows the current year and the one before; Yearly allows the
+  // current year and the two before.
+  const [pickerFor, setPickerFor] = useState<'monthly' | 'yearly' | null>(null);
+  const [tempMonthIdx, setTempMonthIdx] = useState(0);
+  const [tempYearIdx, setTempYearIdx] = useState(0);
+  const monthlyYearOptions = [String(new Date().getFullYear() - 1), String(new Date().getFullYear())];
+  const yearlyYearOptions = [
+    String(new Date().getFullYear() - 2),
+    String(new Date().getFullYear() - 1),
+    String(new Date().getFullYear()),
+  ];
+
   const load = useCallback(async (period: Period, date: Date) => {
     const userId = getCurrentUserId();
     if (!userId) {
@@ -90,9 +105,11 @@ export default function PassbookScreen() {
         const res = await getMonthlyPassbook({ UserId: userId, PassbookMonth: month + 1, PassbookYear: year });
         const d = res?.ResultData;
         const monthName = MONTHS[month];
-        const row = d?.MonthlyALlDataList?.find(
-          item => item.Month?.includes(monthName) && String(item.Year) === String(year),
-        );
+        // API scopes MonthlyALlDataList to the requested year via
+        // PassbookMonth/PassbookYear already, and its per-row Year field
+        // comes back blank -- matching on it (as Java's equalsIgnoreCase
+        // check does) always misses, so match on Month name alone.
+        const row = d?.MonthlyALlDataList?.find(item => item.Month?.includes(monthName));
         setFields({
           estimated: row?.Estimated ?? 0,
           credit: d?.TotalCredit ?? 0,
@@ -127,10 +144,34 @@ export default function PassbookScreen() {
   );
 
   const selectPeriod = (period: Period) => {
-    setActivePeriod(period);
+    if (period === 'today') {
+      setActivePeriod(period);
+      const now = new Date();
+      setRefDate(now);
+      load(period, now);
+      return;
+    }
+
     const now = new Date();
-    setRefDate(now);
-    load(period, now);
+    setTempMonthIdx(now.getMonth());
+    setTempYearIdx(
+      period === 'monthly'
+        ? monthlyYearOptions.indexOf(String(now.getFullYear()))
+        : yearlyYearOptions.indexOf(String(now.getFullYear())),
+    );
+    setPickerFor(period);
+  };
+
+  const confirmPeriodPicker = () => {
+    if (!pickerFor) return;
+    const year = Number(
+      (pickerFor === 'monthly' ? monthlyYearOptions : yearlyYearOptions)[tempYearIdx],
+    );
+    const next = new Date(year, pickerFor === 'monthly' ? tempMonthIdx : 0, 1);
+    setActivePeriod(pickerFor);
+    setRefDate(next);
+    load(pickerFor, next);
+    setPickerFor(null);
   };
 
   const shiftRef = (delta: number) => {
@@ -257,12 +298,57 @@ export default function PassbookScreen() {
           </LinearGradient>
         </View>
       </ScrollView>
+
+      {/* Month/Year roller (Java: btnMonthYear/btnYear MonthPickerDialog) */}
+      <Modal visible={pickerFor !== null} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setPickerFor(null)} />
+        <View style={styles.centerModal}>
+          <Text style={styles.modalTitle}>
+            {pickerFor === 'monthly' ? 'Select month year' : 'Select year'}
+          </Text>
+          <View style={{ flexDirection: 'row', paddingHorizontal: scale(16) }}>
+            {pickerFor === 'monthly' && (
+              <DrumPicker data={MONTHS} selectedIndex={tempMonthIdx} onSelect={setTempMonthIdx} />
+            )}
+            <DrumPicker
+              data={pickerFor === 'monthly' ? monthlyYearOptions : yearlyYearOptions}
+              selectedIndex={tempYearIdx}
+              onSelect={setTempYearIdx}
+            />
+          </View>
+          <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: '#eee', marginTop: vs(12) }}>
+            <Pressable style={{ flex: 1, paddingVertical: vs(14), alignItems: 'center' }} onPress={() => setPickerFor(null)}>
+              <Text style={{ fontSize: sp(15), color: '#888' }}>Cancel</Text>
+            </Pressable>
+            <Pressable style={{ flex: 1, paddingVertical: vs(14), alignItems: 'center' }} onPress={confirmPeriodPicker}>
+              <Text style={{ fontSize: sp(15), color: COLORS.primary, fontWeight: '600' }}>OK</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f7f7f7' },
+
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  centerModal: {
+    position: 'absolute',
+    top: '30%',
+    left: '10%',
+    right: '10%',
+    backgroundColor: '#fff',
+    padding: scale(16),
+    borderRadius: scale(12),
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  modalTitle: { fontSize: sp(17), fontWeight: '600', marginBottom: vs(12), color: COLORS.textPrimary, textAlign: 'center' },
 
   tabRow: {
     flexDirection: 'row',
