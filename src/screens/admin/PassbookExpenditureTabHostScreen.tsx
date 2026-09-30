@@ -2,7 +2,8 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import {formatAmount} from '../../utils/decimal';
 import {
-  ActivityIndicator,
+  ActivityIndicator,
+
   FlatList,
   Image,
   Modal,
@@ -15,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   type ExpenseTechnicianItem,
   type ExpenseTechnicianListResponse,
@@ -644,7 +646,7 @@ const PassbookExpenditureTabHostScreen = ({
           <Pressable
             hitSlop={12}
             onPress={() => openPicker(period === 'yearly' ? 'yearly' : 'monthly')}>
-            <Text style={styles.periodArrow}>{'<'}</Text>
+            <Ionicons name="caret-back" size={ms(30)} color='#000' />
           </Pressable>
           <View style={styles.earningTitleBlock}>
             <Text style={styles.earningTitle}>{passbookTitle}</Text>
@@ -653,7 +655,7 @@ const PassbookExpenditureTabHostScreen = ({
           <Pressable
             hitSlop={12}
             onPress={() => openPicker(period === 'yearly' ? 'yearly' : 'monthly')}>
-            <Text style={styles.periodArrow}>{'>'}</Text>
+            <Ionicons name="caret-forward" size={ms(30)} color='#000' />
           </Pressable>
         </View>
 
@@ -929,10 +931,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'center',
     paddingBottom: 0,
+    marginTop: ms(-30),
   },
   topTabButton: {
-    minWidth: ms(132),
-    height: ms(56),
+    minWidth: ms(200),
+    height: ms(50),
     alignItems: 'center',
     justifyContent: 'center',
     borderBottomWidth: ms(4),
@@ -1113,7 +1116,6 @@ const styles = StyleSheet.create({
   expenditurePane: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingBottom: ms(88),
   },
   expenseSearchRow: {
     minHeight: ms(74),
@@ -1141,7 +1143,7 @@ const styles = StyleSheet.create({
     minHeight: ms(42),
     paddingVertical: 0,
     color: '#111111',
-    fontSize: sp(22),
+    fontSize: sp(18),
   },
   searchClear: {
     color: '#555555',
@@ -1198,17 +1200,17 @@ const styles = StyleSheet.create({
   },
   technicianName: {
     color: '#555555',
-    fontSize: sp(18),
-    fontWeight: '900',
+    fontSize: sp(15),
+    fontWeight: '700',
   },
   technicianRole: {
     marginTop: ms(3),
     color: '#777777',
-    fontSize: sp(13),
+    fontSize: sp(11),
   },
   minusButton: {
-    width: ms(34),
-    height: ms(28),
+    width: ms(25),
+    height: ms(20),
     borderRadius: ms(7),
     borderWidth: ms(2),
     borderColor: THEME_PRIMARY,
@@ -1217,19 +1219,19 @@ const styles = StyleSheet.create({
   },
   minusText: {
     color: THEME_PRIMARY,
-    fontSize: sp(24),
-    lineHeight: sp(24),
+    fontSize: sp(18),
+    lineHeight: sp(15),
     fontWeight: '900',
   },
   balanceText: {
-    width: ms(130),
+    width: ms(100),
     textAlign: 'center',
     color: '#666666',
-    fontSize: sp(16),
+    fontSize: sp(12),
   },
   plusButton: {
-    width: ms(34),
-    height: ms(28),
+    width: ms(25),
+    height: ms(20),
     borderRadius: ms(7),
     borderWidth: ms(2),
     borderColor: '#4CAF50',
@@ -1238,8 +1240,8 @@ const styles = StyleSheet.create({
   },
   plusText: {
     color: '#4CAF50',
-    fontSize: sp(23),
-    lineHeight: sp(24),
+    fontSize: sp(18),
+    lineHeight: sp(15),
     fontWeight: '900',
   },
   emptyState: {
