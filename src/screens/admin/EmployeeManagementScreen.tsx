@@ -768,13 +768,15 @@ const EmployeeManagementScreen = ({
   };
 
   const renderLeave = ({item}: {item: LeaveListItem}) => {
-    const status = String(item.LeaveStatusName ?? 'Pending').trim();
+    // Java: EmpAdminLeaveListAdapter derives both the label and color from
+    // LeaveStatusId (1/2/3), not the raw LeaveStatusName string -- that
+    // string's actual API value doesn't reliably say "Declined" (it can come
+    // back as "Rejected"), so matching on it silently missed the red case.
+    const statusId = Number(item.LeaveStatusId) || 0;
+    const status =
+      statusId === 2 ? 'Approved' : statusId === 3 ? 'Declined' : 'Pending';
     const statusColor =
-      status.toLowerCase() === 'approved'
-        ? '#00C900'
-        : status.toLowerCase() === 'declined'
-          ? THEME_PRIMARY
-          : '#0000FF';
+      statusId === 2 ? '#00C900' : statusId === 3 ? COLORS.primary : '#0000FF';
     const leaveType = String(item.LeaveType ?? 'Full Day').trim();
     const isHalfDay = leaveType.toLowerCase().includes('half');
     const employeeName = getLeaveEmployeeName(item);

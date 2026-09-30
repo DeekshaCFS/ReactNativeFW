@@ -55,10 +55,11 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
     return null;
   }
 
-  const statusName = String(leave.LeaveStatusName ?? '').toLowerCase();
-  const isActioned =
-    (statusName === 'approved' && leave.LeaveStatusId === 2) ||
-    (statusName === 'rejected' && leave.LeaveStatusId === 3);
+  // LeaveStatusId is the reliable source of truth here (2 = Approved, 3 =
+  // Declined) -- the API's raw LeaveStatusName string doesn't consistently
+  // say "Declined" (it can come back as "Rejected"), so requiring both to
+  // match let an already-declined leave slip through as still-actionable.
+  const isActioned = leave.LeaveStatusId === 2 || leave.LeaveStatusId === 3;
   const notesLocked = leave.CommentsByApprover != null;
   const fullName = [leave.FirstName, leave.LastName].filter(Boolean).join(' ').trim();
   const start = toDisplayDate(leave.LeaveStartDate);
@@ -81,7 +82,7 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
       const message = String(response?.Message ?? '');
       Alert.alert(
         'Leave Request',
-        message.toLowerCase() === 'leave successfully rejected'
+        message.toLowerCase() === 'leave successfully declined'
           ? 'Leave Successfully Declined.'
           : message || (approve ? 'Leave approved.' : 'Leave declined.'),
       );
