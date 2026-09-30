@@ -115,7 +115,7 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
                 <Image source={{uri: leave.ProfileImageUrl}} style={styles.avatar} />
               ) : (
                 <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                  <Ionicons name="person" size={sp(28)} color="#9aa0a6" />
+                  <Ionicons name="person" size={sp(28)} color="#60acf7" />
                 </View>
               )}
               <View style={styles.headerText}>
@@ -152,7 +152,7 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
                   disabled={submitting !== null}
                   onPress={() => submit(false)}>
                   {submitting === 'decline' ? (
-                    <ActivityIndicator color={COLORS.primary} />
+                    <ActivityIndicator color="#fff" />
                   ) : (
                     <Text style={styles.declineText}>Decline</Text>
                   )}
@@ -210,9 +210,11 @@ const styles = StyleSheet.create({
   notesLocked: {backgroundColor: '#f8f9fa'},
   buttonRow: {flexDirection: 'row', gap: ms(12), marginTop: vs(18)},
   button: {flex: 1, borderRadius: ms(22), paddingVertical: vs(11), alignItems: 'center'},
-  decline: {borderWidth: 1, borderColor: COLORS.primary},
-  approve: {backgroundColor: COLORS.primary},
-  declineText: {color: COLORS.primary, fontWeight: '700', fontSize: sp(14)},
+  // Java: rounded_button (Decline, colorPrimaryDark) / rounded_button_green
+  // (Approve, #4EB54E) -- both filled with white bold text, not outlined.
+  decline: {backgroundColor: COLORS.primary},
+  approve: {backgroundColor: '#4EB54E'},
+  declineText: {color: '#fff', fontWeight: '700', fontSize: sp(14)},
   approveText: {color: '#fff', fontWeight: '700', fontSize: sp(14)},
 });
 

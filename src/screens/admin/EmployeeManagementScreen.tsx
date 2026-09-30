@@ -80,11 +80,13 @@ const MONTH_LABELS = [
   'Nov',
   'Dec',
 ];
+// Java: EmployeeLeaveList's spinStatus dialog -- Pending=1, Approved=2,
+// Declined=3 (id 0 is reserved for "no filter", the button's idle state,
+// not a selectable option in the list).
 const LEAVE_STATUS_OPTIONS: FilterOption[] = [
-  {id: 0, label: 'Approved'},
-  {id: 1, label: 'Pending'},
   {id: 2, label: 'Approved'},
   {id: 3, label: 'Declined'},
+  {id: 1, label: 'Pending'},
 ];
 
 const getResultData = <T,>(response: {
@@ -223,8 +225,12 @@ const EmployeeManagementScreen = ({
   });
   const [leaveSearchText, setLeaveSearchText] = useState('');
   const [submittedLeaveSearch, setSubmittedLeaveSearch] = useState('');
+  // Java's spinStatus starts on the neutral "Status" label with leaveStatusId
+  // 0 (no filter, shows every status) until the user picks one of the three
+  // real options above -- LEAVE_STATUS_OPTIONS[0] was "Approved", which both
+  // mislabeled the idle state and silently filtered every first load.
   const [selectedLeaveStatus, setSelectedLeaveStatus] = useState<FilterOption>(
-    LEAVE_STATUS_OPTIONS[0],
+    {id: 0, label: 'Status'},
   );
   const [leaveMonthYear, setLeaveMonthYear] = useState(getDefaultMonthYear);
   const [pendingLeaveMonth, setPendingLeaveMonth] = useState(
@@ -1672,8 +1678,8 @@ const styles = StyleSheet.create({
   },
   leaveToolbar: {
     paddingHorizontal: ms(28),
-    paddingTop: ms(22),
-    paddingBottom: ms(18),
+    paddingTop: ms(2),
+    paddingBottom: ms(5),
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
@@ -1682,8 +1688,8 @@ const styles = StyleSheet.create({
   leaveSearchBox: {
     flexGrow: 1,
     flexShrink: 1,
-    flexBasis: 160,
-    height: ms(48),
+    flexBasis: 110,
+    height: ms(40),
     borderBottomWidth: ms(1),
     borderBottomColor: '#BDBDBD',
     flexDirection: 'row',
@@ -1693,8 +1699,8 @@ const styles = StyleSheet.create({
   leaveStatusButton: {
     flexGrow: 0,
     flexShrink: 0,
-    flexBasis: 108,
-    height: ms(48),
+    flexBasis: 96,
+    height: ms(40),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1702,8 +1708,8 @@ const styles = StyleSheet.create({
   leaveMonthButton: {
     flexGrow: 0,
     flexShrink: 0,
-    flexBasis: 126,
-    height: ms(48),
+    flexBasis: 118,
+    height: ms(40),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1711,31 +1717,31 @@ const styles = StyleSheet.create({
   leaveFilterText: {
     flex: 1,
     color: '#111111',
-    fontSize: sp(17),
-    fontWeight: '600',
+    fontSize: sp(14),
+    fontWeight: '500',
   },
   leaveFilterChevron: {
     color: THEME_PRIMARY,
-    fontSize: sp(25),
-    lineHeight: sp(28),
-    marginLeft: ms(2),
+    fontSize: sp(16),
+    lineHeight: sp(18),
+    marginLeft: ms(5),
   },
   leaveListContent: {
-    paddingHorizontal: ms(28),
-    paddingTop: ms(10),
-    paddingBottom: ms(98),
+    paddingHorizontal: ms(15),
+    paddingTop: ms(5),
+    paddingBottom: ms(5),
   },
   leaveCard: {
-    minHeight: ms(168),
-    borderRadius: ms(18),
+    minHeight: ms(50),
+    borderRadius: ms(10),
     backgroundColor: '#FFFFFF',
     borderWidth: ms(1),
     borderColor: '#ECECEC',
     marginBottom: ms(30),
-    paddingTop: ms(62),
+    paddingTop: ms(50),
     paddingHorizontal: ms(18),
-    paddingBottom: ms(18),
-    elevation: 3,
+    paddingBottom: ms(10),
+    elevation: 2,
     shadowColor: '#000000',
     shadowOpacity: 0.15,
     shadowRadius: 4,
@@ -1745,10 +1751,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
-    width: ms(146),
-    height: ms(42),
-    borderTopLeftRadius: ms(18),
-    borderBottomRightRadius: ms(18),
+    width: ms(100),
+    height: ms(20),
+    borderTopLeftRadius: ms(10),
+    borderBottomRightRadius: ms(10),
     backgroundColor: '#4CAF50',
     justifyContent: 'center',
     paddingLeft: ms(12),
@@ -1758,61 +1764,63 @@ const styles = StyleSheet.create({
   },
   leaveTypeRibbonText: {
     color: '#FFFFFF',
-    fontSize: sp(16),
-    fontWeight: '900',
+    fontSize: sp(12),
+    fontWeight: '600',
   },
   leaveDatePill: {
     position: 'absolute',
     right: ms(18),
     top: 0,
-    height: ms(42),
+    height: ms(20),
     maxWidth: ms(260),
     justifyContent: 'center',
     alignItems: 'flex-end',
   },
   leaveCreatedText: {
     color: '#555555',
-    fontSize: sp(17),
-    fontWeight: '700',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   leaveTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: ms(14),
+    marginTop: ms(-20),
   },
   leaveEmployeeName: {
     flex: 1,
     color: '#111111',
-    fontSize: sp(17),
-    fontWeight: '600',
+    fontSize: sp(14),
+    fontWeight: '500',
   },
   leaveEmployeeCode: {
     color: '#555555',
-    fontWeight: '700',
+    fontSize: sp(14),
+    fontWeight: '500',
   },
   leaveRoleText: {
     width: ms(128),
     color: '#1E90FF',
-    fontSize: sp(17),
-    fontWeight: '900',
+    fontSize: sp(13),
+    fontWeight: '500',
     textAlign: 'right',
   },
   leaveDetailRow: {
-    marginTop: ms(22),
+    marginTop: ms(3),
     flexDirection: 'row',
     alignItems: 'center',
     gap: ms(14),
   },
   leaveReasonRow: {
-    marginTop: ms(18),
+    marginTop: ms(3),
     flexDirection: 'row',
     alignItems: 'center',
   },
   leaveLabel: {
     color: '#555555',
-    fontSize: sp(16),
-    fontWeight: '700',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   leaveDateGroup: {
     flex: 1,
@@ -1824,31 +1832,33 @@ const styles = StyleSheet.create({
   leaveValue: {
     flex: 1,
     color: THEME_PRIMARY,
-    fontSize: sp(16),
-    fontWeight: '700',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   leaveStatusLabel: {
     color: '#555555',
-    fontSize: sp(16),
+    fontSize: sp(12),
     fontWeight: '700',
   },
   leaveStatusGroup: {
-    minWidth: ms(154),
+    minWidth: ms(150),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: ms(8),
+    left: ms(25),
   },
   leaveStatusValue: {
     minWidth: ms(72),
-    fontSize: sp(16),
-    fontWeight: '700',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   leaveReasonValue: {
     flex: 1,
     color: THEME_PRIMARY,
-    fontSize: sp(16),
-    fontWeight: '700',
+    fontSize: sp(12),
+    fontWeight: '500',
+    left: ms(20),
   },
   leaveShell: {
     flex: 1,
@@ -1932,8 +1942,8 @@ const styles = StyleSheet.create({
   },
   monthPickerButtonText: {
     color: '#111827',
-    fontSize: sp(15),
-    fontWeight: '900',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   monthPickerButtonTextPrimary: {
     color: '#FFFFFF',
@@ -1975,7 +1985,7 @@ const styles = StyleSheet.create({
   },
   detailsIconText: {
     color: THEME_PRIMARY,
-    fontSize: sp(18),
+    fontSize: sp(12),
   },
   detailsFieldRow: {
     flexDirection: 'row',
@@ -1985,13 +1995,13 @@ const styles = StyleSheet.create({
   },
   detailsLabel: {
     color: '#111827',
-    fontSize: sp(15),
-    fontWeight: '600',
+    fontSize: sp(12),
+    fontWeight: '500',
     flex: 1,
   },
   detailsValue: {
     color: '#7A7A7A',
-    fontSize: sp(15),
+    fontSize: sp(12),
     flex: 1,
     textAlign: 'right',
   },
@@ -2002,8 +2012,8 @@ const styles = StyleSheet.create({
   },
   detailsCancelText: {
     color: THEME_PRIMARY,
-    fontSize: sp(18),
-    fontWeight: '800',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
 });
 
