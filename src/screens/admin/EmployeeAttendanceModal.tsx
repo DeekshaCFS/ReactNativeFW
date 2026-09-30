@@ -22,10 +22,12 @@ import {
   Text,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {ms, scale, sp, vs} from '../../utils/responsive';
 import {getAttendanceTechMonthly} from '../../api/attendance/attendanceService';
 import type {TechMonthlyAttendanceResultData} from '../../api/attendance/attendance.types';
 import type {EmployeeListItem} from './adminLegacyApiTypes';
+import {COLORS} from '../../theme/theme.ts';
 
 type Props = {
   visible: boolean;
@@ -205,14 +207,14 @@ const EmployeeAttendanceModal: React.FC<Props> = ({visible, employee, onClose}) 
                     {String(employee.DesignationName ?? employee.UserGroupName ?? 'Employee').trim()}
                   </Text>
                 </View>
-                <Pressable hitSlop={10} onPress={handleCall} style={styles.callButton}>
-                  <Text style={styles.callIcon}>☎</Text>
+                <Pressable hitSlop={10} onPress={handleCall} >
+                  <Ionicons name="call-outline" style={styles.callIcon} />
                 </Pressable>
               </View>
 
               <View style={styles.monthRow}>
                 <Pressable hitSlop={10} onPress={goToPrevMonth} style={styles.monthNavButton}>
-                  <Text style={styles.monthNavText}>‹</Text>
+                  <Ionicons name="chevron-back" size = {24} style={{ color: COLORS.white }} />
                 </Pressable>
                 <Text style={styles.monthText}>
                   {viewedMonth.toLocaleString('default', {month: 'long', year: 'numeric'})}
@@ -222,8 +224,8 @@ const EmployeeAttendanceModal: React.FC<Props> = ({visible, employee, onClose}) 
                   onPress={goToNextMonth}
                   disabled={isCurrentMonth}
                   style={styles.monthNavButton}>
-                  <Text style={[styles.monthNavText, isCurrentMonth && styles.monthNavTextDisabled]}>
-                    ›
+                  <Text style={[isCurrentMonth && styles.monthNavTextDisabled]}>
+                    <Ionicons name="chevron-forward" size = {24} style={{ color: COLORS.white }} />
                   </Text>
                 </Pressable>
               </View>
@@ -240,10 +242,10 @@ const EmployeeAttendanceModal: React.FC<Props> = ({visible, employee, onClose}) 
 
               <View style={styles.summaryRow}>
                 {[
-                  {label: 'Present', value: present, bg: '#22c55e'},
-                  {label: 'Absent', value: absent, bg: '#f87171'},
-                  {label: 'Idle', value: idle, bg: '#f59e0b'},
-                  {label: 'Leave', value: leave, bg: '#000'},
+                  {label: 'Total Present', value: present, bg: '#22c55e'},
+                  {label: 'Total Absent', value: absent, bg: '#f87171'},
+                  {label: 'Total Idle', value: idle, bg: '#f59e0b'},
+                  {label: 'Total Leave', value: leave, bg: '#000'},
                 ].map(({label, value, bg}) => (
                   <View key={label} style={[styles.summaryCard, {backgroundColor: bg}]}>
                     <Text style={styles.summaryValue}>{loading ? '-' : value}</Text>
@@ -255,7 +257,7 @@ const EmployeeAttendanceModal: React.FC<Props> = ({visible, employee, onClose}) 
               <View style={styles.checkCard}>
                 <View style={styles.checkRow}>
                   <Text style={styles.checkDateText} numberOfLines={1}>
-                    {selectedDate.toLocaleDateString(undefined, {weekday: 'long', day: '2-digit', month: 'short'})}
+                    {selectedDate.toLocaleDateString(undefined, {weekday: 'long', day: '2-digit', month: 'short', year: 'numeric'})}
                   </Text>
                   <View style={[styles.statusTag, {backgroundColor: statusColor(selectedRecord)}]}>
                     <Text style={styles.statusTagText}>{selectedRecord?.Attendance ?? 'Absent'}</Text>
@@ -272,7 +274,7 @@ const EmployeeAttendanceModal: React.FC<Props> = ({visible, employee, onClose}) 
               </View>
 
               <Pressable style={styles.closeButton} onPress={onClose}>
-                <Text style={styles.closeButtonText}>Close</Text>
+                <Text style={styles.closeButtonText}>CLOSE</Text>
               </Pressable>
             </>
           ) : null}
@@ -323,23 +325,17 @@ const styles = StyleSheet.create({
     fontSize: sp(13),
     marginTop: vs(2),
   },
-  callButton: {
-    width: ms(36),
-    height: ms(36),
-    borderRadius: ms(18),
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f5d7d784',
-  },
   callIcon: {
-    color: THEME_PRIMARY,
-    fontSize: sp(16),
+    color: '#000',
+    fontSize: sp(20),
   },
   monthRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: vs(8),
+    backgroundColor: THEME_PRIMARY,
+    paddingVertical: vs(10),
   },
   monthNavButton: {
     paddingHorizontal: ms(16),
@@ -354,11 +350,11 @@ const styles = StyleSheet.create({
     color: '#d1d5db',
   },
   monthText: {
-    fontSize: sp(15),
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: sp(16),
+    fontWeight: '500',
     minWidth: ms(150),
     textAlign: 'center',
+    color: '#fff',
   },
   weekRow: {
     flexDirection: 'row',
@@ -417,7 +413,7 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    minHeight: vs(58),
+    height: vs(80),
     borderRadius: scale(10),
     alignItems: 'center',
     justifyContent: 'center',
@@ -425,19 +421,24 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     color: '#fff',
-    fontSize: sp(18),
+    fontSize: sp(25),
     fontWeight: '800',
   },
   summaryLabel: {
     color: '#fff',
-    fontSize: sp(11),
+    fontSize: sp(13),
     marginTop: vs(2),
   },
   checkCard: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#fff',
     borderRadius: scale(12),
     padding: scale(14),
     marginTop: vs(14),
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    shadowOffset: {width: 0, height: 1},
   },
   checkRow: {
     flexDirection: 'row',
@@ -474,9 +475,12 @@ const styles = StyleSheet.create({
     marginTop: vs(18),
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: THEME_PRIMARY,
+    borderRadius: ms(20),
+    height: vs(40),
   },
   closeButtonText: {
-    color: THEME_PRIMARY,
+    color: COLORS.white,
     fontSize: sp(16),
     fontWeight: '800',
   },

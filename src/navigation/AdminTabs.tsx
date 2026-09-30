@@ -44,11 +44,17 @@ export type AdminTabParamList = {
   // Quick-add "Add Enquiry" lives on the Home tab but opens a CRM sheet, so
   // the signal crosses routes as a param. Any changing value re-triggers it.
   CRM: { addEnquiryTrigger?: number } | undefined;
-  // `openLeaveTabTrigger` mirrors `addAmcTrigger`/`addEnquiryTrigger` above --
-  // the dashboard's "Today's Attendance" card sends this from the Home tab
-  // to land directly on the Leave sub-tab here (matches Java's Attendance
-  // tap, which opens LeaveTabHost/PersonalLeaveTabHost).
-  Employee: { openLeaveTabTrigger?: number } | undefined;
+  // `activeEmployeeTab` is reported back up by EmployeeManagementScreen
+  // whenever its internal Employee/Leave sub-tab changes, so the header
+  // title below can track it ("Attendance" while on the Leave sub-tab,
+  // "Employee List" otherwise).
+  // `attendanceEntry` is set when the dashboard's "Today's Attendance" card
+  // is tapped: this app's product call is to land on the Employee List
+  // *content* (not jump to Leave, unlike Java), but still show "Attendance"
+  // as the header for that visit. Cleared on blur (see the Tab.Screen's
+  // `listeners` below) so a later direct tap on the Employee tab bar icon
+  // goes back to the normal "Employee List" title.
+  Employee: { activeEmployeeTab?: 'employee' | 'leave'; attendanceEntry?: boolean } | undefined;
 };
 
 const Tab = createBottomTabNavigator<AdminTabParamList>();
@@ -156,10 +162,20 @@ export default function AdminTabs() {
             currentRoute.name === 'Home'
               ? (currentRoute.params as AdminTabParamList['Home'])
               : undefined;
+          const employeeParams =
+            currentRoute.name === 'Employee'
+              ? (currentRoute.params as AdminTabParamList['Employee'])
+              : undefined;
+          // "Attendance" shows either because the dashboard card sent us here
+          // (attendanceEntry, content still lands on Employee List) or the
+          // user is on the Leave sub-tab directly; "Employee List" otherwise.
           const title =
             currentRoute.name === 'Home'
               ? homeParams?.currentSectionTitle ?? 'FieldWeb'
-              : getAdminTabTitle(currentRoute.name as keyof AdminTabParamList);
+              : currentRoute.name === 'Employee' &&
+                  (employeeParams?.attendanceEntry || employeeParams?.activeEmployeeTab === 'leave')
+                ? 'Attendance'
+                : getAdminTabTitle(currentRoute.name as keyof AdminTabParamList);
 
           return (
             <>
@@ -205,13 +221,27 @@ export default function AdminTabs() {
           )}
         </Tab.Screen>
 
-        <Tab.Screen name="Employee">
-          {({ route }) => (
+        <Tab.Screen
+          name="Employee"
+          // Clears attendanceEntry once this tab loses focus, so a later
+          // direct tap on the Employee tab bar icon shows "Employee List"
+          // rather than a stale "Attendance" left over from the dashboard visit.
+          listeners={({ navigation }) => ({
+            blur: () => navigation.setParams({ attendanceEntry: false }),
+          })}
+        >
+          {({ route, navigation }) => (
             <EmployeeManagementScreen
               ownerId={ownerId}
               contentTopOffset={headerOffset}
-              openLeaveTabTrigger={route.params?.openLeaveTabTrigger}
               onAddEmployee={() => setIsAddFieldworkerModalOpen(true)}
+              onActiveTabChange={activeTab => {
+                // Guard against redundant setParams calls (belt-and-suspenders
+                // alongside the effect-dependency fix in EmployeeManagementScreen).
+                if (route.params?.activeEmployeeTab !== activeTab) {
+                  navigation.setParams({ activeEmployeeTab: activeTab });
+                }
+              }}
             />
           )}
         </Tab.Screen>

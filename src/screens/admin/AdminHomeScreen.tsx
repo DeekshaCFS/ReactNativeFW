@@ -398,14 +398,12 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
         onEarningsPress={() => setSelectedDrawerLabel('Passbook')}
         // Matches Java's AMC Status tap -> AMCListFragment.
         onAmcStatusPress={() => setSelectedDrawerLabel('AMC')}
-        // Matches Java's Attendance tap -> LeaveTabHost / PersonalLeaveTabHost
-        // (role-based in Java; the RN port already unifies both into a single
-        // Leave tab inside Employee Management, so we route there for every
-        // role). This is a cross-tab jump, not a drawerSection switch, since
-        // Leave lives on the Employee tab, not inside this Home tab.
-        onAttendancePress={() =>
-          navigation.navigate('Employee', { openLeaveTabTrigger: Date.now() })
-        }
+        // Java opens LeaveTabHost/PersonalLeaveTabHost here, but this app's
+        // product decision is to land on the Employee List content instead --
+        // an intentional deviation from Java, not a parity gap. The header
+        // still reads "Attendance" for this visit (attendanceEntry), matching
+        // the title Java's Attendance tap uses.
+        onAttendancePress={() => navigation.navigate('Employee', { attendanceEntry: true })}
       />
     );
   };

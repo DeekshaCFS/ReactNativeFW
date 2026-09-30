@@ -36,6 +36,7 @@ import EditEmployeeModal from './EditEmployeeModal';
 import EmployeeAttendanceModal from './EmployeeAttendanceModal';
 import TechnicianLiveMapScreen from './TechnicianLiveMapScreen';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { COLORS } from '../../theme/theme';
 
 type EmployeeManagementScreenProps = {
   ownerId: number;
@@ -44,12 +45,12 @@ type EmployeeManagementScreenProps = {
   // Settings this screen already sits under a native stack header, which
   // reserves its own space, so the default (0) is correct there.
   contentTopOffset?: number;
-  // Set (to a changing value, e.g. Date.now()) by AdminTabs when the
-  // dashboard's "Today's Attendance" card is tapped, so this screen opens
-  // directly on the Leave tab instead of the default Employee tab.
-  openLeaveTabTrigger?: number;
   // "+ Emp" (Java: EmployeeListFragment plus_tech -> AddBulkTechFragment).
   onAddEmployee?: () => void;
+  // Reports the active sub-tab back to AdminTabs so its shared header can
+  // show "Attendance" while on Leave (matching Java's toolbar title) and
+  // "Employee List" otherwise.
+  onActiveTabChange?: (tab: EmployeeTab) => void;
 };
 
 type EmployeeTab = 'employee' | 'leave';
@@ -186,19 +187,19 @@ const getLeaveEmployeeName = (item: LeaveListItem) =>
 const EmployeeManagementScreen = ({
   ownerId,
   contentTopOffset = 0,
-  openLeaveTabTrigger,
   onAddEmployee,
+  onActiveTabChange,
 }: EmployeeManagementScreenProps) => {
   const [activeTab, setActiveTab] = useState<EmployeeTab>('employee');
 
-  // Jump to the Leave tab when the dashboard's Attendance card sends a
-  // (changing) trigger value -- fires on first mount too if a trigger is
-  // already present, same pattern as addAmcTrigger/addEnquiryTrigger.
+  // `onActiveTabChange` is intentionally excluded from the deps: AdminTabs
+  // passes a fresh closure on every render (it calls navigation.setParams,
+  // which itself triggers a re-render), so depending on it here caused an
+  // infinite update loop. Only react to activeTab actually changing.
   useEffect(() => {
-    if (openLeaveTabTrigger) {
-      setActiveTab('leave');
-    }
-  }, [openLeaveTabTrigger]);
+    onActiveTabChange?.(activeTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
   const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
   const [leaves, setLeaves] = useState<LeaveListItem[]>([]);
   // EmpAdminLeaveListAdapter.onClick -> LeaveApproveRejectFragmnt.
@@ -715,13 +716,13 @@ const EmployeeManagementScreen = ({
             <Pressable
               hitSlop={8}
               onPress={() => setAttendanceEmployee(item)}>
-              <Text style={styles.calendarIcon}>▣</Text>
+              <Ionicons name="calendar-outline" style={styles.calendarIcon} />
             </Pressable>
             <Pressable
               style={styles.trackButton}
               onPress={() => {
                 if (attendanceLower === 'absent') {
-                  Alert.alert('Track', 'Technician is marked absent.');
+                  Alert.alert('Track', 'Employee is Absent today.');
                   return;
                 }
                 setTrackingEmployee(item);
@@ -882,8 +883,8 @@ const EmployeeManagementScreen = ({
           <Pressable style={styles.addButton} onPress={onAddEmployee}>
             <Text style={styles.addButtonText}>+ Emp</Text>
           </Pressable>
-          <Pressable style={styles.downloadButton} onPress={handleDownloadEmployees}>
-            <Text style={styles.downloadIcon}>⇩</Text>
+          <Pressable onPress={handleDownloadEmployees}>
+            <Ionicons name="download-outline" size={25} style={{ color: COLORS.primary }} />
           </Pressable>
         </View>
 
@@ -1256,25 +1257,25 @@ const EmployeeManagementScreen = ({
                       hitSlop={10}
                       onPress={() => handleEditEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Text style={styles.detailsIconText}>✎</Text>
+                      <Ionicons name="create-outline" style={styles.detailsIconText} />
                     </Pressable>
                     <Pressable
                       hitSlop={10}
                       onPress={() => handleCallEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Text style={styles.detailsIconText}>☎</Text>
+                      <Ionicons name="call-outline" style={styles.detailsIconText} />
                     </Pressable>
                     <Pressable
                       hitSlop={10}
                       onPress={() => handleWhatsAppEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Text style={styles.detailsIconText}>💬</Text>
+                      <Ionicons name="logo-whatsapp" style={styles.detailsIconText} />
                     </Pressable>
                     <Pressable
                       hitSlop={10}
                       onPress={() => handleDeleteEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Text style={styles.detailsIconText}>🗑</Text>
+                      <Ionicons name="trash-outline" style={styles.detailsIconText} />
                     </Pressable>
                   </View>
                 </View>
@@ -1388,7 +1389,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   tabRow: {
-    height: ms(74),
+    height: ms(60),
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
   },
@@ -1406,23 +1407,24 @@ const styles = StyleSheet.create({
   tabText: {
     color: '#7A7A7A',
     fontSize: sp(16),
-    fontWeight: '800',
+    fontWeight: '600',
   },
   tabTextActive: {
     color: THEME_PRIMARY,
   },
   actionArea: {
     paddingHorizontal: ms(24),
-    paddingTop: ms(22),
+    paddingTop: ms(15),
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: ms(16),
+    marginTop: ms(-10),
   },
   searchBox: {
     flex: 1,
-    height: ms(48),
+    height: ms(35),
     borderBottomWidth: ms(1),
     borderBottomColor: '#BDBDBD',
     flexDirection: 'row',
@@ -1445,8 +1447,8 @@ const styles = StyleSheet.create({
     lineHeight: sp(42),
   },
   addButton: {
-    height: ms(48),
-    minWidth: ms(84),
+    height: ms(35),
+    minWidth: ms(70),
     borderRadius: ms(18),
     backgroundColor: '#070707',
     alignItems: 'center',
@@ -1456,23 +1458,11 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: sp(16),
+    fontSize: sp(15),
     fontWeight: '800',
   },
-  downloadButton: {
-    width: ms(44),
-    height: ms(48),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  downloadIcon: {
-    color: THEME_PRIMARY,
-    fontSize: sp(42),
-    lineHeight: sp(44),
-    fontWeight: '700',
-  },
   filterRow: {
-    marginTop: ms(26),
+    marginTop: ms(10),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1488,14 +1478,14 @@ const styles = StyleSheet.create({
   filterText: {
     flex: 1,
     color: '#111111',
-    fontSize: sp(16),
-    fontWeight: '600',
+    fontSize: sp(13),
+    fontWeight: '400',
   },
   filterChevron: {
     color: THEME_PRIMARY,
-    fontSize: sp(30),
-    lineHeight: sp(30),
-    marginLeft: ms(8),
+    fontSize: sp(20),
+    lineHeight: sp(20),
+    marginLeft: ms(15),
   },
   loadingOverlay: {
     paddingVertical: ms(16),
@@ -1510,17 +1500,17 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: ms(18),
-    paddingTop: ms(24),
-    paddingBottom: ms(98),
+    paddingTop: ms(10),
+    paddingBottom: ms(5),
   },
   employeeCard: {
-    minHeight: ms(164),
+    minHeight: ms(40),
     borderRadius: ms(24),
     backgroundColor: '#FFFFFF',
     borderWidth: ms(1),
     borderColor: '#EFEFEF',
     flexDirection: 'row',
-    marginBottom: ms(22),
+    marginBottom: ms(10),
     overflow: 'hidden',
     elevation: 2,
     shadowColor: '#000000',
@@ -1529,46 +1519,46 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 2},
   },
   avatarColumn: {
-    width: ms(112),
+    width: ms(80),
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: ms(16),
+    paddingVertical: ms(10),
   },
   avatar: {
-    width: ms(74),
-    height: ms(74),
-    borderRadius: ms(37),
+    width: ms(50),
+    height: ms(50),
+    borderRadius: ms(25),
     backgroundColor: '#EEE6F8',
   },
   attendancePill: {
     marginTop: ms(14),
-    minWidth: ms(96),
-    height: ms(34),
-    borderRadius: ms(17),
+    minWidth: ms(30),
+    height: ms(20),
+    borderRadius: ms(15),
     backgroundColor: '#D1003E',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: ms(14),
+    paddingHorizontal: ms(15),
   },
   attendancePresent: {
     backgroundColor: '#08A864',
   },
   attendanceText: {
     color: '#FFFFFF',
-    fontSize: sp(16),
-    fontWeight: '700',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   employeeInfo: {
     flex: 1,
-    paddingTop: ms(28),
-    paddingBottom: ms(22),
+    paddingTop: ms(10),
+    paddingBottom: ms(15),
     justifyContent: 'space-between',
     minWidth: 0,
   },
   employeeName: {
     color: '#1F2937',
-    fontSize: sp(18),
-    fontWeight: '900',
+    fontSize: sp(13),
+    fontWeight: '700',
   },
   metricRow: {
     flexDirection: 'row',
@@ -1577,14 +1567,14 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     color: '#777777',
-    fontSize: sp(14),
+    fontSize: sp(13),
     fontWeight: '600',
     minWidth: ms(52),
   },
   metricValue: {
     color: '#00C970',
-    fontSize: sp(16),
-    fontWeight: '900',
+    fontSize: sp(13),
+    fontWeight: '600',
   },
   metricValueDanger: {
     color: THEME_PRIMARY,
@@ -1592,11 +1582,11 @@ const styles = StyleSheet.create({
   employeeSide: {
     width: ms(136),
     alignItems: 'flex-end',
-    paddingBottom: ms(18),
+    paddingBottom: ms(10),
   },
   roleRibbon: {
     alignSelf: 'stretch',
-    height: ms(42),
+    height: ms(20),
     borderBottomLeftRadius: ms(20),
     backgroundColor: '#2E7BFF',
     alignItems: 'center',
@@ -1605,20 +1595,20 @@ const styles = StyleSheet.create({
   },
   roleRibbonText: {
     color: '#FFFFFF',
-    fontSize: sp(13),
-    fontWeight: '900',
+    fontSize: sp(10),
+    fontWeight: '700',
   },
   sideText: {
-    maxWidth: ms(112),
-    marginTop: ms(18),
+    maxWidth: ms(80),
+    marginTop: ms(10),
     marginRight: ms(14),
     color: THEME_PRIMARY,
-    fontSize: sp(13),
-    fontWeight: '900',
+    fontSize: sp(10),
+    fontWeight: '700',
   },
   trackRow: {
     alignSelf: 'stretch',
-    marginTop: ms(14),
+    marginTop: ms(10),
     paddingHorizontal: ms(12),
     flexDirection: 'row',
     alignItems: 'center',
@@ -1626,12 +1616,12 @@ const styles = StyleSheet.create({
   },
   calendarIcon: {
     color: '#111111',
-    fontSize: sp(28),
-    lineHeight: sp(30),
+    fontSize: sp(20),
+    lineHeight: sp(20),
   },
   trackButton: {
-    minWidth: ms(76),
-    height: ms(32),
+    minWidth: ms(50),
+    height: ms(25),
     borderRadius: ms(16),
     backgroundColor: '#5A5A5A',
     alignItems: 'center',
@@ -1640,11 +1630,11 @@ const styles = StyleSheet.create({
   },
   trackButtonText: {
     color: '#FFFFFF',
-    fontSize: sp(16),
-    fontWeight: '800',
+    fontSize: sp(14),
+    fontWeight: '600',
   },
   listFooter: {
-    paddingVertical: ms(16),
+    paddingVertical: ms(8),
   },
   emptyState: {
     alignItems: 'center',
@@ -1726,7 +1716,7 @@ const styles = StyleSheet.create({
   },
   leaveFilterChevron: {
     color: THEME_PRIMARY,
-    fontSize: sp(28),
+    fontSize: sp(25),
     lineHeight: sp(28),
     marginLeft: ms(2),
   },
@@ -1870,7 +1860,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.36)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: ms(28),
   },
   modalPanel: {
     width: '100%',
@@ -2013,7 +2002,7 @@ const styles = StyleSheet.create({
   },
   detailsCancelText: {
     color: THEME_PRIMARY,
-    fontSize: sp(16),
+    fontSize: sp(18),
     fontWeight: '800',
   },
 });
