@@ -21,12 +21,12 @@ import {
 import AudioRecord from 'react-native-audio-record';
 import RNFS from 'react-native-fs';
 import Sound from 'react-native-sound';
-import {getExpenseUserList} from '../../api/expenditure/expenditureService';
-import type {ExpenseTechListResultData} from '../../api/expenditure/expenditure.types';
+import {getAllUsersList} from '../../api/users/usersService';
+import type {UsersListResultData} from '../../api/users/users.types';
 import {getCustomerList, getCityList, getStateList} from '../../api/customerList/customerListService';
 import type {CityDTOResultData, CustomerListResultData, StateDTOResultData} from '../../api/customerList/customerList.types';
-import {getServiceTypeList} from '../../api/services/servicesService';
-import type {ServiceTypeListDTOResultData} from '../../api/services/services.types';
+import {getAdvanceServiceList} from '../../api/services/servicesService';
+import type {AdvanceServiceListDTOResultData} from '../../api/services/services.types';
 import {getQuoteBindList} from '../../api/quotation/quotationService';
 import type {QuoteBindListDTOResultData} from '../../api/quotation/quotation.types';
 import {getFsrBindList} from '../../api/fsrManagement/fsrManagementService';
@@ -52,7 +52,7 @@ import {
   filterCustomerOptions,
   filterLookupOptions,
   filterServiceTree,
-  getCurrentTimeString,
+  getTaskStartTimeString,
   getNumberField,
   getStringField,
   getTodayDateString,
@@ -219,31 +219,50 @@ const TASK_FORM_TABS: {key: TaskFormTabKey; label: string}[] = [
   {key: 'inst', label: 'Inst.'},
 ];
 
-const getFieldworkerName = (item: ExpenseTechListResultData) => {
+const getFieldworkerName = (item: UsersListResultData) => {
   const record = item as Record<string, unknown>;
   const fullName = `${getStringField(record, [
     'firstName',
     'FirstName',
   ])} ${getStringField(record, ['lastName', 'LastName'])}`.trim();
 
+  // FirstName/LastName first -- this endpoint's UserName is the login
+  // username, which in this app is the technician's phone number, not a
+  // display name. Only fall back to it if there's truly no name on file.
   return (
-    getStringField(record, [
-      'employeeName',
-      'EmployeeName',
-      'userName',
-      'UserName',
-    ]) ||
-    getStringField(record, ['name', 'Name']) ||
     fullName ||
+    getStringField(record, ['employeeName', 'EmployeeName']) ||
+    getStringField(record, ['name', 'Name']) ||
+    getStringField(record, ['userName', 'UserName']) ||
     'Fieldworker'
   );
 };
 
-const getFieldworkerId = (item: ExpenseTechListResultData) => {
+const getFieldworkerId = (item: UsersListResultData) => {
   const record = item as Record<string, unknown>;
-  const value = record.userId ?? record.UserId;
+  const value = record.userId ?? record.UserId ?? record.id ?? record.Id;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+// Java: Constant.UserGroupId.FIELDWORKERID = 2. Users/AllUsersList takes a
+// RoleId query param (Java's own Add Task dialog calls it with RoleId=0 --
+// "everyone" -- which is why the original app's own assignee picker shows
+// every role too; we pass RoleId=2 instead to actually scope this to
+// fieldworkers). Kept as a client-side safety net in case the server doesn't
+// honor that filter, using this DTO's real Role/RoleId fields (unlike
+// Expenditure/GetTechnicianList's DTO, which has no role field at all).
+const isFieldworkerRecord = (item: UsersListResultData) => {
+  const record = item as Record<string, unknown>;
+  const roleId = record.RoleId ?? record.UserGroupCodeId ?? record.UserGroupId;
+  if (roleId !== undefined && roleId !== null && String(roleId).trim() !== '') {
+    return Number(roleId) === 2;
+  }
+  const roleName = String(record.Role ?? record.UserGroupName ?? '').toLowerCase();
+  if (roleName) {
+    return roleName.includes('field') || roleName.includes('technician');
+  }
+  return true;
 };
 
 type ItemOption = {
@@ -375,14 +394,14 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     formMode === 'edit' ? 'UPDATE' : formMode === 'add' ? 'ADD' : 'RE-ASSIGN';
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDate, setTaskDate] = useState(getTodayDateString());
-  const [taskTime, setTaskTime] = useState(getCurrentTimeString());
+  const [taskTime, setTaskTime] = useState(getTaskStartTimeString());
   const [selectedFieldworker, setSelectedFieldworker] = useState<{
     id: number;
     name: string;
   } | null>(null);
   const [isFieldworkerModalOpen, setIsFieldworkerModalOpen] = useState(false);
   const [allFieldworkers, setAllFieldworkers] = useState<
-    ExpenseTechListResultData[]
+    UsersListResultData[]
   >([]);
   const [isFieldworkerLoading, setIsFieldworkerLoading] = useState(false);
   const [fieldworkerSearch, setFieldworkerSearch] = useState('');
@@ -507,7 +526,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     }
     setTaskTitle(initialValues?.title ?? '');
     setTaskDate(initialValues?.taskDate || getTodayDateString());
-    setTaskTime(initialValues?.taskTime || getCurrentTimeString());
+    setTaskTime(initialValues?.taskTime || getTaskStartTimeString());
     setSelectedFieldworker(
       initialValues?.assignedFieldworkerId
         ? {id: initialValues.assignedFieldworkerId, name: initialValues.assignedFieldworkerName ?? 'Me'}
@@ -589,9 +608,11 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       return;
     }
     setIsFieldworkerLoading(true);
-    getExpenseUserList({ownerId})
+    getAllUsersList({OwnerId: ownerId, RoleId: 2, OnlyList: false})
       .then(response => {
-        setAllFieldworkers(extractArray<ExpenseTechListResultData>(response));
+        setAllFieldworkers(
+          extractArray<UsersListResultData>(response).filter(isFieldworkerRecord),
+        );
       })
       .catch(() => setAllFieldworkers([]))
       .finally(() => setIsFieldworkerLoading(false));
@@ -607,7 +628,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     );
   }, [allFieldworkers, fieldworkerSearch]);
 
-  const handleFieldworkerSelect = (item: ExpenseTechListResultData) => {
+  const handleFieldworkerSelect = (item: UsersListResultData) => {
     setSelectedFieldworker({
       id: getFieldworkerId(item),
       name: getFieldworkerName(item),
@@ -640,12 +661,12 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     }
     setIsServiceTypeLoading(true);
     setServiceTypeError('');
-    getServiceTypeList({
-      OwnerId: ownerId,
-      searchParam: '',
+    getAdvanceServiceList({
+      UserId: ownerId,
+      SearchParam: '',
     })
       .then(response => {
-        const items = extractArray<ServiceTypeListDTOResultData>(response);
+        const items = extractArray<AdvanceServiceListDTOResultData>(response);
         setServiceTree(
           buildServiceTree(
             items as unknown as Parameters<typeof buildServiceTree>[0],
@@ -738,6 +759,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   }, [fsrList, fsrSearch]);
 
   const MAX_INSTRUCTION_RECORD_SECONDS = 30;
+  const MAX_INSTRUCTION_CHARS = 4000;
 
   const clearInstructionTimer = useCallback(() => {
     if (instructionTimerRef.current) {
@@ -1663,7 +1685,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             <View style={styles.modalHeader}>
               <Text style={styles.modalHeaderTitle}>{formTitle}</Text>
               <TouchableOpacity onPress={onClose}>
-                <Text style={styles.modalCloseIcon}>✕</Text>
+                <Ionicons name="close" style={styles.modalCloseIcon} />
               </TouchableOpacity>
             </View>
 
@@ -1702,7 +1724,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       style={styles.floatingInput}
                       value={taskTime}
                       onChangeText={setTaskTime}
-                      placeholder="HH:MM:SS"
+                      placeholder="HH:MM:SS + 00:15:00"
                       placeholderTextColor="#9aa0a6"
                     />
                   </View>
@@ -1808,13 +1830,21 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       }
                       editable={warrantyMode === 'out'}
                       keyboardType="decimal-pad"
-                      placeholder={
-                        warrantyMode === 'out'
-                          ? 'Please Enter Amount'
-                          : 'Not Applicable In AMC Mode'
-                      }
-                      placeholderTextColor="#9aa0a6"
                     />
+                    {/* TextInput's native placeholder just clips long text with no
+                        ellipsis -- overlay a Text with ellipsizeMode instead. */}
+                    {!(warrantyMode === 'out' && amcAmount) ? (
+                      <Text
+                        style={styles.amcPlaceholderOverlay}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                        pointerEvents="none"
+                      >
+                        {warrantyMode === 'out'
+                          ? 'Please Enter Amount'
+                          : 'Not Applicable In AMC Mode'}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
 
@@ -1844,7 +1874,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   <View style={styles.floatingFieldHalf}>
                     <TextInput
                       style={styles.floatingInput}
-                      placeholder="Start Date (YYYY-MM-DD)"
+                      placeholder="Start Date"
                       placeholderTextColor="#9aa0a6"
                       value={warrantyStartDate}
                       onChangeText={setWarrantyStartDate}
@@ -1853,7 +1883,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   <View style={styles.floatingFieldHalf}>
                     <TextInput
                       style={styles.floatingInput}
-                      placeholder="End Date (YYYY-MM-DD)"
+                      placeholder="End Date"
                       placeholderTextColor="#9aa0a6"
                       value={warrantyEndDate}
                       onChangeText={setWarrantyEndDate}
@@ -2004,7 +2034,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 </View>
 
                 <View style={styles.fieldRow}>
-                  <View style={styles.floatingFieldHalf}>
+                  <View style={styles.pillFieldHalf}>
                     <TouchableOpacity
                       style={styles.dropdownPill}
                       onPress={() => openProductPicker('brand')}
@@ -2022,7 +2052,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                     </TouchableOpacity>
                   </View>
-                  <View style={styles.floatingFieldHalf}>
+                  <View style={styles.pillFieldHalf}>
                     <TouchableOpacity
                       style={styles.dropdownPill}
                       onPress={() => openProductPicker('model')}
@@ -2146,7 +2176,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                           onChangeText={setTaskCustomerNumber}
                           keyboardType="phone-pad"
                         />
-                        <Text style={styles.contactPickerIcon}>👤</Text>
+                        <Text style={styles.contactPickerIcon}>
+                          <Ionicons name="person-circle-outline" size={24} />
+                        </Text>
                       </View>
                     </View>
 
@@ -2301,7 +2333,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                           onPress={playInstructionRecording}
                         >
                           <Text style={styles.instructionRecorderButtonIcon}>
-                            ▶
+                            <Ionicons name="play-outline" size={24} />
                           </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -2316,7 +2348,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                           onPress={startInstructionRecording}
                         >
                           <Text style={styles.instructionRecorderButtonIcon}>
-                            🎤
+                            <Ionicons name="mic-outline" size={24} />
                           </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -2330,7 +2362,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                           onPress={stopInstructionRecording}
                         >
                           <Text style={styles.instructionRecorderButtonIcon}>
-                            ■
+                            <Ionicons name="stop-outline" size={24} />
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -2341,12 +2373,20 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
                     <View style={styles.fieldWrap}>
                       <TextInput
-                        style={styles.pillInput}
+                        style={styles.instructionsInput}
                         placeholder="Special Instructions"
                         placeholderTextColor="#9aa0a6"
                         value={taskSpecialInstructions}
-                        onChangeText={setTaskSpecialInstructions}
+                        onChangeText={text =>
+                          setTaskSpecialInstructions(text.slice(0, MAX_INSTRUCTION_CHARS))
+                        }
+                        multiline
+                        textAlignVertical="top"
+                        maxLength={MAX_INSTRUCTION_CHARS}
                       />
+                      <Text style={styles.instructionsCharCount}>
+                        {taskSpecialInstructions.length}/{MAX_INSTRUCTION_CHARS}
+                      </Text>
                     </View>
                   </>
                 ) : (

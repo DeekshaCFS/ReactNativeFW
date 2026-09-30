@@ -171,6 +171,13 @@ export const getCurrentTimeString = () => {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 };
 
+// Java: DateUtils.getPlusFifteenMins() -- every Add Task dialog defaults the
+// task's start time to 15 minutes ahead of "now", not the raw current time.
+export const getTaskStartTimeString = () => {
+  const d = new Date(Date.now() + 15 * 60 * 1000);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+};
+
 const buildPhotoFileName = (slotIndex: number) => {
   const now = new Date();
   const datePart = `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}`;
@@ -3309,8 +3316,8 @@ export const styles = StyleSheet.create({
     maxWidth: ms(560),
     alignSelf: 'center',
     maxHeight: '92%',
-    borderTopLeftRadius: ms(8),
-    borderTopRightRadius: ms(8),
+    borderTopLeftRadius: ms(20),
+    borderTopRightRadius: ms(20),
     overflow: 'hidden',
   },
   modalHeader: {
@@ -3320,6 +3327,7 @@ export const styles = StyleSheet.create({
     backgroundColor: '#3a3a3c',
     paddingHorizontal: ms(16),
     paddingVertical: ms(14),
+    borderRadius: ms(20),
   },
   modalHeaderTitle: {
     color: '#FFFFFF',
@@ -3391,9 +3399,25 @@ export const styles = StyleSheet.create({
     borderColor: '#d5d7db',
     borderRadius: ms(24),
     paddingHorizontal: ms(16),
-    height: ms(46),
+    height: ms(40),
     fontSize: sp(13),
     color: '#222',
+  },
+  instructionsInput: {
+    borderWidth: ms(1),
+    borderColor: '#d5d7db',
+    borderRadius: ms(16),
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(12),
+    minHeight: ms(140),
+    fontSize: sp(13),
+    color: '#222',
+  },
+  instructionsCharCount: {
+    fontSize: sp(11),
+    color: '#9aa0a6',
+    textAlign: 'right',
+    marginTop: ms(4),
   },
   pillInputRow: {
     flexDirection: 'row',
@@ -3402,7 +3426,7 @@ export const styles = StyleSheet.create({
     borderColor: '#d5d7db',
     borderRadius: ms(24),
     paddingHorizontal: ms(16),
-    height: ms(46),
+    height: ms(40),
   },
   pillInputFlex: {
     flex: 1,
@@ -3415,13 +3439,16 @@ export const styles = StyleSheet.create({
     color: THEME_PRIMARY,
     marginLeft: ms(8),
   },
+  // Fixed height (matching pillInput/pillInputRow/dropdownPill's ms(40), the
+  // form's dominant pill height) so these sit flush with the pill-style
+  // fields beside/above them instead of sizing to content.
   floatingFieldFull: {
     borderWidth: ms(1),
     borderColor: '#d5d7db',
     borderRadius: ms(24),
     paddingHorizontal: ms(16),
-    paddingTop: ms(6),
-    paddingBottom: ms(6),
+    height: ms(40),
+    justifyContent: 'center',
   },
   floatingFieldHalf: {
     flex: 1,
@@ -3429,12 +3456,15 @@ export const styles = StyleSheet.create({
     borderColor: '#d5d7db',
     borderRadius: ms(24),
     paddingHorizontal: ms(16),
-    paddingTop: ms(6),
-    paddingBottom: ms(6),
+    height: ms(40),
+    justifyContent: 'center',
   },
   floatingLabel: {
-    fontSize: sp(10),
-    color: '#8a8f98',
+    // Matches pillInput/dropdownPill's placeholder size (sp(13)) so this
+    // doubles as this field's "placeholder" without looking undersized next
+    // to sibling fields that use a real TextInput placeholder.
+    fontSize: sp(13),
+    color: '#9aa0a6',
     marginBottom: ms(2),
   },
   floatingInput: {
@@ -3442,6 +3472,12 @@ export const styles = StyleSheet.create({
     color: '#222',
     padding: 0,
     height: ms(20),
+  },
+  // Plain flex wrapper for a dropdownPill sitting in a fieldRow -- dropdownPill
+  // already draws its own border, so wrapping it in floatingFieldHalf (which
+  // also has a border) produced a visible double border.
+  pillFieldHalf: {
+    flex: 1,
   },
   dropdownPill: {
     flexDirection: 'row',
@@ -3451,7 +3487,7 @@ export const styles = StyleSheet.create({
     borderColor: '#d5d7db',
     borderRadius: ms(24),
     paddingHorizontal: ms(16),
-    height: ms(46),
+    height: ms(40),
     marginBottom: ms(14),
   },
   dropdownPillTextPlaceholder: {
@@ -3745,7 +3781,7 @@ export const styles = StyleSheet.create({
     borderColor: THEME_PRIMARY,
     borderRadius: ms(6),
     paddingHorizontal: ms(12),
-    height: ms(42),
+    height: ms(40),
     marginBottom: ms(10),
   },
   searchModalInput: {
@@ -3833,7 +3869,7 @@ export const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   warrantyToggleButton: {
-    height: ms(46),
+    height: ms(40),
     paddingHorizontal: ms(14),
     alignItems: 'center',
     justifyContent: 'center',
@@ -3867,16 +3903,24 @@ export const styles = StyleSheet.create({
   amcDisabledField: {
     flex: 1,
     justifyContent: 'center',
+    position: 'relative',
   },
   amcDisabledInput: {
     borderWidth: ms(1),
     borderColor: '#e1e2e5',
     borderRadius: ms(24),
     paddingHorizontal: ms(16),
-    height: ms(46),
+    height: ms(40),
     fontSize: sp(11),
     color: '#9aa0a6',
     backgroundColor: '#f5f5f7',
+  },
+  amcPlaceholderOverlay: {
+    position: 'absolute',
+    left: ms(16),
+    right: ms(16),
+    fontSize: sp(11),
+    color: '#9aa0a6',
   },
   amcEnabledInput: {
     borderColor: '#d0d2d6',
@@ -3887,7 +3931,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     borderWidth: ms(1),
     borderColor: '#d5d7db',
-    borderRadius: ms(8),
+    borderRadius: ms(20),
     overflow: 'hidden',
     marginBottom: ms(16),
   },
@@ -3923,8 +3967,8 @@ export const styles = StyleSheet.create({
   },
   instructionRecorderBox: {
     borderWidth: ms(1),
-    borderColor: '#d5d7db',
-    borderRadius: ms(10),
+    borderColor: '#eaebed',
+    borderRadius: ms(20),
     paddingVertical: ms(18),
     paddingHorizontal: ms(12),
     alignItems: 'center',
@@ -3973,7 +4017,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#3a3a3c',
     borderRadius: ms(24),
-    height: ms(48),
+    height: ms(40),
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: ms(14),
@@ -4019,7 +4063,7 @@ export const styles = StyleSheet.create({
   },
   itemAvailableQtyBox: {
     flex: 0.7,
-    height: ms(46),
+    height: ms(40),
     borderWidth: ms(1),
     borderColor: '#d5d7db',
     borderRadius: ms(24),

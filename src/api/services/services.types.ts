@@ -350,3 +350,45 @@ export interface DeleteServiceSubCategoryListDTOResultData {
   ServiceName?: string;
   Id?: number;
 }
+
+// ---- from DTO/ServiceManagement/AdvanceServiceListDTO.java ----
+// Used by the Add Task / Add Enquiry "Service" picker (3-level category ->
+// subcategory -> service tree), NOT the same shape as ServiceTypeListDTO above
+// (that one is the flat list used by Service Management's own CRUD screens).
+export interface AdvanceServiceListDTO {
+  ResultData?: AdvanceServiceListDTOResultData[];
+  RecordCount?: number;
+  PageSize?: number;
+  PageIndex?: number;
+  Message?: string;
+  Code?: string;
+}
+
+export interface AdvanceServiceListDTOResultData {
+  lstServiceTypeSubcategories?: AdvanceServiceListDTOSubcategory[];
+  SubCategoryCount?: number;
+  ServiceTypeCategoryImage?: string;
+  ServiceTypeCategoryDescription?: string;
+  ServiceTypeCategoryName?: string;
+  ServiceTypeCategoryId?: number;
+}
+
+export interface AdvanceServiceListDTOSubcategory {
+  lstServiceType?: AdvanceServiceListDTOService[];
+  ServiceCount?: number;
+  ServiceTypeCategoryId?: number;
+  ServiceTypeSubCategoryImage?: string;
+  ServiceTypeSubCategoryDescription?: string;
+  ServiceTypeSubCategoryName?: string;
+  ServiceTypeSubCategoryId?: number;
+}
+
+export interface AdvanceServiceListDTOService {
+  ServiceTypeSubCategoryId?: number;
+  ContactNo?: string;
+  Price?: string;
+  Description?: string;
+  SACCode?: string;
+  ServiceName?: string;
+  Id?: number;
+}
