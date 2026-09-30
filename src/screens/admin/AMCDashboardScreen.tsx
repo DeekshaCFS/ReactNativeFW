@@ -508,19 +508,39 @@ const getAMCTitle = (item: AMCListItem) =>
     'AMCName',
   ]) || 'AMC';
 
+// Java: AMCListAdapter.AMCName -- a distinct field from CustomerName, shown
+// as the small label above the bold customer name.
+const getAMCName = (item: AMCListItem) =>
+  getStringValue(item as Record<string, unknown>, ['amcName', 'AMCName']);
+
+// Java: AMCListAdapter binds the "Service Type" text to
+// amcItem.getServiceOccuranceType() (e.g. "Monthly"), NOT to a field named
+// ServiceType/AMCTypeName -- those key names used to be in this list, which
+// meant this accidentally picked up AMCTypeName (the Renewal/Expired/
+// Upcoming/Completed status, see getAMCStatus below) instead.
 const getAMCServiceType = (item: AMCListItem) =>
   getStringValue(item as Record<string, unknown>, [
+    'serviceOccuranceType',
+    'ServiceOccuranceType',
     'serviceType',
     'ServiceType',
-    'amcTypeName',
-    'AMCTypeName',
-    'servicetype',
-    'amctypename',
-    'service_type',
-    'Service_Type',
-    'amc_type_name',
-    'AMC_Type_Name',
   ]);
+
+// Java: amcItem.getAMCTypeName() -- "Renewal" | "Expired" | "Upcomming" |
+// "Completed" -- drives the colored status badge (amc_status_*.xml), not
+// displayed as text. Used for the timeline stripe color below.
+const getAMCStatus = (item: AMCListItem) =>
+  getStringValue(item as Record<string, unknown>, ['amcTypeName', 'AMCTypeName']);
+
+const AMC_STATUS_COLORS: Record<string, string> = {
+  Renewal: '#FF9B00',
+  Expired: '#9AA0A6',
+  Upcomming: '#2776FF',
+  Completed: '#03DE73',
+};
+
+const getAMCStatusColor = (item: AMCListItem) =>
+  AMC_STATUS_COLORS[getAMCStatus(item)] || '#8D99A6';
 
 const getAMCFieldWorker = (item: AMCListItem) =>
   item.TaskDetails?.TechnicianName?.trim() ||
@@ -563,29 +583,38 @@ const getAMCTaskId = (item: AMCListItem) =>
     'task_ID',
   ]);
 
+// Java: AMCListAdapter binds this to amcItem.getAMCServiceDate() only --
+// TaskDetails.TaskDate is a different, unrelated field (the linked task's
+// own date, shown only alongside Fieldworker/Task ID below), and checking
+// it first here meant any row with a linked task showed that task's date
+// instead of the AMC's own scheduled service date.
 const getAMCRawDate = (item: AMCListItem) =>
-  item.TaskDetails?.TaskDate ||
   getStringValue(item as Record<string, unknown>, [
+    'amcServiceDate',
+    'AMCServiceDate',
     'taskDate',
     'TaskDate',
     'date',
     'Date',
     'amcDate',
     'AMCDate',
-    'amcServiceDate',
-    'AMCServiceDate',
   ]);
 
-const getAMCTime = (item: AMCListItem, index: number) =>
-  item.TaskDetails?.TaskTime ||
+// Java: AMCListAdapter binds this to amcItem.getActivationTime() only (a
+// bare "HH:mm:ss" string) -- TaskDetails.TaskTime is the linked task's own
+// time, a different field Java never uses here. Same TaskDetails-priority
+// bug as getAMCRawDate above.
+const getAMCTime = (item: AMCListItem) =>
   getStringValue(item as Record<string, unknown>, [
+    'activationTime',
+    'ActivationTime',
     'taskTime',
     'TaskTime',
     'serviceTime',
     'ServiceTime',
     'time',
     'Time',
-  ]) || (index === 0 ? '03:00 am' : '02:00 am');
+  ]) || item.TaskDetails?.TaskTime || '';
 
 const getAMCServiceDetailsId = (item: AMCListItem) =>
   getNumberValue(item as Record<string, unknown>, [
@@ -614,6 +643,21 @@ const getContactNo = (item: AMCListItem) =>
   ]);
 
 const formatTimeLabel = (rawTime: string) => {
+  if (!rawTime) {
+    return '';
+  }
+
+  // ActivationTime comes back as a bare "HH:mm:ss" (no date part), which
+  // `new Date(rawTime)` can't parse -- handle it directly first.
+  const bareTimeMatch = rawTime.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (bareTimeMatch) {
+    const hours = Number(bareTimeMatch[1]);
+    const minutes = bareTimeMatch[2];
+    const period = hours >= 12 ? 'pm' : 'am';
+    const hour12 = hours % 12 || 12;
+    return `${hour12}:${minutes} ${period}`;
+  }
+
   const date = new Date(rawTime);
   if (!Number.isNaN(date.getTime())) {
     return date
@@ -1212,11 +1256,12 @@ const AMCDashboardScreen = ({
     return items.filter(item => {
       const searchable = [
         getAMCTitle(item),
+        getAMCName(item),
         getAMCServiceType(item),
         getAMCFieldWorker(item),
         getAMCTaskId(item),
         getAMCRawDate(item),
-        getAMCTime(item, 0),
+        getAMCTime(item),
       ]
         .join(' ')
         .toLowerCase();
@@ -1224,13 +1269,8 @@ const AMCDashboardScreen = ({
     });
   }, [items, search]);
 
-  const renderAMCItem = ({
-    item,
-    index,
-  }: {
-    item: AMCListItem;
-    index: number;
-  }) => {
+  const renderAMCItem = ({item}: {item: AMCListItem}) => {
+    const itemAmcName = getAMCName(item);
     const serviceType = getAMCServiceType(item);
     const fieldWorker = getAMCFieldWorker(item);
     const taskId = getAMCTaskId(item);
@@ -1255,21 +1295,26 @@ const AMCDashboardScreen = ({
       <Pressable style={styles.card} onPress={handleAMCPress}>
         <View style={styles.timeColumn}>
           <Text style={styles.timeText}>
-            {formatTimeLabel(getAMCTime(item, index))}
+            {formatTimeLabel(getAMCTime(item))}
           </Text>
-          <View style={styles.timeline} />
+          <View style={[styles.timeline, {backgroundColor: getAMCStatusColor(item)}]} />
         </View>
 
         <View style={styles.cardBody}>
           <View style={styles.cardTopRow}>
             <View style={styles.titleBlock}>
               <Text numberOfLines={1} style={styles.typeText}>
-                {serviceType || 'Service Type'}
+                {itemAmcName || 'AMC'}
               </Text>
               <Text numberOfLines={1} style={styles.customerText}>
                 {getAMCTitle(item)}
               </Text>
-              <Text style={styles.serviceLabel}>Service Type</Text>
+              <View style={styles.serviceRow}>
+                <Text style={styles.serviceLabel}>Service Type</Text>
+                <Text numberOfLines={1} style={styles.serviceValue}>
+                  {serviceType ? `  ${serviceType}` : ''}
+                </Text>
+              </View>
             </View>
             <View style={styles.countBlock}>
               <Text style={styles.dateText}>{date}</Text>
@@ -1281,16 +1326,26 @@ const AMCDashboardScreen = ({
             </View>
           </View>
 
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Fieldworker :</Text>
-            <Text numberOfLines={1} style={styles.metaValue}>
-              {fieldWorker || '-'}
-            </Text>
-            <Text style={styles.taskLabel}>Task ID :</Text>
-            <Text numberOfLines={1} style={styles.taskValue}>
-              {taskId || '-'}
-            </Text>
-          </View>
+          {fieldWorker || taskId ? (
+            <View style={styles.metaRow}>
+              {fieldWorker ? (
+                <>
+                  <Text style={styles.metaLabel}>Fieldworker :</Text>
+                  <Text numberOfLines={1} style={styles.metaValue}>
+                    {fieldWorker}
+                  </Text>
+                </>
+              ) : null}
+              {taskId ? (
+                <>
+                  <Text style={styles.taskLabel}>Task ID :</Text>
+                  <Text numberOfLines={1} style={styles.taskValue}>
+                    {taskId}
+                  </Text>
+                </>
+              ) : null}
+            </View>
+          ) : null}
         </View>
       </Pressable>
     );
@@ -2058,7 +2113,7 @@ const AMCDashboardScreen = ({
       </View>
 
       <View style={styles.searchRow}>
-        <Text style={styles.searchIcon}>Search</Text>
+        <Ionicons name="search" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search AMC"
@@ -2254,8 +2309,8 @@ const styles = StyleSheet.create({
     paddingRight: ms(8),
   },
   searchIcon: {
-    color: '#A2A2A2',
-    fontSize: sp(10),
+    color: '#878787',
+    fontSize: sp(18),
     marginRight: ms(6),
   },
   searchInput: {
@@ -2314,10 +2369,11 @@ const styles = StyleSheet.create({
   },
   timeline: {
     backgroundColor: '#8D99A6',
-    borderRadius: ms(2),
+    borderBottomRightRadius: ms(5),
+    borderTopRightRadius: ms(5),
     flex: 1,
     marginTop: ms(4),
-    width: ms(3),
+    width: ms(6),
   },
   cardBody: {
     borderBottomColor: '#EEEEEE',
@@ -2345,10 +2401,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: ms(5),
   },
+  serviceRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
   serviceLabel: {
     color: '#111111',
-    fontSize: sp(9),
+    fontSize: sp(11),
     fontWeight: '800',
+  },
+  serviceValue: {
+    color: '#6F6F6F',
+    fontSize: sp(11),
   },
   countBlock: {
     alignItems: 'flex-end',
@@ -2356,7 +2420,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     color: '#B5B5B5',
-    fontSize: sp(9),
+    fontSize: sp(12),
     marginBottom: ms(8),
   },
   countText: {
@@ -2381,25 +2445,25 @@ const styles = StyleSheet.create({
   },
   metaLabel: {
     color: '#111111',
-    fontSize: sp(9),
+    fontSize: sp(11),
     fontWeight: '800',
     marginRight: ms(4),
   },
   metaValue: {
     color: '#6F6F6F',
     flex: 1,
-    fontSize: sp(9),
+    fontSize: sp(11),
     marginRight: ms(8),
   },
   taskLabel: {
     color: '#111111',
-    fontSize: sp(9),
+    fontSize: sp(11),
     fontWeight: '800',
     marginRight: ms(4),
   },
   taskValue: {
     color: '#6F6F6F',
-    fontSize: sp(9),
+    fontSize: sp(11),
     minWidth: ms(48),
   },
   loadingRow: {
