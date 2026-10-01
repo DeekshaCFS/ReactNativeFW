@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   statusText: {
-    fontSize: sp(13),
+    fontSize: sp(14),
     fontWeight: '700',
     color: '#16A34A',
   },
@@ -1144,7 +1144,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   };
 
   const handleDeletePress = () => {
-    Alert.alert('Delete AMC', 'Are you sure you want to delete this AMC?', [
+    Alert.alert('Delete AMC', 'Do you want to delete this AMC? It wil delete all AMC history.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: confirmDeleteAmc },
     ]);
@@ -1291,22 +1291,22 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           </Text>
         ) : <View />}
           <Pressable style={styles.toolbarButton} onPress={openEditModal} disabled={editLoading}>
-            <Ionicons name="pencil" size={20} color={THEME_PRIMARY} />
+            <Ionicons name="create-outline" size={24} color={THEME_PRIMARY} />
           </Pressable>
           <Pressable style={styles.toolbarButton} onPress={handleWhatsAppPress}>
-            <Ionicons name="logo-whatsapp" size={20} color={THEME_PRIMARY} />
+            <Ionicons name="logo-whatsapp" size={24} color={THEME_PRIMARY} />
           </Pressable>
           <Pressable style={styles.toolbarButton} onPress={handleCallPress}>
-            <Ionicons name="call-outline" size={20} color={THEME_PRIMARY} />
+            <Ionicons name="call-outline" size={24} color={THEME_PRIMARY} />
           </Pressable>
           <Pressable style={styles.toolbarButton} onPress={handleDownloadPress} disabled={isDownloadingReport}>
-            <Ionicons name="download-outline" size={20} color={THEME_PRIMARY} />
+            <Ionicons name="download-outline" size={24} color={THEME_PRIMARY} />
           </Pressable>
           <Pressable style={styles.toolbarButton} onPress={handleAddTaskPress}>
-            <Ionicons name="add" size={20} color={THEME_PRIMARY} />
+            <Ionicons name="add" size={24} color={THEME_PRIMARY} />
           </Pressable>
           <Pressable style={styles.toolbarButton} onPress={handleDeletePress} disabled={isDeletingAmc}>
-            <Ionicons name="trash-outline" size={20} color={THEME_PRIMARY} />
+            <Ionicons name="trash-outline" size={24} color={THEME_PRIMARY} />
           </Pressable>
       </View>
 
