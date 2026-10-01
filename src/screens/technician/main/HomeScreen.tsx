@@ -69,6 +69,7 @@ export default function HomeScreen({ navigation }: any) {
 
   const [todayTasks,   setTodayTasks]   = useState<Task[]>([]);
   const [loadingToday, setLoadingToday] = useState(false);
+  const [refreshing,   setRefreshing]   = useState(false);
 
   const [profilePercent, setProfilePercent] = useState(0);
 
@@ -117,6 +118,14 @@ export default function HomeScreen({ navigation }: any) {
       }
     }, [userId, filter])
   );
+
+  // Re-tapping the Home tab while already on it refreshes the screen.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      if (navigation.isFocused() && userId) handleRefresh();
+    });
+    return unsubscribe;
+  }, [navigation, userId]);
 
   // ── data loaders ──────────────────────────────────────────────────────────
 
@@ -297,12 +306,21 @@ export default function HomeScreen({ navigation }: any) {
       const todayStr = new Date().toDateString();
       const filtered = all.filter(t => {
         const d = t.TaskDate ? new Date(t.TaskDate).toDateString() : null;
-        return d === todayStr;
+        return d === todayStr && t.TaskStatus !== 'Completed';
       });
 
       setTodayTasks(filtered);
     } catch { /* silent */ }
     finally { setLoadingToday(false); }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([loadTodayTasks(), loadTaskCounts(), loadProfile()]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // ── stats (server-computed, see loadTaskCounts) ─────────────────────────────
@@ -475,6 +493,8 @@ export default function HomeScreen({ navigation }: any) {
         renderItem={renderTaskCard}
         contentContainerStyle={styles.whiteSheet}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         ListHeaderComponent={
           <>
             {/* Profile completion */}

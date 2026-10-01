@@ -9,7 +9,7 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, Modal,
   Platform, StatusBar, ActivityIndicator,
 } from 'react-native';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import { COLORS } from '../../../theme/theme';
@@ -142,6 +142,14 @@ export default function PassbookScreen() {
   useFocusEffect(
     useCallback(() => { load(activePeriod, refDate); }, [load, activePeriod, refDate]),
   );
+
+  // Re-tapping the Passbook tab while already on it refreshes the screen.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      if (navigation.isFocused()) load(activePeriod, refDate);
+    });
+    return unsubscribe;
+  }, [navigation, load, activePeriod, refDate]);
 
   const selectPeriod = (period: Period) => {
     if (period === 'today') {

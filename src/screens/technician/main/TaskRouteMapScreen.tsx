@@ -1,7 +1,7 @@
 // src/screens/technician/main/TaskRouteMapScreen.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, Animated, LayoutAnimation, ActivityIndicator, Linking, Alert, Platform,
+  View, Text, StyleSheet, Pressable, Animated, LayoutAnimation, Linking, Alert, Platform,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -209,7 +209,6 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
 
         <Pressable style={styles.taskCardHeader} onPress={() => toggleCard()} hitSlop={8}>
           <View style={styles.taskNameRow}>
-            <ActivityIndicator size="small" color={COLORS.primary} style={{ marginRight: scale(8) }} />
             <Text style={styles.taskName} numberOfLines={cardExpanded ? undefined : 1}>
               {task.Name ?? '—'}
             </Text>

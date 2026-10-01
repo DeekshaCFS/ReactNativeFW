@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import DateTimePicker, {type DateTimePickerChangeEvent} from '@react-native-community/datetimepicker';
 import {pick} from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import SearchPickerModal, {type PickerOption} from '../../components/SearchPickerModal';
@@ -29,7 +30,8 @@ import type {
   SaveQuotationDTOQuoteServiceList,
   SaveQuotationDTOQuoteTaxList,
 } from '../../api/quotation/quotation.types';
-import {sp, ms} from '../../utils/responsive';
+import {sp, ms, vs} from '../../utils/responsive';
+import {COLORS} from '../../theme/theme';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {getCurrentUserId, isIndiaCountryDetailsId} from '../../state/session';
 import {getCustomerList} from '../../api/customerList/customerListService';
@@ -145,6 +147,8 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   const [quoteName, setQuoteName] = useState('');
   const [quoteDate, setQuoteDate] = useState(getTodayDateString());
   const [validityDate, setValidityDate] = useState('');
+  const [datePickerField, setDatePickerField] = useState<'quote' | 'validity' | null>(null);
+  const [datePickerValue, setDatePickerValue] = useState(new Date());
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [buildingFlatNumber, setBuildingFlatNumber] = useState('');
@@ -422,6 +426,22 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     const taxValue = taxableAmount * ((Number(taxPercent) || 0) / 100);
     return taxableAmount + taxValue;
   }, [serviceTotal, itemTotal, extraTotal, discountPercent, taxPercent]);
+
+  const openDatePicker = (field: 'quote' | 'validity') => {
+    const current = field === 'quote' ? quoteDate : validityDate;
+    const parsed = DATE_RE.test(current.trim()) ? new Date(current.trim()) : new Date();
+    setDatePickerValue(isNaN(parsed.getTime()) ? new Date() : parsed);
+    setDatePickerField(field);
+  };
+
+  const applyPickedDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const formatted = `${year}-${month}-${day}`;
+    if (datePickerField === 'quote') setQuoteDate(formatted);
+    else if (datePickerField === 'validity') setValidityDate(formatted);
+  };
 
   // Java addQuoteTech's validation chain. Not ported: the "address needs lat/long" rule
   // (plain-text address; coordinates come from a picked customer, else "0").
@@ -913,23 +933,36 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               />
 
               <View style={styles.fieldRow}>
-                <View style={styles.floatingFieldHalf}>
-                  <Text style={styles.floatingLabel}>{docLabel} Date*</Text>
-                  <TextInput
-                    style={styles.floatingInput}
-                    value={quoteDate}
-                    onChangeText={setQuoteDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#9aa0a6"
-                  />
+                <View style={styles.halfInput}>
+                  <Text style={styles.outsideLabel}>{docLabel} Date*</Text>
+                  <View style={[styles.pillInput, styles.dateInputWrap]}>
+                    <TextInput
+                      style={styles.dateInputText}
+                      value={quoteDate}
+                      onChangeText={setQuoteDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#9aa0a6"
+                    />
+                    <TouchableOpacity onPress={() => openDatePicker('quote')} hitSlop={8}>
+                      <Ionicons name="calendar-outline" size={ms(18)} color={COLORS.primary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <TextInput
-                  style={[styles.pillInput, styles.halfInput]}
-                  placeholder="Validity Date*"
-                  placeholderTextColor="#9aa0a6"
-                  value={validityDate}
-                  onChangeText={setValidityDate}
-                />
+                <View style={styles.halfInput}>
+                  <Text style={styles.outsideLabel}>Validity Date*</Text>
+                  <View style={[styles.pillInput, styles.dateInputWrap]}>
+                    <TextInput
+                      style={styles.dateInputText}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#9aa0a6"
+                      value={validityDate}
+                      onChangeText={setValidityDate}
+                    />
+                    <TouchableOpacity onPress={() => openDatePicker('validity')} hitSlop={8}>
+                      <Ionicons name="calendar-outline" size={ms(18)} color={COLORS.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
 
               <TextInput
@@ -1259,6 +1292,54 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         onClose={() => setIsPaymentTypePickerOpen(false)}
       />
 
+      {datePickerField && (
+        Platform.OS === 'ios' ? (
+          <Modal transparent animationType="fade" onRequestClose={() => setDatePickerField(null)}>
+            <Pressable style={styles.dateBackdrop} onPress={() => setDatePickerField(null)}>
+              <Pressable style={styles.dateSheet} onPress={e => e.stopPropagation()}>
+                <Text style={styles.dateSheetTitle}>Select Date</Text>
+                <DateTimePicker
+                  value={datePickerValue}
+                  mode="date"
+                  display="inline"
+                  onChange={(_: DateTimePickerChangeEvent, date?: Date) => {
+                    if (date) setDatePickerValue(date);
+                  }}
+                  themeVariant="light"
+                  accentColor={COLORS.primary}
+                />
+                <View style={styles.dateSheetActions}>
+                  <TouchableOpacity style={styles.dateCancelBtn} onPress={() => setDatePickerField(null)}>
+                    <Text style={styles.dateCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.dateConfirmBtn}
+                    onPress={() => {
+                      applyPickedDate(datePickerValue);
+                      setDatePickerField(null);
+                    }}>
+                    <Text style={styles.dateConfirmText}>Confirm</Text>
+                  </TouchableOpacity>
+                </View>
+              </Pressable>
+            </Pressable>
+          </Modal>
+        ) : (
+          <DateTimePicker
+            value={datePickerValue}
+            mode="date"
+            display="default"
+            onChange={(event: DateTimePickerChangeEvent, date?: Date) => {
+              const e = event as any;
+              if (e.type === 'set' && date) applyPickedDate(date);
+              setDatePickerField(null);
+            }}
+            positiveButton={{label: 'OK', textColor: COLORS.primary}}
+            negativeButton={{label: 'CANCEL', textColor: COLORS.primary}}
+          />
+        )
+      )}
+
       <Modal
         visible={isPreviewOpen}
         animationType="fade"
@@ -1401,33 +1482,87 @@ const styles = StyleSheet.create({
   termInput: {
     marginTop: ms(4),
   },
-  floatingFieldHalf: {
+  outsideLabel: {
+    fontSize: sp(12),
+    color: '#444',
+    fontWeight: '500',
+    marginBottom: ms(6),
+  },
+  dateInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dateInputText: {
     flex: 1,
-    borderWidth: ms(1),
-    borderColor: BORDER,
-    borderRadius: ms(24),
-    paddingHorizontal: ms(16),
-    paddingTop: ms(6),
-    paddingBottom: ms(6),
-    justifyContent: 'center',
-  },
-  floatingLabel: {
-    fontSize: sp(10),
-    color: '#8a8f98',
-    marginBottom: ms(2),
-  },
-  floatingInput: {
     fontSize: sp(13),
     color: '#222',
     padding: 0,
-    height: ms(20),
+  },
+  dateBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: ms(16),
+  },
+  dateSheet: {
+    backgroundColor: '#fff',
+    borderRadius: ms(20),
+    width: '100%',
+    maxWidth: ms(400),
+    paddingTop: ms(16),
+    paddingBottom: ms(12),
+    paddingHorizontal: ms(12),
+    elevation: 10,
+  },
+  dateSheetTitle: {
+    fontSize: sp(18),
+    fontWeight: '600',
+    color: '#1C1C1E',
+    textAlign: 'center',
+    marginBottom: ms(8),
+  },
+  dateSheetActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: ms(12),
+    paddingHorizontal: ms(8),
+    gap: ms(12),
+  },
+  dateCancelBtn: {
+    flex: 1,
+    height: ms(44),
+    borderRadius: ms(30),
+    borderWidth: 1,
+    borderColor: '#a6a6a6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateCancelText: {
+    fontSize: sp(16),
+    color: '#555',
+    fontWeight: '500',
+  },
+  dateConfirmBtn: {
+    flex: 1,
+    height: ms(44),
+    borderRadius: ms(30),
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateConfirmText: {
+    fontSize: sp(16),
+    color: '#fff',
+    fontWeight: '600',
   },
   segmentRow: {
     flexDirection: 'row',
     borderRadius: ms(20),
     overflow: 'hidden',
     marginBottom: ms(16),
-    borderWidth: ms(1),
+    borderWidth: 1,
     borderColor: SEGMENT_DARK,
   },
   segmentButton: {
@@ -1436,6 +1571,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: ms(12),
     backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: SEGMENT_DARK,
   },
   segmentButtonActive: {
     backgroundColor: SEGMENT_DARK,
@@ -1455,6 +1592,11 @@ const styles = StyleSheet.create({
     padding: ms(14),
     marginBottom: ms(12),
     backgroundColor: '#FFFFFF',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: ms(2),
+    shadowOffset: {width: 0, height: 1},
   },
   rowCardHeader: {
     flexDirection: 'row',

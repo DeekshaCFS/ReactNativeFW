@@ -225,8 +225,16 @@ export default function TaskScreen({ navigation, route }: any) {
     setSearch('');
     setSelectedDate(new Date());
     setPageIndex(1);
-    //fetchTasks(1, true);
+    fetchTasks(1, true);
   };
+
+  // Re-tapping the Task tab while already on it refreshes the screen.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      if (navigation.isFocused()) handleRefresh();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   React.useEffect(()=> {
     errorMessageRef.current = errorMessage;
@@ -443,8 +451,6 @@ export default function TaskScreen({ navigation, route }: any) {
             renderItem={renderItem}
             onEndReached={loadMore}
             onEndReachedThreshold={0.5}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
             showsVerticalScrollIndicator={false}
           />
         )}

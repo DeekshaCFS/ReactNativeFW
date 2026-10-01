@@ -20,7 +20,7 @@ import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-communi
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, wp } from '../../../utils/responsive';
 import { getLargeItemAssignedUnassigned } from '../../../api/item/itemService';
-import { postFocDetails } from '../../../api/focItemRequest/focItemRequestService';
+import { postFocDetails, getFocAttachmentList } from '../../../api/focItemRequest/focItemRequestService';
 import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -248,14 +248,13 @@ export default function ItemRequestScreen({ navigation, route }: any) {
     pendingDateRef.current = null;
   };
 
-  // ── Server-side item search (debounced, min 3 chars) ──
+  // ── Server-side item search (debounced) ──
   // Item Name and Product Id both use Item/AllItemList with SearchParam, as Java does.
+  // Java shows the full list as soon as the picker opens (it's fetched once and cached,
+  // then filtered locally as the technician types) -- mirror that by fetching immediately
+  // on open (empty SearchParam returns the full list) instead of waiting on typed input.
   useEffect(() => {
     if (!dropdownVisible || !dropdownConfig.remote) return;
-    if (dropdownSearch.trim().length < 3) {
-      setDropdownOptions([]);
-      return;
-    }
 
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -286,11 +285,28 @@ export default function ItemRequestScreen({ navigation, route }: any) {
     };
   }, [dropdownSearch, dropdownVisible, dropdownConfig.remote, ownerId]);
 
-  const attachmentTypeOptions: DropdownOption[] = [
-    { id: 1, label: 'Invoice' },
-    { id: 2, label: 'Warranty Card' },
-    { id: 3, label: 'Manual' },
-  ];
+  const [attachmentTypeOptions, setAttachmentTypeOptions] = useState<DropdownOption[]>([]);
+
+  // GET FOC_Item_Request/Get_FOC_Att_types_List -- Java fetches this once per
+  // session (HomeActivityNew.getFOCAttachmentList) and reuses it on the Item
+  // Request screen; we fetch it here instead since RN has no equivalent cache.
+  useEffect(() => {
+    if (!uid) return;
+    const loadAttachmentTypes = async () => {
+      try {
+        const res = await getFocAttachmentList({ userid: uid });
+        setAttachmentTypeOptions(
+          (res.ResultData ?? []).map(item => ({
+            id: item.AttachmentTypeID ?? 0,
+            label: item.AttachmentTypeName ?? '',
+          })),
+        );
+      } catch {
+        setAttachmentTypeOptions([]);
+      }
+    };
+    loadAttachmentTypes();
+  }, [uid]);
 
   // ── Item field updater ──
   const updateItem = (id: number, patch: Partial<RequestItem>) => {
@@ -436,16 +452,14 @@ export default function ItemRequestScreen({ navigation, route }: any) {
     }
   };
 
-  // ── Filtered options (min 3 chars) ──
+  // ── Filtered options ──
   // Remote dropdowns are already filtered by the server; local ones filter here.
-  const filteredOptions =
-    dropdownSearch.length >= 3
-      ? dropdownConfig.remote
-        ? dropdownOptions
-        : dropdownOptions.filter(o =>
-            o.label.toLowerCase().includes(dropdownSearch.toLowerCase())
-          )
-      : [];
+  // The full list shows immediately (matching Java) -- typing just narrows it further.
+  const filteredOptions = dropdownConfig.remote
+    ? dropdownOptions
+    : dropdownSearch.trim()
+      ? dropdownOptions.filter(o => o.label.toLowerCase().includes(dropdownSearch.toLowerCase()))
+      : dropdownOptions;
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -493,7 +507,13 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                     openDropdown(
                       getTriggerRef(item.id, 'itemName'),
                       [],
-                      opt => updateItem(item.id, { itemName: opt.label, itemNameId: opt.id }),
+                      // Java: picking an item name fills its description too (same
+                      // Item/AllItemList result already carries Description).
+                      opt => updateItem(item.id, {
+                        itemName: opt.label,
+                        itemNameId: opt.id,
+                        itemDescription: opt.description ?? '',
+                      }),
                       { remote: true },
                     )
                   }
@@ -762,11 +782,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
             </View>
 
             {/* Results area */}
-            {dropdownSearch.length < 3 ? (
-              <Text style={styles.inlineSearchHint}>
-                Type at least 3 characters to search
-              </Text>
-            ) : dropdownLoading ? (
+            {dropdownLoading ? (
               <Text style={styles.inlineSearchHint}>Searching...</Text>
             ) : filteredOptions.length === 0 ? (
               <>

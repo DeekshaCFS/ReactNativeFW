@@ -2631,6 +2631,7 @@ const styles = StyleSheet.create({
   },
   photoInner: {
     flex: 1,
+    alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
   },

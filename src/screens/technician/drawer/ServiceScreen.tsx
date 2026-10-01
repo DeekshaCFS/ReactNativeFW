@@ -18,7 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ms, sp, scale, hp, vs, wp, HEADER_TOP_PADDING } from '../../../utils/responsive';
 import { getRoutineCustomerList } from '../../../api/fsrManagement/fsrManagementService';
-import AddTaskModal, { type AddTaskInitialValues } from '../../admin/AddTaskModal';
+import type { RoutineServiceCustomerListDTOResultData } from '../../../api/fsrManagement/fsrManagement.types';
+import RoutineServiceAcceptModal from './RoutineServiceAcceptModal';
 
 type FilterType = 'Asset' | 'Customer No.';
 const FILTER_OPTIONS: FilterType[] = ['Asset', 'Customer No.'];
@@ -29,8 +30,7 @@ export default function ServiceScreen() {
   const [inputValue, setInputValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState('');
-  const [ownerId, setOwnerId] = useState<number | null>(null);
-  const [taskInitialValues, setTaskInitialValues] = useState<AddTaskInitialValues | null>(null);
+  const [lookupResult, setLookupResult] = useState<RoutineServiceCustomerListDTOResultData | null>(null);
   const insets = useSafeAreaInsets();
 
   const handleSubmit = async () => {
@@ -40,21 +40,19 @@ export default function ServiceScreen() {
     setErrorText('');
     setSubmitting(true);
     try {
-      const [storedOwnerId, storedUid, storedName] = await Promise.all([
-        AsyncStorage.getItem('owner_id'),
-        AsyncStorage.getItem('uid'),
-        AsyncStorage.getItem('name'),
-      ]);
+      const storedUid = await AsyncStorage.getItem('uid');
 
-      if (!storedOwnerId || !storedUid) {
+      if (!storedUid) {
         setErrorText('Unable to identify your account. Please log in again.');
         return;
       }
 
+      // Java (RoutineServiceFragment.getRoutineAssetList/getRoutineCustomerList) passes
+      // the technician's own SharedPrefManager userId here, not the employer/owner id.
       const params =
         filter === 'Asset'
-          ? {userId: Number(storedOwnerId), assetId: value}
-          : {userId: Number(storedOwnerId), customerNum: value};
+          ? {userId: Number(storedUid), assetId: value}
+          : {userId: Number(storedUid), customerNum: value};
 
       const response = await getRoutineCustomerList(params);
       const result = response?.ResultData;
@@ -64,25 +62,7 @@ export default function ServiceScreen() {
         return;
       }
 
-      setOwnerId(Number(storedOwnerId));
-      setTaskInitialValues({
-        title: '',
-        address: result.Address ?? '',
-        state: '',
-        city: '',
-        pinCode: result.PinCode ?? '',
-        landmark: '',
-        customerName: result.CustomerName ?? '',
-        customerNumber: result.MobileNumber ?? '',
-        taskTagId: 0,
-        taskTagName: '',
-        customerId: result.CustomerDetailsid,
-        productBrand: result.BrandName,
-        modelNumber: result.ModelNumber,
-        assignedFieldworkerId: Number(storedUid),
-        assignedFieldworkerName: storedName ?? 'Me',
-        lockAssignedFieldworker: true,
-      });
+      setLookupResult(result);
     } catch (e) {
       setErrorText(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
     } finally {
@@ -140,11 +120,14 @@ export default function ServiceScreen() {
         </Pressable>
       </View>
 
-      <AddTaskModal
-        visible={!!taskInitialValues}
-        onClose={() => setTaskInitialValues(null)}
-        ownerId={ownerId ?? 0}
-        initialValues={taskInitialValues}
+      <RoutineServiceAcceptModal
+        visible={!!lookupResult}
+        customer={lookupResult}
+        onClose={() => setLookupResult(null)}
+        onCreated={() => {
+          setLookupResult(null);
+          setInputValue('');
+        }}
       />
 
       {/* Dropdown Modal */}

@@ -1,17 +1,22 @@
 // src/screens/technician/drawer/RequestedItems.tsx
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, Pressable, Image,
-  Platform, StatusBar, ActivityIndicator, RefreshControl,
+  View, Text, StyleSheet, FlatList, Pressable, Image, Modal,
+  Platform, StatusBar, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/theme';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ms, sp, scale, hp } from '../../../utils/responsive';
-import { getFocList } from '../../../api/focItemRequest/focItemRequestService';
-import type { GetFOCListResultData } from '../../../api/focItemRequest/focItemRequest.types';
+import { getFocList, getFocStatusTagList, getDeleteFocRequestItem } from '../../../api/focItemRequest/focItemRequestService';
+import type { GetFOCListResultData, GetFOCStatusTagListResultData } from '../../../api/focItemRequest/focItemRequest.types';
 import { getCurrentUserId } from '../../../state/session';
+
+const ISSUE_OPTIONS = [
+  { id: 1, label: 'Yes' },
+  { id: 2, label: 'No' },
+];
 
 const formatDate = (iso: string): string => {
   const d = new Date(iso);
@@ -30,40 +35,96 @@ export default function RequestedItems() {
   const [requests, setRequests] = useState<GetFOCListResultData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [recordCount, setRecordCount] = useState(0);
+
+  const [statusTagList, setStatusTagList] = useState<GetFOCStatusTagListResultData[]>([]);
+  const [selectedStatusTag, setSelectedStatusTag] = useState<GetFOCStatusTagListResultData | null>(null);
+  const [selectedIssueType, setSelectedIssueType] = useState<{ id: number; label: string } | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<'STATUS' | 'ISSUE' | null>(null);
+
+  const PAGE_SIZE = 20;
+
+  // GET FOC_Item_Request/Get_Foc_Status_Tag_List -- Java fetches this once
+  // per session (HomeActivityNew.getFOCStatusTagList) and reuses it here.
+  useEffect(() => {
+    const loadStatusTags = async () => {
+      try {
+        const userId = getCurrentUserId();
+        const res = await getFocStatusTagList({ userid: userId });
+        setStatusTagList(res.ResultData ?? []);
+      } catch {
+        setStatusTagList([]);
+      }
+    };
+    loadStatusTags();
+  }, []);
 
   // Maps to Java's FOC_Item_Request/GET_FOC_List (FOCFragment.getFOCList).
   // Despite the query param's name, Java passes the technician's own
   // SharedPrefManager userId as "OwnerId", not the employer/owner id --
   // sending the employer id instead pulls in every technician's requests.
-  const loadRequests = useCallback(async () => {
+  const loadRequests = useCallback(async (page = 1, reset = false) => {
     try {
       const userId = getCurrentUserId();
       const res = await getFocList({
-        Pageindex: 1,
-        Pagesize: 50,
+        Pageindex: page,
+        Pagesize: PAGE_SIZE,
         ZoneId: 0,
         OwnerId: userId,
-        IssueTypeID: 0,
-        FOCStatusTagID: 0,
+        IssueTypeID: selectedIssueType?.id ?? 0,
+        FOCStatusTagID: selectedStatusTag?.FocStatusId ?? 0,
         SearchParam: '',
       });
-      setRequests(res.ResultData ?? []);
+      const newRequests = res.ResultData ?? [];
+      setRequests(prev => (reset ? newRequests : [...prev, ...newRequests]));
+      setRecordCount(res.RecordCount ?? 0);
     } catch (e) {
       console.log(e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedStatusTag, selectedIssueType]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadRequests();
+    loadRequests(1, true);
   }, [loadRequests]);
 
-  useEffect(() => { loadRequests(); }, [loadRequests]);
-  // Refresh whenever we come back from submitting a new request.
-  useFocusEffect(useCallback(() => { loadRequests(); }, [loadRequests]));
+  const loadMore = useCallback(() => {
+    if (requests.length >= recordCount) return;
+    const nextPage = Math.floor(requests.length / PAGE_SIZE) + 1;
+    loadRequests(nextPage, false);
+  }, [loadRequests, requests.length, recordCount]);
+
+  // Refreshes on initial mount, whenever a filter changes, and whenever we
+  // come back into focus (e.g. after submitting a new request).
+  useFocusEffect(useCallback(() => { loadRequests(1, true); }, [loadRequests]));
+
+  // Java: FOCListAdapter's deleteReqItem icon -> DeleteUsedItemsDialog (confirm)
+  // -> FOCFragment.DeleteFOCReqItem -> GET DeleteFOC_Request_Items_Details?id=.
+  const confirmDeleteRequest = (focRequestId?: number) => {
+    if (!focRequestId) return;
+    Alert.alert('Delete Request', 'Are you sure you want to delete this request?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const res = await getDeleteFocRequestItem({ id: focRequestId });
+            if (res?.Code !== '200') {
+              Alert.alert('Failed', res?.Message || 'Could not delete the request.');
+              return;
+            }
+            setRequests(prev => prev.filter(r => r.FocRequestId !== focRequestId));
+          } catch (e: any) {
+            Alert.alert('Error', e?.message || 'Could not delete the request.');
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <View style={styles.root}>
@@ -93,12 +154,12 @@ export default function RequestedItems() {
 
       {/* Filters */}
       <View style={styles.filterRow}>
-        <Pressable style={styles.filterItem}>
-          <Text style={styles.filterText}>Status Tag</Text>
+        <Pressable style={styles.filterItem} onPress={() => setActiveDropdown('STATUS')}>
+          <Text style={styles.filterText}>{selectedStatusTag?.FocStatusName ?? 'Status Tag'}</Text>
           <Ionicons name="chevron-down" size={scale(16)} color={COLORS.primary} />
         </Pressable>
-        <Pressable style={styles.filterItem}>
-          <Text style={styles.filterText}>Issue</Text>
+        <Pressable style={styles.filterItem} onPress={() => setActiveDropdown('ISSUE')}>
+          <Text style={styles.filterText}>{selectedIssueType?.label ?? 'Issue'}</Text>
           <Ionicons name="chevron-down" size={scale(16)} color={COLORS.primary} />
         </Pressable>
         <Pressable style={styles.filterItem} onPress={onRefresh} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -120,6 +181,8 @@ export default function RequestedItems() {
           keyExtractor={(item) => String(item.FocRequestId)}
           contentContainerStyle={{ paddingBottom: ms(120), paddingHorizontal: ms(16) }}
           showsVerticalScrollIndicator={false}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
           }
@@ -133,11 +196,22 @@ export default function RequestedItems() {
             </View>
           }
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <Pressable
+              style={styles.card}
+              onPress={() => navigation.navigate('FOCDetails', { focRequest: item })}
+            >
               {/* Status Badge */}
               <View style={styles.naBadge}>
                 <Text style={styles.naText}>{item.FOCStatusName || 'NA'}</Text>
               </View>
+
+              <Pressable
+                style={styles.deleteIcon}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={() => confirmDeleteRequest(item.FocRequestId)}
+              >
+                <Ionicons name="trash-outline" size={scale(18)} color={COLORS.primary} />
+              </Pressable>
 
               <View style={styles.cardContent}>
                 <View style={{ flex: 1, marginTop: ms(14) }}>
@@ -152,10 +226,58 @@ export default function RequestedItems() {
                   <Text style={styles.notesText}>{item.Notes || 'Notes'}</Text>
                 </View>
               </View>
-            </View>
+            </Pressable>
           )}
         />
       )}
+
+      {/* STATUS TAG MODAL */}
+      <Modal visible={activeDropdown === 'STATUS'} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setActiveDropdown(null)} />
+        <View style={styles.centerModal}>
+          <Text style={styles.modalTitle}>Select Status Tag</Text>
+          <FlatList
+            data={statusTagList}
+            keyExtractor={(item, index) => String(item.FocStatusId ?? index)}
+            ListHeaderComponent={
+              <Pressable style={styles.modalItem} onPress={() => { setSelectedStatusTag(null); setActiveDropdown(null); }}>
+                <Text style={styles.modalItemText}>All</Text>
+              </Pressable>
+            }
+            renderItem={({ item }) => (
+              <Pressable style={styles.modalItem} onPress={() => { setSelectedStatusTag(item); setActiveDropdown(null); }}>
+                <Text style={styles.modalItemText}>{item.FocStatusName}</Text>
+              </Pressable>
+            )}
+            style={{ maxHeight: hp(30) }}
+            bounces={false}
+          />
+        </View>
+      </Modal>
+
+      {/* ISSUE MODAL */}
+      <Modal visible={activeDropdown === 'ISSUE'} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setActiveDropdown(null)} />
+        <View style={styles.centerModal}>
+          <Text style={styles.modalTitle}>Select Issue</Text>
+          <FlatList
+            data={ISSUE_OPTIONS}
+            keyExtractor={(item) => String(item.id)}
+            ListHeaderComponent={
+              <Pressable style={styles.modalItem} onPress={() => { setSelectedIssueType(null); setActiveDropdown(null); }}>
+                <Text style={styles.modalItemText}>All</Text>
+              </Pressable>
+            }
+            renderItem={({ item }) => (
+              <Pressable style={styles.modalItem} onPress={() => { setSelectedIssueType(item); setActiveDropdown(null); }}>
+                <Text style={styles.modalItemText}>{item.label}</Text>
+              </Pressable>
+            )}
+            style={{ maxHeight: hp(30) }}
+            bounces={false}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -272,6 +394,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: sp(12),
   },
+  deleteIcon: {
+    position: 'absolute',
+    top: ms(10),
+    right: ms(10),
+    zIndex: 1,
+  },
   cardContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -314,5 +442,36 @@ const styles = StyleSheet.create({
   emptyImage: {
     width: scale(180),
     height: scale(180),
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  centerModal: {
+    position: 'absolute',
+    top: '30%',
+    left: scale(24),
+    right: scale(24),
+    backgroundColor: '#fff',
+    borderRadius: ms(14),
+    paddingVertical: ms(12),
+  },
+  modalTitle: {
+    fontSize: sp(15),
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    paddingHorizontal: ms(16),
+    paddingBottom: ms(8),
+  },
+  modalItem: {
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(12),
+    borderTopWidth: 1,
+    borderColor: '#eee',
+  },
+  modalItemText: {
+    fontSize: sp(14),
+    color: COLORS.textPrimary,
   },
 });

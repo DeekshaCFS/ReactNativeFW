@@ -97,9 +97,9 @@ export default function IssuedItems() {
             }
             renderItem={({ item }) => (
               <View style={styles.card}>
-                <View style={styles.taskBadge}>
+                <View style={[styles.taskBadge, !item.TaskId && styles.taskBadgeDirect]}>
                   <Text style={styles.taskText} numberOfLines={1}>
-                    TASK ID: {item.TaskId}
+                    {item.TaskId ? `TASK ID: ${item.TaskId}` : 'Direct'}
                   </Text>
                 </View>
                 <Text style={styles.itemTitle}>{item.Name}</Text>
@@ -200,6 +200,9 @@ const styles = StyleSheet.create({
     paddingVertical: ms(4),
     borderRadius: ms(8),
     marginBottom: ms(8),
+  },
+  taskBadgeDirect: {
+    backgroundColor: '#000',
   },
   taskText: {
     color: '#fff',

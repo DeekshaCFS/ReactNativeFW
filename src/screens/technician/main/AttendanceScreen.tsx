@@ -41,6 +41,14 @@ export default function AttendanceScreen() {
     useCallback(() => { loadAttendance(); }, [userId])
   );
 
+  // Re-tapping the Attendance tab while already on it refreshes the screen.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      if (navigation.isFocused()) loadAttendance();
+    });
+    return unsubscribe;
+  }, [navigation, userId]);
+
   const loadAttendance = async () => {
     try {
       if (!userId) return;

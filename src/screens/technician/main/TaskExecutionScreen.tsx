@@ -14,6 +14,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
@@ -40,6 +41,13 @@ import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
 
 type Task = TasksListResultData;
 type AssignedItem = TasksListMultipleItemAssigned;
+
+// Three photo boxes visible at a time, horizontally scrollable to reveal the rest.
+const VISIBLE_PHOTO_BOXES = 3;
+const PHOTO_ROW_GAP = scale(16);
+const PHOTO_BOX_SIZE =
+  (Dimensions.get('window').width - scale(20) * 2 - PHOTO_ROW_GAP * (VISIBLE_PHOTO_BOXES - 1)) /
+  VISIBLE_PHOTO_BOXES;
 
 export default function TaskExecutionScreen({ navigation, route }: any) {
   const { task: routeTask } = route.params as { task: Task };
@@ -487,12 +495,18 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
     navigation.navigate('TaskInput', { routeTask });
   };
 
+  const MAX_PHOTOS = 12;
+
   const renderPhotoSlots = (
     list: { uri: string; base64?: string }[],
     setList: React.Dispatch<React.SetStateAction<{ uri: string; base64?: string }[]>>,
   ) => (
-    <View style={styles.photoRow}>
-      {[0, 1, 2].map((i) => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.photoRow}
+    >
+      {Array.from({ length: MAX_PHOTOS }, (_, i) => i).map((i) => (
         <Pressable
           key={i}
           style={styles.photoBox}
@@ -505,7 +519,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
           )}
         </Pressable>
       ))}
-    </View>
+    </ScrollView>
   );
 
   return (
@@ -588,13 +602,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
           <Pressable
             style={[styles.btn, styles.onhold]}
-            onPress={() => {
-              if (!isRunning) {
-                Alert.alert('Task not started', 'Start the task before putting it on hold.');
-                return;
-              }
-              setShowOnHoldSheet(true);
-            }}
+            onPress={() => setShowOnHoldSheet(true)}
           >
             <Text style={styles.btnText}>ON HOLD</Text>
           </Pressable>
@@ -812,8 +820,8 @@ const styles = StyleSheet.create({
   closeBtn:      { width: scale(36), height: scale(36), borderRadius: scale(18), backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', marginLeft: scale(12) },
   sheetTitle:    { fontSize: sp(17), fontWeight: '400' },
   sheetSub:      { fontSize: sp(12), color: '#6B7280' },
-  photoRow:      { flexDirection: 'row', justifyContent: 'space-between', marginVertical: vs(24), gap: scale(16) },
-  photoBox:      { flex: 1, height: vs(100), borderWidth: 1, borderColor: '#848484', borderRadius: scale(12), alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  photoRow:      { flexDirection: 'row', marginVertical: vs(24), gap: scale(16) },
+  photoBox:      { width: PHOTO_BOX_SIZE, height: vs(100), borderWidth: 1, borderColor: '#848484', borderRadius: scale(12), alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   photoThumb:    { width: '100%', height: '100%' },
   noteBox:       { borderWidth: 1, borderColor: '#848484', borderRadius: scale(30), marginBottom: vs(20), paddingLeft: scale(15), height: vs(44), justifyContent: 'center' },
   uploadBtn:     { backgroundColor: COLORS.primary, borderRadius: scale(30), alignItems: 'center', height: vs(44), justifyContent: 'center' },

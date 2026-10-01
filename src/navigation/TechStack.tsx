@@ -24,6 +24,7 @@ import TechProfileScreen from '../screens/technician/drawer/TechProfileScreen';
 import IssuedItems from '../screens/technician/drawer/IssuedItems';
 import LeadsScreen from '../screens/technician/drawer/LeadsScreen';
 import RequestedItems from '../screens/technician/drawer/RequestedItems';
+import FOCDetailsScreen from '../screens/technician/drawer/FOCDetailsScreen';
 import ExpenditureScreen from '../screens/technician/drawer/ExpenditureScreen';
 import ServiceScreen from '../screens/technician/drawer/ServiceScreen';
 import AIScreen from '../screens/technician/drawer/AIScreen';
@@ -52,6 +53,7 @@ export type TechnicianStackParamList = {
   Profile: undefined;
   'Issued Items': undefined;
   'Requested Items': undefined;
+  FOCDetails: { focRequest: any };
   Leads: undefined;
   ItemRequest: { routeTask?: any };
   TaskInput: { routeTask: any };
@@ -126,6 +128,7 @@ export default function TechnicianStack() {
       <Stack.Screen name="Profile" component={TechProfileScreen} options={{ title: 'Profile' }} />
       <Stack.Screen name="Issued Items" component={IssuedItems} options={{ title: 'Item Inventory' }} />
       <Stack.Screen name="Requested Items" component={RequestedItems} options={{ title: 'Item Inventory' }} />
+      <Stack.Screen name="FOCDetails" component={FOCDetailsScreen} options={{ title: 'Item Inventory' }} />
       <Stack.Screen name="Leads" component={LeadsScreen} options={{ title: 'Leads' }} />
       <Stack.Screen name="Expenditure" component={ExpenditureScreen} options={{ title: 'Expenditure' }} />
       <Stack.Screen name="Routine Service" component={ServiceScreen} options={{ title: 'Routine Service' }} />

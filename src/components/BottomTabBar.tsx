@@ -38,7 +38,8 @@ const BottomTabBar = ({ state, navigation, quickActions = [] }: Props) => {
 
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? ms(4) : 0);
 
-  const tab = (name: string) => {
+  const tab = (route: typeof state.routes[number]) => {
+    const name = route.name;
     const active = current === name;
     const icon = TAB_ICONS[name] ?? 'ellipse-outline';
     return (
@@ -46,7 +47,17 @@ const BottomTabBar = ({ state, navigation, quickActions = [] }: Props) => {
         key={name}
         onPress={() => {
           setFabOpen(false);
-          navigation.navigate(name as never);
+          // Mirror React Navigation's default tab button: emit tabPress so a
+          // focused screen's own listener (useFocusEffect/addListener) can
+          // react to a re-tap, e.g. refresh its data.
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!event.defaultPrevented) {
+            navigation.navigate(name as never);
+          }
         }}
         style={styles.item}
         accessibilityRole="button"
@@ -112,7 +123,7 @@ const BottomTabBar = ({ state, navigation, quickActions = [] }: Props) => {
 
       {/* Tab Bar */}
       <View style={[styles.container, { paddingBottom: bottomPad }]}>
-        {firstHalf.map(route => tab(route.name))}
+        {firstHalf.map(route => tab(route))}
 
         {hasFab && (
           <Pressable
@@ -127,7 +138,7 @@ const BottomTabBar = ({ state, navigation, quickActions = [] }: Props) => {
           </Pressable>
         )}
 
-        {secondHalf.map(route => tab(route.name))}
+        {secondHalf.map(route => tab(route))}
       </View>
     </>
   );
