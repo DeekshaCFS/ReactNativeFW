@@ -16,12 +16,14 @@ import {
   TextInput,
   Linking,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { getAmcReportDetails, getAmcDetailsForEdit, putAmcDetails, deleteAmc, getAmcRenewalDetails, renewAmcDetails, getServiceOccurrenceList, getReminderModeList, getAmcUpcomingValidation } from '../../api/amc/amcService';
 import SearchPickerModal, { type PickerOption } from '../../components/SearchPickerModal';
 import { getResultData, normalizeLookupOption } from './AMCDashboardScreen';
-import type { EditAMCDTOResultData, DeleteAMCResultData } from '../../api/amc/amc.types';
+import type { AMCDetailsResultData, EditAMCDTOResultData, DeleteAMCResultData } from '../../api/amc/amc.types';
+import { getCurrentCountryCode, getCurrentCurrencySymbol } from '../../state/session';
 import { downloadAmcReport } from '../../api/report/reportService';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
 import AddTaskModal, { type AddTaskInitialValues } from './AddTaskModal';
@@ -29,8 +31,7 @@ import AddTaskModal, { type AddTaskInitialValues } from './AddTaskModal';
 type AMCDetailsScreenProps = NativeStackScreenProps<AdminStackParamList, 'AMCDetails'>;
 
 const THEME_PRIMARY = '#d30035';
-const THEME_LIGHT_BG = '#F3F4F6';
-const THEME_GRAY_TEXT = '#6B7280';
+const THEME_GRAY_TEXT = '#525760';
 const THEME_BORDER = '#E5E7EB';
 const SECTION_TITLE_COLOR = '#dc2626';
 
@@ -39,46 +40,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  headerContainer: {
-    backgroundColor: THEME_PRIMARY,
-    paddingHorizontal: ms(16),
-    paddingTop: ms(12),
-    paddingBottom: ms(16),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: sp(18),
-    fontWeight: '600',
-    marginLeft: ms(12),
-  },
-  headerRight: {
-    flexDirection: 'row',
-    gap: ms(16),
-  },
-  headerIcon: {
-    fontSize: sp(20),
-    color: '#FFFFFF',
-  },
   contentContainer: {
     flex: 1,
   },
-  scrollContent: {
-    paddingBottom: ms(80),
-  },
   infoCard: {
-    backgroundColor: '#E8EDF2',
+    backgroundColor: '#d9e1e9',
     paddingHorizontal: ms(16),
-    paddingVertical: ms(12),
-    marginHorizontal: 0,
-    marginTop: 0,
+    paddingVertical: ms(8),
+    marginHorizontal: 15,
+    marginTop: 2,
+    borderRadius: ms(8),
   },
   infoRow: {
     flexDirection: 'row',
@@ -94,47 +65,52 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     fontSize: sp(13),
+    fontWeight: '400',
     color: THEME_GRAY_TEXT,
     flex: 1,
     flexShrink: 1,
     textAlign: 'left',
   },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#D1FAE5',
-    paddingVertical: ms(4),
-    paddingHorizontal: ms(12),
-    borderRadius: ms(12),
-    marginBottom: ms(16),
-    marginTop: ms(12),
-    marginHorizontal: ms(16),
-  },
   statusText: {
-    color: '#065F46',
-    fontSize: sp(12),
+    fontSize: sp(13),
+    fontWeight: '700',
+    color: '#16A34A',
+  },
+  statusTextInactive: {
+    color: THEME_GRAY_TEXT,
+  },
+  statusValueActive: {
+    color: '#16A34A',
     fontWeight: '600',
   },
   section: {
-    marginHorizontal: ms(16),
-    marginTop: ms(16),
-    marginBottom: ms(12),
-    paddingBottom: ms(12),
-    borderBottomWidth: ms(1),
-    borderBottomColor: THEME_BORDER,
+    marginHorizontal: ms(18),
+    marginTop: ms(12),
+    marginBottom: ms(8),
+    paddingBottom: ms(8),
   },
   sectionTitle: {
-    fontSize: sp(13),
+    fontSize: sp(15),
     fontWeight: '700',
     color: SECTION_TITLE_COLOR,
-    marginBottom: ms(10),
+    marginBottom: ms(8),
   },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: ms(6),
+    paddingVertical: ms(5),
+  },
+  serviceBlock: {
+    marginTop: ms(10),
+  },
+  serviceSubTitle: {
+    fontSize: sp(13),
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: ms(4),
   },
   label: {
-    fontSize: sp(13),
+    fontSize: sp(14),
     fontWeight: '600',
     color: '#1F2937',
     flexBasis: '42%',
@@ -157,24 +133,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: ms(8),
     paddingVertical: ms(4),
   },
+  toolbarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: ms(16),
+    backgroundColor: '#FFFFFF',
+  },
   toolbarContainer: {
     flexDirection: 'row',
+    flexShrink: 1,
   },
   toolbarContent: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    flexGrow: 1,
     alignItems: 'center',
-    borderBottomWidth: ms(1),
-    borderBottomColor: THEME_BORDER,
-    paddingVertical: ms(8),
-    backgroundColor: '#FFFFFF',
   },
   toolbarButton: {
     alignItems: 'center',
     paddingVertical: ms(8),
     paddingHorizontal: ms(8),
-    minWidth: ms(50),
+    minWidth: ms(44),
   },
   toolbarIcon: {
     fontSize: sp(24),
@@ -410,32 +388,6 @@ const styles = StyleSheet.create({
   },
 });
 
-interface AMCReportData {
-  amcName?: string;
-  contactNo?: string;
-  status?: string;
-  customerName?: string;
-  customerNumber?: string;
-  customerEmail?: string;
-  address?: string;
-  landmark?: string;
-  productBrand?: string;
-  productName?: string;
-  serialNumber?: string;
-  serviceAmount?: string;
-  remainingAmount?: string;
-  underWarranty?: string;
-  activationDate?: string;
-  contractDate?: string;
-  expiryDate?: string;
-  noOfServices?: number;
-  serviceCompleted?: number;
-  reminder?: string;
-  occurrence?: string;
-  note?: string;
-  [key: string]: unknown;
-}
-
 type EditFormData = {
   amcName: string;
   customerName: string;
@@ -490,7 +442,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   const { amcItem, amcServiceDetailsId, amcsId, ownerId } = route.params || {};
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [amcData, setAmcData] = useState<AMCReportData | null>(null);
+  const [amcData, setAmcData] = useState<AMCDetailsResultData | null>(null);
   
   // Edit Modal State
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -539,7 +491,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       const data = response.ResultData;
 
       if (data && typeof data === 'object') {
-        setAmcData(data as unknown as AMCReportData);
+        setAmcData(data);
       } else {
         setError('No data received from server');
       }
@@ -572,7 +524,9 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     try {
       const date = new Date(dateStr);
       if (Number.isNaN(date.getTime())) return dateStr;
-      return date.toLocaleDateString('en-GB');
+      // en-GB gives DD/MM/YYYY; the rest of the app (EmployeeManagementScreen,
+      // profile screens, etc.) normalizes this to DD-MM-YYYY, so match that.
+      return date.toLocaleDateString('en-GB').replace(/\//g, '-');
     } catch {
       return dateStr;
     }
@@ -657,7 +611,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       'ProductDetail.Location.Description',
       'ProductDetail.CustomerLocationInfoDto.City',
       'ProductDetail.CustomerLocationInfoDto.Description',
-      'City',
+      'landmark',
     ]) || ''),
     pinCode: String(getFirstValue(data, [
       'ProductDetail.Location.PinCode',
@@ -685,26 +639,6 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     value: EditFormData[K],
   ) => {
     setEditFormData(current => (current ? { ...current, [key]: value } : current));
-  };
-
-  const openHistory = async () => {
-    setHistoryVisible(true);
-    setIsHistoryLoading(true);
-    try {
-      const response = await getAmcRenewalDetails({UserId: ownerId, AmcsId: amcsId});
-      setHistoryRows(Array.isArray(response?.ResultData) ? response.ResultData : []);
-    } catch {
-      setHistoryRows([]);
-    } finally {
-      setIsHistoryLoading(false);
-    }
-  };
-
-  const openRenewModal = () => {
-    setRenewActivationDate('');
-    setRenewContractDate('');
-    setRenewExpiryDate('');
-    setRenewModalVisible(true);
   };
 
   const submitRenewal = async () => {
@@ -819,7 +753,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   };
 
   const saveAMCChanges = async () => {
-    const sourceData = editSourceData || amcData;
+    const sourceData = (editSourceData || amcData) as Record<string, unknown> | null;
     if (!editFormData || !sourceData) return;
 
     setEditLoading(true);
@@ -983,6 +917,25 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       return 'NA';
     };
 
+    const getBooleanLabel = (value: unknown): string => {
+      if (typeof value === 'boolean') {
+        return value ? 'Yes' : 'No';
+      }
+      if (typeof value === 'number') {
+        return value === 1 ? 'Yes' : 'No';
+      }
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true' || normalized === '1') {
+          return 'Yes';
+        }
+        if (normalized === 'false' || normalized === '0') {
+          return 'No';
+        }
+      }
+      return 'NA';
+    };
+
     const getStatusText = (): string => {
       const status = getNestedValue(data, 'IsActive');
       if (typeof status === 'boolean') {
@@ -1013,31 +966,59 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       TechnicianName?: string;
     }>;
 
+    // Java (AMCDetailsFragment.setData): both "Contact No" and "Customer
+    // Number" are the same CustomerDetailInfoDto.MobileNumber, DISPLAYED
+    // prefixed with the session's country code ("+<code> <number>") -- same
+    // split TaskDetailsScreen uses: the raw number for the `tel:` call
+    // intent, the decorated one for display, and code-no-plus for WhatsApp.
+    const countryCode = getCurrentCountryCode();
+    const rawMobile = getValue(['ProductDetail.CustomerDetailInfoDto.MobileNumber', 'MobileNumber']);
+    const hasMobile = rawMobile && rawMobile !== 'NA';
+    const mobileDisplay =
+      hasMobile && countryCode ? `+${countryCode} ${rawMobile}` : rawMobile;
+    const mobileWhatsapp =
+      hasMobile && countryCode ? `${countryCode}${rawMobile}` : rawMobile;
+
+    // Java prefixes amounts with the session's currency symbol ("₹" for
+    // Rs., else the raw symbol) -- see AMCDetailsFragment.setData().
+    const currencySymbol = getCurrentCurrencySymbol();
+    const amountPrefix = currencySymbol === 'Rs.' ? '₹' : currencySymbol;
+    const formatCurrencyAmount = (value: string) =>
+      value === 'NA' ? value : amountPrefix ? `${amountPrefix} ${value}` : value;
+
     // Calculate remaining amount
     let remainingAmt = 'NA';
     const totalAmount = getNestedValue(data, 'AMCAmount');
     const receivedAmount = getNestedValue(data, 'ReceivedAmt');
     if (typeof totalAmount === 'number' && typeof receivedAmount === 'number') {
       const remaining = totalAmount - receivedAmount;
-      remainingAmt = formatAmount(remaining);
+      remainingAmt = formatCurrencyAmount(formatAmount(remaining));
     }
-    const serviceAmount = getValue(['AMCAmount', 'ServiceAmount']);
+    const serviceAmountRaw = getValue(['AMCAmount', 'ServiceAmount']);
+    const serviceAmount = formatCurrencyAmount(
+      serviceAmountRaw === 'NA' ? serviceAmountRaw : formatAmount(serviceAmountRaw),
+    );
 
     const extractedDetails = {
       amcName: getValue(['AMCName', 'ProductDetail.ProductName']),
-      contactNo: getValue(['ProductDetail.CustomerDetailInfoDto.MobileNumber', 'MobileNumber']),
+      contactNo: rawMobile,
+      contactNoDisplay: mobileDisplay,
+      contactNoWhatsapp: mobileWhatsapp,
       status: getStatusText(),
       customerName: getValue(['ProductDetail.CustomerDetailInfoDto.CustomerName', 'CustomerName']),
-      customerNumber: getValue(['ProductDetail.CustomerDetailInfoDto.MobileNumber', 'MobileNumber']),
+      customerNumber: mobileDisplay,
       customerEmail: getValue(['ProductDetail.CustomerDetailInfoDto.EmailId', 'EmailId']),
       address: getValue(['ProductDetail.CustomerLocationInfoDto.Address', 'ProductDetail.CustomerDetailInfoDto.Address']),
-      landmark: getValue(['ProductDetail.CustomerLocationInfoDto.City', 'City']),
+      // Java: AMCDetailsFragment reads Landmark from
+      // ProductDetail.CustomerLocationInfoDto.Description (not City/landmark,
+      // which this endpoint doesn't return).
+      landmark: getValue(['ProductDetail.CustomerLocationInfoDto.Description', 'landmark']),
       productBrand: getValue(['ProductDetail.ProductBrand', 'BrandName']),
       productName: getValue(['ProductDetail.ProductName', 'ModelName']),
       serialNumber: getValue(['ProductDetail.ProductSerialNo', 'SerialNumber']),
-      serviceAmount: serviceAmount === 'NA' ? serviceAmount : formatAmount(serviceAmount),
+      serviceAmount,
       remainingAmount: remainingAmt,
-      underWarranty: getValue(['ProductDetail.UnderWarranty', 'Warranty']),
+      underWarranty: getBooleanLabel(getNestedValue(data, 'ProductDetail.UnderWarranty') ?? getNestedValue(data, 'Warranty')),
       activationDate: formatDate(getNestedValue(data, 'ActivationDate')),
       contractDate: formatDate(getNestedValue(data, 'ContractDate')),
       expiryDate: formatDate(getNestedValue(data, 'ExpiryDate')),
@@ -1078,7 +1059,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   };
 
   const handleWhatsAppPress = () => {
-    const phone = String(details?.contactNo || '').trim();
+    const phone = String(details?.contactNoWhatsapp || '').trim();
     if (!phone || phone.toUpperCase() === 'NA') {
       Alert.alert('WhatsApp', 'Contact number is not available');
       return;
@@ -1270,41 +1251,38 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Toolbar Below Header */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toolbarContainer} contentContainerStyle={styles.toolbarContent}>
-        <Pressable style={styles.toolbarButton} onPress={openEditModal} disabled={editLoading}>
-          <Text style={styles.toolbarIcon}>✎</Text>
-          <Text style={styles.toolbarButtonText}>{editLoading ? 'Loading' : 'Edit'}</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={handleWhatsAppPress}>
-          <Text style={styles.toolbarIcon}>💬</Text>
-          <Text style={styles.toolbarButtonText}>WhatsApp</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={handleCallPress}>
-          <Text style={styles.toolbarIcon}>📞</Text>
-          <Text style={styles.toolbarButtonText}>Call</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={handleDownloadPress} disabled={isDownloadingReport}>
-          <Text style={styles.toolbarIcon}>⬇</Text>
-          <Text style={styles.toolbarButtonText}>{isDownloadingReport ? 'Loading' : 'Download'}</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={handleAddTaskPress}>
-          <Text style={styles.toolbarIcon}>➕</Text>
-          <Text style={styles.toolbarButtonText}>Add</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={handleDeletePress} disabled={isDeletingAmc}>
-          <Text style={styles.toolbarIcon}>🗑</Text>
-          <Text style={styles.toolbarButtonText}>{isDeletingAmc ? 'Loading' : 'Delete'}</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={openRenewModal}>
-          <Text style={styles.toolbarIcon}>🔄</Text>
-          <Text style={styles.toolbarButtonText}>Renew</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={openHistory}>
-          <Text style={styles.toolbarIcon}>🕘</Text>
-          <Text style={styles.toolbarButtonText}>History</Text>
-        </Pressable>
-      </ScrollView>
+      {/* Status + toolbar, one row (matches Java: "Active" label and the
+          action icons share the bar directly under the header). */}
+      <View style={styles.toolbarRow}>
+        {details.status ? (
+          <Text
+            style={[
+              styles.statusText,
+              details.status.toLowerCase() !== 'active' ? styles.statusTextInactive : null,
+            ]}
+          >
+            {details.status}
+          </Text>
+        ) : <View />}
+          <Pressable style={styles.toolbarButton} onPress={openEditModal} disabled={editLoading}>
+            <Ionicons name="pencil" size={20} color={THEME_PRIMARY} />
+          </Pressable>
+          <Pressable style={styles.toolbarButton} onPress={handleWhatsAppPress}>
+            <Ionicons name="logo-whatsapp" size={20} color={THEME_PRIMARY} />
+          </Pressable>
+          <Pressable style={styles.toolbarButton} onPress={handleCallPress}>
+            <Ionicons name="call-outline" size={20} color={THEME_PRIMARY} />
+          </Pressable>
+          <Pressable style={styles.toolbarButton} onPress={handleDownloadPress} disabled={isDownloadingReport}>
+            <Ionicons name="download-outline" size={20} color={THEME_PRIMARY} />
+          </Pressable>
+          <Pressable style={styles.toolbarButton} onPress={handleAddTaskPress}>
+            <Ionicons name="add" size={20} color={THEME_PRIMARY} />
+          </Pressable>
+          <Pressable style={styles.toolbarButton} onPress={handleDeletePress} disabled={isDeletingAmc}>
+            <Ionicons name="trash-outline" size={20} color={THEME_PRIMARY} />
+          </Pressable>
+      </View>
 
       <ScrollView style={styles.contentContainer} contentContainerStyle={{ paddingBottom: vs(20) }}>
         {/* Info Card */}
@@ -1315,16 +1293,9 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Contact No</Text>
-            <Text style={styles.infoValue}>{details.contactNo}</Text>
+            <Text style={styles.infoValue}>{details.contactNoDisplay}</Text>
           </View>
         </View>
-
-        {/* Status Badge */}
-        {details.status && (
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusText}>{details.status}</Text>
-          </View>
-        )}
 
         {/* Customer Details Section */}
         <View style={styles.section}>
@@ -1413,7 +1384,14 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Status</Text>
-            <Text style={styles.value}>{details.status}</Text>
+            <Text
+              style={[
+                styles.value,
+                details.status.toLowerCase() === 'active' ? styles.statusValueActive : null,
+              ]}
+            >
+              {details.status}
+            </Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Note</Text>
@@ -1421,24 +1399,32 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           </View>
         </View>
 
-        {/* Services Details: one row per scheduled AMC service (Java ServiceListAdapter). */}
+        {/* Services Details: each scheduled AMC service gets its own
+            sub-heading with Fieldworker Name/Date/Time/Status rows
+            (Java ServiceListAdapter -- item_service_details.xml). */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
             {details.serviceTasks.length ? 'Services Details' : 'Services Details : NA'}
           </Text>
           {details.serviceTasks.map((task, index) => (
-            <View key={index} style={styles.row}>
-              <Text style={styles.label}>{`Service ${index + 1}`}</Text>
-              <Text style={styles.value}>
-                {[
-                  task.TechnicianName,
-                  String(task.TaskDate ?? '').split('T')[0],
-                  task.TaskTime,
-                  SERVICE_STATUS_LABELS[Number(task.TaskStatus)] ?? '',
-                ]
-                  .filter(Boolean)
-                  .join('  ')}
-              </Text>
+            <View key={index} style={styles.serviceBlock}>
+              <Text style={styles.serviceSubTitle}>{`Services ${index + 1}`}</Text>
+              <View style={styles.row}>
+                <Text style={styles.label}>Fieldworker Name</Text>
+                <Text style={styles.value}>{task.TechnicianName || 'NA'}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Date</Text>
+                <Text style={styles.value}>{String(task.TaskDate ?? '').split('T')[0] || 'NA'}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Time</Text>
+                <Text style={styles.value}>{task.TaskTime || 'NA'}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Status</Text>
+                <Text style={styles.value}>{SERVICE_STATUS_LABELS[Number(task.TaskStatus)] ?? 'NA'}</Text>
+              </View>
             </View>
           ))}
         </View>
