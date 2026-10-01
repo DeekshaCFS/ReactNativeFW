@@ -32,6 +32,7 @@ type AMCDetailsScreenProps = NativeStackScreenProps<AdminStackParamList, 'AMCDet
 
 const THEME_PRIMARY = '#d30035';
 const THEME_GRAY_TEXT = '#525760';
+const GRAY = '#404040';
 const THEME_BORDER = '#E5E7EB';
 const SECTION_TITLE_COLOR = '#dc2626';
 
@@ -208,7 +209,7 @@ const styles = StyleSheet.create({
   },
   editModalHeader: {
     alignItems: 'center',
-    backgroundColor: THEME_PRIMARY,
+    backgroundColor: GRAY,
     flexDirection: 'row',
     minHeight: ms(56),
     paddingHorizontal: ms(16),
@@ -238,7 +239,18 @@ const styles = StyleSheet.create({
     paddingBottom: ms(24),
   },
   editField: {
-    marginBottom: ms(12),
+    marginBottom: ms(10),
+  },
+  // Java (dialog_add_amc_new.xml) pairs the date/number fields two to a row
+  // (Activation Date+Time, Contract Date+No. of Services, etc.) instead of
+  // stacking every field full-width -- this halves the form's height.
+  editRow: {
+    flexDirection: 'row',
+    gap: ms(12),
+    marginBottom: ms(10),
+  },
+  editFieldHalf: {
+    flex: 1,
   },
   editSelectValue: {
     fontSize: sp(14),
@@ -248,6 +260,15 @@ const styles = StyleSheet.create({
     fontSize: sp(14),
     color: '#9CA3AF',
   },
+  editSelectInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  editSelectText: {
+    flex: 1,
+    marginRight: ms(8),
+  },
   editLabel: {
     color: '#374151',
     fontSize: sp(12),
@@ -255,28 +276,27 @@ const styles = StyleSheet.create({
     marginBottom: ms(6),
   },
   editInput: {
-    borderColor: '#D1D5DB',
-    borderRadius: ms(6),
+    borderColor: GRAY,
+    borderRadius: ms(20),
     borderWidth: ms(1),
     color: '#111827',
     fontSize: sp(14),
-    minHeight: ms(42),
+    minHeight: ms(40),
     paddingHorizontal: ms(12),
-    paddingVertical: ms(8),
-  },
-  editTextArea: {
-    minHeight: ms(76),
-    textAlignVertical: 'top',
+    paddingVertical: ms(7),
   },
   editToggleRow: {
+    flexDirection: 'row',
     marginBottom: ms(12),
+    gap: ms(100),
   },
   editToggle: {
-    borderColor: '#D1D5DB',
-    borderRadius: ms(6),
+    borderColor: '#000',
+    borderRadius: ms(20),
     borderWidth: ms(1),
     flexDirection: 'row',
-    height: ms(42),
+    height: ms(30),
+    width: ms(180),
     overflow: 'hidden',
   },
   editToggleOption: {
@@ -285,7 +305,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editToggleOptionActive: {
-    backgroundColor: THEME_PRIMARY,
+    backgroundColor: '#000',
   },
   editToggleText: {
     color: '#374151',
@@ -298,7 +318,7 @@ const styles = StyleSheet.create({
   editSaveButton: {
     alignItems: 'center',
     backgroundColor: THEME_PRIMARY,
-    borderRadius: ms(6),
+    borderRadius: ms(25),
     height: ms(46),
     justifyContent: 'center',
     marginTop: ms(6),
@@ -1181,12 +1201,12 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     label: string,
     value: string,
     onChangeText: (value: string) => void,
-    options?: { keyboardType?: 'default' | 'numeric' | 'decimal-pad' | 'phone-pad' | 'email-address'; multiline?: boolean },
+    options?: { keyboardType?: 'default' | 'numeric' | 'decimal-pad' | 'phone-pad' | 'email-address'; multiline?: boolean; half?: boolean },
   ) => (
-    <View style={styles.editField}>
+    <View style={options?.half ? styles.editFieldHalf : styles.editField}>
       <Text style={styles.editLabel}>{label}</Text>
       <TextInput
-        style={[styles.editInput, options?.multiline ? styles.editTextArea : null]}
+        style={[styles.editInput]}
         value={value}
         onChangeText={onChangeText}
         placeholder={label}
@@ -1197,11 +1217,17 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     </View>
   );
 
-  const renderEditSelect = (label: string, value: string, onPress: () => void) => (
-    <View style={styles.editField}>
+  const renderEditSelect = (label: string, value: string, onPress: () => void, half?: boolean) => (
+    <View style={half ? styles.editFieldHalf : styles.editField}>
       <Text style={styles.editLabel}>{label}</Text>
-      <Pressable style={styles.editInput} onPress={onPress}>
-        <Text style={value ? styles.editSelectValue : styles.editSelectPlaceholder}>{value || label}</Text>
+      <Pressable style={[styles.editInput, styles.editSelectInput]} onPress={onPress}>
+        <Text
+          style={[value ? styles.editSelectValue : styles.editSelectPlaceholder, styles.editSelectText]}
+          numberOfLines={1}
+        >
+          {value || label}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color="#6B7280" />
       </Pressable>
     </View>
   );
@@ -1517,7 +1543,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 onPress={() => setEditModalVisible(false)}
                 disabled={editLoading}
               >
-                <Text style={styles.editModalCloseText}>x</Text>
+                <Ionicons name="close" size={24} color="#fff" />
               </Pressable>
             </View>
 
@@ -1556,24 +1582,34 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                   </View>
                 </View>
 
-                {renderEditInput('Activation Date * (YYYY-MM-DD)', editFormData.activationDate, value => updateEditField('activationDate', value))}
-                {renderEditInput('Time *', editFormData.activationTime, value => updateEditField('activationTime', value))}
-                {renderEditInput('Contract Date * (YYYY-MM-DD)', editFormData.contractDate, value => updateEditField('contractDate', value))}
-                {renderEditSelect('No. of Services', editFormData.totalServices, () => setEditPicker('services'))}
-                {renderEditSelect(
-                  'Occurrence',
-                  occurrenceOptions.find(o => o.id === editFormData.occurrenceId)?.label ?? '',
-                  () => setEditPicker('occurrence'),
-                )}
-                {editFormData.underWarranty
-                  ? null
-                  : renderEditInput('Service Amount *', editFormData.amcAmount, value => updateEditField('amcAmount', sanitizeDecimalInput(value)), { keyboardType: 'decimal-pad' })}
-                {renderEditInput('Expiry Date (YYYY-MM-DD)', editFormData.expiryDate, value => updateEditField('expiryDate', value))}
-                {renderEditSelect(
-                  'Reminder',
-                  reminderOptions.find(o => o.id === editFormData.reminderId)?.label ?? '',
-                  () => setEditPicker('reminder'),
-                )}
+                <View style={styles.editRow}>
+                  {renderEditInput('Activation Date *', editFormData.activationDate, value => updateEditField('activationDate', value), { half: true })}
+                  {renderEditInput('Time *', editFormData.activationTime, value => updateEditField('activationTime', value), { half: true })}
+                </View>
+                <View style={styles.editRow}>
+                  {renderEditInput('Contract Date *', editFormData.contractDate, value => updateEditField('contractDate', value), { half: true })}
+                  {renderEditSelect('No. of Services', editFormData.totalServices, () => setEditPicker('services'), true)}
+                </View>
+                <View style={styles.editRow}>
+                  {renderEditSelect(
+                    'Occurrence',
+                    occurrenceOptions.find(o => o.id === editFormData.occurrenceId)?.label ?? '',
+                    () => setEditPicker('occurrence'),
+                    true,
+                  )}
+                  {editFormData.underWarranty
+                    ? null
+                    : renderEditInput('Service Amount *', editFormData.amcAmount, value => updateEditField('amcAmount', sanitizeDecimalInput(value)), { keyboardType: 'decimal-pad', half: true })}
+                </View>
+                <View style={styles.editRow}>
+                  {renderEditInput('Expiry Date', editFormData.expiryDate, value => updateEditField('expiryDate', value), { half: true })}
+                  {renderEditSelect(
+                    'Reminder',
+                    reminderOptions.find(o => o.id === editFormData.reminderId)?.label ?? '',
+                    () => setEditPicker('reminder'),
+                    true,
+                  )}
+                </View>
                 {editFormData.underWarranty
                   ? null
                   : renderEditInput('Received Amount', editFormData.receivedAmount, value => updateEditField('receivedAmount', sanitizeDecimalInput(value)), { keyboardType: 'decimal-pad' })}
