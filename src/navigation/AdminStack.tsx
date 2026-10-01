@@ -120,6 +120,13 @@ export default function AdminStack() {
     });
   }, []);
 
+  // AdminTabs needs the same id; passed down as a prop instead of letting it
+  // do its own AsyncStorage read, so the two don't race/duplicate the lookup.
+  const renderAdminTabs = useCallback(
+    () => <AdminTabs ownerId={ownerId} />,
+    [ownerId],
+  );
+
   /**
    * Check whether the current admin has any fieldworkers.
    */
@@ -298,11 +305,12 @@ export default function AdminStack() {
         {/* Admin bottom tabs */}
         <Stack.Screen
           name="AdminTabsRoot"
-          component={AdminTabs}
           options={{
             headerShown: false,
           }}
-        />
+        >
+          {renderAdminTabs}
+        </Stack.Screen>
 
         <Stack.Screen
           name="Profile"

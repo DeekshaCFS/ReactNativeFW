@@ -523,7 +523,6 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
 
   const fetchAMCDetails = async () => {
     if (!ownerId) {
-      console.log('[AMC Details] No ownerId provided');
       return;
     }
 
@@ -531,25 +530,17 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     setError(null);
 
     try {
-      console.log('[AMC Details] Fetching with params:', { ownerId, amcsId, amcServiceDetailsId });
       const response = await getAmcReportDetails({
         OwnerId: ownerId,
         AMCsId: amcsId,
         AMCServiceDetailsId: amcServiceDetailsId,
       });
 
-      console.log('[AMC Details Full Response]', response);
-      console.log('[AMC Details Response Type]', typeof response);
-      console.log('[AMC Details Response Keys]', Object.keys(response || {}));
-      console.log('[AMC Details Response JSON]', JSON.stringify(response, null, 2));
-
       const data = response.ResultData;
 
       if (data && typeof data === 'object') {
         setAmcData(data as unknown as AMCReportData);
-        console.log('[AMC Data Loaded Successfully]', data);
       } else {
-        console.log('[AMC Details] No valid data extracted from response');
         setError('No data received from server');
       }
     } catch (err) {
@@ -952,9 +943,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         UserId: userId,
       };
 
-      console.log('[AMC Update] Sending payload:', JSON.stringify(payload, null, 2));
-      const response = ensureSuccess(await putAmcDetails(payload));
-      console.log('[AMC Update Response]', response);
+      ensureSuccess(await putAmcDetails(payload));
 
       Alert.alert('Success', 'AMC updated successfully');
       setEditModalVisible(false);
@@ -975,16 +964,10 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     const dataSource = amcData || amcItem;
     
     if (!dataSource) {
-      console.log('[Details] No data source available');
       return null;
     }
 
     const data = dataSource as Record<string, unknown>;
-    
-    // Log available fields for debugging
-    if (amcData) {
-      console.log('[Details Fields Available (from API)]', Object.keys(data));
-    }
 
     // Helper to get nested values
     const getValue = (paths: string[]): string => {
@@ -1068,8 +1051,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       note: getValue(['AMCNotes', 'Note']),
       serviceTasks,
     };
-    
-    console.log('[Extracted Details]', extractedDetails);
+
     return extractedDetails;
   }, [amcData, amcItem]);
 

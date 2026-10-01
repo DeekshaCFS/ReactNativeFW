@@ -1,37 +1,17 @@
 // src/navigation/DrawerNavigator.tsx
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import TechnicianStack from './TechStack';
 import CustomDrawerContent from './CustomDrawerContent';
 import AdminStack from './AdminStack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ActivityIndicator, View } from 'react-native';
 
 const Drawer = createDrawerNavigator();
 
-export default function DrawerNavigator() {
-  const [role, setRole] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadRole = async () => {
-      const storedRole = await AsyncStorage.getItem('role');
-      setRole(storedRole);
-      setLoading(false);
-    };
-    loadRole();
-  }, []);
-
-  // ── Wait for role before rendering drawer ──
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
+// `role` is read once by RootNavigator (alongside `token`) and handed down
+// here, instead of this navigator re-reading AsyncStorage and showing its
+// own loading spinner on top of RootNavigator's.
+export default function DrawerNavigator({ role }: { role: string | null }) {
   const isAdmin =
     role?.toLowerCase() === 'admin' ||
     role?.toLowerCase() === 'owner';

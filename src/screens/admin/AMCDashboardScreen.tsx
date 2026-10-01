@@ -857,12 +857,6 @@ const AMCDashboardScreen = ({
         }
 
         const amcData = getResultData(response);
-        if (amcData && amcData.length > 0) {
-          console.log('[AMC List Debug] First item fields:', Object.keys(amcData[0]));
-          console.log('[AMC List Debug] Sample serviceType:', getAMCServiceType(amcData[0]));
-          console.log('[AMC List Debug] Sample fieldWorker:', getAMCFieldWorker(amcData[0]));
-          console.log('[AMC List Debug] Sample taskId:', getAMCTaskId(amcData[0]));
-        }
         setItems(amcData);
       } catch (error) {
         if (latestRequestId.current !== requestId) {

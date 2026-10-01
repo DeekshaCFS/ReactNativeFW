@@ -1,7 +1,6 @@
 // src/navigation/AdminTabs.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createBottomTabNavigator,
 } from '@react-navigation/bottom-tabs';
@@ -63,9 +62,11 @@ const Tab = createBottomTabNavigator<AdminTabParamList>();
 // screens can look up on their own — they take it as a prop. `component=`
 // can't pass extra props (React Navigation only gives it route/navigation),
 // so each of those three is mounted via a `children` render function
-// instead, once the id has loaded.
-export default function AdminTabs() {
-  const [ownerId, setOwnerId] = useState<number | null>(null);
+// instead. Those render functions are wrapped in useCallback below so their
+// identity stays stable across AdminTabs re-renders (e.g. opening a quick
+// action modal) — otherwise React Navigation sees a "new" render prop each
+// time and remounts the active tab's whole screen subtree.
+export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
   const insets = useSafeAreaInsets();
   const headerOffset = insets.top + HEADER_CONTENT_HEIGHT;
   // Parent stack navigator — used to push TaskDetails from the Task tab,
@@ -84,13 +85,73 @@ export default function AdminTabs() {
   const [isAddFieldworkerModalOpen, setIsAddFieldworkerModalOpen] = useState(false);
   const [isManageBalanceModalOpen, setIsManageBalanceModalOpen] = useState(false);
 
-  useEffect(() => {
-    AsyncStorage.getItem('uid').then((uid) => {
-      if (uid) {
-        setOwnerId(Number(uid));
-      }
-    });
-  }, []);
+  const openAddTaskModal = useCallback(() => setIsAddTaskModalOpen(true), []);
+
+  const handleTaskSelect = useCallback(
+    (task: Record<string, unknown>) => {
+      rootNavigation.navigate('TaskDetails', {
+        taskId: Number(task.id ?? task.Id) || 0,
+        fallbackTask: task,
+        customerName: getRecordString(task, 'customerName', 'CustomerName'),
+        customerPhone: getRecordString(task, 'contactNo', 'ContactNo'),
+        customerAddress: getRecordString(task, 'fullAddress', 'FullAddress'),
+        source: 'taskList',
+      });
+    },
+    [rootNavigation],
+  );
+
+  const openAddFieldworkerModal = useCallback(
+    () => setIsAddFieldworkerModalOpen(true),
+    [],
+  );
+
+  const renderHomeScreen = useCallback(
+    () => <AdminHomeScreen onCreateTask={openAddTaskModal} />,
+    [openAddTaskModal],
+  );
+
+  const renderTaskScreen = useCallback(
+    () => (
+      <MainTaskFragmentNewScreen
+        userId={ownerId as number}
+        onTaskSelect={(task) => handleTaskSelect(task as Record<string, unknown>)}
+      />
+    ),
+    [ownerId, handleTaskSelect],
+  );
+
+  const renderCRMScreen = useCallback(
+    ({ route }: { route: { params?: AdminTabParamList['CRM'] } }) => (
+      <CRMScreen
+        ownerId={ownerId as number}
+        openAddEnquiryTrigger={route.params?.addEnquiryTrigger}
+      />
+    ),
+    [ownerId],
+  );
+
+  const renderEmployeeScreen = useCallback(
+    ({
+      route,
+      navigation,
+    }: {
+      route: { params?: AdminTabParamList['Employee'] };
+      navigation: { setParams: (params: Partial<NonNullable<AdminTabParamList['Employee']>>) => void };
+    }) => (
+      <EmployeeManagementScreen
+        ownerId={ownerId as number}
+        contentTopOffset={headerOffset}
+        onAddEmployee={openAddFieldworkerModal}
+        onActiveTabChange={activeTab => {
+          if (route.params?.activeEmployeeTab !== activeTab) {
+            navigation.setParams({ activeEmployeeTab: activeTab });
+          }
+        }}
+      />
+    ),
+    [ownerId, headerOffset, openAddFieldworkerModal],
+  );
 
   if (ownerId === null) {
     return (
@@ -185,41 +246,13 @@ export default function AdminTabs() {
           );
         }}
       >
-        <Tab.Screen name="Home">
-          {() => (
-            <AdminHomeScreen onCreateTask={() => setIsAddTaskModalOpen(true)} />
-          )}
-        </Tab.Screen>
+        <Tab.Screen name="Home">{renderHomeScreen}</Tab.Screen>
 
         {/* month/year are deliberately NOT passed: the screen owns its own
             month picker when uncontrolled. See MainTaskFragmentNewScreen. */}
-        <Tab.Screen name="Task">
-          {() => (
-            <MainTaskFragmentNewScreen
-              userId={ownerId}
-              onTaskSelect={(task) => {
-                const record = task as Record<string, unknown>;
-                rootNavigation.navigate('TaskDetails', {
-                  taskId: Number(record.id ?? record.Id) || 0,
-                  fallbackTask: task,
-                  customerName: getRecordString(record, 'customerName', 'CustomerName'),
-                  customerPhone: getRecordString(record, 'contactNo', 'ContactNo'),
-                  customerAddress: getRecordString(record, 'fullAddress', 'FullAddress'),
-                  source: 'taskList',
-                });
-              }}
-            />
-          )}
-        </Tab.Screen>
+        <Tab.Screen name="Task">{renderTaskScreen}</Tab.Screen>
 
-        <Tab.Screen name="CRM">
-          {({ route }) => (
-            <CRMScreen
-              ownerId={ownerId}
-              openAddEnquiryTrigger={route.params?.addEnquiryTrigger}
-            />
-          )}
-        </Tab.Screen>
+        <Tab.Screen name="CRM">{renderCRMScreen}</Tab.Screen>
 
         <Tab.Screen
           name="Employee"
@@ -230,20 +263,7 @@ export default function AdminTabs() {
             blur: () => navigation.setParams({ attendanceEntry: false }),
           })}
         >
-          {({ route, navigation }) => (
-            <EmployeeManagementScreen
-              ownerId={ownerId}
-              contentTopOffset={headerOffset}
-              onAddEmployee={() => setIsAddFieldworkerModalOpen(true)}
-              onActiveTabChange={activeTab => {
-                // Guard against redundant setParams calls (belt-and-suspenders
-                // alongside the effect-dependency fix in EmployeeManagementScreen).
-                if (route.params?.activeEmployeeTab !== activeTab) {
-                  navigation.setParams({ activeEmployeeTab: activeTab });
-                }
-              }}
-            />
-          )}
+          {renderEmployeeScreen}
         </Tab.Screen>
       </Tab.Navigator>
 
