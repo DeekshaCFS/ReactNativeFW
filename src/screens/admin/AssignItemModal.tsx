@@ -29,7 +29,7 @@ import {
   getNumberField,
   getStringField,
   styles,
-} from './CRMScreen';
+} from './crmShared';
 
 type AssignItemModalProps = {
   visible: boolean;

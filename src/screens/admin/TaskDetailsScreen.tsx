@@ -21,7 +21,7 @@ import type {
   TasksListMultipleItemAssigned,
 } from '../../api/task/task.types';
 import type {TaskListItem} from './adminLegacyApiTypes';
-import {getStringField, getNumberField} from './CRMScreen';
+import {getStringField, getNumberField} from './crmShared';
 import {ms, sp} from '../../utils/responsive';
 import {formatAmount} from '../../utils/decimal';
 import BackBar from '../../components/BackBar';

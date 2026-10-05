@@ -32,7 +32,7 @@ import {
   getNumberField,
   getStringField,
   styles,
-} from './CRMScreen';
+} from './crmShared';
 import {requestLocationPermission} from '../../utils/locationPermision';
 
 type AddItemModalProps = {

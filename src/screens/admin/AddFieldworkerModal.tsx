@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import {addBulkFieldworkers} from '../../api/umEmployeeList/umEmployeeListService';
 import {isIndiaCountryDetailsId} from '../../state/session';
-import {styles} from './CRMScreen';
+import {styles} from './crmShared';
 import {scale, sp, vs} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 

@@ -66,7 +66,7 @@ import {
   type ServiceNode,
   type StateOption,
   type TaskTagOption,
-} from './CRMScreen';
+} from './crmShared';
 
 Sound.setCategory('Playback');
 

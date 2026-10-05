@@ -39,7 +39,7 @@ import {
   normalizeStateOption,
   type CityOption,
   type StateOption,
-} from './CRMScreen';
+} from './crmShared';
 
 const STATE_KEYS = ['state', 'State', 'stateName', 'StateName'];
 const CITY_KEYS = ['city', 'City', 'cityName', 'CityName'];

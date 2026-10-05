@@ -39,7 +39,7 @@ import {
   getEnquiryId,
   getNumberField,
   getStringField,
-} from './CRMScreen';
+} from './crmShared';
 import TaskDetailsScreen from './TaskDetailsScreen';
 
 type CustomerDetailsScreenProps = {
