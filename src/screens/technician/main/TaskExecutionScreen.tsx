@@ -15,6 +15,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  PermissionsAndroid,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
@@ -125,13 +126,9 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
     if (routeTask) {
       setTaskDetail(routeTask);
 
-      if (routeTask.StartDate) {
-        const elapsedSeconds = Math.floor(
-          (Date.now() - Number(routeTask.StartDate)) / 1000
-        );
-
-        setSeconds(elapsedSeconds);
-      }
+      // Java: chronometer shows 00:00 until START/CONTINUE; on continue it runs from
+      // (now - StartDate).
+      setSeconds(0);
       setIsRunning(false);
 
       if (
@@ -231,9 +228,39 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
     const { list, setList, index } = pendingPhotoRef.current;
     pendingPhotoRef.current = null;
 
-    const result = source === 'camera'
-      ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7 })
-      : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
+    // The camera intent silently fails on Android if launched while the source Modal is
+    // still dismissing; give it time to close first.
+    if (source === 'camera') await new Promise<void>(r => setTimeout(r, 400));
+
+    // CAMERA is declared in the manifest, so image-picker expects the app to obtain the
+    // runtime permission itself.
+    if (source === 'camera' && Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        Alert.alert('Camera unavailable', 'Camera permission is required to take a photo.');
+        return;
+      }
+    }
+
+    let result;
+    try {
+      result = source === 'camera'
+        ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7, saveToPhotos: false })
+        : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Unable to open the camera');
+      return;
+    }
+
+    if (result.errorCode) {
+      Alert.alert(
+        'Camera unavailable',
+        result.errorCode === 'permission'
+          ? 'Camera permission is required to take a photo.'
+          : result.errorMessage || 'Unable to open the camera',
+      );
+      return;
+    }
 
     if (result.assets?.[0]) {
       const asset = result.assets[0];
@@ -245,6 +272,14 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
   const handleStart = () => {
     if (showContinue) {
+      // Java: already-running task (STARTED_NOT_ENDED) just resumes the timer from
+      // (now - StartDate) with no API call. An on-hold task restarts from 0.
+      if (routeTask.TaskState === 1 && routeTask.StartDate) {
+        setSeconds(Math.max(0, Math.floor((Date.now() - Number(routeTask.StartDate)) / 1000)));
+        setShowContinue(false);
+        setIsRunning(true);
+        return;
+      }
       setShowContinue(false);
       startTask();
       return;
@@ -564,23 +599,27 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
           <Text style={styles.sectionValue}>NA</Text>
         )}
 
-        {isRunning && (
+        {(isRunning || showContinue || photos.some(p => p?.uri)) && (
           <>
             <Text style={styles.sectionTitle}>
               Picture Before Start Task
             </Text>
             {renderPhotoSlots(photos, setPhotos)}
-
-            {trackingDetail?.PreDeviceInfoDto?.DeviceInfoNotes || note ? (
-              <>
-                <Text style={styles.sectionTitle}>Note</Text>
-                <Text style={styles.sectionValue}>
-                  {trackingDetail?.PreDeviceInfoDto?.DeviceInfoNotes || note}
-                </Text>
-              </>
-            ) : null}
           </>
         )}
+
+        {(trackingDetail?.PreDeviceInfoDto?.DeviceInfoNotes ||
+          routeTask?.PreDeviceInfoDto?.DeviceInfoNotes ||
+          note) ? (
+          <>
+            <Text style={styles.sectionTitle}>Note</Text>
+            <Text style={styles.sectionValue}>
+              {trackingDetail?.PreDeviceInfoDto?.DeviceInfoNotes ||
+                routeTask?.PreDeviceInfoDto?.DeviceInfoNotes ||
+                note}
+            </Text>
+          </>
+        ) : null}
 
         <View style={styles.audioCard}>
           <Text style={styles.audioText}>Listen your Instructions</Text>
@@ -616,7 +655,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
                 isRunning
                   ? 'END TASK'
                   : showContinue
-                    ? 'CONTINUE TASK'
+                    ? 'CONTINUE'
                     : 'START'
               }
             </Text>
@@ -792,10 +831,10 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   root:          { flex: 1, backgroundColor: COLORS.primary },
-  scrollArea:    { flex: 1, marginTop: HEADER_TOP_PADDING + vs(10), backgroundColor: '#fff', borderTopLeftRadius: scale(28), borderTopRightRadius: scale(28) },
+  scrollArea:    { flex: 1, marginTop: vs(10), backgroundColor: '#fff', borderTopLeftRadius: scale(28), borderTopRightRadius: scale(28) },
   scrollContent: { alignItems: 'flex-start', paddingTop: vs(30), paddingHorizontal: scale(20), paddingBottom: vs(40) },
 
-  timer:         { fontSize: sp(36), alignSelf: 'center', width: '100%', textAlign: 'center', marginTop: vs(100), marginBottom: vs(10) },
+  timer:         { fontSize: sp(36), alignSelf: 'center', width: '100%', textAlign: 'center', marginTop: vs(80), marginBottom: vs(10) },
   topButtons:    { flexDirection: 'row', gap: scale(10), marginBottom: vs(16), alignSelf: 'center' },
   btn:           { height: vs(44), width: scale(110), borderRadius: scale(28), alignItems: 'center', justifyContent: 'center' },
   reject:        { backgroundColor: COLORS.primary },

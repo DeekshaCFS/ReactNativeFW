@@ -210,12 +210,19 @@ export default function TaskScreen({ navigation, route }: any) {
     }
   };
 
-  const formatDateTime = (dateString?: string) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleString('en-GB', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
+  // Java list shows TaskDate + TaskTime as "dd-MM-yyyy hh:mm a".
+  const formatTaskDateTime = (item: Task) => {
+    const raw = item.TaskDate || item.CreatedDate;
+    if (!raw) return '';
+    const d = new Date(String(raw).replace(' ', 'T'));
+    if (Number.isNaN(d.getTime())) return String(raw);
+    const p2 = (n: number) => String(n).padStart(2, '0');
+    const dateLabel = `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${d.getFullYear()}`;
+    const time = String(item.TaskTime ?? '').split('.')[0];
+    if (!time) return dateLabel;
+    const [h, m] = time.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return dateLabel;
+    return `${dateLabel} ${p2(h % 12 || 12)}:${p2(m)} ${h >= 12 ? 'PM' : 'AM'}`;
   };
 
   const handleRefresh = () => {
@@ -331,7 +338,7 @@ export default function TaskScreen({ navigation, route }: any) {
             {item.Name}{' '}
           </Text>
           <Text style={styles.taskId}>[{item.NewTaskId}]</Text>
-          <Text style={styles.dateText}>{formatDateTime(item.CreatedDate)}</Text>
+          <Text style={styles.dateText}>{formatTaskDateTime(item)}</Text>
         </View>
         <View style={styles.contentRow}>
           <View style={styles.leftCol}>
