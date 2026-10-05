@@ -5,6 +5,7 @@
 // selected day (prev/next day arrows, same as the owner's read-only
 // TechnicianExpenseDetailsModal) and lets the technician add a new expense
 // with a photo via Expenditure/AddExpense.
+import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   Modal, TextInput, Image, ActivityIndicator, Alert, Platform,
@@ -19,7 +20,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ms, sp, scale } from '../../../utils/responsive';
 import { requestLocationPermission } from '../../../utils/locationPermision';
-import { launchCamera, launchImageLibrary, Asset } from 'react-native-image-picker';
+import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import {
   getExpenditureDetails,
   updateAddExpense,
@@ -145,7 +146,7 @@ export default function ExpenditureScreen() {
   };
 
   const captureImageFromCamera = async () => {
-    const result = await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true });
+    const result = await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true });
     if (result.didCancel) return;
     if (result.errorCode) {
       Alert.alert('Camera', result.errorMessage || 'Unable to open camera.');

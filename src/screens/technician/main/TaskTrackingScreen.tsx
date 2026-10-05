@@ -1,4 +1,5 @@
 // src/screens/technician/main/TaskTrackingScreen.tsx
+import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, Image, TouchableOpacity,
@@ -12,7 +13,7 @@ import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { useTaskStatus, TaskStatusAmbiguousError } from '../../../hooks/useTaskStatus';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scale, vs, sp, ms, hp } from '../../../utils/responsive';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary } from 'react-native-image-picker';
 
 const REJECTION_REASONS = [
   'Not available', 'Wrong area', 'Personal reason', 'Equipment issue', 'Other',
@@ -92,7 +93,7 @@ export default function TaskTrackingScreen({ navigation, route }: Props) {
     pendingPhotoIndexRef.current = null;
 
     const result = source === 'camera'
-      ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7 })
+      ? await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.7 })
       : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
 
     const asset = result.assets?.[0];

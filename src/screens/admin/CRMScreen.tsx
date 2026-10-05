@@ -1,5 +1,6 @@
 // src/screens/admin/CRMScreen.tsx
 
+import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
@@ -29,7 +30,6 @@ import {
   View,
 } from 'react-native';
 import {
-  launchCamera,
   launchImageLibrary,
   type Asset,
 } from 'react-native-image-picker';
@@ -762,7 +762,7 @@ const CRMScreen = ({
   };
 
   const capturePhotoFromCamera = async (slotIndex: number) => {
-    const result = await launchCamera({
+    const result = await launchCameraWithPermission({
       mediaType: 'photo',
       includeBase64: true,
       quality: 0.6,

@@ -10,6 +10,7 @@
 // already uses -- no new API surface, just two new nested fields on the
 // existing update payload (see users.types.ts).
 
+import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
@@ -25,7 +26,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import {launchCamera, launchImageLibrary, type Asset} from 'react-native-image-picker';
+import {launchImageLibrary, type Asset} from 'react-native-image-picker';
 import {COLORS} from '../../theme/theme';
 import {ms, scale, sp, vs} from '../../utils/responsive';
 import {sanitizeDecimalInput} from '../../utils/decimal';
@@ -141,7 +142,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
       {
         text: 'Camera',
         onPress: async () => {
-          const result = await launchCamera({mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true});
+          const result = await launchCameraWithPermission({mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true});
           const asset = result.assets?.[0];
           if (asset) applyPickedImage(asset);
         },

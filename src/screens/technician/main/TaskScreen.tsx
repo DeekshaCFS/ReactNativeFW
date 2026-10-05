@@ -1,4 +1,5 @@
 // src/screens/technician/main/TaskScreen.tsx
+import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useState, useEffect, } from 'react';
 import {
   View, Text, StyleSheet, Pressable, TextInput, Modal,
@@ -15,7 +16,6 @@ import { downloadReport } from '../../../api/report/reportService';
 import type { TasksListResultData as Task, TagListResultData as TaskTag } from '../../../api/task/task.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DrumPicker from '../../../components/DrumPicker';
-import { launchCamera } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTaskStatus } from '../../../hooks/useTaskStatus';
 import { useOpenTask } from '../../../hooks/useOpenTask';
@@ -99,7 +99,7 @@ export default function TaskScreen({ navigation, route }: any) {
     setList: React.Dispatch<React.SetStateAction<{ uri: string; base64?: string }[]>>,
     index: number,
   ) => {
-    const result = await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
+    const result = await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
     if (result.assets?.[0]) {
       const asset = result.assets[0];
       const updated = [...list];

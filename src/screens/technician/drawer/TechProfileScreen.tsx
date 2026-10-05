@@ -1,4 +1,5 @@
 // src/screens/technician/drawer/TechProfileScreen.tsx
+import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Image, ScrollView, Modal,
@@ -9,7 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/theme';
 import { pick, types as pickerTypes } from '@react-native-documents/picker';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -265,7 +266,7 @@ export default function TechProfileScreen() {
   const handleProfilePhoto = async (source: 'camera' | 'gallery') => {
     setShowPhotoSourceModal(false);
     const result = source === 'camera'
-      ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.8 })
+      ? await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.8 })
       : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.8 });
 
     const asset = result.assets?.[0];

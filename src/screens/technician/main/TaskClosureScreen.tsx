@@ -1,4 +1,5 @@
 // src/screens/technician/main/TaskClosureScreen.tsx
+import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -31,7 +32,7 @@ import {
   TaskClosureDeviceInfoList,
   TaskClosureUsedItemDetailsDto,
 } from '../../../api/task/task.types';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { getAllchkpointCategory, postChkpointData } from '../../../api/fsrManagement/fsrManagementService';
 import { requestLocationPermission, getCurrentPosition, getAddressFromCoordinates, Coordinates } from '../../../utils/locationPermision';
 import { buildImagesPayload } from '../../../utils/imagePayload';
@@ -713,7 +714,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
     const result =
       source === 'camera'
-        ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7 })
+        ? await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.7 })
         : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
 
     const asset = result.assets?.[0];

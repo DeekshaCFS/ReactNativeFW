@@ -1,5 +1,6 @@
 // src/screens/admin/AdminProfileScreen.tsx
 
+import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Image, ScrollView, Modal,
@@ -8,7 +9,7 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme/theme';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -225,7 +226,7 @@ export default function AdminProfileScreen() {
   const handlePickImage = async (source: 'camera' | 'gallery') => {
     setShowPhotoSourceModal(false);
     const result = source === 'camera'
-      ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.8 })
+      ? await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.8 })
       : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.8 });
 
     const asset = result.assets?.[0];

@@ -5,6 +5,7 @@
 // images, each tagged with a document type, at most 10 files and 5 MB in total.
 // Skip / close return to the dashboard; Save posts TaskList/UploadPostTaskDocs.
 
+import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -19,7 +20,6 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
-import { launchCamera } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
@@ -147,7 +147,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
 
   const takePhoto = async () => {
     try {
-      const result = await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
+      const result = await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
       const asset = result.assets?.[0];
       if (!asset?.uri || !asset.base64) return;
 

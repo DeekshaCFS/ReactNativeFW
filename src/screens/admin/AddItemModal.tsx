@@ -21,10 +21,10 @@ import {
   View,
 } from 'react-native';
 import {
-  launchCamera,
   launchImageLibrary,
   type Asset,
 } from 'react-native-image-picker';
+import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import {addItem, editItem, getItemGroup, getItemUnitType} from '../../api/item/itemService';
 import type {AddItem, ItemUnitTypeResultData} from '../../api/item/item.types';
 import {
@@ -296,7 +296,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
   };
 
   const captureImageFromCamera = async () => {
-    const result = await launchCamera({
+    const result = await launchCameraWithPermission({
       mediaType: 'photo',
       includeBase64: true,
       quality: 0.6,

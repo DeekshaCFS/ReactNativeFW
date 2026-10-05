@@ -7,6 +7,7 @@
 // are stamped. Not ported: Google Places address picker (plain text address,
 // lat/long "0"), contact-book picker. Opens as a sliding-up modal from the FAB.
 
+import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -24,7 +25,7 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { COLORS } from '../../theme/theme';
 import { scale, vs, sp } from '../../utils/responsive';
 import SearchPickerModal, { PickerOption } from '../../components/SearchPickerModal';
@@ -195,7 +196,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
       if (asset) setPhoto(slot, asset);
     };
     Alert.alert('Add/Capture Image', 'Choose an option', [
-      { text: 'Camera', onPress: async () => handle(await launchCamera(options), 'Camera') },
+      { text: 'Camera', onPress: async () => handle(await launchCameraWithPermission(options), 'Camera') },
       {
         text: 'Gallery',
         onPress: async () => handle(await launchImageLibrary({ ...options, selectionLimit: 1 }), 'Gallery'),

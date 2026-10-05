@@ -4,6 +4,7 @@
 // See BrandModelTabHost.tsx. Same shape as AddEditBrandModal.tsx, scoped
 // to a parent brandId.
 
+import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
@@ -19,7 +20,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import {launchCamera, launchImageLibrary, type Asset} from 'react-native-image-picker';
+import {launchImageLibrary, type Asset} from 'react-native-image-picker';
 import {COLORS} from '../../theme/theme';
 import {ms, scale, sp, vs} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
@@ -73,7 +74,7 @@ const AddEditModelModal: React.FC<Props> = ({visible, ownerId, brandId, brandNam
   };
 
   const captureImageFromCamera = async () => {
-    const result = await launchCamera({mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true});
+    const result = await launchCameraWithPermission({mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true});
     if (result.didCancel) return;
     if (result.errorCode) {
       Alert.alert('Camera', result.errorMessage || 'Unable to open camera.');

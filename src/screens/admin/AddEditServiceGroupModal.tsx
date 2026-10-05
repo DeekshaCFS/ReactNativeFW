@@ -6,6 +6,7 @@
 // different parent reference (Sub-Category needs its parent CategoryId).
 // See ServiceCategoryTabHost.tsx for the list/drill-down screen this feeds.
 
+import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
@@ -21,7 +22,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import {launchCamera, launchImageLibrary, type Asset} from 'react-native-image-picker';
+import {launchImageLibrary, type Asset} from 'react-native-image-picker';
 import {COLORS} from '../../theme/theme';
 import {ms, scale, sp, vs} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
@@ -94,7 +95,7 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
   };
 
   const captureImageFromCamera = async () => {
-    const result = await launchCamera({mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true});
+    const result = await launchCameraWithPermission({mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true});
     if (result.didCancel) return;
     if (result.errorCode) {
       Alert.alert('Camera', result.errorMessage || 'Unable to open camera.');
