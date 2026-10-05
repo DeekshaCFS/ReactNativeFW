@@ -139,7 +139,7 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
 
   const handlePost = async () => {
     if (scans.length === 0) {
-      Alert.alert('Nothing to post', 'Scan at least one QR code first.');
+      Alert.alert('Scan the QR Code to submit the data!');
       return;
     }
     setPosting(true);
@@ -178,57 +178,57 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.root}>
-      {loadingHistory ? (
-        <ActivityIndicator style={styles.loader} size="large" color={COLORS.primary} />
-      ) : (
-        <ScrollView contentContainerStyle={styles.content}>
-          {scans.length === 0 && (
-            <Text style={styles.emptyText}>No QR codes scanned yet for this task.</Text>
-          )}
+      <View style={styles.card}>
+        <Text style={styles.title}>QR Code Scanner</Text>
+        <View style={styles.divider} />
 
-          {scans.map(scan => (
-            <View key={scan.no} style={styles.scanCard}>
-              <View style={styles.scanCardHeader}>
-                <Text style={styles.scanCardTitle}>Scan #{scan.no}</Text>
-                <Pressable onPress={() => removeScan(scan.no)} hitSlop={8}>
-                  <Ionicons name="close-circle" size={sp(22)} color="#c0392b" />
-                </Pressable>
-              </View>
-              {scan.fields.length === 0 ? (
-                <Text style={styles.fieldRow}>(no readable fields in this code)</Text>
-              ) : (
-                scan.fields.map((field, idx) => (
-                  <Text key={idx} style={styles.fieldRow}>
-                    <Text style={styles.fieldName}>{field.name}: </Text>
-                    {field.value}
-                  </Text>
-                ))
-              )}
-            </View>
-          ))}
-        </ScrollView>
-      )}
-
-      <View style={styles.footer}>
         <Pressable
           style={[styles.scanButton, !canScanMore && styles.buttonDisabled]}
           onPress={openScanner}
           disabled={!canScanMore}
         >
+          <Text style={styles.scanButtonText}>SCAN QR</Text>
           <Ionicons name="qr-code-outline" size={sp(20)} color="#fff" />
-          <Text style={styles.scanButtonText}>Scan QR Code</Text>
         </Pressable>
-        <Pressable
-          style={[styles.postButton, (posting || scans.length === 0) && styles.buttonDisabled]}
-          onPress={handlePost}
-          disabled={posting || scans.length === 0}
-        >
-          {posting ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.postButtonText}>Post</Text>
-          )}
-        </Pressable>
+
+        {loadingHistory ? (
+          <ActivityIndicator style={styles.loader} size="large" color={COLORS.primary} />
+        ) : (
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            {scans.map(scan => (
+              <View key={scan.no} style={styles.scanCard}>
+                <View style={styles.scanCardHeader}>
+                  <Text style={styles.scanCardTitle}>Scan #{scan.no}</Text>
+                  <Pressable onPress={() => removeScan(scan.no)} hitSlop={8}>
+                    <Ionicons name="close-circle" size={sp(22)} color={COLORS.primary} />
+                  </Pressable>
+                </View>
+                {scan.fields.length === 0 ? (
+                  <Text style={styles.fieldRow}>(no readable fields in this code)</Text>
+                ) : (
+                  scan.fields.map((field, idx) => (
+                    <Text key={idx} style={styles.fieldRow}>
+                      <Text style={styles.fieldName}>{field.name}: </Text>
+                      {field.value}
+                    </Text>
+                  ))
+                )}
+              </View>
+            ))}
+
+            <Pressable
+              style={[styles.postButton, posting && styles.buttonDisabled]}
+              onPress={handlePost}
+              disabled={posting}
+            >
+              {posting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.postButtonText}>SUBMIT</Text>
+              )}
+            </Pressable>
+          </ScrollView>
+        )}
       </View>
 
       <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => setScannerOpen(false)}>
@@ -258,16 +258,26 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f5f5f5' },
-  loader: { flex: 1 },
-  content: { padding: ms(16), paddingBottom: ms(100) },
-  emptyText: { textAlign: 'center', color: '#777', marginTop: ms(40), fontSize: sp(14) },
+  root: { flex: 1, backgroundColor: COLORS.primary },
+  card: {
+    flex: 1,
+    marginTop: ms(6),
+    backgroundColor: '#fff',
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
+    paddingHorizontal: ms(20),
+  },
+  title: { fontSize: sp(22), color: COLORS.black, textAlign: 'center', marginTop: ms(14) },
+  divider: { height: 1, backgroundColor: '#9CA3AF', marginVertical: ms(20) },
+  loader: { marginTop: ms(30) },
+  content: { paddingTop: ms(14), paddingBottom: ms(30) },
   scanCard: {
     backgroundColor: '#fff',
     borderRadius: ms(12),
+    borderWidth: 1,
+    borderColor: '#d2d2d2',
     padding: ms(14),
     marginBottom: ms(12),
-    elevation: 1,
   },
   scanCardHeader: {
     flexDirection: 'row',
@@ -278,34 +288,25 @@ const styles = StyleSheet.create({
   scanCardTitle: { fontSize: sp(15), fontWeight: '700', color: '#222' },
   fieldRow: { fontSize: sp(13), color: '#444', marginBottom: ms(4) },
   fieldName: { fontWeight: '600', color: '#222' },
-  footer: {
-    flexDirection: 'row',
-    padding: ms(14),
-    gap: ms(12),
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
   scanButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.primary,
-    borderRadius: ms(10),
-    paddingVertical: ms(12),
+    borderRadius: ms(30),
+    height: ms(44),
     gap: ms(8),
   },
-  scanButtonText: { color: '#fff', fontSize: sp(14), fontWeight: '600' },
+  scanButtonText: { color: '#fff', fontSize: sp(14), fontWeight: '600', letterSpacing: 0.5 },
   postButton: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2e7d32',
-    borderRadius: ms(10),
-    paddingVertical: ms(12),
+    backgroundColor: COLORS.black,
+    borderRadius: ms(30),
+    height: ms(44),
+    marginTop: ms(8),
   },
-  postButtonText: { color: '#fff', fontSize: sp(14), fontWeight: '600' },
+  postButtonText: { color: '#fff', fontSize: sp(16), fontWeight: '500' },
   buttonDisabled: { opacity: 0.5 },
   cameraRoot: { flex: 1, backgroundColor: '#000' },
   cameraClose: { position: 'absolute', top: ms(48), right: ms(20), zIndex: 1 },

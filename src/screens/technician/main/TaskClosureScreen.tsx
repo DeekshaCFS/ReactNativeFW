@@ -96,9 +96,9 @@ interface WorkModeOption {
 }
 
 const WORK_MODES: WorkModeOption[] = [
-  { Id: 1, WorkModeType: 'New Installation' },
+  { Id: 1, WorkModeType: 'Installation' },
   { Id: 2, WorkModeType: 'Repair' },
-  { Id: 3, WorkModeType: 'Service' },
+  { Id: 3, WorkModeType: 'Services' },
 ];
 
 const TASK_STATUS = {

@@ -376,15 +376,12 @@ export default function TaskInputScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   redBg: { 
-    height: HEADER_TOP_PADDING + hp(2), 
-    backgroundColor: COLORS.primary,
+    height: hp(2), 
   },
 
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
     overflow: 'hidden',
   },
   header: {
@@ -392,7 +389,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: scale(20),
-    paddingTop: vs(10),
+    //paddingTop: vs(10),
     paddingBottom: vs(14),
   },
   headerTitle: {
