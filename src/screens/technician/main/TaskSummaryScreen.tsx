@@ -186,13 +186,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
         isHngClient = false;
       }
 
-      // In Warranty (AMC) tasks are not billed to the customer, so there is nothing to
-      // collect: skip the payment screen even for HNG clients. Out of Warranty (Rate)
-      // tasks go to payment.
-      const isInWarranty =
-        (task.PaymentMode ?? '').toLowerCase() === 'amc' || task.PaymentModeId === 1;
-
-      if (!isInWarranty && (isHngClient || isRateMode)) {
+      if (isHngClient || isRateMode) {
         // The closure is already saved: back from Payment must not return to Summary,
         // where Submit would post the closure a second time.
         resetToTabsThen(navigation, { name: 'PaymentReceived', params: { task, elapsedSeconds } });

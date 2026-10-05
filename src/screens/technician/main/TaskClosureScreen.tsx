@@ -2319,7 +2319,7 @@ const sigModalStyles = StyleSheet.create({
     width: vs(180),
   },
   roundedInput: {
-    height: vs(40),
+    height: vs(45),
     borderWidth: 1.2,
     borderColor: '#a6a6a6',
     borderRadius: scale(30),

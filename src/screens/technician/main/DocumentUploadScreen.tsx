@@ -1,9 +1,15 @@
 // src/screens/technician/main/DocumentUploadScreen.tsx
 //
 // Port of Java's Document/DocumentUploadFragment. Shown after a task is closed (for a
-// non-Rate, non-HNG task) so the technician can attach completion documents: PDFs or
-// images, each tagged with a document type, at most 10 files and 5 MB in total.
-// Skip / close return to the dashboard; Save posts TaskList/UploadPostTaskDocs.
+// non-Rate, non-HNG task, or after payment) so the technician can attach completion
+// documents: PDFs or images, each tagged with a document type, at most 10 files and 5 MB
+// in total. Presented as a sheet over the tab bar (Java swaps it in under the app
+// header, above the bottom navigation). Skip / close return to the dashboard; Upload
+// posts TaskList/UploadPostTaskDocs.
+//
+// Two modes, like the Java segmented control:
+//   Attach  - pick PDF / image files from storage.
+//   Capture - up to 5 photos (camera or gallery), each with its own document type.
 
 import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useEffect, useState } from 'react';
@@ -16,14 +22,18 @@ import {
   Alert,
   Modal,
   FlatList,
+  Image,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { scale, vs, sp, ms } from '../../../utils/responsive';
+import { HEADER_CONTENT_HEIGHT } from '../../../components/AppHeader';
 import { getDocumentTypes, uploadTaskDoc } from '../../../api/taskList/taskListService';
 import type { DocAttachmentType } from '../../../api/taskList/taskList.types';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
@@ -32,7 +42,11 @@ import { finishTaskFlowToHome } from '../../../navigation/taskFlowNavigation';
 // Java: DocumentUploadFragment limits.
 const MAX_TOTAL_MB = 5;
 const MAX_FILES = 10;
+const MAX_CAPTURE_SLOTS = 5;
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
+
+const GREEN = '#4CAF50';
+const SKIP_GREY = '#9CA3B0';
 
 interface SelectedFile {
   key: string;
@@ -46,19 +60,27 @@ interface SelectedFile {
   documentName: string;
 }
 
+type Mode = 'attach' | 'capture';
+
 const base64Bytes = (b64: string) => Math.floor((b64.length * 3) / 4);
 const toMB = (bytes: number) => bytes / (1024 * 1024);
 const formatMB = (mb: number) => mb.toFixed(2);
 
 export default function DocumentUploadScreen({ navigation, route }: any) {
   const { task } = route.params as { task: Task };
+  const insets = useSafeAreaInsets();
 
+  const [mode, setMode] = useState<Mode>('attach');
   const [docTypes, setDocTypes] = useState<DocAttachmentType[]>([]);
   const [files, setFiles] = useState<SelectedFile[]>([]);
+  const [slots, setSlots] = useState<(SelectedFile | null)[]>(() =>
+    Array.from({ length: MAX_CAPTURE_SLOTS }, () => null),
+  );
   const [typePickerFor, setTypePickerFor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const totalMB = files.reduce((sum, f) => sum + toMB(f.sizeBytes), 0);
+  const activeFiles = mode === 'attach' ? files : slots.filter((s): s is SelectedFile => !!s);
+  const totalMB = activeFiles.reduce((sum, f) => sum + toMB(f.sizeBytes), 0);
   const remainingMB = MAX_TOTAL_MB - totalMB;
 
   // Java: getDocumentAttachmentType() -> TaskList/GetDocumentTypes on open.
@@ -74,26 +96,12 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
     })();
   }, []);
 
-  // Java's validation, applied as each file is added.
-  const addFile = (file: Omit<SelectedFile, 'key' | 'documentId' | 'documentName'>): boolean => {
-    if (files.length >= MAX_FILES) {
-      Alert.alert('', `You can upload only ${MAX_FILES} files`);
-      return false;
-    }
-    const sizeMB = toMB(file.sizeBytes);
-    if (sizeMB > MAX_TOTAL_MB) {
-      Alert.alert('', `${file.name} is larger than ${MAX_TOTAL_MB} MB`);
-      return false;
-    }
-    if (sizeMB > remainingMB) {
-      Alert.alert('', `Not enough space. You can upload only ${formatMB(remainingMB)} MB more`);
-      return false;
-    }
-    setFiles(prev => [
-      ...prev,
-      { ...file, key: `${Date.now()}_${Math.random()}`, documentId: 0, documentName: '' },
-    ]);
-    return true;
+  // Java: switching the segment clears whatever was picked in the other one.
+  const switchMode = (next: Mode) => {
+    if (next === mode) return;
+    setMode(next);
+    setFiles([]);
+    setSlots(Array.from({ length: MAX_CAPTURE_SLOTS }, () => null));
   };
 
   const attachFiles = async () => {
@@ -145,46 +153,78 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
     }
   };
 
-  const takePhoto = async () => {
+  const removeFile = (key: string) => setFiles(prev => prev.filter(f => f.key !== key));
+
+  // ── Capture mode ──
+  const captureIntoSlot = async (index: number, source: 'camera' | 'gallery') => {
     try {
-      const result = await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
+      const options = { mediaType: 'photo' as const, includeBase64: true, quality: 0.7 as const };
+      const result =
+        source === 'camera'
+          ? await launchCameraWithPermission(options)
+          : await launchImageLibrary(options);
       const asset = result.assets?.[0];
       if (!asset?.uri || !asset.base64) return;
+
+      const sizeBytes = base64Bytes(asset.base64);
+      const others = slots.reduce(
+        (sum, s, i) => (i !== index && s ? sum + toMB(s.sizeBytes) : sum),
+        0,
+      );
+      if (toMB(sizeBytes) + others > MAX_TOTAL_MB) {
+        Alert.alert(
+          '',
+          `Total size exceeded! You can upload only ${formatMB(Math.max(MAX_TOTAL_MB - others, 0))} MB more.`,
+        );
+        return;
+      }
 
       const d = new Date();
       const p = (n: number) => String(n).padStart(2, '0');
       const name =
         `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_` +
-        `${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.jpg`;
+        `${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}_${index + 1}.jpg`;
 
-      addFile({
-        uri: asset.uri,
-        name,
-        extension: 'jpg',
-        base64: asset.base64,
-        sizeBytes: base64Bytes(asset.base64),
-        isImage: true,
+      setSlots(prev => {
+        const next = [...prev];
+        next[index] = {
+          key: `slot-${index}`,
+          uri: asset.uri!,
+          name,
+          extension: 'jpg',
+          base64: asset.base64!,
+          sizeBytes,
+          isImage: true,
+          documentId: prev[index]?.documentId ?? 0,
+          documentName: prev[index]?.documentName ?? '',
+        };
+        return next;
       });
     } catch {
-      Alert.alert('Error', 'Could not open the camera');
+      Alert.alert('Error', 'Could not load the photo');
     }
   };
 
-  const removeFile = (key: string) => setFiles(prev => prev.filter(f => f.key !== key));
+  // Java: showImageSourceChooser() -> "Select Image Source" with Camera / Gallery.
+  const pickSlotPhoto = (index: number) =>
+    Alert.alert('Select Image Source', undefined, [
+      { text: 'Camera', onPress: () => captureIntoSlot(index, 'camera') },
+      { text: 'Gallery', onPress: () => captureIntoSlot(index, 'gallery') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
 
   const setFileType = (key: string, type: DocAttachmentType) => {
-    setFiles(prev =>
-      prev.map(f =>
-        f.key === key
-          ? { ...f, documentId: type.DocumentId ?? 0, documentName: type.DocumentName ?? '' }
-          : f,
-      ),
-    );
+    const apply = (f: SelectedFile): SelectedFile =>
+      f.key === key
+        ? { ...f, documentId: type.DocumentId ?? 0, documentName: type.DocumentName ?? '' }
+        : f;
+    setFiles(prev => prev.map(apply));
+    setSlots(prev => prev.map(s => (s ? apply(s) : s)));
     setTypePickerFor(null);
   };
 
   const handleSave = async () => {
-    if (files.length === 0) {
+    if (activeFiles.length === 0) {
       Alert.alert('', 'To upload : PDF or Image is compulsory !');
       return;
     }
@@ -201,7 +241,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
         UserId: Number(uid),
         TaskId: task.Id,
         CustomerId: task.CustomerDetailsid,
-        Files: files.map(f => ({
+        Files: activeFiles.map(f => ({
           OriginalFileName: f.name,
           FileExtension: f.extension,
           Base64File: f.base64,
@@ -225,70 +265,120 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
     }
   };
 
+  const TypeSelect = ({
+    fileKey,
+    name,
+    disabled,
+    width,
+  }: {
+    fileKey: string;
+    name?: string;
+    disabled?: boolean;
+    width?: number;
+  }) => (
+    <Pressable
+      style={[styles.typeBox, width ? { width } : null, disabled && { opacity: 0.4 }]}
+      onPress={() => setTypePickerFor(fileKey)}
+      disabled={disabled}
+    >
+      <Text style={styles.typeText} numberOfLines={1}>{name || 'Select Type'}</Text>
+      <Ionicons name="caret-down" size={sp(12)} color="#6B7280" />
+    </Pressable>
+  );
+
+  // The sheet sits between the app header and the bottom tab bar, which stay visible
+  // behind this transparent screen (Java: fragment under the header, above the nav bar).
+  const sheetTop = insets.top + HEADER_CONTENT_HEIGHT;
+  const sheetBottom = ms(66) + Math.max(insets.bottom, ms(4)) + ms(6);
+
   return (
-    <View style={styles.root}>
-      <View style={styles.redBg} />
-      <View style={styles.sheet}>
+    <View style={styles.root} pointerEvents="box-none">
+      <View style={[styles.sheet, { top: sheetTop, bottom: sheetBottom }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Upload Documents</Text>
+          <Text style={styles.headerTitle}>Document Upload</Text>
           <Pressable style={styles.closeBtn} onPress={() => finishTaskFlowToHome(navigation)} hitSlop={8}>
-            <Ionicons name="close" size={sp(16)} color="#fff" />
+            <Ionicons name="close" size={sp(20)} color="#fff" />
           </Pressable>
         </View>
         <View style={styles.headerDivider} />
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={styles.subtitle}>
-            Attach completion documents (PDF or image). Up to {MAX_FILES} files, {MAX_TOTAL_MB} MB in total.
-          </Text>
-
-          <View style={styles.attachRow}>
-            <Pressable style={styles.attachBtn} onPress={attachFiles}>
-              <Ionicons name="document-attach-outline" size={sp(22)} color={COLORS.primary} />
-              <Text style={styles.attachBtnText}>Attach File</Text>
+        {/* Attach / Capture segmented control */}
+        <View style={styles.segmentRow}>
+          <View style={styles.segment}>
+            <Pressable
+              style={[styles.segmentHalf, styles.segmentLeft, mode === 'attach' ? styles.attachOn : styles.attachOff]}
+              onPress={() => switchMode('attach')}
+            >
+              <Text style={[styles.segmentText, mode === 'attach' && styles.segmentTextOn]}>Attach</Text>
             </Pressable>
-            <Pressable style={styles.attachBtn} onPress={takePhoto}>
-              <Ionicons name="camera-outline" size={sp(22)} color={COLORS.primary} />
-              <Text style={styles.attachBtnText}>Take Photo</Text>
+            <Pressable
+              style={[styles.segmentHalf, styles.segmentRight, mode === 'capture' ? styles.captureOn : styles.captureOff]}
+              onPress={() => switchMode('capture')}
+            >
+              <Text style={[styles.segmentText, mode === 'capture' && styles.segmentTextOn]}>Capture</Text>
             </Pressable>
           </View>
+        </View>
 
-          <Text style={styles.remaining}>
-            {files.length} file{files.length === 1 ? '' : 's'} · {formatMB(Math.max(remainingMB, 0))} MB remaining
-          </Text>
+        {mode === 'attach' ? (
+          <View style={styles.panelAttach}>
+            <Text style={styles.panelText}>* Upload Attachment Here [Upto 5 MB Limit]</Text>
+            <Pressable style={styles.attachBox} onPress={attachFiles}>
+              <Ionicons name="share-outline" size={sp(24)} color={COLORS.primary} style={styles.attachIcon} />
+              <Text style={styles.attachLabel}>Attachment</Text>
+            </Pressable>
 
-          {files.map(f => (
-            <View key={f.key} style={styles.fileCard}>
-              <View style={styles.fileTop}>
-                <Ionicons
-                  name={f.isImage ? 'image-outline' : 'document-text-outline'}
-                  size={sp(22)}
-                  color={COLORS.primary}
-                />
-                <View style={{ flex: 1 }}>
+            <ScrollView
+              style={{ marginTop: vs(15) }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {files.map(f => (
+                <View key={f.key} style={styles.fileRow}>
+                  {f.isImage ? (
+                    <Image source={{ uri: f.uri }} style={styles.fileIcon} />
+                  ) : (
+                    <Ionicons name="document-text-outline" size={sp(32)} color={COLORS.primary} />
+                  )}
                   <Text style={styles.fileName} numberOfLines={1}>{f.name}</Text>
-                  <Text style={styles.fileSize}>{formatMB(toMB(f.sizeBytes))} MB</Text>
+                  <TypeSelect fileKey={f.key} name={f.documentName} width={scale(110)} />
+                  <Pressable onPress={() => removeFile(f.key)} hitSlop={8} style={styles.removeBtn}>
+                    <Ionicons name="close" size={sp(18)} color="#374151" />
+                  </Pressable>
                 </View>
-                <Pressable onPress={() => removeFile(f.key)} hitSlop={8}>
-                  <Ionicons name="trash-outline" size={sp(20)} color={COLORS.primary} />
-                </Pressable>
-              </View>
-              <Pressable style={styles.typeBox} onPress={() => setTypePickerFor(f.key)}>
-                <Text style={[styles.typeText, !f.documentName && { color: '#a6a6a6' }]}>
-                  {f.documentName || 'Select Type'}
-                </Text>
-                <Ionicons name="chevron-down" size={sp(18)} color="#000" />
-              </Pressable>
-            </View>
-          ))}
-        </ScrollView>
+              ))}
+            </ScrollView>
+          </View>
+        ) : (
+          <View style={styles.panelCapture}>
+            <Text style={styles.panelText}>Click here to capture Images upto 5 if any !</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.slotRow}
+            >
+              {slots.map((slot, i) => (
+                <View key={i} style={styles.slotCol}>
+                  <Pressable style={styles.slotBox} onPress={() => pickSlotPhoto(i)}>
+                    {slot ? (
+                      <Image source={{ uri: slot.uri }} style={styles.slotImage} />
+                    ) : (
+                      <Ionicons name="camera-outline" size={sp(44)} color="#848891" />
+                    )}
+                  </Pressable>
+                  <TypeSelect fileKey={`slot-${i}`} name={slot?.documentName} disabled={!slot} width={scale(120)} />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         <View style={styles.footer}>
           <Pressable style={[styles.footerBtn, styles.skipBtn]} onPress={() => finishTaskFlowToHome(navigation)} disabled={saving}>
-            <Text style={styles.skipText}>SKIP</Text>
+            <Text style={styles.footerText}>SKIP</Text>
           </Pressable>
           <Pressable style={[styles.footerBtn, styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>UPLOAD</Text>}
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.footerText}>UPLOAD</Text>}
           </Pressable>
         </View>
       </View>
@@ -323,82 +413,149 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.primary },
-  redBg: { height: HEADER_TOP_PADDING + hp(2), backgroundColor: COLORS.primary },
+  root: { flex: 1, backgroundColor: 'transparent' },
   sheet: {
-    flex: 1,
+    position: 'absolute',
+    left: 0,
+    right: 0,
     backgroundColor: '#fff',
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
+    borderTopLeftRadius: scale(30),
+    borderTopRightRadius: scale(30),
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: scale(20),
-    paddingTop: vs(10),
-    paddingBottom: vs(14),
+    justifyContent: 'center',
+    paddingTop: vs(8),
+    minHeight: vs(48),
   },
-  headerTitle: { color: '#000', fontSize: sp(24), fontWeight: '400' },
+  headerTitle: { color: '#000', fontSize: sp(22), textAlign: 'center' },
   closeBtn: {
-    width: scale(28),
-    height: scale(28),
-    borderRadius: scale(14),
+    position: 'absolute',
+    right: scale(28),
+    top: vs(10),
+    width: scale(36),
+    height: scale(36),
+    borderRadius: scale(18),
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerDivider: { height: 2, backgroundColor: '#a6a6a6', marginHorizontal: scale(20) },
-  content: { padding: scale(16), paddingBottom: vs(24) },
-  subtitle: { fontSize: sp(14), color: COLORS.textMuted, marginBottom: vs(14) },
-  attachRow: { flexDirection: 'row', gap: scale(12) },
-  attachBtn: {
-    flex: 1,
-    height: vs(70),
+  headerDivider: { height: 1, backgroundColor: '#9CA3AF', marginHorizontal: scale(20), marginVertical: vs(8) },
+
+  segmentRow: { alignItems: 'center', marginTop: vs(6) },
+  segment: { flexDirection: 'row', width: scale(300), height: vs(44) },
+  segmentHalf: { flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  segmentLeft: { borderTopLeftRadius: scale(35), borderBottomLeftRadius: scale(35) },
+  segmentRight: { borderTopRightRadius: scale(35), borderBottomRightRadius: scale(35) },
+  attachOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  attachOff: { backgroundColor: '#fff', borderColor: COLORS.primary },
+  captureOn: { backgroundColor: GREEN, borderColor: GREEN },
+  captureOff: { backgroundColor: '#fff', borderColor: GREEN },
+  segmentText: { fontSize: sp(16), color: '#1d2536' },
+  segmentTextOn: { color: '#fff' },
+
+  panelAttach: {
+    margin: scale(10),
+    marginTop: vs(14),
+    height: vs(320),
+    borderRadius: scale(16),
+    backgroundColor: '#fcfafb',
+    paddingTop: vs(5),
+    paddingHorizontal: scale(8),
+  },
+  panelCapture: {
+    margin: scale(10),
+    marginTop: vs(14),
+    borderRadius: scale(16),
+    backgroundColor: '#fcfafb',
+    paddingVertical: vs(10),
+  },
+  panelText: { color: '#000', fontSize: sp(15), textAlign: 'center' },
+
+  attachBox: {
+    alignSelf: 'center',
+    marginTop: vs(12),
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: COLORS.primary,
-    borderRadius: scale(12),
+    borderColor: '#9CA3AF',
+    paddingVertical: vs(14),
+    paddingHorizontal: scale(20),
+  },
+  attachIcon: { marginRight: scale(18) },
+  attachLabel: { fontSize: sp(16), color: '#000' },
+
+  fileRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: vs(4),
-  },
-  attachBtnText: { fontSize: sp(14), color: COLORS.textPrimary },
-  remaining: { marginTop: vs(12), marginBottom: vs(8), fontSize: sp(13), color: COLORS.textMuted },
-  fileCard: {
+    gap: scale(8),
+    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: scale(12),
-    padding: scale(12),
-    marginBottom: vs(10),
+    borderColor: '#E5E7EB',
+    borderRadius: scale(10),
+    padding: scale(8),
+    margin: scale(4),
   },
-  fileTop: { flexDirection: 'row', alignItems: 'center', gap: scale(10) },
-  fileName: { fontSize: sp(15), color: COLORS.textPrimary },
-  fileSize: { fontSize: sp(12), color: COLORS.textMuted },
+  fileIcon: { width: scale(40), height: scale(40), borderRadius: scale(6) },
+  fileName: { flex: 1, fontSize: sp(14), color: '#000' },
+  removeBtn: { padding: scale(4) },
+
   typeBox: {
-    marginTop: vs(10),
-    height: vs(42),
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: scale(21),
-    paddingHorizontal: scale(14),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: scale(4),
+    paddingVertical: vs(6),
+    paddingHorizontal: scale(6),
+    borderBottomWidth: 1,
+    borderBottomColor: '#9CA3AF',
   },
-  typeText: { fontSize: sp(15), color: '#000' },
+  typeText: { flex: 1, fontSize: sp(14), color: '#374151' },
+
+  slotRow: { padding: scale(10), gap: scale(10) },
+  slotCol: { alignItems: 'center', marginRight: scale(10) },
+  slotBox: {
+    width: scale(100),
+    height: scale(100),
+    borderWidth: 1,
+    borderColor: '#848484',
+    borderRadius: scale(12),
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    marginBottom: vs(6),
+  },
+  slotImage: { width: '100%', height: '100%' },
+
   footer: {
     flexDirection: 'row',
-    gap: scale(12),
-    paddingHorizontal: scale(16),
-    paddingBottom: vs(16),
-    paddingTop: vs(8),
+    margin: scale(10),
+    marginTop: vs(20),
   },
-  footerBtn: { flex: 1, height: vs(50), borderRadius: scale(30), alignItems: 'center', justifyContent: 'center' },
-  skipBtn: { backgroundColor: '#E5E7EB' },
-  skipText: { color: '#6B7280', fontSize: sp(16), letterSpacing: 1.2 },
-  saveBtn: { backgroundColor: '#2B2B2B' },
-  saveText: { color: '#fff', fontSize: sp(16), letterSpacing: 1.2 },
+  footerBtn: {
+    flex: 1,
+    marginHorizontal: scale(20),
+    height: vs(52),
+    borderRadius: scale(30),
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  skipBtn: { backgroundColor: SKIP_GREY },
+  saveBtn: { backgroundColor: '#52B350' },
+  footerText: { color: '#fff', fontSize: sp(20), fontWeight: '500' },
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: scale(24) },
   modalCard: { backgroundColor: '#fff', borderRadius: scale(16), padding: scale(16), maxHeight: '60%' },
   modalTitle: { fontSize: sp(18), marginBottom: vs(8), color: COLORS.textPrimary },

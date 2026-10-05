@@ -102,8 +102,17 @@ export default function TechnicianStack() {
       <Stack.Screen name="TaskTracking" component={TaskTrackingScreen} options={{ title: 'Tasks' }} />
       <Stack.Screen name="TaskClosure" component={TaskClosureScreen} options={{ title: 'Task Details' }} />
       <Stack.Screen name="TaskSummary" component={TaskSummaryScreen} options={{ title: 'Summary Details' }} />
-      <Stack.Screen name="PaymentReceived" component={PaymentReceivedScreen} options={{ title: 'Payment' }} />
-      <Stack.Screen name="DocumentUpload" component={DocumentUploadScreen} options={{ title: 'Upload Documents', headerShown: false }} />
+      <Stack.Screen name="PaymentReceived" component={PaymentReceivedScreen} options={{ title: 'Task' }} />
+      <Stack.Screen
+        name="DocumentUpload"
+        component={DocumentUploadScreen}
+        options={{
+          title: 'Upload Documents',
+          headerShown: false,
+          presentation: 'transparentModal',
+          animation: 'slide_from_bottom',
+        }}
+      />
       <Stack.Screen name="ItemRequest" component={ItemRequestScreen} options={{ title: 'Task Details' }} />
       <Stack.Screen name="TaskInput" component={TaskInputScreen} options={{ title: 'Task Details' }} />
       <Stack.Screen name="QRScanHistory" component={QRScanHistoryScreen} options={{ title: 'Scan Item QR' }} />

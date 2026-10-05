@@ -21,8 +21,18 @@ export const COLORS = {
   textOnPrimary: '#FFFFFF',
   textMuted:     '#6B7280',
 
-  border:        '#F1C4C8',
   disabled:      '#D8A1A7',
+
+  success: '#03de73',
+  warning: '#D98C00',
+  danger: '#C8102E',
+
+  // Grays
+  charcoal: '#2B2B2E',
+  slate: '#5F6368',
+  midGray: '#8A8D91',
+  border: '#E6E6E9',
+  surfaceGray: '#F4F4F6',
 } as const;
 
 export const TEXT = {
