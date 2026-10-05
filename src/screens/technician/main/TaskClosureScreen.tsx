@@ -969,6 +969,22 @@ export default function TaskClosure({ navigation, route }: any) {
           customerNumber,
           rating,
           ratingRemark,
+          // Java summary: assigned items with assigned/used qty and price, followed by
+          // items added during the task (used qty shown in both columns).
+          items: [
+            ...assignedSlots.map(s => {
+              const used = Number(s.usedQty) || 0;
+              const sales =
+                routeTask.MultipleItemAssigned?.find(
+                  a => a.ItemId === s.ItemId && a.ItemIssuedId === s.ItemIssuedId,
+                )?.SalesPrice ?? 0;
+              return { name: s.ItemName, assignedQty: s.AssignedQty, usedQty: used, price: used * sales };
+            }),
+            ...filledAdHoc.map(s => {
+              const used = Number(s.usedQty) || 0;
+              return { name: s.itemName, assignedQty: used, usedQty: used, price: used * s.salesPrice };
+            }),
+          ],
           fieldPhotoUris: fieldPhotos.filter((p): p is PhotoAsset => !!p?.uri).map(p => p.uri),
           customerPhotoUri: customerPhoto?.uri,
           techPhotoUri: techPhoto?.uri,
@@ -2393,7 +2409,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   redBg: {
-    height: HEADER_TOP_PADDING + vs(10),
+    height: vs(10),
     backgroundColor: COLORS.primary,
   },
   scroll: {
