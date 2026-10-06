@@ -57,14 +57,14 @@ export const vs = (size: number): number =>
   Math.round(heightRatio * size);
 
 /** Moderate scale — less aggressive scaling for fonts/padding */
+// Not rounded to whole numbers: RN takes fractional dp, and rounding up turned 14sp into
+// 15sp (~7% wider text than the Java app, which uses exact dp/sp).
 export const ms = (size: number, factor = 0.5): number =>
-  Math.round(size + (scale(size) - size) * factor);
+  size + (size * widthRatio - size) * factor;
 
 /** Scalable font size that respects user font size preferences */
-export const sp = (size: number): number => {
-  const scaled = ms(size);
-  return Math.round(scaled / PixelRatio.getFontScale());
-};
+export const sp = (size: number): number =>
+  ms(size) / PixelRatio.getFontScale();
 
 export const isIOS = Platform.OS === 'ios';
 export const isAndroid = Platform.OS === 'android';
