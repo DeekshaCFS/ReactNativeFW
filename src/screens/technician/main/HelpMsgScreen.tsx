@@ -11,13 +11,9 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp } from '../../../utils/responsive';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { TechnicianStackParamList } from '../../../navigation/TechStack';
 
-type NavigationProp = NativeStackNavigationProp<
-  TechnicianStackParamList,
-  'helpMessages'
->;
+// Only the admin stack still uses this screen (technician Help is HelpChatScreen).
+type NavigationProp = any;
 
 export default function HelpMessagesScreen() {
   const navigation = useNavigation<NavigationProp>();

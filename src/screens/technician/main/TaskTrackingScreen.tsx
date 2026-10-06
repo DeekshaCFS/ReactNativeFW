@@ -3,8 +3,9 @@ import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, Image, TouchableOpacity,
-  ScrollView, Modal, TextInput, Platform, StatusBar, Alert, Linking
+  ScrollView, TextInput, Platform, StatusBar, Alert, Linking
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
@@ -12,7 +13,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { useTaskStatus, TaskStatusAmbiguousError } from '../../../hooks/useTaskStatus';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { scale, vs, sp, ms, hp } from '../../../utils/responsive';
+import { scale, vs, sp, ms } from '../../../utils/responsive';
 import { launchImageLibrary } from 'react-native-image-picker';
 
 const REJECTION_REASONS = [
@@ -70,7 +71,7 @@ export default function TaskTrackingScreen({ navigation, route }: Props) {
   // Java: ValidateTaskDetails -> 201 "No Data Found." sends the user home to refresh.
   const handleTaskUnavailable = () =>
     Alert.alert('Task Unavailable', 'This task is no longer available. Refreshing your tasks.', [
-      { text: 'OK', onPress: () => navigation.popTo('TechnicianTabsRoot', { screen: 'Home' }) },
+      { text: 'OK', onPress: () => navigation.navigate('Home') },
     ]);
   const isLoading = actionState === 'loading';
   const userId    = task.UserId ?? 0;
@@ -136,7 +137,7 @@ export default function TaskTrackingScreen({ navigation, route }: Props) {
     setSheetVisible(false);
     // replace, not push: Java swaps fragments without a back stack, so "back" from the
     // next step must not land on this Accept sheet and post the accept again.
-    navigation.replace('TaskRouteMap', { task: updated });
+    navigation.navigate('TaskRouteMap', { task: updated });
   };
 
   // OnHold -> Ongoing. Java skips the route map and opens the countdown screen directly
@@ -154,7 +155,7 @@ export default function TaskTrackingScreen({ navigation, route }: Props) {
     }
 
     setSheetVisible(false);
-    navigation.replace('TaskExecution', { task: resumed });
+    navigation.navigate('TaskExecution', { task: resumed });
   };
 
   const handleRejectConfirm = async () => {
@@ -401,7 +402,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: scale(28),
     borderTopRightRadius: scale(28),
-    maxHeight: hp(88),
+    maxHeight: '88%',
   },
   sheetScroll: { padding: scale(20), paddingBottom: vs(24) },
   titleRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: vs(16) },

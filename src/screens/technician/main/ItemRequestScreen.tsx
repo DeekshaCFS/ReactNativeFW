@@ -13,12 +13,12 @@ import {
   Alert,
   ActivityIndicator,
   Image,
-  Modal,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, wp } from '../../../utils/responsive';
+import { scale, vs, sp } from '../../../utils/responsive';
 import { getLargeItemAssignedUnassigned } from '../../../api/item/itemService';
 import { postFocDetails, getFocAttachmentList } from '../../../api/focItemRequest/focItemRequestService';
 import { pick } from '@react-native-documents/picker';
@@ -435,7 +435,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
             onPress: () => {
               // From the on-hold sheet: return to Execution and reopen that sheet.
               if (route?.params?.fromOnHold) {
-                navigation.popTo('TaskExecution', { task: routeTask, reopenOnHold: true });
+                navigation.navigate('TaskExecution', { task: routeTask, reopenOnHold: true });
               } else {
                 navigation.goBack();
               }
@@ -935,7 +935,7 @@ const styles = StyleSheet.create({
 
   // ── Quantity ──
   quantityWrap: {
-    width: wp(30),
+    width: scale(117),
     borderWidth: 1,
     borderColor: '#a6a6a6',
     borderRadius: scale(30),

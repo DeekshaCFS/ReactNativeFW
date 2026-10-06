@@ -12,13 +12,13 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
-  Modal,
   FlatList,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, HEADER_TOP_PADDING, hp } from '../../../utils/responsive';
+import { scale, vs, sp } from '../../../utils/responsive';
 import { getCustomFieldData, postTaskCustomField } from '../../../api/users/usersService';
 import type { CustomFieldDTOResultData } from '../../../api/users/users.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -376,7 +376,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   redBg: { 
-    height: hp(2), 
+    height: vs(17), 
   },
 
   container: {

@@ -1,6 +1,7 @@
 // src/navigation/CustomDrawerContent.tsx
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Image, Modal, Alert, PermissionsAndroid, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, Alert, PermissionsAndroid, Platform } from 'react-native';
+import Modal from '../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { DrawerContentComponentProps } from '@react-navigation/drawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -55,6 +56,8 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
   // Route name differs per role — see DrawerNavigator (AdminTabs → AdminStack,
   // TechnicianTabs → TechnicianStack).
   const tabsRoute = isAdmin ? 'AdminTabs' : 'TechnicianTabs';
+  // Stack route that hosts the tab navigator; drawer destinations are tab screens.
+  const tabsRootRoute = isAdmin ? 'AdminTabsRoot' : 'TechnicianTabsRoot';
 
   useEffect(() => {
     const loadSession = async () => {
@@ -155,7 +158,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
             style={styles.editProfile}
             onPress={() => {
               navigation.closeDrawer();
-              navigation.navigate(tabsRoute, { screen: 'Profile' });
+              navigation.navigate(tabsRoute, { screen: tabsRootRoute, params: { screen: 'Profile' } });
             }}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
@@ -237,7 +240,10 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
               return;
             }
             if (screen) {
-              navigation.navigate(tabsRoute, { screen });
+              navigation.navigate(tabsRoute, {
+                screen: tabsRootRoute,
+                params: { screen },
+              });
               return;
             }
             setShowCheckOutModal(true);

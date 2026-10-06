@@ -9,14 +9,15 @@
 // there's no admin-side equivalent to build.
 import {
   View, StyleSheet, Text, TextInput,
-  Pressable, Modal, Platform, StatusBar, ActivityIndicator,
+  Pressable, Platform, StatusBar, ActivityIndicator,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import { COLORS } from '../../../theme/theme';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ms, sp, scale, hp, vs, wp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { ms, sp, scale, hp, vs, wp, wps } from '../../../utils/responsive';
 import { getRoutineCustomerList } from '../../../api/fsrManagement/fsrManagementService';
 import type { RoutineServiceCustomerListDTOResultData } from '../../../api/fsrManagement/fsrManagement.types';
 import RoutineServiceAcceptModal from './RoutineServiceAcceptModal';
@@ -169,7 +170,7 @@ export default function ServiceScreen() {
 // (e.g. ~1024pt landscape) that scales to ~780pt, far too wide for a form
 // field or dropdown. Cap it so phones are unaffected but tablets get a
 // sensible max instead of a linear percentage.
-const FIELD_WIDTH = Math.min(wp(76), scale(340));
+const FIELD_WIDTH = Math.min(wps(76), scale(340));
 
 const styles = StyleSheet.create({
   root: {

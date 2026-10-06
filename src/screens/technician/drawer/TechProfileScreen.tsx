@@ -2,9 +2,10 @@
 import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, Image, ScrollView, Modal,
+  View, Text, TextInput, StyleSheet, Image, ScrollView,
   Pressable, Alert, ActivityIndicator, Platform, StatusBar, TouchableOpacity, Linking,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -137,8 +138,6 @@ const fieldStyles = StyleSheet.create({
 export default function TechProfileScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const statusBarHeight =
-    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
 
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserResultData | null>(null);

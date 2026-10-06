@@ -14,10 +14,10 @@ import {
   ScrollView,
   ActivityIndicator,
   Pressable,
-  Modal,
   Alert,
   Linking,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import { scale, sp, ms } from '../../../utils/responsive';

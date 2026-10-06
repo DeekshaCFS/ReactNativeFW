@@ -3,21 +3,18 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { ms, sp } from '../../../utils/responsive';
+import { HELP_CHAT_URL } from './HelpChatScreen';
 
-type NavigationProp = NativeStackNavigationProp<
-  TechnicianStackParamList,
-  'help'
->;
+// Only the admin stack still uses this screen (technician Help is HelpChatScreen).
+type NavigationProp = any;
 
 // Java: HomeActivityNew's R.id.help handler -> addFragment(new ChatFragment()),
 // which loads this same tawk.to widget in a WebView. Intercom was wired up
 // elsewhere in the Java app but never successfully initialized at runtime
 // (missing string resources meant Intercom.initialize() always threw and was
 // silently swallowed) — tawk.to is what technicians actually see today.
-export const HELP_CHAT_URL = 'https://tawk.to/chat/65eada4b8d261e1b5f6a7448/1hoem9egj';
+export { HELP_CHAT_URL };
 
 export default function HelpScreen() {
 

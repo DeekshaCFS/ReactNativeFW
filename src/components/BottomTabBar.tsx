@@ -29,12 +29,15 @@ export type QuickAction = {
 
 type Props = BottomTabBarProps & {
   quickActions?: QuickAction[];
+  /** Tabs to list in the bar. The navigator may also hold screens that are
+   *  reachable but not tabs (pushed-style screens); those are left out. */
+  visibleTabs?: string[];
 };
 
-const BottomTabBar = ({ state, navigation, quickActions = [] }: Props) => {
+const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs }: Props) => {
   const [fabOpen, setFabOpen] = useState(false);
   const insets = useSafeAreaInsets();
-  const current = state.routes[state.index].name;
+  const current = state.routes[state.index]?.name;
 
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? ms(4) : 0);
 
@@ -90,9 +93,12 @@ const BottomTabBar = ({ state, navigation, quickActions = [] }: Props) => {
   const FAB_SIZE = ms(56);
   const hasFab = quickActions.length > 0;
 
-  const midpoint = Math.ceil(state.routes.length / 2);
-  const firstHalf = state.routes.slice(0, midpoint);
-  const secondHalf = state.routes.slice(midpoint);
+  const tabRoutes = visibleTabs
+    ? state.routes.filter(r => visibleTabs.includes(r.name))
+    : state.routes;
+  const midpoint = Math.ceil(tabRoutes.length / 2);
+  const firstHalf = tabRoutes.slice(0, midpoint);
+  const secondHalf = tabRoutes.slice(midpoint);
 
   return (
     <>

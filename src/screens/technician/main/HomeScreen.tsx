@@ -1,8 +1,9 @@
 // src/screens/technician/main/HomeScreen.tsx
 import {
   View, Text, StyleSheet, FlatList,
-  Pressable, Modal, Alert, ActivityIndicator,
+  Pressable, Alert, ActivityIndicator,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import { COLORS } from '../../../theme/theme';
 import { useState, useEffect, useCallback } from 'react';
 import { useDoubleBackExit } from '../../../hooks/useDoubleBackExit';
@@ -15,7 +16,7 @@ import { getProfileDetails } from '../../../api/users/usersService';
 import { getCountrySymbol } from '../../../api/countryDetails/countryDetailsService';
 import { setCurrentCountryDetails } from '../../../state/session';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { scale, vs, sp, useAppHeaderHeight } from '../../../utils/responsive';
 import { formatAmount } from '../../../utils/decimal';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { useFocusEffect } from '@react-navigation/native';
@@ -53,6 +54,7 @@ const formatDateTime = (dateString?: string) => {
 // ── component ─────────────────────────────────────────────────────────────────
 
 export default function HomeScreen({ navigation }: any) {
+  const headerHeight = useAppHeaderHeight();
   const [filter, setFilter] = useState<'Today' | 'Week' | 'Month' | 'Year'>('Today');
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
@@ -475,7 +477,7 @@ export default function HomeScreen({ navigation }: any) {
 
   return (
     <View style={styles.root}>
-      <View style={styles.redBg} />
+      <View style={[styles.redBg, { height: headerHeight }]} />
 
       {/* Greeting row */}
       <View style={styles.greetingRow}>
@@ -573,7 +575,7 @@ export default function HomeScreen({ navigation }: any) {
         onRequestClose={() => setDropdownVisible(false)}
       >
         <Pressable style={StyleSheet.absoluteFill} onPress={() => setDropdownVisible(false)} />
-        <View style={styles.dropdown}>
+        <View style={[styles.dropdown, { top: headerHeight + vs(42) }]}>
           {(['Today', 'Week', 'Month', 'Year'] as const).map((item) => (
             <Pressable
               key={item}
@@ -618,7 +620,7 @@ export default function HomeScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   root:           { flex: 1, backgroundColor: COLORS.primary },
-  redBg:          { height: HEADER_TOP_PADDING + hp(1), backgroundColor: COLORS.primary },
+  redBg:          { backgroundColor: COLORS.primary },
 
   whiteSheet: {
     backgroundColor: '#fff',
@@ -634,7 +636,7 @@ const styles = StyleSheet.create({
   filterButton:   { flexDirection: 'row', alignItems: 'center', gap: scale(8) },
   headerSub:      { fontSize: sp(18), color: COLORS.white },
 
-  dropdown:     { position: 'absolute', top: HEADER_TOP_PADDING + vs(50), right: scale(18), backgroundColor: '#fff', width: scale(140), elevation: 6, borderRadius: scale(8), shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4 },
+  dropdown:     { position: 'absolute', right: scale(18), backgroundColor: '#fff', width: scale(140), elevation: 6, borderRadius: scale(8), shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4 },
   dropdownItem: { padding: scale(12) },
   dropdownText: { fontSize: sp(14) },
 

@@ -1,5 +1,5 @@
 // src/navigation/AdminTabs.tsx
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import {
   createBottomTabNavigator,
@@ -20,6 +20,19 @@ import AddItemModal from '../screens/admin/AddItemModal';
 import AssignItemModal from '../screens/admin/AssignItemModal';
 import AddFieldworkerModal from '../screens/admin/AddFieldworkerModal';
 import ManageBalanceModal from '../screens/admin/ManageBalanceModal';
+
+import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
+import TaskDetailsScreen from '../screens/admin/TaskDetailsScreen';
+import AdminSettingScreen from '../screens/admin/AdminSettingScreen';
+import BankDetailsTaxScreen from '../screens/admin/BankDetailsTaxScreen';
+import AMCDetailsScreen from '../screens/admin/AMCDetailsScreen';
+import BookDemoScreen from '../screens/admin/BookDemoScreen';
+import AdminNotificationScreen from '../screens/admin/AdminNotificationScreen';
+import AIScreen from '../screens/technician/drawer/AIScreen';
+import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
+import RefundPolicyScreen from '../screens/technician/drawer/RefundPolicy';
+import AboutFieldwebScreen from '../screens/technician/drawer/AboutFieldweb';
+import { unmountOnBlur, pushedScreenOptions } from './tabScreenHelpers';
 
 import { COLORS } from '../theme/theme';
 import type { AdminStackParamList } from './AdminStack';
@@ -58,6 +71,39 @@ export type AdminTabParamList = {
 
 const Tab = createBottomTabNavigator<AdminTabParamList>();
 
+const MAIN_TABS = ['Home', 'Task', 'CRM', 'Employee'];
+
+// Tab.Screen's typed name only accepts the four tab names; the screens that used
+// to be pushed on the stack above the tabs are registered dynamically (hidden
+// from the bar, see BottomTabBar visibleTabs) so the shared tab bar shows under
+// them. Help stays in AdminStack on purpose (no tab bar there).
+const PushedTabScreen = Tab.Screen as any;
+
+type PushedScreen = {
+  name: string;
+  component: React.ComponentType<any>;
+  title: string;
+  initialParams?: object;
+};
+
+// Pushed screens that need no owner id; defined once at module level.
+const STATIC_PUSHED_SCREENS: PushedScreen[] = [
+  { name: 'Profile', component: unmountOnBlur(AdminProfileScreen), title: 'Profile' },
+  { name: 'Settings', component: unmountOnBlur(AdminSettingScreen), title: 'Settings' },
+  { name: 'PrivacyPolicy', component: unmountOnBlur(PrivacyPolicyScreen), title: 'Privacy Policy' },
+  {
+    name: 'TermsAndConditions',
+    component: unmountOnBlur(PrivacyPolicyScreen),
+    title: 'Terms & Conditions',
+    initialParams: { url: TERMS_AND_CONDITIONS_URL },
+  },
+  { name: 'RefundPolicy', component: unmountOnBlur(RefundPolicyScreen), title: 'Refund Policy' },
+  { name: 'AboutFieldweb', component: unmountOnBlur(AboutFieldwebScreen), title: 'About FieldWeb' },
+  { name: 'FieldWeb AI', component: unmountOnBlur(AIScreen), title: 'FieldWeb AI' },
+  { name: 'Book App Demo', component: unmountOnBlur(BookDemoScreen), title: 'Book App Demo' },
+  { name: 'AMCDetails', component: unmountOnBlur(AMCDetailsScreen), title: 'AMC' },
+];
+
 // Task, CRM and Employee all need the owner's id, which none of these
 // screens can look up on their own — they take it as a prop. `component=`
 // can't pass extra props (React Navigation only gives it route/navigation),
@@ -89,13 +135,18 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
 
   const handleTaskSelect = useCallback(
     (task: Record<string, unknown>) => {
-      rootNavigation.navigate('TaskDetails', {
-        taskId: Number(task.id ?? task.Id) || 0,
-        fallbackTask: task,
-        customerName: getRecordString(task, 'customerName', 'CustomerName'),
-        customerPhone: getRecordString(task, 'contactNo', 'ContactNo'),
-        customerAddress: getRecordString(task, 'fullAddress', 'FullAddress'),
-        source: 'taskList',
+      // TaskDetails is a (hidden) tab screen now, so address it through the
+      // stack route that hosts the tab navigator.
+      (rootNavigation as any).navigate('AdminTabsRoot', {
+        screen: 'TaskDetails',
+        params: {
+          taskId: Number(task.id ?? task.Id) || 0,
+          fallbackTask: task,
+          customerName: getRecordString(task, 'customerName', 'CustomerName'),
+          customerPhone: getRecordString(task, 'contactNo', 'ContactNo'),
+          customerAddress: getRecordString(task, 'fullAddress', 'FullAddress'),
+          source: 'taskList',
+        },
       });
     },
     [rootNavigation],
@@ -116,9 +167,10 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
       <MainTaskFragmentNewScreen
         userId={ownerId as number}
         onTaskSelect={(task) => handleTaskSelect(task as Record<string, unknown>)}
+        onAddTask={openAddTaskModal}
       />
     ),
-    [ownerId, handleTaskSelect],
+    [ownerId, handleTaskSelect, openAddTaskModal],
   );
 
   const renderCRMScreen = useCallback(
@@ -151,6 +203,47 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
       />
     ),
     [ownerId, headerOffset, openAddFieldworkerModal],
+  );
+
+  // Pushed screens that take the owner id as a prop. Memoised on ownerId so the
+  // component identities stay stable across AdminTabs re-renders (see the note
+  // above about render props remounting the active screen).
+  const pushedScreens = useMemo<PushedScreen[]>(
+    () => [
+      ...STATIC_PUSHED_SCREENS,
+      {
+        name: 'BankDetailsTax',
+        title: 'Bank Details & Tax',
+        component: unmountOnBlur(() => (
+          <BankDetailsTaxScreen ownerId={ownerId as number} />
+        )),
+      },
+      {
+        name: 'notification',
+        title: 'Notification',
+        component: unmountOnBlur(() => (
+          <AdminNotificationScreen ownerId={ownerId as number} />
+        )),
+      },
+      {
+        name: 'TaskDetails',
+        title: 'Task Details',
+        component: unmountOnBlur(({ route, navigation }: any) => (
+          <TaskDetailsScreen
+            ownerId={ownerId as number}
+            taskId={route.params.taskId}
+            fallbackTask={route.params.fallbackTask}
+            customerName={route.params.customerName}
+            customerPhone={route.params.customerPhone}
+            customerAddress={route.params.customerAddress}
+            source={route.params.source}
+            onBack={() => navigation.goBack()}
+            hideBackBar
+          />
+        )),
+      },
+    ],
+    [ownerId],
   );
 
   if (ownerId === null) {
@@ -240,8 +333,15 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
 
           return (
             <>
-              <AppHeader title={title} navigation={props.navigation as any} />
-              <BottomTabBar {...props} quickActions={quickActions} />
+              {/* Pushed-style screens show their own back-arrow header. */}
+              {MAIN_TABS.includes(currentRoute.name) && (
+                <AppHeader title={title} navigation={props.navigation as any} />
+              )}
+              <BottomTabBar
+                {...props}
+                visibleTabs={MAIN_TABS}
+                quickActions={quickActions}
+              />
             </>
           );
         }}
@@ -265,6 +365,16 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
         >
           {renderEmployeeScreen}
         </Tab.Screen>
+
+        {pushedScreens.map(({ name, component, title, initialParams }) => (
+          <PushedTabScreen
+            key={name}
+            name={name}
+            component={component}
+            initialParams={initialParams}
+            options={({ navigation }: any) => pushedScreenOptions(title, navigation)}
+          />
+        ))}
       </Tab.Navigator>
 
       <AddTaskModal

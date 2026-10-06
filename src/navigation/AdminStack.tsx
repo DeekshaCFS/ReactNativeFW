@@ -10,12 +10,7 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 
 import AdminTabs, { AdminTabParamList } from './AdminTabs';
 
-import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
-import TaskDetailsScreen from '../screens/admin/TaskDetailsScreen';
-import AdminSettingScreen from '../screens/admin/AdminSettingScreen';
-import BankDetailsTaxScreen from '../screens/admin/BankDetailsTaxScreen';
 import type {TasksListResultData} from '../api/task/task.types';
-import AMCDetailsScreen from '../screens/admin/AMCDetailsScreen';
 
 // Header destinations (headset icon on the shared AppHeader). Admin reuses
 // the technician stack's help screens under the same route names; the
@@ -25,15 +20,9 @@ import HelpMessagesScreen from '../screens/technician/main/HelpMsgScreen';
 
 // Settings destinations (Privacy/Refund/About rows) -- same reuse pattern
 // as the header destinations above; these screens are role-agnostic.
-import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
-import RefundPolicyScreen from '../screens/technician/drawer/RefundPolicy';
-import AboutFieldwebScreen from '../screens/technician/drawer/AboutFieldweb';
 
 // Drawer destinations. AIScreen is role-agnostic (Java's OpenAIFragment is the
 // same for owner and technician); BookDemoScreen ports BookDemoFragment.
-import AIScreen from '../screens/technician/drawer/AIScreen';
-import BookDemoScreen from '../screens/admin/BookDemoScreen';
-import AdminNotificationScreen from '../screens/admin/AdminNotificationScreen';
 
 import { COLORS } from '../theme/theme';
 
@@ -299,10 +288,10 @@ export default function AdminStack() {
 
   return (
     <>
-      <Stack.Navigator
-        screenOptions={headerOptions}
-      >
-        {/* Admin bottom tabs */}
+      <Stack.Navigator screenOptions={headerOptions}>
+        {/* The tab navigator draws its own AppHeader / back-arrow header and the
+            BottomTabBar (every other admin screen is registered there as a
+            hidden tab), so no native header here. */}
         <Stack.Screen
           name="AdminTabsRoot"
           options={{
@@ -312,94 +301,7 @@ export default function AdminStack() {
           {renderAdminTabs}
         </Stack.Screen>
 
-        <Stack.Screen
-          name="Profile"
-          component={AdminProfileScreen}
-          options={{
-            title: 'Profile',
-          }}
-        />
-
-        {/* Java's admin drawer "setting" item opens SettingsFragment (App
-            Tour/Rate Us/Invite Friends/Language/Terms/Privacy/Refund/About)
-            — Employee Management is its own bottom tab, not this route. */}
-        <Stack.Screen
-          name="Settings"
-          component={AdminSettingScreen}
-          options={{
-            title: 'Settings',
-          }}
-        />
-
-        <Stack.Screen name="BankDetailsTax" options={{title: 'Bank Details & Tax'}}>
-          {() =>
-            ownerId === null ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-              </View>
-            ) : (
-              <BankDetailsTaxScreen ownerId={ownerId} />
-            )
-          }
-        </Stack.Screen>
-
-        <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{title: 'Privacy Policy'}} />
-        <Stack.Screen
-          name="TermsAndConditions"
-          component={PrivacyPolicyScreen}
-          initialParams={{ url: TERMS_AND_CONDITIONS_URL }}
-          options={{title: 'Terms & Conditions'}}
-        />
-        <Stack.Screen name="RefundPolicy" component={RefundPolicyScreen} options={{title: 'Refund Policy'}} />
-        <Stack.Screen name="AboutFieldweb" component={AboutFieldwebScreen} options={{title: 'About FieldWeb'}} />
-
-        <Stack.Screen name="FieldWeb AI" component={AIScreen} options={{title: 'FieldWeb AI'}} />
-        <Stack.Screen name="Book App Demo" component={BookDemoScreen} options={{title: 'Book App Demo'}} />
-
-        <Stack.Screen name="TaskDetails" options={{title: 'Task Details'}}>
-          {({route, navigation}) =>
-            ownerId === null ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-              </View>
-            ) : (
-              <TaskDetailsScreen
-                ownerId={ownerId}
-                taskId={route.params.taskId}
-                fallbackTask={route.params.fallbackTask}
-                customerName={route.params.customerName}
-                customerPhone={route.params.customerPhone}
-                customerAddress={route.params.customerAddress}
-                source={route.params.source}
-                onBack={() => navigation.goBack()}
-                hideBackBar
-              />
-            )
-          }
-        </Stack.Screen>
-
-        <Stack.Screen
-          name="AMCDetails"
-          component={AMCDetailsScreen}
-          options={{title: 'AMC'}}
-        />
-
-        {/* Header icon destinations (headset / notification bell on the
-            shared AppHeader) -- same routes and screens the technician
-            stack uses. */}
-        {/* Owner notifications (Java NotificationFragment); the technician
-            stack keeps its own NotificationScreen. */}
-        <Stack.Screen name="notification" options={{ title: 'Notification' }}>
-          {() =>
-            ownerId === null ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-              </View>
-            ) : (
-              <AdminNotificationScreen ownerId={ownerId} />
-            )
-          }
-        </Stack.Screen>
+        {/* Help screens: pushed from the AppHeader headset icon, no tab bar */}
         <Stack.Screen
           name="help"
           component={HelpScreen}
@@ -410,7 +312,6 @@ export default function AdminStack() {
           component={HelpMessagesScreen}
           options={{ title: 'Help & Support' }}
         />
-
       </Stack.Navigator>
 
       {/* Disclaimer */}

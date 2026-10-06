@@ -20,11 +20,11 @@ import {
   Pressable,
   ScrollView,
   Alert,
-  Modal,
   FlatList,
   Image,
   ActivityIndicator,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { launchImageLibrary } from 'react-native-image-picker';

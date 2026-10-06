@@ -1,11 +1,11 @@
 // src/screens/technician/drawer/RequestedItems.tsx
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, Pressable, Image, Modal,
+  View, Text, StyleSheet, FlatList, Pressable, Image,
   Platform, StatusBar, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/theme';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ms, sp, scale, hp } from '../../../utils/responsive';
@@ -28,9 +28,6 @@ const formatDate = (iso: string): string => {
 
 export default function RequestedItems() {
   const navigation = useNavigation<any>();
-  const insets = useSafeAreaInsets();
-  const statusBarHeight =
-    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
 
   const [requests, setRequests] = useState<GetFOCListResultData[]>([]);
   const [loading, setLoading] = useState(true);

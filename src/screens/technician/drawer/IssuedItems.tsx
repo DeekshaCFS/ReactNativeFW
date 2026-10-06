@@ -5,7 +5,6 @@ import {
   Pressable, Platform, StatusBar, ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/theme';
 import { useNavigation } from '@react-navigation/native';
 import { ms, sp, scale, hp } from '../../../utils/responsive';
@@ -15,9 +14,6 @@ import type { ItemIssueListResultData } from '../../../api/item/item.types';
 
 export default function IssuedItems() {
   const navigation = useNavigation<any>();
-  const insets = useSafeAreaInsets();
-  const statusBarHeight =
-    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
 
   const [items, setItems] = useState<ItemIssueListResultData[]>([]);
   const [loading, setLoading] = useState(true);

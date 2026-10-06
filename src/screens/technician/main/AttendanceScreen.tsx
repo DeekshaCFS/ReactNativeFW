@@ -5,8 +5,7 @@ import {
 } from 'react-native';
 import { useState, useCallback, useEffect } from 'react';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, ms, wp, HEADER_TOP_PADDING } from '../../../utils/responsive';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scale, vs, sp, ms, useAppHeaderHeight } from '../../../utils/responsive';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { TechnicianTabParamList } from '../../../navigation/TechnicianTabs';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
@@ -24,10 +23,8 @@ type NavigationProp = CompositeNavigationProp<
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export default function AttendanceScreen() {
+  const headerHeight = useAppHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
-  const insets = useSafeAreaInsets();
-  const statusBarHeight =
-    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
 
   const [attendanceData, setAttendanceData] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<number>(new Date().getDate());
@@ -135,7 +132,7 @@ export default function AttendanceScreen() {
     <View style={styles.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }}>
         {/* Tab Row */}
-        <View style={[styles.tabRow, { paddingTop: HEADER_TOP_PADDING + vs(10)}]}>
+        <View style={[styles.tabRow, { paddingTop: headerHeight + vs(4) }]}>
           <Pressable style={styles.activeTab}>
             <Text style={styles.activeTabText}>ATTENDANCE</Text>
           </Pressable>
@@ -288,7 +285,7 @@ const styles = StyleSheet.create({
     gap: scale(6),
   },
   summaryCard: {
-    width: wp(21),
+    width: scale(82),
     minHeight: vs(90),
     borderRadius: scale(12),
     alignItems: 'center',

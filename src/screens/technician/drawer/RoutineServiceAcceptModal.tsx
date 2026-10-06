@@ -6,9 +6,10 @@
 // self-assigned task directly (no separate Add Task form).
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, Pressable, Modal,
+  View, Text, StyleSheet, TextInput, Pressable,
   ActivityIndicator, Alert, Linking, FlatList,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import { ms, sp, scale } from '../../../utils/responsive';

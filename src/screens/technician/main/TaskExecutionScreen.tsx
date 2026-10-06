@@ -9,17 +9,16 @@ import {
   TextInput,
   Image,
   ActivityIndicator,
-  Modal,
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Dimensions,
   PermissionsAndroid,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { scale, vs, sp, wps } from '../../../utils/responsive';
 import {
   getTaskById,
   addPhotoBeforeTask,
@@ -47,8 +46,11 @@ type AssignedItem = TasksListMultipleItemAssigned;
 const VISIBLE_PHOTO_BOXES = 3;
 const PHOTO_ROW_GAP = scale(16);
 const PHOTO_BOX_SIZE =
-  (Dimensions.get('window').width - scale(20) * 2 - PHOTO_ROW_GAP * (VISIBLE_PHOTO_BOXES - 1)) /
-  VISIBLE_PHOTO_BOXES;
+  Math.min(
+    (wps(100) - scale(20) * 2 - PHOTO_ROW_GAP * (VISIBLE_PHOTO_BOXES - 1)) /
+      VISIBLE_PHOTO_BOXES,
+    scale(130),
+  );
 
 export default function TaskExecutionScreen({ navigation, route }: any) {
   const { task: routeTask } = route.params as { task: Task };

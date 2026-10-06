@@ -6,15 +6,16 @@
 // exactly, including its quirks (e.g. Yearly's "Credit Given" and "Remaining
 // Amount" both read TotalOpening — that's what the live app does).
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Modal,
+  View, Text, StyleSheet, ScrollView, Pressable,
   Platform, StatusBar, ActivityIndicator,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import { useCallback, useEffect, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import { COLORS } from '../../../theme/theme';
 import DrumPicker from '../../../components/DrumPicker';
-import { scale, vs, sp, ms, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { scale, vs, sp, ms, useAppHeaderHeight } from '../../../utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { TechnicianTabParamList } from '../../../navigation/TechnicianTabs';
@@ -55,10 +56,9 @@ const EMPTY_FIELDS: PassbookFields = {
 };
 
 export default function PassbookScreen() {
+  const headerHeight = useAppHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
   const insets     = useSafeAreaInsets();
-  const statusBarHeight =
-    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
 
   const [activePeriod, setActivePeriod] = useState<Period>('today');
   // Drives the Monthly/Yearly caret navigation (Java opens a month/year picker dialog).
@@ -210,7 +210,7 @@ export default function PassbookScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + vs(40) }}
       >
         {/* Tab Row */}
-        <View style={[styles.tabRow, { paddingTop: HEADER_TOP_PADDING + vs(10) }]}>
+        <View style={[styles.tabRow, { paddingTop: headerHeight + vs(4) }]}>
           <Pressable style={styles.activeTab}>
             <Text style={styles.activeTabText}>PASSBOOK</Text>
           </Pressable>

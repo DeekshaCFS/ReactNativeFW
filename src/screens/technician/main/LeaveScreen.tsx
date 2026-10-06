@@ -1,15 +1,15 @@
 // src/screens/technician/main/LeaveScreen.tsx
 import {
-  View, Text, StyleSheet, FlatList, Pressable, Modal, Image, ScrollView,
+  View, Text, StyleSheet, FlatList, Pressable, Image, ScrollView,
   Platform, StatusBar, TextInput, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import { useState, useCallback, useMemo } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, ms, HEADER_TOP_PADDING } from '../../../utils/responsive';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scale, vs, sp, ms } from '../../../utils/responsive';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -95,9 +95,6 @@ const formatRequestedAt = (iso?: string) => {
 
 export default function LeaveScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const insets = useSafeAreaInsets();
-  const statusBarHeight =
-    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
 
   const [userId, setUserId] = useState<number | null>(null);
 
@@ -407,7 +404,7 @@ export default function LeaveScreen() {
     <>
       {/* Tabs */}
       <View style={styles.tabRow}>
-        <Pressable style={styles.inactiveTab} onPress={() => navigation.popTo('TechnicianTabsRoot', { screen: 'Attendance' })}>
+        <Pressable style={styles.inactiveTab} onPress={() => navigation.navigate('Attendance')}>
           <Text style={styles.inactiveTabText}>ATTENDANCE</Text>
         </Pressable>
         <Pressable style={styles.activeTab}>

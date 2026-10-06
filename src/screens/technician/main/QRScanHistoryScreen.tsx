@@ -9,9 +9,9 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
-  Modal,
   Platform,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { request, check, PERMISSIONS, RESULTS } from 'react-native-permissions';

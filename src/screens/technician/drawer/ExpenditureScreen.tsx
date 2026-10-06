@@ -7,9 +7,9 @@
 // with a photo via Expenditure/AddExpense.
 import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable,
-  Modal, TextInput, Image, ActivityIndicator, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image, ActivityIndicator, Alert, Platform,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../../../theme/theme';
@@ -230,7 +230,7 @@ export default function ExpenditureScreen() {
           </Pressable>
           <Pressable
             style={styles.inactiveTab}
-            onPress={() => navigation.popTo('TechnicianTabsRoot', { screen: 'Passbook' })}
+            onPress={() => navigation.navigate('Passbook')}
           >
             <Text style={styles.inactiveTabText}>PASSBOOK</Text>
           </Pressable>

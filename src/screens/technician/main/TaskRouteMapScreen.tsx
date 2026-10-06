@@ -6,7 +6,7 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { scale, vs, sp, hp } from '../../../utils/responsive';
 import { GetAllTaskListDTOResultData as Task } from '../../../api/task/task.types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
@@ -128,7 +128,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
     setShowPrompt(false);
     // replace, not push: back from Execution must not return to a stale map (Java has no
     // back stack between these steps, and reject / on-hold would land here otherwise).
-    navigation.replace('TaskExecution', { task });
+    navigation.navigate('TaskExecution', { task });
   };
 
   const handleCall = () => {
@@ -158,13 +158,13 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
           {
             text: 'Not Yet',
             style: 'cancel',
-            onPress: () => navigation.popTo('TechnicianTabsRoot', { screen: 'Task' }),
+            onPress: () => navigation.navigate('Task'),
           },
           {
             text: 'Yes, Proceed',
             onPress: () => {
               const taskWithFallbackCoords = { ...task, Latitude: '0.00', Longitude: '0.00' };
-              navigation.replace('TaskExecution', { task: taskWithFallbackCoords });
+              navigation.navigate('TaskExecution', { task: taskWithFallbackCoords });
             },
           },
         ],
@@ -303,7 +303,6 @@ const styles = StyleSheet.create({
   },
 
   taskCard: {
-    marginTop: HEADER_TOP_PADDING,
     position: 'absolute',
     top: vs(16),
     left: scale(16),

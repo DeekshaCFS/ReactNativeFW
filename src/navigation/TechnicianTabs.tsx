@@ -1,5 +1,6 @@
 // src/navigation/TechnicianTabs.tsx
 
+import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -15,6 +16,34 @@ import HomeScreen from '../screens/technician/main/HomeScreen';
 import TaskScreen from '../screens/technician/main/TaskScreen';
 import AttendanceScreen from '../screens/technician/main/AttendanceScreen';
 import PassbookScreen from '../screens/technician/main/PassbookScreen';
+
+import TaskTrackingScreen from '../screens/technician/main/TaskTrackingScreen';
+import TaskExecutionScreen from '../screens/technician/main/TaskExecutionScreen';
+import TaskRouteMapScreen from '../screens/technician/main/TaskRouteMapScreen';
+import TaskClosureScreen from '../screens/technician/main/TaskClosureScreen';
+import TaskSummaryScreen from '../screens/technician/main/TaskSummaryScreen';
+import PaymentReceivedScreen from '../screens/technician/main/PaymentReceivedScreen';
+import LeaveScreen from '../screens/technician/main/LeaveScreen';
+import ItemRequestScreen from '../screens/technician/main/ItemRequestScreen';
+import TaskInputScreen from '../screens/technician/main/TaskInputScreen';
+import QRScanHistoryScreen from '../screens/technician/main/QRScanHistoryScreen';
+import NotificationScreen from '../screens/technician/main/NotificationScreen';
+import HelpChatScreen from '../screens/technician/main/HelpChatScreen';
+import AMCDetailsScreen from '../screens/technician/main/AMCDetailsScreen';
+import TechProfileScreen from '../screens/technician/drawer/TechProfileScreen';
+import IssuedItems from '../screens/technician/drawer/IssuedItems';
+import RequestedItems from '../screens/technician/drawer/RequestedItems';
+import FOCDetailsScreen from '../screens/technician/drawer/FOCDetailsScreen';
+import LeadsScreen from '../screens/technician/drawer/LeadsScreen';
+import ExpenditureScreen from '../screens/technician/drawer/ExpenditureScreen';
+import ServiceScreen from '../screens/technician/drawer/ServiceScreen';
+import AIScreen from '../screens/technician/drawer/AIScreen';
+import SettingScreen from '../screens/technician/drawer/SettingScreen';
+import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
+import RefundPolicyScreen from '../screens/technician/drawer/RefundPolicy';
+import AboutFieldwebScreen from '../screens/technician/drawer/AboutFieldweb';
+import AMCListScreen from '../screens/technician/drawer/AMCListScreen';
+import { unmountOnBlur, pushedScreenOptions } from './tabScreenHelpers';
 import { requestLocationPermission } from '../utils/locationPermision';
 import { putLiveLocation } from '../utils/firebaseLiveLocation';
 
@@ -26,6 +55,56 @@ export type TechnicianTabParamList = {
 };
 
 const Tab = createBottomTabNavigator<TechnicianTabParamList>();
+
+const MAIN_TABS = ['Home', 'Task', 'Attendance', 'Passbook'];
+
+// Screens that used to be pushed on the stack above the tabs. They live in the
+// tab navigator now (hidden from the bar, see BottomTabBar visibleTabs) so the
+// shared tab bar shows under them. Route names are unchanged, so every existing
+// navigation.navigate('X', ...) call keeps working. Upload Documents stays in
+// TechStack on purpose (no tab bar there).
+const PUSHED_SCREENS: {
+  name: string;
+  component: React.ComponentType<any>;
+  title: string;
+  initialParams?: object;
+}[] = [
+  { name: 'TaskRouteMap', component: unmountOnBlur(TaskRouteMapScreen), title: 'Route' },
+  { name: 'TaskExecution', component: unmountOnBlur(TaskExecutionScreen), title: 'Task' },
+  { name: 'TaskTracking', component: unmountOnBlur(TaskTrackingScreen), title: 'Tasks' },
+  { name: 'TaskClosure', component: unmountOnBlur(TaskClosureScreen), title: 'Task Details' },
+  { name: 'TaskSummary', component: unmountOnBlur(TaskSummaryScreen), title: 'Summary Details' },
+  { name: 'PaymentReceived', component: unmountOnBlur(PaymentReceivedScreen), title: 'Task' },
+  { name: 'ItemRequest', component: unmountOnBlur(ItemRequestScreen), title: 'Task Details' },
+  { name: 'TaskInput', component: unmountOnBlur(TaskInputScreen), title: 'Task Details' },
+  { name: 'QRScanHistory', component: unmountOnBlur(QRScanHistoryScreen), title: 'Scan Item QR' },
+  { name: 'Leave', component: unmountOnBlur(LeaveScreen), title: 'Attendance' },
+  { name: 'notification', component: unmountOnBlur(NotificationScreen), title: 'Notification' },
+  { name: 'help', component: unmountOnBlur(HelpChatScreen), title: 'Help & Support' },
+  { name: 'Profile', component: unmountOnBlur(TechProfileScreen), title: 'Profile' },
+  { name: 'Issued Items', component: unmountOnBlur(IssuedItems), title: 'Item Inventory' },
+  { name: 'Requested Items', component: unmountOnBlur(RequestedItems), title: 'Item Inventory' },
+  { name: 'FOCDetails', component: unmountOnBlur(FOCDetailsScreen), title: 'Item Inventory' },
+  { name: 'Leads', component: unmountOnBlur(LeadsScreen), title: 'Leads' },
+  { name: 'Expenditure', component: unmountOnBlur(ExpenditureScreen), title: 'Expenditure' },
+  { name: 'Routine Service', component: unmountOnBlur(ServiceScreen), title: 'Routine Service' },
+  { name: 'FieldWeb AI', component: unmountOnBlur(AIScreen), title: 'FieldWeb AI' },
+  { name: 'Settings', component: unmountOnBlur(SettingScreen), title: 'Settings' },
+  { name: 'PrivacyPolicy', component: unmountOnBlur(PrivacyPolicyScreen), title: 'Privacy Policy' },
+  {
+    name: 'TermsAndConditions',
+    component: unmountOnBlur(PrivacyPolicyScreen),
+    title: 'Terms & Conditions',
+    initialParams: { url: TERMS_AND_CONDITIONS_URL },
+  },
+  { name: 'RefundPolicy', component: unmountOnBlur(RefundPolicyScreen), title: 'Refund Policy' },
+  { name: 'AboutFieldweb', component: unmountOnBlur(AboutFieldwebScreen), title: 'About FieldWeb' },
+  { name: 'AMC', component: unmountOnBlur(AMCListScreen), title: 'AMC' },
+  { name: 'AMCDetails', component: unmountOnBlur(AMCDetailsScreen), title: 'AMC Details' },
+];
+
+// Tab.Screen's typed name only accepts the four tab names; these are dynamic.
+const PushedTabScreen = Tab.Screen as any;
 
 export default function TechnicianTabs() {
   const watchIdRef = useRef<number | null>(null);
@@ -101,6 +180,8 @@ export default function TechnicianTabs() {
     <View style={styles.container}>
       <Tab.Navigator
         initialRouteName="Home"
+        // Back from any pushed-style screen returns to Home.
+        backBehavior="initialRoute"
         screenOptions={{ headerShown: false }}
         tabBar={(props) => {
           const currentRoute =
@@ -116,13 +197,19 @@ export default function TechnicianTabs() {
 
           return (
             <>
-              <AppHeader
-                title={getTitle(currentRoute)}
-                navigation={props.navigation as any}
-              />
+              {/* Pushed-style screens show their own back-arrow header. */}
+              {MAIN_TABS.includes(currentRoute) && (
+                <AppHeader
+                  title={getTitle(currentRoute)}
+                  navigation={props.navigation as any}
+                />
+              )}
 
-              {/* {!hideTabBar && <BottomTabBar {...props} />} */}
-              <BottomTabBar {...props} quickActions={quickActions} />
+              <BottomTabBar
+                {...props}
+                visibleTabs={MAIN_TABS}
+                quickActions={quickActions}
+              />
             </>
           );
         }}
@@ -131,6 +218,16 @@ export default function TechnicianTabs() {
         <Tab.Screen name="Task" component={TaskScreen} />
         <Tab.Screen name="Attendance" component={AttendanceScreen} />
         <Tab.Screen name="Passbook" component={PassbookScreen} />
+
+        {PUSHED_SCREENS.map(({ name, component, title, initialParams }) => (
+          <PushedTabScreen
+            key={name}
+            name={name}
+            component={component}
+            initialParams={initialParams}
+            options={({ navigation }: any) => pushedScreenOptions(title, navigation)}
+          />
+        ))}
       </Tab.Navigator>
 
       {ownerId !== null && (

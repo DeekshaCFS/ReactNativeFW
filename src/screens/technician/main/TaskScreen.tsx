@@ -2,12 +2,13 @@
 import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useState, useEffect, } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, TextInput, Modal,
+  View, Text, StyleSheet, Pressable, TextInput,
   FlatList, ActivityIndicator, Alert, Image, Linking,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { scale, vs, sp, useAppHeaderHeight } from '../../../utils/responsive';
 import { formatAmount } from '../../../utils/decimal';
 import { getTaskListSearchNew } from '../../../api/taskList/taskListService';
 import { getTaskTagList } from '../../../api/task/taskService';
@@ -32,6 +33,7 @@ const getStatusStyle = (status: string) => {
 };
 
 export default function TaskScreen({ navigation, route }: any) {
+  const headerHeight = useAppHeaderHeight();
   const [uid, setUid] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
@@ -391,7 +393,7 @@ export default function TaskScreen({ navigation, route }: any) {
 
   return (
     <View style={styles.root}>
-      <View style={styles.redBg} />
+      <View style={[styles.redBg, { height: headerHeight }]} />
 
       <View style={styles.monthRow}>
         <Pressable style={styles.monthWrapper} 
@@ -615,7 +617,7 @@ export default function TaskScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   root:       { flex: 1, backgroundColor: COLORS.primary },
-  redBg:      { height: HEADER_TOP_PADDING + hp(1), backgroundColor: COLORS.primary },
+  redBg:      { backgroundColor: COLORS.primary },
 
   whiteSheet: {
     flex: 1,

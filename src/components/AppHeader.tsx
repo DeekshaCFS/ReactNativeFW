@@ -27,14 +27,14 @@ import { COLORS } from '../theme/theme';
 import {
   sp,
   ms,
-  hp,
-  wp,
+  scale,
+  HEADER_BAR_HEIGHT,
 } from '../utils/responsive';
 
 // Exported so screens rendered underneath this (absolutely-positioned)
 // header can pad their own top content by `insets.top + HEADER_CONTENT_HEIGHT`
 // instead of drawing their own duplicate toolbar.
-export const HEADER_CONTENT_HEIGHT = ms(56);
+export const HEADER_CONTENT_HEIGHT = HEADER_BAR_HEIGHT;
 
 type AppHeaderProps = {
   title: string;
@@ -163,11 +163,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: wp(4),
+    paddingHorizontal: scale(16),
   },
 
   sideBtn: {
-    width: wp(12),
+    width: scale(46),
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'flex-start',
-    paddingHorizontal: wp(2),
+    paddingHorizontal: scale(8),
   },
 
   headerTitle: {
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
 
   iconBtn: {
     padding: ms(5),
-    marginLeft: wp(1.5),
+    marginLeft: scale(6),
   },
 
   badge: {

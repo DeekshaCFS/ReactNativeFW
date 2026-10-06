@@ -10,7 +10,6 @@ import {
   TextInput,
   Image,
   ActivityIndicator,
-  Modal,
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
@@ -18,11 +17,12 @@ import {
   PanResponder,
   GestureResponderEvent,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Svg, { Path, Rect } from 'react-native-svg';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { scale, vs, sp } from '../../../utils/responsive';
 import { sanitizeDecimalInput } from '../../../utils/decimal';
 import {
   GetAllTaskListDTOResultData as Task,

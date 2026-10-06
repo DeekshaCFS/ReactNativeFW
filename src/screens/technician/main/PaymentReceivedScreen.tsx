@@ -14,8 +14,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
-  Modal,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import { launchImageLibrary } from 'react-native-image-picker';
 import QRCode from 'react-native-qrcode-svg';
 import Ionicons from 'react-native-vector-icons/Ionicons';
