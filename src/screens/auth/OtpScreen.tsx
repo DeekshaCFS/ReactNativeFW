@@ -15,7 +15,7 @@ import { getProfileDetails } from '../../api/users/usersService';
 import { urlLogin } from '../../api/auth/loginService';
 import { getOtpRegister } from '../../api/signUp/signUpService';
 import { getAndroidId } from '../../utils/deviceId';
-import { ms, sp, scale, wp } from '../../utils/responsive';
+import { ms, sp, scale, wps } from '../../utils/responsive';
 import { setCurrentUserId, persistLoggedInUserId, } from '../../state/session';
 
 type AuthStackParamList = {
@@ -190,7 +190,7 @@ export default function OtpScreen() {
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
           contentContainerStyle={styles.container}
@@ -264,7 +264,7 @@ export default function OtpScreen() {
 const styles = StyleSheet.create({
   bg:           { flex: 1 },
   container:    { flexGrow: 1, alignItems: 'center', paddingHorizontal: ms(30), paddingTop: ms(60), paddingBottom: ms(40) },
-  logo:         { width: Math.min(wp(70), scale(280)), height: ms(160), marginBottom: ms(10) },
+  logo:         { width: Math.min(wps(70), scale(280)), height: ms(160), marginBottom: ms(10) },
   title:        { fontSize: sp(28), fontWeight: '400', marginBottom: ms(16), color: '#000' },
   subtitle:     { fontSize: sp(16), color: '#8E8E8E', textAlign: 'center', marginBottom: ms(36) },
   otpRow:       { flexDirection: 'row', justifyContent: 'center', gap: ms(16), marginBottom: ms(24), width: '100%' },

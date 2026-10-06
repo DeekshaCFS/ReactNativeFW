@@ -1,9 +1,10 @@
 // src/screens/auth/SignupScreen.tsx
 import {
-  View, TextInput, Text, Image, Pressable, Modal,
+  View, TextInput, Text, Image, Pressable,
   ImageBackground, FlatList, Alert, StyleSheet,
   KeyboardAvoidingView, ScrollView, Platform, StatusBar,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
