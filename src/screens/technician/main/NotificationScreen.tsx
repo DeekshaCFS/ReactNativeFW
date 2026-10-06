@@ -27,6 +27,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../../../theme/theme';
+import NotificationIcon, { NotificationIconName } from '../../../components/NotificationIcons';
 import { vs, ms, sp } from '../../../utils/responsive';
 import { formatAmount } from '../../../utils/decimal';
 import {
@@ -48,6 +49,7 @@ type Segment = { text: string; bold?: boolean };
 type RowModel = {
   title: string;
   color: string;
+  icon: NotificationIconName;
   subtitle: Segment[];
   viewDetails?: boolean;
 };
@@ -63,25 +65,28 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
     case 'Task':
       switch (n.TaskStatusId) {
         case STATUS.IN_ACTIVE:
-          return { title: 'InActive', color: '#1565C0', subtitle: [t('Task '), b(task), t(' is assign to you.')] };
+          return { title: 'InActive', color: COLORS.tagBlue, icon: 'inactive', subtitle: [t('Task '), b(task), t(' is assign to you.')] };
         case STATUS.COMPLETED:
-          return { title: 'Completed', color: '#2E7D32', subtitle: [t('Task '), b(task), t(' is completed by you.')] };
+          return { title: 'Completed', color: COLORS.statusCompleted, icon: 'completed', subtitle: [t('Task '), b(task), t(' is completed by you.')] };
         case STATUS.ONHOLD:
           return {
             title: 'OnHold',
-            color: '#000000',
+            color: COLORS.textBlack,
+            icon: 'ongoing',
             subtitle: [t('Task '), b(task), t(' is put on hold by '), b(who), t('.')],
           };
         case STATUS.REJECTED:
           return {
             title: 'Rejected',
-            color: '#D32F2F',
+            color: COLORS.alertRed,
+            icon: 'reject',
             subtitle: [t('Task '), b(task), t(' has rejected by '), b(who), t('.')],
           };
         case STATUS.ON_GOING:
           return {
             title: 'Ongoing',
-            color: '#F57C00',
+            color: COLORS.statusOngoing,
+            icon: 'ongoing',
             // Java shows a sub-title only for the technician when payment must be collected.
             subtitle:
               n.TaskState === STATE.ENDED_NO_PAYMENT && n.PaymentModeId === PAYMENT_RATE
@@ -94,7 +99,8 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
     case 'Earning':
       return {
         title: 'Earnings',
-        color: '#2E7D32',
+        color: COLORS.statusCompleted,
+        icon: 'earnings',
         subtitle: [
           t('You have earned '),
           b(`Rs ${formatAmount(n.EarningAmount)}`),
@@ -108,7 +114,8 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
       if (!amc) return null;
       return {
         title: 'AMC Reminder',
-        color: '#D32F2F',
+        color: COLORS.alertRed,
+        icon: 'amc',
         subtitle: [
           t(`You have a ${amc.AMCTypeName ?? ''} ${amc.ServiceOccuranceType ?? ''} `),
           b(String(amc.AMCName ?? '')),
@@ -119,11 +126,26 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
       };
     }
     case 'FOC':
-      return { title: 'Requested Items', color: '#1565C0', subtitle: [t(task)] };
+      return { title: 'Requested Items', color: COLORS.tagBlue, icon: 'requestedItems', subtitle: htmlToSegments(task) };
     default:
       // UserInfo ("new technician added") is an owner notification.
       return null;
   }
+};
+
+// Java renders TaskName with Html.fromHtml for Requested Items: <b> -> bold, <br> -> newline.
+const htmlToSegments = (html: string): Segment[] => {
+  const out: Segment[] = [];
+  let bold = false;
+  html.split(/(<[^>]+>)/g).forEach(part => {
+    if (!part) return;
+    const tag = /^<\s*(\/?)\s*([a-z0-9]+)[^>]*>$/i.exec(part);
+    if (!tag) { out.push({ text: part, bold }); return; }
+    const name = tag[2].toLowerCase();
+    if (name === 'b' || name === 'strong') bold = !tag[1];
+    else if (name === 'br' || (name === 'p' && tag[1])) out.push({ text: '\n' });
+  });
+  return out;
 };
 
 const formatWhen = (n: NotificationResultData) => {
@@ -244,7 +266,7 @@ export default function NotificationScreen() {
       case 'Earning':
         // Java: navigateToHomePassbookFragment()
         markLocallyRead(n);
-        navigation.popTo('TechnicianTabsRoot', { screen: 'Passbook' });
+        navigation.navigate('Passbook');
         break;
       default:
         break;
@@ -259,40 +281,57 @@ export default function NotificationScreen() {
     return (
       <Pressable
         style={styles.card}
+        android_ripple={{ color: '#00000010' }}
         onPress={() => handleRowPress(item)}
         disabled={item.NotificationType !== 'Task' && item.NotificationType !== 'Earning'}
       >
-        <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: row.color }]}>{row.title}</Text>
-          {item.IsRead ? null : <Text style={styles.newFlag}>New</Text>}
-        </View>
-
-        {row.subtitle.length > 0 && (
-          <Text style={styles.subtitle}>
-            {row.subtitle.map((seg, i) => (
-              <Text key={i} style={seg.bold ? styles.bold : undefined}>
-                {seg.text}
-              </Text>
-            ))}
-          </Text>
-        )}
-
-        {amc && (
-          <View style={styles.amcRow}>
-            <Text style={styles.amcText}>Due Date: {String(amc.AMCServiceDate ?? '').split('T')[0]}</Text>
-            <Text style={styles.amcText}>
-              Service: {amc.ServiceNo ?? 0}/{amc.TotalServices ?? 0}
-            </Text>
+        <View style={styles.cardBody}>
+          <View style={styles.iconWrap}>
+            <NotificationIcon name={row.icon} />
           </View>
-        )}
 
-        <View style={styles.footerRow}>
-          <Text style={styles.time}>{formatWhen(item)}</Text>
-          {row.viewDetails && (
-            <Pressable onPress={() => openAmcDetails(item)} hitSlop={8}>
-              <Text style={styles.actionText}>View Details</Text>
-            </Pressable>
-          )}
+          <View style={styles.content}>
+            <View style={styles.titleRow}>
+              <View style={styles.titleLeft}>
+                <Text style={[styles.title, { color: row.color }]} numberOfLines={1}>{row.title}</Text>
+                {item.IsRead ? null : <Text style={styles.newFlag}>NEW</Text>}
+              </View>
+              <Text style={styles.time}>{formatWhen(item)}</Text>
+            </View>
+
+            {row.subtitle.length > 0 && (
+              <Text style={styles.subtitle}>
+                {row.subtitle.map((seg, i) => (
+                  <Text key={i} style={seg.bold ? styles.bold : undefined}>
+                    {seg.text}
+                  </Text>
+                ))}
+              </Text>
+            )}
+
+            {amc && (
+              <View style={styles.amcRow}>
+                <View style={styles.amcCell}>
+                  <Text style={[styles.amcText, styles.bold]}>Due Date :</Text>
+                  <Text style={[styles.amcText, styles.amcValue]} numberOfLines={1}>
+                    {String(amc.AMCServiceDate ?? '').split('T')[0]}
+                  </Text>
+                </View>
+                <View style={styles.amcCell}>
+                  <Text style={[styles.amcText, styles.bold]}>Total Service :</Text>
+                  <Text style={[styles.amcText, styles.amcValue]} numberOfLines={1}>
+                    {amc.ServiceNo ?? 0}/{amc.TotalServices ?? 0}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {row.viewDetails && (
+              <Pressable style={styles.detailsButton} onPress={() => openAmcDetails(item)} hitSlop={8}>
+                <Text style={styles.detailsText}>View Details</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       </Pressable>
     );
@@ -322,37 +361,64 @@ export default function NotificationScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.primary },
-  redBg: { height: vs(15), backgroundColor: COLORS.primary },
+  redBg: { height: vs(12), backgroundColor: COLORS.primary },
+  // fragment_notification.xml: white CardView, 30dp top corners, 10dp padding.
   whiteSheet: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderTopLeftRadius: ms(28),
-    borderTopRightRadius: ms(28),
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
     overflow: 'hidden',
   },
   loader: { marginTop: vs(40) },
-  list: { padding: ms(12), gap: vs(10), flexGrow: 1 },
+  list: { padding: ms(10), paddingBottom: ms(20), flexGrow: 1 },
+  // item_notification_new.xml: CardView radius 15dp, elevation 5dp, margin 5dp.
   card: {
-    backgroundColor: '#f5f6f8',
-    borderRadius: ms(10),
-    padding: ms(12),
+    backgroundColor: COLORS.white,
+    borderRadius: ms(15),
+    margin: ms(5),
+    marginBottom: ms(10),
+    elevation: 5,
   },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: sp(15), fontWeight: '700' },
+  cardBody: {
+    flexDirection: 'row',
+    paddingLeft: ms(5),
+    paddingRight: ms(5),
+    paddingTop: ms(18),
+    paddingBottom: ms(10),
+  },
+  iconWrap: { marginLeft: ms(8), marginTop: ms(5), marginRight: ms(8) },
+  content: { flex: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: ms(5) },
+  titleLeft: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
+  title: { fontSize: sp(16), fontWeight: 'bold', paddingLeft: ms(5), flexShrink: 1 },
   newFlag: {
-    fontSize: sp(11),
-    color: '#fff',
+    fontSize: sp(9),
+    fontWeight: 'bold',
+    color: COLORS.white,
     backgroundColor: COLORS.primary,
-    paddingHorizontal: ms(6),
-    borderRadius: ms(8),
+    marginLeft: ms(10),
+    paddingHorizontal: ms(10),
+    paddingVertical: ms(2),
+    borderRadius: ms(34),
     overflow: 'hidden',
   },
-  subtitle: { fontSize: sp(13), color: '#3c4043', marginTop: vs(4) },
-  bold: { fontWeight: '700' },
-  amcRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: vs(6) },
-  amcText: { fontSize: sp(12), color: '#5f6368' },
-  footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: vs(8) },
-  time: { fontSize: sp(11), color: '#80868b' },
-  actionText: { fontSize: sp(13), color: COLORS.primary, fontWeight: '700' },
-  empty: { textAlign: 'center', color: '#80868b', marginTop: vs(40), fontSize: sp(13) },
+  time: { fontSize: sp(12), fontStyle: 'italic', color: COLORS.lightGray, marginRight: ms(5), marginLeft: ms(8) },
+  subtitle: { fontSize: sp(12), color: COLORS.ink, paddingLeft: ms(5) },
+  bold: { fontWeight: 'bold' },
+  amcRow: { flexDirection: 'row', paddingLeft: ms(5), marginTop: ms(4) },
+  amcCell: { flex: 1, flexDirection: 'row' },
+  amcText: { fontSize: sp(12), color: COLORS.textBlack },
+  amcValue: { marginLeft: ms(5), flexShrink: 1 },
+  detailsButton: {
+    alignSelf: 'flex-start',
+    marginTop: ms(10),
+    marginLeft: ms(5),
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(10),
+    paddingVertical: ms(5),
+  },
+  detailsText: { fontSize: sp(12), fontWeight: 'bold', color: COLORS.white, textTransform: 'uppercase' },
+  empty: { textAlign: 'center', color: COLORS.lightGray, marginTop: vs(40), fontSize: sp(13) },
 });
