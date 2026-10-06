@@ -10,7 +10,6 @@ import {
   TextInput,
   Image,
   ActivityIndicator,
-  TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -22,7 +21,8 @@ import Svg, { Path, Rect } from 'react-native-svg';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp } from '../../../utils/responsive';
+import { scale, vs, sp, ms } from '../../../utils/responsive';
+import ImageSourceDialog from '../../../components/ImageSourceDialog';
 import { sanitizeDecimalInput } from '../../../utils/decimal';
 import {
   GetAllTaskListDTOResultData as Task,
@@ -391,13 +391,14 @@ export default function TaskClosure({ navigation, route }: any) {
   const [selectedWorkMode, setSelectedWorkMode] = useState<WorkModeOption | null>(null);
 
   // ── Field photos (3 slots) ──
-  const [fieldPhotos, setFieldPhotos] = useState<(PhotoAsset | null)[]>([null, null, null]);
+  const [fieldPhotos, setFieldPhotos] = useState<(PhotoAsset | null)[]>(Array(12).fill(null));
 
   // ── Technical notes ──
   const [technicalNotes, setTechnicalNotes] = useState<{ text: string }[]>([]);
   const [noteSheetVisible, setNoteSheetVisible] = useState(false);
   const [activeNoteIndex, setActiveNoteIndex] = useState<number | null>(null);
   const [noteInputValue, setNoteInputValue] = useState('');
+  const [noteFocused, setNoteFocused] = useState(false);
   const [notAllowedVisible, setNotAllowedVisible] = useState(false);
 
   // ── Device list ──
@@ -1016,11 +1017,15 @@ export default function TaskClosure({ navigation, route }: any) {
       >
 
         {/* ── FIELD PHOTO ─────────────────────────────────────────────── */}
-        <View style={styles.card}>
+        <View style={[styles.card, { marginTop: 0 }]}>
           <Text style={styles.cardTitle}>Field Photo</Text>
           <Text style={styles.cardSubtitle}>Where the task is performed</Text>
-          <View style={styles.photoRow}>
-            {([0, 1, 2] as const).map(i => (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.fieldPhotoRow}
+          >
+            {Array.from({ length: 12 }, (_, i) => i).map(i => (
               <Pressable
                 key={`field-photo-${i}`}
                 style={styles.photoSlot}
@@ -1044,11 +1049,11 @@ export default function TaskClosure({ navigation, route }: any) {
                     </Pressable>
                   </>
                 ) : (
-                  <Ionicons name="camera-outline" size={sp(70)} color="#a6a6a6" />
+                  <Ionicons name="camera-outline" size={ms(64)} color={COLORS.lightGray} />
                 )}
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
         </View>
 
         {/* ── WORK MODE ───────────────────────────────────────────────── */}
@@ -1139,16 +1144,24 @@ export default function TaskClosure({ navigation, route }: any) {
             >
               <View style={styles.sheetContent}>
                 <Text style={styles.sheetTitle}>Technical Notes</Text>
-                <TextInput
-                  value={noteInputValue}
-                  onChangeText={setNoteInputValue}
-                  placeholder="Click here to add note"
-                  placeholderTextColor={COLORS.primary}
-                  style={styles.sheetTextArea}
-                  multiline
-                  autoFocus
-                  textAlignVertical="top"
-                />
+                <View style={styles.sheetField}>
+                  {(noteFocused || noteInputValue.length > 0) && (
+                    <Text style={styles.sheetFieldLabel}>Click here to add note</Text>
+                  )}
+                  <TextInput
+                    value={noteInputValue}
+                    onChangeText={setNoteInputValue}
+                    onFocus={() => setNoteFocused(true)}
+                    onBlur={() => setNoteFocused(false)}
+                    placeholder={noteFocused ? undefined : 'Click here to add note'}
+                    placeholderTextColor={COLORS.lightGray}
+                    style={styles.sheetTextArea}
+                    multiline
+                    autoFocus
+                    maxLength={400}
+                    textAlignVertical="top"
+                  />
+                </View>
                 <Pressable
                   style={styles.sheetSaveBtn}
                   onPress={() => {
@@ -1206,12 +1219,12 @@ export default function TaskClosure({ navigation, route }: any) {
             return (
               <View key={`device-${idx}`} style={styles.deviceChipWrapper}>
                 <Pressable
-                  style={styles.noteChip}
+                  style={styles.deviceHeader}
                   onPress={() => setExpandedDeviceIndex(isExpanded ? null : idx)}
                 >
-                  <Text style={styles.noteChipIndex}>{idx + 1}</Text>
+                  <Text style={styles.deviceIndex}>{idx + 1}</Text>
                   <Text
-                    style={[styles.noteChipText, !device.DeviceName && styles.noteChipPlaceholder]}
+                    style={[styles.deviceHeaderText, !device.DeviceName && styles.noteChipPlaceholder]}
                     numberOfLines={1}
                   >
                     {isExpanded
@@ -1225,7 +1238,7 @@ export default function TaskClosure({ navigation, route }: any) {
                       if (expandedDeviceIndex === idx) setExpandedDeviceIndex(null);
                     }}
                   >
-                    <Ionicons name="close" size={sp(25)} color={COLORS.primary} />
+                    <Ionicons name="close" size={ms(25)} color={COLORS.primary} />
                   </Pressable>
                 </Pressable>
 
@@ -1273,12 +1286,12 @@ export default function TaskClosure({ navigation, route }: any) {
                       keyboardType="decimal-pad"
                       style={styles.deviceInput}
                     />
-                    <View style={styles.photoRow}>
+                    <View style={styles.devicePhotoRow}>
                       {(['DevicePhoto1', 'DevicePhoto2', 'DevicePhoto3'] as const).map(
                         (photoKey, pIdx) => (
-                          <View key={photoKey} style={styles.photoSlot}>
+                          <View key={photoKey} style={styles.devicePhotoSlot}>
                             <Pressable
-                              style={styles.photoRemoveBtn}
+                              style={styles.devicePhotoRemove}
                               onPress={() => {
                                 const uriKey = `${photoKey}Uri` as
                                   | 'DevicePhoto1Uri'
@@ -1292,7 +1305,7 @@ export default function TaskClosure({ navigation, route }: any) {
                               }}
                               hitSlop={6}
                             >
-                              <Ionicons name="close" size={sp(18)} color={COLORS.primary} />
+                              <Ionicons name="close" size={ms(11)} color="#EF4444" />
                             </Pressable>
                             <Pressable
                               style={styles.photoInner}
@@ -1319,9 +1332,9 @@ export default function TaskClosure({ navigation, route }: any) {
                                   resizeMode="cover"
                                 />
                               ) : pIdx === 0 ? (
-                                <Ionicons name="camera-outline" size={sp(60)} color="#a6a6a6" />
+                                <Ionicons name="camera-outline" size={ms(64)} color={COLORS.lightGray} style={{ opacity: 0.7 }} />
                               ) : (
-                                <Ionicons name="add-circle-outline" size={sp(45)} color="#a6a6a6" />
+                                <Ionicons name="add-circle-outline" size={ms(34)} color={COLORS.lightGray} style={{ opacity: 0.7 }} />
                               )}
                             </Pressable>
                           </View>
@@ -1339,21 +1352,21 @@ export default function TaskClosure({ navigation, route }: any) {
         <View style={styles.tilesRow}>
           <Pressable style={styles.tile} onPress={openUsedItemSheet}>
             <Text style={styles.tileTitle}>Update Used Item</Text>
-            <Text style={styles.tileSub}>{'Click Here to Add/\nUpdate'}</Text>
+            <Text style={styles.tileSub}>Click Here to Add/Update</Text>
           </Pressable>
           <Pressable
-            style={[styles.tile, { backgroundColor: '#ebeef3' }]}
+            style={[styles.tile, { backgroundColor: '#EEF0F3' }]}
             onPress={() => navigation.navigate('TaskInput', { routeTask })}
           >
             <Text style={styles.tileTitle}>Add Task Input</Text>
-            <Text style={styles.tileSub}>{'Click Here to add Task\nInput'}</Text>
+            <Text style={styles.tileSub}>Click Here to Add Task Input</Text>
           </Pressable>
           <Pressable
-            style={[styles.tile, { backgroundColor: '#eef7ec' }]}
+            style={styles.tile}
             onPress={() => navigation.navigate('QRScanHistory', { task: routeTask })}
           >
-            <Text style={styles.tileTitle}>Attach Item QR</Text>
-            <Text style={styles.tileSub}>{'Click Here to Scan\nQR Codes'}</Text>
+            <Text style={styles.tileTitle}>Scan QR</Text>
+            <Text style={styles.tileSub}>Click Here to Scan QR</Text>
           </Pressable>
         </View>
 
@@ -1370,7 +1383,7 @@ export default function TaskClosure({ navigation, route }: any) {
         )}
 
         {/* ── SIGNATURE & RATING ──────────────────────────────────────── */}
-        <View style={[styles.card, { backgroundColor: 'rgba(255,235,235,0.78)' }]}>
+        <View style={[styles.card, styles.boxCard, { backgroundColor: '#FFF0F3' }]}>
           <Text style={styles.cardTitle}>Signature & Rating</Text>
           <Pressable
             style={styles.signatureArea}
@@ -1412,7 +1425,7 @@ export default function TaskClosure({ navigation, route }: any) {
         )}
 
         {/* ── UPLOAD ATTACHMENT ───────────────────────────────────────── */}
-        <View style={[styles.card, { marginBottom: vs(16), backgroundColor: '#f2f2f2' }]}>
+        <View style={[styles.card, styles.boxCard, styles.boxGrey]}>
           <Text style={styles.cardTitle}>* Upload Attachment Here [Upto 5 MB Limit]</Text>
           <Pressable
             style={styles.dashedBox}
@@ -1429,7 +1442,7 @@ export default function TaskClosure({ navigation, route }: any) {
               )
             ) : (
               <View style={styles.dashedInner}>
-                <Ionicons name="cloud-upload-outline" size={sp(24)} color={COLORS.primary} />
+                <Ionicons name="share-outline" size={ms(26)} color={COLORS.primary} />
                 <Text style={styles.attachLabel}>Attachment</Text>
               </View>
             )}
@@ -1486,7 +1499,7 @@ export default function TaskClosure({ navigation, route }: any) {
                 onPress={() => toggleAccordion('customer')}
               >
                 <Text style={styles.signatureDropdownText}>ADD CUSTOMER DETAILS</Text>
-                <Ionicons name="caret-down" size={sp(20)} color={COLORS.primary} />
+                <Ionicons name="caret-down" size={ms(18)} color={COLORS.primary} style={styles.signatureCaret} />
               </Pressable>
 
               {customerExpanded && (
@@ -1525,7 +1538,7 @@ export default function TaskClosure({ navigation, route }: any) {
                           </Pressable>
                         </>
                       ) : (
-                        <Ionicons name="camera-outline" size={sp(60)} color="#a6a6a6" />
+                        <Ionicons name="camera-outline" size={ms(56)} color={COLORS.lightGray} />
                       )}
                     </Pressable>
                   </View>
@@ -1540,7 +1553,7 @@ export default function TaskClosure({ navigation, route }: any) {
                     paths={customerSignPaths}
                     onPathsChange={setCustomerSignPaths}
                     onSizeChange={setCustomerPadSize}
-                    height={150}
+                    height={100}
                   />
 
                   <StarRating
@@ -1572,13 +1585,13 @@ export default function TaskClosure({ navigation, route }: any) {
               <Pressable
                 style={[
                   styles.signatureDropdown,
-                  { marginTop: vs(20) },
+                  { marginTop: ms(15), marginBottom: ms(10) },
                   techExpanded && sigModalStyles.dropdownActive,
                 ]}
                 onPress={() => toggleAccordion('tech')}
               >
                 <Text style={styles.signatureDropdownText}>ADD TECHNICIAN DETAILS</Text>
-                <Ionicons name="caret-down" size={sp(20)} color={COLORS.primary} />
+                <Ionicons name="caret-down" size={ms(18)} color={COLORS.primary} style={styles.signatureCaret} />
               </Pressable>
 
               {techExpanded && (
@@ -1600,7 +1613,7 @@ export default function TaskClosure({ navigation, route }: any) {
                         </Pressable>
                       </>
                     ) : (
-                      <Ionicons name="camera-outline" size={sp(80)} color="#ABABAB" />
+                      <Ionicons name="camera-outline" size={ms(56)} color={COLORS.lightGray} />
                     )}
                   </Pressable>
 
@@ -1614,7 +1627,7 @@ export default function TaskClosure({ navigation, route }: any) {
                     paths={techSignPaths}
                     onPathsChange={setTechSignPaths}
                     onSizeChange={setTechPadSize}
-                    height={130}
+                    height={100}
                   />
                 </View>
               )}
@@ -1636,52 +1649,12 @@ export default function TaskClosure({ navigation, route }: any) {
       {/* ══════════════════════════════════════════════════════════════════
           PHOTO SOURCE MODAL
       ══════════════════════════════════════════════════════════════════ */}
-      <Modal
+      <ImageSourceDialog
         visible={showPhotoSourceModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowPhotoSourceModal(false)}
-      >
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setShowPhotoSourceModal(false)}
-        >
-          <Pressable>
-            <View style={styles.sourceSheet}>
-              <Text style={styles.sourceTitle}>Select Image Source</Text>
-              <View style={styles.sourceDivider} />
-              <TouchableOpacity
-                style={styles.sourceOption}
-                onPress={() => handlePhotoSource('camera')}
-              >
-                <View style={[styles.sourceIconWrap, { backgroundColor: COLORS.primary }]}>
-                  <Ionicons name="camera-outline" size={sp(20)} color="#fff" />
-                </View>
-                <Text style={styles.sourceOptionText}>Camera</Text>
-              </TouchableOpacity>
-              <View style={styles.sourceDivider} />
-              <TouchableOpacity
-                style={styles.sourceOption}
-                onPress={() => handlePhotoSource('gallery')}
-              >
-                <View style={[styles.sourceIconWrap, { backgroundColor: '#6366F1' }]}>
-                  <Ionicons name="images-outline" size={sp(20)} color="#fff" />
-                </View>
-                <Text style={styles.sourceOptionText}>Gallery</Text>
-              </TouchableOpacity>
-              <View style={styles.sourceDivider} />
-              <TouchableOpacity
-                style={[styles.sourceOption, { justifyContent: 'center' }]}
-                onPress={() => setShowPhotoSourceModal(false)}
-              >
-                <Text style={[styles.sourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        onCamera={() => handlePhotoSource('camera')}
+        onGallery={() => handlePhotoSource('gallery')}
+        onClose={() => setShowPhotoSourceModal(false)}
+      />
 
       {/* ══════════════════════════════════════════════════════════════════
           UPDATE USED ITEM SHEET
@@ -1701,7 +1674,7 @@ export default function TaskClosure({ navigation, route }: any) {
             <View style={usedItemStyles.header}>
               <Text style={usedItemStyles.headerTitle}>Update Used Items</Text>
               <Pressable onPress={() => setShowUsedItemSheet(false)} hitSlop={10}>
-                <Ionicons name="close" size={sp(30)} color="#fff" />
+                <Ionicons name="close" size={ms(30)} color={COLORS.white} />
               </Pressable>
             </View>
 
@@ -1720,7 +1693,7 @@ export default function TaskClosure({ navigation, route }: any) {
                       <Text style={usedItemStyles.itemName} numberOfLines={2}>
                         {idx + 1}. {slot.ItemName}
                       </Text>
-                      <View style={usedItemStyles.assignedPill}>
+                      <View style={usedItemStyles.assignedPlain}>
                         <Text style={usedItemStyles.assignedQtyText}>{slot.AssignedQty}</Text>
                       </View>
                       <TextInput
@@ -1861,10 +1834,7 @@ export default function TaskClosure({ navigation, route }: any) {
             style={fsrStyles.sheet}
           >
             <Pressable onPress={() => setShowFSRSheet(false)} hitSlop={10}>
-                <Ionicons 
-                  name="close-circle" size={sp(35)} 
-                  style={{color: COLORS.primary, alignSelf: 'flex-end', marginRight: sp(10), marginTop: sp(10)}} 
-                />
+                <Ionicons name="close-circle" size={ms(34)} style={{ color: COLORS.primary, alignSelf: 'flex-end', marginRight: ms(8), marginTop: ms(8) }} />
               </Pressable>
               <Text style={fsrStyles.headerTitle} numberOfLines={1}>
                 {fsrName || 'FSR Checkpoints'}
@@ -2043,39 +2013,41 @@ export default function TaskClosure({ navigation, route }: any) {
 
 const usedItemStyles = StyleSheet.create({
   sheet: {
-    backgroundColor: '#fff',
+    // update_used_items.xml: CardView with 30dp top corners
+    backgroundColor: COLORS.white,
     width: '100%',
     maxWidth: scale(560),
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
-    paddingBottom: vs(24),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    paddingBottom: ms(4),
     maxHeight: '82%',
   },
   header: {
+    // gradient_addtask: solid #353935, 20dp corners
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#2B2B2B',
-    borderRadius: scale(28),
-    paddingHorizontal: scale(25),
-    paddingVertical: vs(12),
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(20),
+    paddingLeft: ms(20),
+    paddingRight: ms(30),
+    height: ms(60),
   },
   headerTitle: {
-    fontSize: sp(24),
-    fontWeight: '400',
-    color: '#fff',
+    fontSize: sp(22),
+    color: COLORS.white,
   },
   listContent: {
-    paddingHorizontal: scale(18),
-    paddingTop: vs(18),
-    paddingBottom: vs(10),
-    gap: vs(14),
+    paddingHorizontal: ms(10),
+    paddingTop: ms(10),
+    paddingBottom: ms(10),
+    gap: ms(10),
   },
   emptyText: {
     textAlign: 'center',
-    color: '#a6a6a6',
-    fontSize: sp(18),
-    marginTop: vs(20),
+    color: COLORS.lightGray,
+    fontSize: sp(14),
+    marginTop: ms(10),
   },
   sectionBlock: {
     gap: vs(12),
@@ -2087,73 +2059,77 @@ const usedItemStyles = StyleSheet.create({
   },
   itemName: {
     flex: 1,
-    fontSize: sp(18),
+    fontSize: sp(14),
+    color: COLORS.ink,
     flexShrink: 1,
   },
   assignedPill: {
-    height: vs(40),
-    width: scale(50),
-    borderWidth: 1.2,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(30),
-    paddingHorizontal: scale(12),
-    flexDirection: 'row', 
+    height: ms(36),
+    width: ms(50),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(8),
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   assignedQtyText: {
-    fontSize: sp(18),
-    color: '#1C1C1E',
-    fontWeight: '400',
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: COLORS.textBlack,
     flex: 1,
     flexShrink: 1,
     textAlign: 'center',
   },
   usedQtyInput: {
-    width: scale(120),
-    height: vs(40),
-    borderWidth: 1.2,
-    borderColor: '#838383',
-    borderRadius: scale(30),
-    paddingHorizontal: scale(12),
-    fontSize: sp(18),
+    width: ms(124),
+    height: ms(36),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(12),
+    paddingVertical: 0,
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: '#535353',
     textAlign: 'center',
   },
   adHocBlock: {
     marginBottom: vs(4),
   },
   addMoreBtn: {
-    alignSelf: 'center',
-    paddingVertical: vs(8),
-    marginTop: vs(6),
-  },
-  addMoreText: {
-    fontSize: sp(22),
-    color: COLORS.primary,
-    fontWeight: '500',
-  },
-  updateBtn: {
-    marginHorizontal: scale(18),
-    marginTop: vs(16),
-    height: vs(50),
-    backgroundColor: '#2B2B2B',
-    borderRadius: scale(30),
+    alignSelf: 'stretch',
+    height: ms(30),
+    marginTop: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
+  },
+  addMoreText: {
+    fontSize: sp(18),
+    color: COLORS.primary,
+    fontWeight: 'bold',
+  },
+  updateBtn: {
+    marginHorizontal: ms(20),
+    marginTop: ms(20),
+    marginBottom: ms(20),
+    height: ms(48),
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(34),
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
   },
   updateBtnText: {
-    color: '#fff',
-    fontSize: sp(22),
-    fontWeight: '500',
-    letterSpacing: 1.2,
+    color: COLORS.white,
+    fontSize: sp(18),
   },
   cancelText: {
     color: COLORS.primary,
-    fontSize: sp(22),
-    fontWeight: '500',
+    fontSize: sp(18),
     textAlign: 'center',
-    marginTop: vs(16),
+    marginBottom: ms(20),
   },
   pickerSheet: {
     backgroundColor: '#fff',
@@ -2190,24 +2166,31 @@ const usedItemStyles = StyleSheet.create({
     marginBottom: vs(6),
   },
   slotLabel: {
-    fontSize: sp(16),
-    fontWeight: '600',
-    color: COLORS.primary, 
+    fontSize: sp(15),
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    paddingLeft: ms(15),
   },
   itemPickerBtn: {
     flex: 1,
-    height: vs(40),
-    borderWidth: 1.2,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(30),
-    paddingHorizontal: scale(12),
-    flexDirection: 'row', 
+    height: ms(36),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(12),
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   itemPickerText: {
-    fontSize: sp(16),
+    fontSize: sp(14),
+    color: COLORS.textBlack,
     flex: 1,
+  },
+  assignedPlain: {
+    width: ms(50),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
@@ -2215,23 +2198,26 @@ const usedItemStyles = StyleSheet.create({
 
 const fsrStyles = StyleSheet.create({
   sheet: {
-    backgroundColor: '#fff',
+    // dialog_fsr_with_checkpoints.xml: 30dp top corners
+    backgroundColor: COLORS.white,
     width: '100%',
     maxWidth: scale(560),
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
     maxHeight: '95%',
     overflow: 'hidden',
   },
   headerTitle: {
     textAlign: 'center',
     fontSize: sp(22),
-    fontWeight: '400',
-    marginTop: sp(-10),
+    color: COLORS.ink,
+    marginTop: ms(-16),
+    marginBottom: ms(10),
+    paddingHorizontal: ms(20),
   },
   listContent: {
-    padding: scale(16),
-    paddingBottom: vs(20),
+    paddingHorizontal: ms(20),
+    paddingBottom: ms(20),
   },
   emptyText: {
     textAlign: 'center',
@@ -2268,17 +2254,18 @@ const fsrStyles = StyleSheet.create({
   },
   
   submitBtn: {
-    backgroundColor: '#1C1C1E',
-    marginHorizontal: scale(16),
-    marginBottom: vs(16),
-    paddingVertical: vs(16),
-    borderRadius: scale(15),
+    backgroundColor: COLORS.textBlack,
+    marginHorizontal: ms(20),
+    marginTop: ms(10),
+    marginBottom: ms(30),
+    minHeight: ms(48),
+    borderRadius: ms(10),
     alignItems: 'center',
+    justifyContent: 'center',
   },
   submitBtnText: {
-    color: '#fff',
-    fontSize: sp(22),
-    fontWeight: '400',
+    color: COLORS.white,
+    fontSize: sp(18),
   },
   statusSelectBtn: {
     width: scale(150),
@@ -2313,33 +2300,32 @@ const sigModalStyles = StyleSheet.create({
   fieldsAndPhoto: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: scale(10),
+    justifyContent: 'space-between',
   },
   fieldsCol: {
-    width: vs(180),
+    width: ms(180),
   },
   roundedInput: {
-    height: vs(45),
-    borderWidth: 1.2,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(30),
-    paddingHorizontal: scale(18),
-    fontSize: sp(18),
-    color: '#1C1C1E',
-    backgroundColor: '#fff',
+    // TextInputLayoutStyle: outlined, 34dp corners, 1dp light_gray stroke
+    height: ms(56),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(16),
+    fontSize: sp(16),
+    color: COLORS.ink,
+    backgroundColor: COLORS.white,
   },
   photoSlot: {
-    width: scale(100),
-    height: scale(90),
-    borderWidth: 1.5,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(12),
+    width: ms(120),
+    height: ms(100),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(15),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
     overflow: 'hidden',
-    marginTop: vs(10),
-    marginLeft: vs(50),
   },
   photoThumb: {
     width: '100%',
@@ -2360,36 +2346,36 @@ const sigModalStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: vs(14),
+    marginTop: ms(10),
+    marginBottom: ms(10),
   },
   signatureLabel: {
-    fontSize: sp(18),
-    fontWeight: '400',
-    color: '#1C1C1E',
+    fontSize: sp(16),
+    color: COLORS.ink,
   },
   clearText: {
-    fontSize: sp(18),
+    fontSize: sp(14),
     color: COLORS.primary,
-    fontWeight: '500',
   },
   techInfoLabel: {
-    fontSize: sp(25),
-    fontWeight: '400',
-    color: '#1C1C1E',
+    fontSize: sp(22),
+    color: COLORS.ink,
     textAlign: 'center',
-    marginBottom: vs(5),
-    marginTop: vs(10),
+    marginBottom: ms(5),
+    marginTop: ms(5),
   },
   techPhotoSlot: {
-    width: '100%',
-    height: vs(100),
-    borderWidth: 1.5,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(15),
+    width: ms(120),
+    height: ms(100),
+    alignSelf: 'flex-end',
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(15),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
     overflow: 'hidden',
+    marginBottom: ms(5),
   },
   techPhotoThumb: {
     width: '100%',
@@ -2408,58 +2394,50 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.primary,
   },
-  redBg: {
-    height: vs(10),
-    backgroundColor: COLORS.primary,
-  },
+  redBg: { height: 0, backgroundColor: COLORS.primary },
   scroll: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
   },
   scrollContent: {
-    paddingTop: vs(8),
-    paddingBottom: vs(32),
+    // CardView padding 10dp + ScrollView content padding 10dp
+    padding: ms(20),
+    paddingBottom: ms(24),
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: scale(12),
-    marginVertical: vs(8),
-    padding: scale(14),
+    // bg_border: 10dp radius, 1dp #f4f4f4 stroke; sections 10dp apart, 10dp padding
+    backgroundColor: COLORS.white,
+    marginTop: ms(10),
+    padding: ms(10),
     borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: scale(14),
-    shadowColor: '#d1d1d1',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderColor: '#F4F4F4',
+    borderRadius: ms(10),
   },
   cardTitle: {
-    fontSize: sp(18),
-    fontWeight: '500',
-    color: '#1C1C1E',
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: COLORS.ink,
   },
   cardSubtitle: {
-    fontSize: sp(15),
-    color: '#9CA3AF',
-    marginBottom: vs(10),
+    fontSize: sp(12),
+    color: COLORS.lightGray,
   },
   photoRow: {
     flexDirection: 'row',
     gap: scale(18),
   },
   photoSlot: {
-    width: scale(100),
-    height: scale(100),
-    aspectRatio: 1,
-    borderWidth: 1.5,
-    borderColor: '#898989',
-    borderRadius: scale(14),
+    width: ms(100),
+    height: ms(100),
+    marginRight: ms(10),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(15),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
     overflow: 'hidden',
   },
   photoThumb: {
@@ -2481,9 +2459,8 @@ const styles = StyleSheet.create({
   workModeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: scale(18),
-    marginTop: vs(8),
-    marginBottom: vs(4),
+    gap: ms(20),
+    marginTop: ms(4),
   },
   radioItem: {
     flexDirection: 'row',
@@ -2509,58 +2486,60 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   radioLabel: {
-    fontSize: sp(16),
-    color: '#000',
+    fontSize: sp(14),
+    color: COLORS.ink,
   },
   addRow: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#DADADA',
-    borderRadius: scale(30),
-    height: vs(44),
-    marginTop: vs(8),
-    marginBottom: vs(8),
+    borderColor: '#F4F4F4',
+    borderRadius: ms(30),
+    height: ms(34),
+    marginHorizontal: ms(5),
+    marginTop: ms(5),
+    marginBottom: ms(5),
     overflow: 'hidden',
   },
   addRowPlaceholder: {
     flex: 1,
-    paddingHorizontal: scale(14),
-    fontSize: sp(18),
-    color: '#a6a6a6',
+    paddingHorizontal: ms(14),
+    fontSize: sp(14),
+    color: COLORS.midGray,
     textAlign: 'center',
   },
   plusBtn: {
-    fontSize: sp(30),
+    fontSize: sp(26),
     color: COLORS.primary,
-    paddingHorizontal: scale(14),
-    lineHeight: sp(32),
+    paddingHorizontal: ms(14),
+    lineHeight: sp(28),
   },
   noteChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: scale(25),
+    borderRadius: ms(30),
     borderWidth: 1,
-    borderColor: '#d1d1d1',
-    paddingHorizontal: scale(14),
-    paddingVertical: vs(10),
-    marginBottom: vs(8),
-    gap: scale(8),
+    borderColor: '#F4F4F4',
+    paddingHorizontal: ms(14),
+    height: ms(34),
+    marginHorizontal: ms(5),
+    marginBottom: ms(5),
+    gap: ms(8),
   },
   noteChipIndex: {
-    fontSize: sp(18),
+    fontSize: sp(14),
     fontWeight: '600',
-    color: '#000',
-    minWidth: scale(16),
+    color: COLORS.textBlack,
+    minWidth: ms(16),
   },
   noteChipText: {
     flex: 1,
-    fontSize: sp(18),
-    color: '#000',
+    fontSize: sp(14),
+    color: COLORS.textBlack,
   },
   noteChipPlaceholder: {
-    color: '#a6a6a6',
+    color: COLORS.midGray,
   },
   notAllowedText: {
     fontSize: sp(12),
@@ -2575,76 +2554,70 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sheetContainer: {
-    backgroundColor: '#FFFFFF',
+    // dialog_add_note.xml: 30dp top corners, 20dp padding
+    backgroundColor: COLORS.white,
     width: '100%',
     maxWidth: scale(560),
-    borderTopLeftRadius: scale(30),
-    borderTopRightRadius: scale(30),
-    paddingHorizontal: scale(22),
-    paddingTop: vs(15),
-    paddingBottom: vs(20),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    padding: ms(20),
   },
-  sheetContent: {
-    gap: vs(16),
-  },
+  sheetContent: {},
   sheetTitle: {
     fontSize: sp(22),
-    fontWeight: '400',
-    color: '#1c1c1e',
+    color: COLORS.ink,
     textAlign: 'center',
+    marginBottom: ms(20),
   },
   sheetTextArea: {
-    borderWidth: 2,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(20),
-    minHeight: vs(180),
-    padding: scale(14),
+    flex: 1,
+    padding: ms(10),
     fontSize: sp(16),
-    color: '#1F2937',
+    color: COLORS.ink,
   },
   sheetSaveBtn: {
-    height: vs(45),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    height: ms(48),
     backgroundColor: COLORS.primary,
-    borderRadius: scale(30),
+    borderRadius: ms(34),
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 2,
+    elevation: 4,
   },
   sheetSaveBtnText: {
-    color: '#FFF',
-    fontSize: sp(22),
-    fontWeight: '400',
-    letterSpacing: 1,
+    color: COLORS.white,
+    fontSize: sp(18),
   },
   sheetCancelText: {
     color: COLORS.primary,
-    fontSize: sp(23),
-    fontWeight: '500',
+    fontSize: sp(18),
     textAlign: 'center',
-    marginTop: vs(5),
+    marginBottom: ms(20),
   },
   deviceChipWrapper: {
-    marginBottom: vs(8),
+    marginHorizontal: ms(5),
+    marginTop: ms(5),
+    marginBottom: ms(5),
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
+    borderRadius: ms(34),
+    overflow: 'hidden',
   },
   deviceForm: {
-    borderRadius: scale(12),
-    padding: scale(12),
-    gap: vs(10),
-    marginTop: vs(4),
+    marginHorizontal: ms(10),
+    marginBottom: ms(20),
   },
   deviceInput: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: scale(25),
+    marginTop: ms(10),
+    paddingVertical: ms(8),
+    paddingHorizontal: ms(14),
     borderWidth: 1,
-    borderColor: '#d1d1d1',
-    paddingHorizontal: scale(16),
-    paddingVertical: vs(12),
-    fontSize: sp(18),
-    color: '#1F2937',
+    borderColor: '#F4F4F4',
+    borderRadius: ms(34),
+    backgroundColor: COLORS.white,
+    fontSize: sp(16),
+    color: COLORS.ink,
   },
   photoInner: {
     flex: 1,
@@ -2659,63 +2632,67 @@ const styles = StyleSheet.create({
   },
   tilesRow: {
     flexDirection: 'row',
-    gap: scale(10),
-    marginHorizontal: scale(16),
-    marginVertical: vs(10),
+    marginHorizontal: ms(4),
+    marginVertical: ms(8),
   },
   tile: {
+    // 120dp tiles, 4dp margin, bg_border with a tint
     flex: 1,
-    backgroundColor: '#EBF3FF',
-    borderRadius: scale(12),
-    padding: scale(8),
-    minHeight: vs(100),
+    height: ms(120),
+    margin: ms(4),
+    padding: ms(8),
+    backgroundColor: '#F0F6FF',
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
+    borderRadius: ms(10),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tileTitle: {
-    fontSize: sp(18),
-    fontWeight: '500',
-    color: '#000',
-    marginBottom: vs(6),
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: COLORS.ink,
     textAlign: 'center',
   },
   tileSub: {
-    fontSize: sp(16),
-    color: '#666666',
-    lineHeight: sp(17),
+    marginTop: ms(10),
+    fontSize: sp(12),
+    color: '#757575',
     textAlign: 'center',
   },
   naCard: {
-    backgroundColor: '#f2f2f2',
-    borderRadius: scale(12),
-    marginHorizontal: scale(16),
-    marginBottom: vs(10),
-    paddingHorizontal: scale(10),
-    paddingTop: vs(5),
-    paddingBottom: vs(50),
+    height: ms(100),
+    marginTop: ms(10),
+    paddingHorizontal: ms(10),
+    paddingTop: ms(5),
+    backgroundColor: 'rgba(211,204,206,0.45)',
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
+    borderRadius: ms(10),
   },
   naTitle: {
-    fontSize: sp(18),
-    fontWeight: '500',
-    color: '#1C1C1E',
-    marginBottom: vs(5),
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: COLORS.ink,
   },
   naSub: {
-    fontSize: sp(16),
-    color: '#666666',
+    ...StyleSheet.absoluteFill,
     textAlign: 'center',
-    marginTop: vs(8),
+    textAlignVertical: 'center',
+    fontSize: sp(12),
+    fontWeight: 'bold',
+    color: '#757575',
   },
   signatureArea: {
-    height: vs(100),
-    borderRadius: scale(12),
-    flexDirection: 'row',
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
   signaturePlaceholder: {
-    fontSize: sp(16),
-    color: '#666666',
+    fontSize: sp(12),
+    fontWeight: 'bold',
+    color: '#757575',
     textAlign: 'center',
-    marginLeft: scale(80),
   },
   bottomSheetOverlay: {
     flex: 1,
@@ -2724,123 +2701,147 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   signatureSheet: {
-    backgroundColor: '#FFF',
+    // signature_rate.xml: 30dp top corners, 10dp padding
+    backgroundColor: COLORS.white,
     width: '100%',
     maxWidth: scale(560),
-    borderTopLeftRadius: scale(30),
-    borderTopRightRadius: scale(30),
-    paddingHorizontal: scale(22),
-    paddingTop: vs(10),
-    paddingBottom: vs(20),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    padding: ms(10),
     maxHeight: '92%',
   },
   signatureSheetTitle: {
     textAlign: 'center',
-    fontSize: sp(22),
-    fontWeight: '400',
-    color: '#1C1C1E',
-    marginBottom: vs(10),
+    fontSize: sp(18),
+    color: COLORS.ink,
+    marginBottom: ms(5),
   },
   signatureDropdown: {
-    height: vs(50),
-    borderWidth: 1.5,
+    // rounded_border_tab: 20dp radius, 1dp colorPrimaryDark stroke
+    minHeight: ms(48),
+    marginTop: ms(5),
+    marginBottom: ms(5),
+    borderWidth: 1,
     borderColor: COLORS.primary,
-    borderRadius: scale(22),
+    borderRadius: ms(20),
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: scale(25),
+    justifyContent: 'center',
+    paddingHorizontal: ms(25),
   },
   signatureDropdownText: {
-    fontSize: sp(20),
+    flex: 1,
+    textAlign: 'center',
+    fontSize: sp(16),
     color: COLORS.primary,
     fontWeight: '500',
-    letterSpacing: 0.3,
   },
   signatureSaveBtn: {
-    height: vs(45),
+    marginTop: ms(5),
+    marginBottom: ms(20),
+    height: ms(48),
     backgroundColor: COLORS.primary,
-    borderRadius: scale(30),
+    borderRadius: ms(34),
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 2,
+    elevation: 4,
   },
   signatureSaveText: {
-    color: '#FFF',
-    fontSize: sp(22),
-    fontWeight: '400',
-    letterSpacing: 1,
+    color: COLORS.white,
+    fontSize: sp(18),
   },
   signatureCancelText: {
     color: COLORS.primary,
-    fontSize: sp(23),
-    fontWeight: '500',
-    marginTop: vs(30),
-    alignItems: 'center',
+    fontSize: sp(18),
     textAlign: 'center',
+    marginBottom: ms(20),
   },
   dashedBox: {
-    marginTop: vs(12),
+    marginTop: ms(12),
     alignSelf: 'center',
-    width: '55%',
-    borderWidth: 1.5,
-    borderColor: '#a6a6a6',
+    borderWidth: 1,
+    borderColor: '#A9A9A9',
     borderStyle: 'dashed',
-    borderRadius: scale(8),
     overflow: 'hidden',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
   },
   dashedInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: scale(8),
-    paddingVertical: vs(14),
-    paddingHorizontal: scale(16),
+    paddingVertical: ms(8),
+    paddingHorizontal: ms(12),
   },
   attachLabel: {
-    fontSize: sp(18),
-    color: COLORS.black,
-    fontWeight: '400',
-    marginLeft: scale(8),
+    fontSize: sp(14),
+    color: '#000000',
+    marginLeft: ms(10),
   },
   attachThumb: {
     width: '100%',
     height: vs(80),
   },
   requestBtn: {
-    marginHorizontal: scale(16),
-    marginTop: vs(6),
-    marginBottom: vs(14),
-    height: vs(50),
-    backgroundColor: '#1F2937',
-    borderRadius: scale(30),
+    marginTop: ms(20),
+    marginBottom: ms(5),
+    height: ms(48),
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(34),
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 4,
   },
   requestBtnText: {
-    color: '#fff',
-    fontSize: sp(22),
-    fontWeight: '400',
-    letterSpacing: 1.2,
+    color: COLORS.white,
+    fontSize: sp(18),
   },
   continueBtn: {
-    marginHorizontal: scale(16),
-    height: vs(50),
+    marginTop: ms(20),
+    marginBottom: ms(20),
+    height: ms(48),
     backgroundColor: COLORS.primary,
-    borderRadius: scale(30),
+    borderRadius: ms(34),
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 4,
   },
   continueBtnText: {
-    color: '#fff',
-    fontSize: sp(22),
-    fontWeight: '400',
-    letterSpacing: 1.2,
+    color: COLORS.white,
+    fontSize: sp(18),
+  },
+  fieldPhotoRow: {
+    paddingHorizontal: ms(10),
+    marginTop: ms(10),
+    marginBottom: ms(10),
+    alignItems: 'center',
+  },
+  boxCard: {
+    // FSR / signature / attachment wrappers are fixed 100dp boxes with the hint centred
+    height: ms(100),
+    paddingTop: ms(5),
+  },
+  boxGrey: {
+    backgroundColor: 'rgba(211,204,206,0.45)',
+  },
+  sheetField: {
+    height: ms(200),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+  },
+  sheetFieldLabel: {
+    position: 'absolute',
+    top: -ms(9),
+    left: ms(24),
+    paddingHorizontal: ms(4),
+    backgroundColor: COLORS.white,
+    fontSize: sp(12),
+    color: '#2A7D6F',
+    zIndex: 1,
+  },
+  signatureCaret: {
+    position: 'absolute',
+    right: ms(25),
   },
   modalBackdrop: {
     flex: 1,
@@ -2849,41 +2850,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: scale(32),
   },
-  sourceSheet: {
-    backgroundColor: '#fff',
-    borderRadius: scale(16),
-    width: '100%',
-    maxWidth: scale(360),
-    paddingVertical: vs(8),
-    elevation: 10,
-  },
-  sourceTitle: {
-    fontSize: sp(16),
-    fontWeight: '600',
-    color: '#111',
-    paddingHorizontal: scale(20),
-    paddingVertical: vs(14),
-  },
-  sourceDivider: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-  },
-  sourceOption: {
+  deviceHeader: {
+    height: ms(35),
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: scale(20),
-    paddingVertical: vs(14),
-    gap: scale(14),
   },
-  sourceIconWrap: {
-    width: scale(34),
-    height: scale(34),
-    borderRadius: scale(17),
+  deviceIndex: {
+    width: ms(50),
+    textAlign: 'center',
+    fontSize: sp(16),
+    fontWeight: 'bold',
+    color: COLORS.ink,
+  },
+  deviceHeaderText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: sp(14),
+    color: COLORS.textBlack,
+    marginRight: ms(10),
+  },
+  devicePhotoRow: {
+    flexDirection: 'row',
+    gap: ms(10),
+    marginTop: ms(10),
+    marginHorizontal: ms(5),
+  },
+  devicePhotoSlot: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    height: ms(100),
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
+    borderRadius: ms(10),
+    overflow: 'hidden',
+  },
+  devicePhotoRemove: {
+    position: 'absolute',
+    top: ms(5),
+    right: ms(5),
+    zIndex: 2,
+    width: ms(15),
+    height: ms(15),
+    borderRadius: ms(8),
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
+    backgroundColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  sourceOptionText: {
-    fontSize: sp(15),
-    color: '#1F2937',
   },
 });
