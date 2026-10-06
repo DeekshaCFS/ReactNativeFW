@@ -9,13 +9,13 @@ import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {addUsedItem, deductUsedItem} from '../../api/item/itemService';
 import type {GetUsedItemListResultData} from '../../api/item/item.types';

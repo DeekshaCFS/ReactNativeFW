@@ -11,7 +11,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Linking,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -20,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {pick} from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';

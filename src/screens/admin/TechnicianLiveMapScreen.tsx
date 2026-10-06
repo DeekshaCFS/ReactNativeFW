@@ -7,7 +7,8 @@
 // the data source.
 
 import React, {useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View} from 'react-native';
+import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, View} from 'react-native';
+import Modal from '../../components/AppModal';
 import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {COLORS} from '../../theme/theme';

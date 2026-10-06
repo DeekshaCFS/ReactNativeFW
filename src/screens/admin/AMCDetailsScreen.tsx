@@ -12,10 +12,10 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
-  Modal,
   TextInput,
   Linking,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#d9e1e9',
     paddingHorizontal: ms(16),
     paddingVertical: ms(8),
-    marginHorizontal: 15,
+    marginHorizontal: ms(15),
     marginTop: 2,
     borderRadius: ms(8),
   },

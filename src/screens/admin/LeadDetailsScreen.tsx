@@ -8,7 +8,6 @@ import {
   BackHandler,
   Image,
   Linking,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {
   type LeadListItem,
   type LeadDetailsResponse,

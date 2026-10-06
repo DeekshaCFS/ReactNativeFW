@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Modal,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -18,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import AudioRecord from 'react-native-audio-record';
 import RNFS from 'react-native-fs';
 import Sound from 'react-native-sound';

@@ -3,9 +3,10 @@
 import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, Image, ScrollView, Modal,
+  View, Text, TextInput, StyleSheet, Image, ScrollView,
   Pressable, Alert, ActivityIndicator, Platform, StatusBar, TouchableOpacity,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme/theme';
@@ -118,8 +119,6 @@ const fieldStyles = StyleSheet.create({
 
 export default function AdminProfileScreen() {
   const insets = useSafeAreaInsets();
-  const statusBarHeight =
-    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
 
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserResultData | null>(null);

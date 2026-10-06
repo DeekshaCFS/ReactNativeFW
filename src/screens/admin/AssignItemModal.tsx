@@ -7,7 +7,6 @@ import {ensureSuccess} from '../../utils/apiResponse';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -15,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {getAllItemAssignedUnassigned, issueItem} from '../../api/item/itemService';
 import type {IssueItemResultData, ItemsListResultData} from '../../api/item/item.types';
 import {getExpenseUserList} from '../../api/expenditure/expenditureService';

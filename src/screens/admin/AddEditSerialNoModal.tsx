@@ -8,7 +8,6 @@ import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -16,6 +15,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {COLORS} from '../../theme/theme';
 import {ms, scale, sp, vs} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';

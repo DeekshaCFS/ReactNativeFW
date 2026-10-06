@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
     borderRadius: scale(20),
     paddingHorizontal: scale(12),
     height: vs(40),
-    minHeight: 36,
+    minHeight: vs(36),
   },
   searchIcon: {
     fontSize: sp(14),
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1c1c1e',
     paddingHorizontal: scale(14),
     height: vs(40),
-    minHeight: 36,
+    minHeight: vs(36),
     borderRadius: scale(20),
     alignItems: 'center',
     justifyContent: 'center',

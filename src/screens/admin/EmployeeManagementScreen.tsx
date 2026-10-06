@@ -8,7 +8,6 @@ import {
   FlatList,
   Image,
   Linking,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -18,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {
   type EmployeeListItem,
   type EmployeeListResponse,

@@ -4,7 +4,6 @@ import {ensureSuccess} from '../../utils/apiResponse';
 import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import {
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {
   type ExpenseTechnicianItem,
   type ExpenseTechnicianListResponse,

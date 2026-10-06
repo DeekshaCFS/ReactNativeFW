@@ -16,12 +16,12 @@ import {
   Alert,
   Image,
   Linking,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {ms, scale, sp, vs} from '../../utils/responsive';
 import {getAttendanceTechMonthly} from '../../api/attendance/attendanceService';

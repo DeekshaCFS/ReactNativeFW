@@ -1,8 +1,9 @@
 // src/screens/admin/AddFirstFWSheet.tsx
 
 import {
-  View, Text, StyleSheet, Modal, Pressable, TextInput, Image, ActivityIndicator, Platform,
+  View, Text, StyleSheet, Pressable, TextInput, Image, ActivityIndicator, Platform,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import { useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Icon from 'react-native-vector-icons/MaterialIcons';

@@ -5,7 +5,6 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -13,6 +12,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {getUserDetails} from '../../api/users/usersService';
 import type {UserDetails, UserDetailsResultData} from '../../api/users/users.types';
@@ -466,7 +466,7 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
                 Profile {Math.round(profileCompletionPercent)}%
               </Text>
               <Pressable
-                onPress={() => (navigation.getParent() as any)?.navigate('Profile')}
+                onPress={() => (navigation as any).navigate('Profile')}
               >
                 <Text style={styles.profileCompletionUpdate}>Update</Text>
               </Pressable>

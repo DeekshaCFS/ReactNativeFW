@@ -6,7 +6,6 @@ import {
 
   FlatList,
   Image,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   type ExpenseTechnicianItem,

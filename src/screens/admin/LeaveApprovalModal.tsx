@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +18,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {postLeaveApprovReject} from '../../api/leaveManagement/leaveManagementService';
 import type {LeaveListItem} from './adminLegacyApiTypes';

@@ -1,44 +1,58 @@
 // src/utils/responsive.ts
-import { Dimensions, PixelRatio, Platform, StatusBar } from 'react-native';
+import { Dimensions, PixelRatio, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const getWindow = () => Dimensions.get('window');
+
+const initial = getWindow();
+
+// Orientation-independent device dimensions. Most styles in this app are built
+// once in StyleSheet.create() at import time, so anything they read must not
+// change when the device rotates. The short/long side of the window is constant
+// across portrait and landscape (unlike width/height), so every scale helper
+// below is derived from these rather than from the live width/height.
+const SHORT_SIDE = Math.min(initial.width, initial.height);
+const LONG_SIDE = Math.max(initial.width, initial.height);
 
 // Base dimensions (design reference: 390x844 — iPhone 14)
 const BASE_WIDTH = 390;
 const BASE_HEIGHT = 844;
 
-// Tablets (iPad, Android tablets) report window widths/heights well past
-// any phone -- e.g. ~768-834pt portrait / ~1024-1194pt landscape for iPads,
-// similarly large for Android tablets. Scaling font size, padding, and radii
-// linearly against BASE_WIDTH (as this file used to) blows those values up
-// 2x+ on a tablet: a 16pt font could render at 30pt+. Clamp the ratio so
-// phones scale exactly as before (typical phone widths stay under the max),
-// while tablets get a modest, capped increase instead of a linear one.
+// Tablets (iPad, Android tablets) have a short side of ~600-834pt and a long
+// side of ~960-1366pt. Scaling font size, padding, and radii linearly against
+// BASE_WIDTH would blow those values up 2x+ (a 16pt font at 30pt+). Clamp the
+// ratio so phones scale as designed while tablets get a modest, capped increase.
 const MIN_SCALE_RATIO = 0.85;
 const MAX_SCALE_RATIO = 1.2;
-const widthRatio = Math.min(
-  Math.max(SCREEN_WIDTH / BASE_WIDTH, MIN_SCALE_RATIO),
-  MAX_SCALE_RATIO,
-);
-const heightRatio = Math.min(
-  Math.max(SCREEN_HEIGHT / BASE_HEIGHT, MIN_SCALE_RATIO),
-  MAX_SCALE_RATIO,
-);
+const clampRatio = (ratio: number) =>
+  Math.min(Math.max(ratio, MIN_SCALE_RATIO), MAX_SCALE_RATIO);
 
-/** Width percentage */
+const widthRatio = clampRatio(SHORT_SIDE / BASE_WIDTH);
+const heightRatio = clampRatio(LONG_SIDE / BASE_HEIGHT);
+
+/** Width percentage of the *current* window (re-evaluated on every call, so it
+ *  is correct in inline styles after rotation/split-screen; for styles built at
+ *  import time prefer scale()/ms() or a '%' string). */
 export const wp = (percent: number): number =>
-  Math.round((SCREEN_WIDTH * percent) / 100);
+  Math.round((getWindow().width * percent) / 100);
 
-/** Height percentage */
+/** Percentage of the device's short side (rotation-independent), for widths in
+ *  styles built at import time where wp() would go stale. */
+export const wps = (percent: number): number =>
+  Math.round((SHORT_SIDE * percent) / 100);
+
+/** Height percentage of the *current* window (see wp). */
 export const hp = (percent: number): number =>
-  Math.round((SCREEN_HEIGHT * percent) / 100);
+  Math.round((getWindow().height * percent) / 100);
 
-/** Scale a size relative to base width (clamped -- see widthRatio above, so
- *  this no longer grows without bound on tablets). */
+/** Scale a size relative to the 390pt base width. Uses the device's short side
+ *  (rotation-independent) and is clamped, so it does not grow without bound on
+ *  tablets. */
 export const scale = (size: number): number =>
   Math.round(widthRatio * size);
 
-/** Vertical scale relative to base height (clamped -- see heightRatio above). */
+/** Vertical scale relative to the 844pt base height. Uses the device's long
+ *  side (rotation-independent) and is clamped. */
 export const vs = (size: number): number =>
   Math.round(heightRatio * size);
 
@@ -59,16 +73,16 @@ export const isAndroid = Platform.OS === 'android';
  *  side >= 600dp (matches Android's own "sw600dp" tablet breakpoint). Useful
  *  for screens that want an actual layout change (columns, side-by-side
  *  panels) rather than just scaled-up phone spacing. */
-export const isTablet = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) >= 600;
+export const isTablet = SHORT_SIDE >= 600;
 
-/** Safe status bar height across platforms */
-export const STATUS_BAR_HEIGHT = Platform.select({
-  ios: 44,
-  android: StatusBar.currentHeight ?? 24,
-  default: 0,
-});
+/** Height of AppHeader's toolbar row (below the status bar inset). */
+export const HEADER_BAR_HEIGHT = ms(56);
 
-/** Standard top padding for screens that sit under the status bar */
-export const HEADER_TOP_PADDING = STATUS_BAR_HEIGHT;
-
-export { SCREEN_WIDTH, SCREEN_HEIGHT };
+/** Total height of the absolutely-positioned AppHeader: the live top safe-area
+ *  inset plus the toolbar. Screens rendered under it (the tab screens) must
+ *  start their content below this. It reads the same useSafeAreaInsets() value
+ *  AppHeader pads itself with, so they always agree -- unlike a module-level
+ *  constant (initialWindowMetrics / StatusBar.currentHeight), which on Android
+ *  includes the status bar even while the window already starts below it. */
+export const useAppHeaderHeight = (): number =>
+  useSafeAreaInsets().top + HEADER_BAR_HEIGHT;

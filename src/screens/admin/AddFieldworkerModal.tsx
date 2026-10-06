@@ -4,13 +4,13 @@ import React, {useMemo, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {addBulkFieldworkers} from '../../api/umEmployeeList/umEmployeeListService';
 import {isIndiaCountryDetailsId} from '../../state/session';
 import {styles} from './crmShared';

@@ -6,7 +6,6 @@ import {
   BackHandler,
   FlatList,
   Image,
-  Modal,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {
   type AssignedItemListItem,
   type AssignedItemListResponse,

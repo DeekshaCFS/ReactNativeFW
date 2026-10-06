@@ -8,7 +8,6 @@ import {
   FlatList,
   Image,
   Linking,
-  Modal,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -17,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   type LeadListItem,

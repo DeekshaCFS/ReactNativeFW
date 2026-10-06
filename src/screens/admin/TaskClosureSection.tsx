@@ -12,13 +12,13 @@ import {
   Alert,
   Image,
   Linking,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {
   getQRScannedData,
   getRejectedTaskDetails,
