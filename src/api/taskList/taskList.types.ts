@@ -826,7 +826,19 @@ export interface GetPostedTaskDocDTO {
   Code?: string;
 }
 
+// GetPostedTaskDocDTO.Files item
+export interface GetPostedTaskDocFile {
+  Base64File?: string;
+  FileExtension?: string;
+  ConvertedFileName?: string;
+  OriginalFileName?: string;
+  FilePath?: string;
+  FileId?: number;
+  DocumnetTypeId?: number;
+}
+
 export interface GetPostedTaskDocDTOResultData {
+  Files?: GetPostedTaskDocFile[];
   Base64File?: string;
   FileExtension?: string;
   ConvertedFileName?: string;
