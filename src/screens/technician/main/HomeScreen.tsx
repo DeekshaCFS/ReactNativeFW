@@ -16,8 +16,8 @@ import { getProfileDetails } from '../../../api/users/usersService';
 import { getCountrySymbol } from '../../../api/countryDetails/countryDetailsService';
 import { setCurrentCountryDetails } from '../../../state/session';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { scale, vs, sp, useAppHeaderHeight } from '../../../utils/responsive';
-import { formatAmount } from '../../../utils/decimal';
+import { scale, vs, sp, ms, wps, useAppHeaderHeight } from '../../../utils/responsive';
+import TaskListCard from '../../../components/TaskListCard';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useOpenTask } from '../../../hooks/useOpenTask';
@@ -31,25 +31,6 @@ import {
 import { getCurrentLocationAndAddress } from '../../../utils/locationPermision';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-
-const getStatusStyle = (status?: string) => {
-  switch (status) {
-    case 'Completed': return styles.ribbonCompleted;
-    case 'Rejected': return styles.ribbonRejected;
-    case 'Ongoing': return styles.ribbonOngoing;
-    case 'InActive': return styles.ribbonInactive;
-    case 'OnHold': return styles.ribbonOnHold;
-    default: return styles.ribbonInactive;
-  }
-};
-
-const formatDateTime = (dateString?: string) => {
-  if (!dateString) return '';
-  return new Date(dateString).toLocaleString('en-GB', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-};
 
 // ── component ─────────────────────────────────────────────────────────────────
 
@@ -338,13 +319,19 @@ export default function HomeScreen({ navigation }: any) {
 
   // ── arc chart ─────────────────────────────────────────────────────────────
 
-  const ARC_SIZE   = scale(220);
-  const ARC_CX     = scale(110);
-  const ARC_CY     = scale(110);
-  const ARC_RADIUS = scale(88);
-  const ARC_STROKE = scale(16);
+  // tech_home_fragment_new.xml: chart column is 0.6 of the width inside 14dp margins, with
+  // 10dp padding, and FitChart strokeSize is 14dp.
+  const ARC_SIZE   = Math.round((wps(100) - ms(28)) * 0.6 - ms(20));
+  const ARC_STROKE = ms(14);
+  const ARC_CX     = ARC_SIZE / 2;
+  const ARC_CY     = ARC_SIZE / 2;
+  const ARC_RADIUS = ARC_SIZE / 2 - ARC_STROKE / 2;
 
-  const STATUS_COLORS = ['#08cb50','#f97316','#9ca3af', COLORS.primary,'#000'];
+  // Same order as the legend; Java colours (green / orange / light_gray / colorPrimaryDark / onhold).
+  const STATUS_COLORS = [
+    COLORS.statusCompleted, COLORS.statusOngoing, COLORS.statusInactive,
+    COLORS.statusRejected, COLORS.statusOnHold,
+  ];
 
   function polarToXY(cx: number, cy: number, r: number, angleDeg: number) {
     const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -386,9 +373,9 @@ export default function HomeScreen({ navigation }: any) {
     return (
       <View style={styles.circleWrapper}>
         <Svg width={ARC_SIZE} height={ARC_SIZE}>
-          <Circle cx={ARC_CX} cy={ARC_CY} r={ARC_RADIUS} fill="none" stroke="#2563eb" strokeWidth={ARC_STROKE} />
+          <Circle cx={ARC_CX} cy={ARC_CY} r={ARC_RADIUS} fill="none" stroke={COLORS.tagBlue} strokeWidth={ARC_STROKE} />
           {arcs.map((arc, i) => arc ? (
-            <Path key={i} d={arc.path} fill="none" stroke={arc.color} strokeWidth={ARC_STROKE} strokeLinecap="butt" />
+            <Path key={i} d={arc.path} fill="none" stroke={arc.color} strokeWidth={ARC_STROKE} strokeLinecap="round" />
           ) : null)}
         </Svg>
         <View style={styles.circleLabelBox} pointerEvents="none">
@@ -410,49 +397,11 @@ export default function HomeScreen({ navigation }: any) {
 
   // ── task card ─────────────────────────────────────────────────────────────
 
-  const renderTaskCard = ({ item }: { item: Task }) => {
-    const Task_Tag = item.Task_TagName?.toUpperCase() || null;
-    return (
-      <Pressable style={styles.card} onPress={() => openTask(item)}>
-        <View style={styles.topRow}>
-          <View style={[styles.statusBadge, getStatusStyle(item.TaskStatus)]}>
-            <Text style={styles.statusText}>{item.TaskStatus?.toUpperCase()}</Text>
-          </View>
-          {Task_Tag && (
-            <View style={styles.tagBadge}>
-              <Text style={styles.tagText}>{Task_Tag}</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-            {item.Name}{' '}
-          </Text>
-          <Text style={styles.taskId}>[{item.NewTaskId}]</Text>
-          <Text style={styles.dateText}>{formatDateTime(item.CreatedDate)}</Text>
-        </View>
-        <View style={styles.contentRow}>
-          <View style={styles.leftCol}>
-            <Text style={styles.address} numberOfLines={2}>{item.LocationName}</Text>
-            <View style={styles.customerRow}>
-              <Text style={styles.customer}>{item.CustomerName}</Text>
-              {/* <Ionicons name="attach-outline" size={sp(18)} color={COLORS.primary} /> */}
-            </View>
-          </View>
-          <View style={styles.rightCol}>
-            <View style={styles.itemEntry}>
-              <Text style={styles.itemName}>
-                {item.FSRName && item.FSRName.toUpperCase() !== 'NA' ? item.FSRName : ''}
-              </Text>
-              {!!item.WagesPerHours && (
-                <Text style={styles.itemPrice}>Rs.{formatAmount(item.WagesPerHours)}</Text>
-              )}
-            </View>
-          </View>
-        </View>
-      </Pressable>
-    );
-  };
+  const renderTaskCard = ({ item }: { item: Task }) => (
+    <View style={styles.cardWrap}>
+      <TaskListCard task={item} onPress={() => openTask(item)} />
+    </View>
+  );
 
   // ── date label for stats header ───────────────────────────────────────────
 
@@ -499,51 +448,55 @@ export default function HomeScreen({ navigation }: any) {
         onRefresh={handleRefresh}
         ListHeaderComponent={
           <>
-            {/* Profile completion */}
-            <>
-              <Pressable onPress={() => navigation.navigate('Profile')}>
+            {/* Profile completion (Java hides the bar and % once the profile is 100%) */}
+            <View style={styles.profileRow}>
+              <Pressable onPress={() => navigation.navigate('Profile')} style={styles.profileLeft}>
                 <Text style={styles.profileTitle}>Profile Completion</Text>
+                {profilePercent !== 100 && <Text style={styles.profileUpdate}>Update</Text>}
               </Pressable>
-              <View style={styles.progressRow}>
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: `${profilePercent}%` }]} />
-                </View>
-                <Text style={styles.profilePercentText}>{profilePercent}%</Text>
+              {profilePercent !== 100 && (
+                <Text style={styles.profilePercentText}>{profilePercent.toFixed(1)}%</Text>
+              )}
+            </View>
+            {profilePercent !== 100 && (
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${profilePercent}%` }]} />
               </View>
-            </>
+            )}
 
             {/* Date label */}
-            <Text style={styles.dateLabelText}>
-              Showing data for{' '}
-              <Text style={{ color: '#212121' }}>{dateLabel}</Text>
-            </Text>
+            <View style={styles.dateRow}>
+              <Text style={styles.dateLabelText}>Showing data for</Text>
+              <Text style={styles.dateValueText}>{dateLabel}</Text>
+            </View>
 
             {/* Arc + stats */}
             <View style={styles.statsRow}>
-              <TaskArcCircle
-                total={totalTaskCount}
-                completed={completedCount}
-                ongoing={ongoingCount}
-                inactive={inactiveCount}
-                rejected={rejectedCount}
-                onHold={onHoldCount}
-              />
+              <View style={styles.chartCol}>
+                <TaskArcCircle
+                  total={totalTaskCount}
+                  completed={completedCount}
+                  ongoing={ongoingCount}
+                  inactive={inactiveCount}
+                  rejected={rejectedCount}
+                  onHold={onHoldCount}
+                />
+              </View>
               <View style={styles.stats}>
-                <Text style={[styles.stat, { color: '#08cb50' }]}>
-                  {String(completedCount).padStart(2, '0')}{'  '}Completed
-                </Text>
-                <Text style={[styles.stat, { color: '#f97316' }]}>
-                  {String(ongoingCount).padStart(2, '0')}{'  '}Ongoing
-                </Text>
-                <Text style={[styles.stat, { color: '#9ca3af' }]}>
-                  {String(inactiveCount).padStart(2, '0')}{'  '}InActive
-                </Text>
-                <Text style={[styles.stat, { color: COLORS.primary }]}>
-                  {String(rejectedCount).padStart(2, '0')}{'  '}Rejected
-                </Text>
-                <Text style={[styles.stat, { color: '#000' }]}>
-                  {String(onHoldCount).padStart(2, '0')}{'  '}OnHold
-                </Text>
+                {[
+                  { count: completedCount, label: 'Completed', color: COLORS.statusCompleted },
+                  { count: ongoingCount,   label: 'Ongoing',   color: COLORS.statusOngoing },
+                  { count: inactiveCount,  label: 'InActive',  color: COLORS.lightGray },
+                  { count: rejectedCount,  label: 'Rejected',  color: COLORS.statusRejected },
+                  { count: onHoldCount,    label: 'OnHold',    color: COLORS.statusOnHold },
+                ].map((row, i) => (
+                  <View key={row.label} style={[styles.statRow, i > 0 && styles.statGap]}>
+                    <Text style={[styles.statCount, { color: row.color }]}>
+                      {String(row.count).padStart(2, '0')}
+                    </Text>
+                    <Text style={[styles.statLabel, { color: row.color }]}>{row.label}</Text>
+                  </View>
+                ))}
               </View>
             </View>
 
@@ -622,12 +575,13 @@ const styles = StyleSheet.create({
   root:           { flex: 1, backgroundColor: COLORS.primary },
   redBg:          { backgroundColor: COLORS.primary },
 
+  // tech_home_fragment_new.xml: white CardView, 30dp corners, 10dp top padding.
   whiteSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
-    padding: scale(10),
-    paddingBottom: vs(40),
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    paddingTop: ms(10),
+    paddingBottom: ms(56),
     flexGrow: 1,
   },
 
@@ -647,120 +601,35 @@ const styles = StyleSheet.create({
   confirmBtn:   { padding: scale(10), borderRadius: scale(30), backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', height: vs(56) },
   confirmText:  { fontSize: sp(20), color: '#fff' },
 
-  profileTitle:        { fontSize: sp(16), fontWeight: '500', paddingLeft: scale(8) },
-  progressRow:         { flexDirection: 'row', alignItems: 'center', marginTop: vs(15), paddingHorizontal: scale(8) },
-  progressBar:         { width: '90%', height: vs(6), borderRadius: 3, overflow: 'hidden', backgroundColor: COLORS.textMuted },
-  progressFill:        { height: vs(6), backgroundColor: '#f59e0b', borderRadius: 3 },
-  profilePercentText:  { width: '10%', fontSize: sp(13), textAlign: 'right' },
-  
-  dateLabelText: { marginVertical: vs(12), fontSize: sp(15), color: '#6b7280' },
+  profileRow:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: ms(14) },
+  profileLeft:         { flexDirection: 'row', alignItems: 'center' },
+  profileTitle:        { fontSize: sp(14), fontWeight: 'bold', color: COLORS.textBlack },
+  profileUpdate:       { marginLeft: ms(6), fontSize: sp(14), fontWeight: 'bold', color: COLORS.primary },
+  profilePercentText:  { fontSize: sp(14), fontWeight: 'bold', color: COLORS.textBlack },
+  progressBar:         { height: ms(5), margin: ms(10), borderRadius: ms(34), overflow: 'hidden', backgroundColor: COLORS.lighterGray },
+  progressFill:        { height: ms(5), backgroundColor: COLORS.primary, borderRadius: ms(34) },
 
-  circleWrapper:  { alignItems: 'center', justifyContent: 'center', marginVertical: vs(10) },
-  circleValue:    { fontSize: sp(30), fontWeight: '700', color: '#212121' },
-  circleLabel:    { color: '#6b7280', fontSize: sp(16), marginTop: vs(2) },
+  dateRow:       { flexDirection: 'row', marginHorizontal: ms(14) },
+  dateLabelText: { fontSize: sp(14), color: COLORS.textMuted },
+  dateValueText: { marginLeft: ms(5), fontSize: sp(14), color: COLORS.ink },
+
+  statsRow:       { flexDirection: 'row', marginHorizontal: ms(14) },
+  chartCol:       { flex: 0.6, marginTop: ms(10), padding: ms(10), alignItems: 'center', justifyContent: 'center' },
+  circleWrapper:  { alignItems: 'center', justifyContent: 'center' },
+  circleValue:    { fontSize: sp(32), fontWeight: 'bold', color: COLORS.textBlack },
+  circleLabel:    { fontSize: sp(15), color: COLORS.textMuted },
   circleLabelBox: { position: 'absolute', alignItems: 'center' },
 
-  stats: { marginTop: vs(8), justifyContent: 'center' },
-  stat:  { fontSize: sp(15), fontWeight: '500', paddingVertical: vs(8) },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: scale(10) },
+  stats:     { flex: 0.4, justifyContent: 'center', paddingLeft: ms(30) },
+  statRow:   { flexDirection: 'row', alignItems: 'baseline' },
+  statGap:   { marginTop: ms(20) },
+  statCount: { fontSize: sp(15), fontWeight: 'bold' },
+  statLabel: { marginLeft: ms(10), fontSize: sp(13), fontWeight: 'bold' },
 
-  divider: { height: 1, backgroundColor: '#f0f0f0', marginVertical: vs(12), marginHorizontal: scale(4) },
+  // 10dp lighter_gray band between the stats and the task list.
+  divider: { height: ms(10), marginVertical: ms(10), backgroundColor: COLORS.lighterGray },
+
+  cardWrap: { marginHorizontal: ms(14) },
 
   emptyText: { textAlign: 'center', color: '#9ca3af', fontSize: sp(14), marginTop: vs(24) },
-
-  // ── task card ──
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: scale(16),
-    padding: scale(12),
-    marginBottom: vs(12),
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-  },
-
-  topRow:      { flexDirection: 'row', justifyContent: 'space-between', marginBottom: vs(5) },
-
-  statusBadge: {
-    width: scale(80),
-    height: vs(24),
-    borderBottomRightRadius: scale(16),
-    borderTopLeftRadius: scale(16),
-    alignItems: 'center',
-    justifyContent: 'center',
-    left: -scale(12),
-    top: -vs(12),
-  },
-
-  statusText: {
-    fontSize: sp(12),
-    color: '#fff',
-    fontWeight: '500',
-  },
-
-  tagBadge: {
-    backgroundColor: '#2563EB',
-    width: scale(100),
-    height: vs(24),
-    borderBottomLeftRadius: scale(16),
-    borderTopRightRadius: scale(16),
-    alignItems: 'center',
-    justifyContent: 'center',
-    right: -scale(12),
-    top: -vs(12),
-  },
-
-  tagText: {
-    color: '#fff',
-    fontSize: sp(12),
-    fontWeight: '500',
-    textAlign: 'center',
-    flexShrink: 1,
-  },
-
-  ribbonOngoing:   { backgroundColor: '#F59E0B' },
-  ribbonCompleted: { backgroundColor: '#16A34A' },
-  ribbonInactive:  { backgroundColor: '#9CA3AF' },
-  ribbonOnHold:    { backgroundColor: '#000' },
-  ribbonRejected:  { backgroundColor: '#DC2626' },
-
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: vs(6),
-  },
-
-  title:   { fontSize: sp(15), fontWeight: '600', color: '#111827', flex: 1, marginRight: scale(5) },
-  taskId:  { color: '#2563EB', fontWeight: '500', fontSize: sp(15), marginRight: scale(15) },
-  dateText:{ fontSize: sp(12), color: '#4f5258', flexShrink: 0 },
-
-  contentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: vs(4) },
-  leftCol:    { flex: 1, marginRight: scale(12) },
-  rightCol:   { alignItems: 'flex-end' },
-
-  address:     { marginBottom: vs(6), fontSize: sp(13), color: '#898e98', width: '70%' },
-  customer:    { marginRight: scale(6), fontSize: sp(13), color: '#171a1e' },
-  customerRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(4) },
-
-  itemEntry: {
-    alignItems: 'flex-end',
-    width: scale(100),
-  },
-
-  itemName: {
-    fontSize: sp(13),
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-
-  itemPrice: {
-    fontSize: sp(13),
-    fontWeight: '600',
-    color: COLORS.primary,
-    textAlign: 'right',
-    marginTop: vs(22),
-  },
 });

@@ -47,6 +47,7 @@ export const COLORS = {
   lightGray:       '#9A9FAA', // @color/light_gray (address / subtitle text)
   textBlack:       '#0E0E0E', // @color/black    (Java "black" is not pure #000)
   redIcon:         '#C22033', // @color/red_icon
+  lighterGray:      '#EDEDED', // @color/lighter_gray (progress track, list separator)
   alertRed:        '#FF4A4A', // @color/red (notification Rejected / AMC titles)
 } as const;
 
