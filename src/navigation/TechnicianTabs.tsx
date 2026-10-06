@@ -29,6 +29,7 @@ import TaskInputScreen from '../screens/technician/main/TaskInputScreen';
 import QRScanHistoryScreen from '../screens/technician/main/QRScanHistoryScreen';
 import NotificationScreen from '../screens/technician/main/NotificationScreen';
 import HelpChatScreen from '../screens/technician/main/HelpChatScreen';
+import SyncOfflineScreen from '../screens/technician/main/SyncOfflineScreen';
 import AMCDetailsScreen from '../screens/technician/main/AMCDetailsScreen';
 import TechProfileScreen from '../screens/technician/drawer/TechProfileScreen';
 import IssuedItems from '../screens/technician/drawer/IssuedItems';
@@ -81,6 +82,7 @@ const PUSHED_SCREENS: {
   { name: 'Leave', component: unmountOnBlur(LeaveScreen), title: 'Attendance' },
   { name: 'notification', component: unmountOnBlur(NotificationScreen), title: 'Notification' },
   { name: 'help', component: unmountOnBlur(HelpChatScreen), title: 'Help & Support' },
+  { name: 'SyncOffline', component: unmountOnBlur(SyncOfflineScreen), title: 'Sync Offline Data' },
   { name: 'Profile', component: unmountOnBlur(TechProfileScreen), title: 'Profile' },
   { name: 'Issued Items', component: unmountOnBlur(IssuedItems), title: 'Item Inventory' },
   { name: 'Requested Items', component: unmountOnBlur(RequestedItems), title: 'Item Inventory' },

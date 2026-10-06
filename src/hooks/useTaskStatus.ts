@@ -7,6 +7,8 @@ import { TASK_STATUS_ID } from '../constants/taskStatus';
 import { nowAsJavaTime, distanceInWholeKm } from '../utils/taskStatus.utils';
 import { fetchDrivingRoute } from '../utils/routing';
 import { requestLocationPermission, getCurrentPosition, Coordinates } from '../utils/locationPermision';
+import { getNetworkQuality, isPostable } from '../offline/networkQuality';
+import { savePendingTask } from '../offline/offlineStore';
 
 type ActionState = 'idle' | 'loading' | 'error';
 
@@ -97,29 +99,35 @@ export function useTaskStatus(): UseTaskStatusReturn {
       setErrorMessage(null);
       taskUnavailableRef.current = false;
 
-      let validation;
-      try {
-        validation = await getTaskListValidate({
-          Userid: userId,
-          TaskId: task.Id,
-          NewTaskId: task.NewTaskId ?? '',
-        });
-      } catch (err: any) {
-        setActionState('error');
-        setErrorMessage(err?.message ?? 'Failed to validate task');
-        return null;
-      }
+      // Java (TaskDialogNew): on a Poor link the accept is stored on the device and the task
+      // carries on locally; it is posted later from the Sync screen.
+      const online = isPostable(await getNetworkQuality());
 
-      if (validation?.Code !== '200') {
-        taskUnavailableRef.current =
-          validation?.Code === '201' && validation?.Message?.toLowerCase() === 'no data found.';
-        setActionState('error');
-        setErrorMessage(
-          taskUnavailableRef.current
-            ? 'This task is no longer available.'
-            : validation?.Message ?? 'Task could not be validated',
-        );
-        return null;
+      if (online) {
+        let validation;
+        try {
+          validation = await getTaskListValidate({
+            Userid: userId,
+            TaskId: task.Id,
+            NewTaskId: task.NewTaskId ?? '',
+          });
+        } catch (err: any) {
+          setActionState('error');
+          setErrorMessage(err?.message ?? 'Failed to validate task');
+          return null;
+        }
+
+        if (validation?.Code !== '200') {
+          taskUnavailableRef.current =
+            validation?.Code === '201' && validation?.Message?.toLowerCase() === 'no data found.';
+          setActionState('error');
+          setErrorMessage(
+            taskUnavailableRef.current
+              ? 'This task is no longer available.'
+              : validation?.Message ?? 'Task could not be validated',
+          );
+          return null;
+        }
       }
 
       if (task.ResponseCode && Number(task.ResponseCode) !== 0) {
@@ -132,6 +140,25 @@ export function useTaskStatus(): UseTaskStatusReturn {
 
       try {
         const totalDistance = await distanceToTaskKm(task);
+
+        if (!online) {
+          await savePendingTask(
+            { taskId: task.Id as number, newTaskId: task.NewTaskId ?? String(task.Id), userId, taskName: task.Name },
+            {
+              accept: {
+                TaskId: task.Id as number,
+                UserId: userId,
+                TaskStatus: TASK_STATUS_ID.Ongoing,
+                TaskState: isResume ? 1 : 0,
+                TotalDistance: totalDistance,
+                RejectedTaskNotes: '',
+                Time: nowAsJavaTime(),
+              },
+            },
+          );
+          setActionState('idle');
+          return { ...task, TaskStatus: 'Ongoing', TaskStatusId: TASK_STATUS_ID.Ongoing, TaskState: isResume ? 1 : 0 };
+        }
 
         const res = await updateTaskStatusApi({
           TaskId: task.Id,

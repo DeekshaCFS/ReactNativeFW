@@ -25,6 +25,7 @@ export type TechnicianStackParamList = {
   Leave: undefined;
   notification: undefined;
   help: undefined;
+  SyncOffline: undefined;
   Profile: undefined;
   'Issued Items': undefined;
   'Requested Items': undefined;
