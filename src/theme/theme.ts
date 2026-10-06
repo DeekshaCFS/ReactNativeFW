@@ -5,7 +5,7 @@
 import { sp } from '../utils/responsive';
 
 export const COLORS = {
-  primary:       '#C22032',
+  primary:       '#C3002F',
   primaryDark:   '#9E1A28',
   primaryLight:  '#E15A68',
 
@@ -33,6 +33,21 @@ export const COLORS = {
   midGray: '#8A8D91',
   border: '#E6E6E9',
   surfaceGray: '#F4F4F6',
+
+  // ── Java res/values/colors.xml (task list / status palette) ─────────────
+  // Same values the Android app uses so RN screens match it exactly.
+  statusOngoing:   '#FF9B00', // @color/orange   (ongoing_background)
+  statusCompleted: '#03DE73', // @color/green    (completed_background)
+  statusRejected:  '#C3002F', // @color/colorPrimaryDark (rejected_background)
+  statusOnHold:    '#353935', // @color/onhold   (onhold_background)
+  statusInactive:  '#9A9FAA', // @color/light_gray (inactive_background)
+  tagBlue:         '#2776FF', // @color/blue     (crm_list_background, task tag)
+  linkBlue:        '#1976D2', // @color/theme_primary_dark (task id text)
+  ink:             '#1D2536', // @color/background_gray (task name / customer text)
+  lightGray:       '#9A9FAA', // @color/light_gray (address / subtitle text)
+  textBlack:       '#0E0E0E', // @color/black    (Java "black" is not pure #000)
+  redIcon:         '#C22033', // @color/red_icon
+  alertRed:        '#FF4A4A', // @color/red (notification Rejected / AMC titles)
 } as const;
 
 export const TEXT = {

@@ -6,7 +6,6 @@ import {
   Alert,
   FlatList,
   Image,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useFocusEffect} from '@react-navigation/native';
 import {getTaskListSearchNew} from '../../api/taskList/taskListService';
@@ -24,6 +24,7 @@ import type {TasksList, TasksListResultData, TagList, TagListResultData} from '.
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
 import {ms, sp} from '../../utils/responsive';
+import {COLORS} from '../../theme/theme';
 import AddTaskModal, {
   buildTaskFormValues,
   type AddTaskInitialValues,
@@ -64,6 +65,8 @@ type MainTaskFragmentNewScreenProps = {
   month?: number;
   year?: number;
   onTaskSelect?: (task: TasksListResultData) => void;
+  /** Opens the Add Task flow (Java main_task_fragment "+ Task" button). */
+  onAddTask?: () => void;
 };
 
 type MonthYearOption = {
@@ -93,7 +96,7 @@ type FetchTaskPageOptions = {
 };
 
 const PAGE_START = 1;
-const THEME_PRIMARY = '#c3002f';
+const THEME_PRIMARY = COLORS.primary;
 
 const TASK_TYPES: TypeFilter[] = [
   {id: 0, label: 'Type'},
@@ -301,6 +304,7 @@ const MainTaskFragmentNewScreen = ({
   month: controlledMonth,
   year: controlledYear,
   onTaskSelect,
+  onAddTask,
 }: MainTaskFragmentNewScreenProps) => {
   // Controlled (legacy embedded) only when BOTH are supplied by the parent.
   const isControlled =
@@ -354,15 +358,19 @@ const MainTaskFragmentNewScreen = ({
   const didSkipInitialFilterLoad = useRef(false);
   const didHandleInitialMonthYear = useRef(false);
 
+  // Java (MainTaskFragmentNew): getTaskList() sends isAllData=false only when no
+  // status/type filter is set AND the selected month is the current month; any
+  // status/type filter or a past month sends true. The server leaves completed
+  // tasks out when isAllData is false, so Completed tasks stay hidden on the
+  // default list and only appear through the Status filter.
+  const isCurrentMonth = useMemo(() => {
+    const now = new Date();
+    return month === now.getMonth() + 1 && year === now.getFullYear();
+  }, [month, year]);
+
   const isAllData = useMemo(
-    () =>
-      Boolean(
-        submittedSearch ||
-          selectedType.id !== 0 ||
-          selectedStatus.id !== 0 ||
-          selectedTag.id !== 0,
-      ),
-    [selectedStatus.id, selectedTag.id, selectedType.id, submittedSearch],
+    () => !(selectedStatus.id === 0 && selectedType.id === 0 && isCurrentMonth),
+    [selectedStatus.id, selectedType.id, isCurrentMonth],
   );
 
   const fetchTaskPage = useCallback(
@@ -411,7 +419,17 @@ const MainTaskFragmentNewScreen = ({
         }
 
         const nextTasks = getResultData<TasksListResultData>(response);
-        setTasks(previous => (replace ? nextTasks : [...previous, ...nextTasks]));
+        // Completed tasks stay hidden until the Status filter asks for them
+        // (same rule as the technician TaskScreen).
+        const visibleTasks =
+          statusId === 0
+            ? nextTasks.filter(
+                task => getTaskStatus(task).toLowerCase() !== 'completed',
+              )
+            : nextTasks;
+        setTasks(previous =>
+          replace ? visibleTasks : [...previous, ...visibleTasks],
+        );
         setPageIndex(nextPage);
         setIsLastPage(nextTasks.length === 0);
       } catch (error) {
@@ -479,10 +497,12 @@ const MainTaskFragmentNewScreen = ({
         statusId: 0,
         taskTypeId: 0,
         taskTagId: 0,
-        isAllData: true,
+        // No status/type filter here, so this is Java's isAllData rule for an
+        // unfiltered list: false in the current month, true for other months.
+        isAllData: !isCurrentMonth,
       });
     },
-    [fetchTaskPage],
+    [fetchTaskPage, isCurrentMonth],
   );
 
   useEffect(() => {
@@ -531,14 +551,20 @@ const MainTaskFragmentNewScreen = ({
   // early: the exact same request that comes back empty on a cold open
   // succeeds a moment later (e.g. via a manual "Refresh List" tap).
   // Matching Java's delay on every open fixes that.
+  // Keep the latest loader in a ref so the focus effect below depends on focus
+  // only, not on every filter change.
+  const loadCleanMonthTasksRef = useRef(loadCleanMonthTasks);
+  useEffect(() => {
+    loadCleanMonthTasksRef.current = loadCleanMonthTasks;
+  });
+
   useFocusEffect(
     useCallback(() => {
       const timer = setTimeout(() => {
-        loadCleanMonthTasks();
+        loadCleanMonthTasksRef.current();
       }, 1000);
       return () => clearTimeout(timer);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [loadCleanMonthTasks]),
+    }, []),
   );
 
   const [taskFormValues, setTaskFormValues] = useState<AddTaskInitialValues | null>(null);
@@ -577,11 +603,18 @@ const MainTaskFragmentNewScreen = ({
     );
   };
 
+  // Icon only for now. Java: TasksListAdapter -> TechDashboardFragmentNew.getDownloadReport()
+  // GETs the report endpoint (UserId, TaskID); the response Message is the PDF URL,
+  // which DownloadFile saves under getExternalFilesDir(DIRECTORY_DOWNLOADS) and opens
+  // through the app FileProvider.
+  const handleDownloadReport = (_task: TasksListResultData) => {};
+
   const renderTask = ({item}: {item: TasksListResultData}) => {
     const status = getTaskStatus(item);
     const tagName = getTaskTagName(item);
     const address = getPrimaryAddress(item);
-    const customerName = getString(item, 'CustomerName');
+    const assignedTo = getString(item, 'AssignedTo') || getString(item, 'CustomerName');
+    const wages = Number(item.WagesPerHours) || 0;
     const taskDateTime = formatTaskDateTime(item);
     const newTaskId = getNewTaskId(item);
     const rowAction = getTaskRowAction(status);
@@ -589,14 +622,20 @@ const MainTaskFragmentNewScreen = ({
     // Matches the technician TaskScreen's ribbon colors for consistency across the app.
     const statusColor =
       status.toLowerCase() === 'completed'
-        ? '#16A34A'
+        ? COLORS.statusCompleted
         : status.toLowerCase() === 'onhold'
-          ? '#000'
+          ? COLORS.statusOnHold
           : status.toLowerCase() === 'ongoing'
-            ? '#FF9800'
+            ? COLORS.statusOngoing
             : status.toLowerCase() === 'inactive'
-              ? '#7E8794'
-              : THEME_PRIMARY; // Rejected, and any other status, stays red
+              ? COLORS.statusInactive
+              : COLORS.statusRejected; // Rejected, and any other status, stays red
+    // Java (TasksListAdapter): owners get the PDF download icon on a Completed
+    // task once payment is received and the closure is done.
+    const showDownload =
+      status.toLowerCase() === 'completed' &&
+      item.TaskState === 3 &&
+      item.TaskClosureStatus === true;
 
     return (
       <TouchableOpacity
@@ -608,7 +647,7 @@ const MainTaskFragmentNewScreen = ({
             {status.toUpperCase()}
           </Text>
         </View>
-        {tagName ? (
+        {tagName && tagName.toUpperCase() !== 'NA' ? (
           <View style={styles.tagRibbon}>
             <Text numberOfLines={1} style={styles.ribbonText}>
               {tagName.toUpperCase()}
@@ -627,9 +666,22 @@ const MainTaskFragmentNewScreen = ({
               </Text>
             ) : null}
           </View>
+          {showDownload ? (
+            <TouchableOpacity
+              style={styles.rowDownloadButton}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Download report"
+              onPress={() => handleDownloadReport(item)}>
+              <Ionicons name="download-outline" style={styles.rowDownloadIcon} />
+            </TouchableOpacity>
+          ) : null}
           {rowAction ? (
             <TouchableOpacity
-              style={styles.rowActionButton}
+              style={[
+                styles.rowActionButton,
+                showDownload ? styles.rowActionButtonWithDownload : null,
+              ]}
               hitSlop={10}
               onPress={() => setTaskFormValues(buildTaskFormValues(item, rowAction))}>
               <Ionicons
@@ -644,13 +696,18 @@ const MainTaskFragmentNewScreen = ({
             </Text>
           ) : null}
           {address ? (
-            <Text numberOfLines={1} style={styles.taskSubline}>
+            <Text numberOfLines={2} style={styles.taskSubline}>
               {address}
             </Text>
           ) : null}
           <Text numberOfLines={1} style={styles.customerText}>
-            {customerName || 'Customer'}
+            {assignedTo || 'Customer'}
           </Text>
+          {wages > 0 ? (
+            <Text numberOfLines={1} style={styles.taskAmountText}>
+              {'\u20B9'} {wages.toFixed(3)}
+            </Text>
+          ) : null}
         </View>
       </TouchableOpacity>
     );
@@ -810,6 +867,7 @@ const MainTaskFragmentNewScreen = ({
   const shell = (
     <View style={styles.fragmentShell}>
       <View style={styles.panelHeader}>
+        <View style={styles.searchRow}>
         <View style={styles.searchWrap}>
           <Text style={styles.searchIcon}>⌕</Text>
           <TextInput
@@ -836,6 +894,12 @@ const MainTaskFragmentNewScreen = ({
               <Text style={styles.clearSearch}>×</Text>
             </Pressable>
           ) : null}
+        </View>
+        {onAddTask ? (
+          <Pressable style={styles.addTaskButton} onPress={onAddTask}>
+            <Text style={styles.addTaskText}>+ Task</Text>
+          </Pressable>
+        ) : null}
         </View>
 
         <View style={styles.filterRow}>
@@ -1001,7 +1065,7 @@ const styles = StyleSheet.create({
   },
   taskToolbar: {
     height: ms(64),
-    backgroundColor: '#D0003F',
+    backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: ms(20),
@@ -1020,7 +1084,7 @@ const styles = StyleSheet.create({
   taskToolbarTitle: {
     flex: 1,
     marginLeft: ms(26),
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: sp(24),
     fontWeight: '800',
   },
@@ -1035,24 +1099,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   taskMonthRow: {
-    height: ms(76),
+    height: ms(49),
     backgroundColor: THEME_PRIMARY,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingHorizontal: ms(46),
-    paddingBottom: ms(18),
+    paddingHorizontal: ms(30),
+    paddingBottom: ms(6),
   },
   taskMonthText: {
-    color: '#FFFFFF',
-    fontSize: sp(24),
+    color: COLORS.white,
+    fontSize: sp(17),
     fontWeight: '500',
   },
   taskMonthArrow: {
-    marginLeft: ms(14),
-    color: '#FFFFFF',
-    fontSize: sp(28),
-    lineHeight: sp(30),
+    marginLeft: ms(10),
+    color: COLORS.white,
+    fontSize: sp(20),
+    lineHeight: sp(22),
   },
   taskContentContainer: {
     flex: 1,
@@ -1068,7 +1132,7 @@ const styles = StyleSheet.create({
   monthPickerPanel: {
     width: '100%',
     maxWidth: ms(360),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: ms(10),
     overflow: 'hidden',
   },
@@ -1080,7 +1144,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
   },
   monthPickerTitle: {
-    color: '#111827',
+    color: COLORS.textBlack,
     fontSize: sp(18),
     fontWeight: '800',
   },
@@ -1101,7 +1165,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   monthPickerColumnTitle: {
-    color: '#111827',
+    color: COLORS.textBlack,
     fontSize: sp(13),
     fontWeight: '700',
     paddingHorizontal: ms(6),
@@ -1123,7 +1187,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(195,0,47,0.12)',
   },
   monthPickerItemText: {
-    color: '#111827',
+    color: COLORS.textBlack,
     fontSize: sp(16),
     fontWeight: '600',
   },
@@ -1146,56 +1210,75 @@ const styles = StyleSheet.create({
     backgroundColor: THEME_PRIMARY,
   },
   monthPickerButtonText: {
-    color: '#111827',
+    color: COLORS.textBlack,
     fontSize: sp(15),
     fontWeight: '800',
   },
   monthPickerButtonTextPrimary: {
-    color: '#FFFFFF',
+    color: COLORS.white,
   },
   fragmentShell: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: ms(40),
-    borderTopRightRadius: ms(40),
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
     overflow: 'hidden',
   },
   panelHeader: {
-    paddingHorizontal: ms(16),
-    paddingTop: ms(22),
-    paddingBottom: ms(12),
+    paddingHorizontal: ms(12),
+    paddingTop: ms(14),
+    paddingBottom: ms(8),
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  addTaskButton: {
+    marginLeft: ms(10),
+    width: ms(60),
+    height: ms(30),
+    borderRadius: ms(10),
+    backgroundColor: COLORS.textBlack,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addTaskText: {
+    color: COLORS.white,
+    fontSize: sp(12),
+    fontWeight: '600',
   },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: ms(54),
+    flex: 1,
+    height: ms(40),
     borderBottomWidth: ms(1),
     borderBottomColor: '#C8C8C8',
   },
   searchIcon: {
-    width: ms(30),
+    width: ms(24),
     color: '#B2B2B2',
-    fontSize: sp(26),
-    lineHeight: sp(30),
+    fontSize: sp(20),
+    lineHeight: sp(24),
   },
   searchInput: {
     flex: 1,
-    height: ms(50),
+    height: ms(40),
     paddingHorizontal: ms(6),
     paddingVertical: 0,
     color: '#222222',
-    fontSize: sp(20),
+    fontSize: sp(14),
     fontWeight: '400',
   },
   clearSearch: {
     color: '#777777',
-    fontSize: sp(36),
-    lineHeight: sp(38),
+    fontSize: sp(26),
+    lineHeight: sp(28),
     fontWeight: '300',
   },
   filterRow: {
-    marginTop: ms(18),
-    minHeight: ms(36),
+    marginTop: ms(10),
+    minHeight: ms(30),
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -1208,32 +1291,32 @@ const styles = StyleSheet.create({
   },
   filterText: {
     flex: 1,
-    color: '#111111',
-    fontSize: sp(17),
+    color: COLORS.textBlack,
+    fontSize: sp(14),
     fontWeight: '500',
   },
   filterChevron: {
     flexShrink: 0,
     marginLeft: ms(6),
     color: THEME_PRIMARY,
-    fontSize: sp(20),
+    fontSize: sp(16),
   },
   refreshButton: {
-    width: ms(132),
+    width: ms(112),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   refreshText: {
     color: THEME_PRIMARY,
-    fontSize: sp(16),
+    fontSize: sp(13),
     fontWeight: '800',
   },
   refreshIcon: {
     marginLeft: ms(6),
     color: THEME_PRIMARY,
-    fontSize: sp(28),
-    lineHeight: sp(30),
+    fontSize: sp(18),
+    lineHeight: sp(20),
     fontWeight: '800',
   },
   loadingOverlay: {
@@ -1252,13 +1335,13 @@ const styles = StyleSheet.create({
     paddingBottom: ms(124),
   },
   taskCard: {
-    minHeight: ms(118),
+    minHeight: ms(96),
     borderWidth: ms(1),
     borderColor: '#E6E6E6',
-    borderRadius: ms(12),
-    marginTop: ms(12),
-    marginBottom: ms(8),
-    backgroundColor: '#FFFFFF',
+    borderRadius: ms(10),
+    marginTop: ms(8),
+    marginBottom: ms(6),
+    backgroundColor: COLORS.white,
     overflow: 'hidden',
     elevation: 4,
     shadowColor: '#000000',
@@ -1270,9 +1353,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    minWidth: ms(112),
-    height: ms(32),
-    borderBottomRightRadius: ms(14),
+    minWidth: ms(80),
+    height: ms(20),
+    borderBottomRightRadius: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: ms(10),
@@ -1282,31 +1365,44 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     right: 0,
-    minWidth: ms(156),
+    minWidth: ms(100),
     maxWidth: '45%',
-    height: ms(32),
-    borderBottomLeftRadius: ms(14),
-    backgroundColor: '#2B7BFF',
+    height: ms(20),
+    borderBottomLeftRadius: ms(10),
+    backgroundColor: COLORS.tagBlue,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: ms(10),
     zIndex: 2,
   },
   ribbonText: {
-    color: '#FFFFFF',
-    fontSize: sp(12),
-    fontWeight: '800',
+    color: COLORS.white,
+    fontSize: sp(10),
+    fontWeight: '700',
   },
   taskBody: {
-    paddingTop: ms(48),
-    paddingHorizontal: ms(16),
-    paddingBottom: ms(16),
+    paddingTop: ms(26),
+    paddingHorizontal: ms(12),
+    paddingBottom: ms(10),
   },
   rowActionButton: {
     position: 'absolute',
-    right: ms(12),
-    bottom: ms(10),
+    right: ms(100),
+    bottom: ms(8),
     padding: ms(4),
+  },
+  rowActionButtonWithDownload: {
+    right: ms(128),
+  },
+  rowDownloadButton: {
+    position: 'absolute',
+    right: ms(100),
+    bottom: ms(8),
+    padding: ms(4),
+  },
+  rowDownloadIcon: {
+    fontSize: sp(20),
+    color: COLORS.primary,
   },
   rowActionIcon: {
     fontSize: sp(20),
@@ -1315,42 +1411,51 @@ const styles = StyleSheet.create({
   taskTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: ms(138),
+    paddingRight: ms(110),
   },
   taskTitle: {
-    color: '#20283A',
-    fontSize: sp(17),
-    fontWeight: '800',
-    lineHeight: sp(22),
+    color: COLORS.ink,
+    fontSize: sp(16),
+    fontWeight: '700',
+    lineHeight: sp(20),
     maxWidth: '42%',
   },
   taskIdText: {
     marginLeft: ms(5),
-    color: '#1976D2',
-    fontSize: sp(13),
-    fontWeight: '800',
+    color: COLORS.linkBlue,
+    fontSize: sp(12),
+    fontWeight: '700',
   },
   taskDateText: {
     position: 'absolute',
-    top: ms(52),
-    right: ms(16),
+    top: ms(28),
+    right: ms(12),
     maxWidth: ms(136),
     color: '#777777',
-    fontSize: sp(14),
+    fontSize: sp(11),
     fontWeight: '500',
     textAlign: 'right',
   },
   taskSubline: {
-    marginTop: ms(10),
-    color: '#9AA1AE',
-    fontSize: sp(16),
-    fontWeight: '600',
+    marginTop: ms(6),
+    paddingRight: ms(110),
+    color: COLORS.lightGray,
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   customerText: {
-    marginTop: ms(8),
-    color: '#182032',
-    fontSize: sp(16),
+    marginTop: ms(6),
+    color: COLORS.ink,
+    fontSize: sp(12),
     fontWeight: '500',
+  },
+  taskAmountText: {
+    position: 'absolute',
+    right: ms(12),
+    bottom: ms(10),
+    color: THEME_PRIMARY,
+    fontSize: sp(12),
+    fontWeight: '700',
   },
   listFooter: {
     paddingVertical: ms(18),
@@ -1379,7 +1484,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     marginTop: ms(12),
-    color: '#111827',
+    color: COLORS.textBlack,
     fontSize: sp(17),
     fontWeight: '700',
   },
@@ -1401,12 +1506,12 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: ms(360),
     maxHeight: '76%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: ms(8),
     paddingVertical: ms(12),
   },
   modalTitle: {
-    color: '#111827',
+    color: COLORS.textBlack,
     fontSize: sp(17),
     fontWeight: '700',
     paddingHorizontal: ms(16),
@@ -1418,7 +1523,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: ms(16),
   },
   modalItemText: {
-    color: '#1F2937',
+    color: COLORS.textBlack,
     fontSize: sp(15),
   },
   modalHint: {
