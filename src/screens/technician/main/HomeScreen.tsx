@@ -19,6 +19,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { scale, vs, sp, ms, wps, useAppHeaderHeight } from '../../../utils/responsive';
 import TaskListCard from '../../../components/TaskListCard';
 import TaskAttachmentsSheet from '../../../components/TaskAttachmentsSheet';
+import TaskTrackingSheet from '../../../components/TaskTrackingSheet';
 import { getTaskDoc } from '../../../api/taskList/taskListService';
 import type { GetPostedTaskDocFile } from '../../../api/taskList/taskList.types';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
@@ -392,7 +393,10 @@ export default function HomeScreen({ navigation }: any) {
   // ── task navigation ───────────────────────────
 
   // Same routing as the Task tab (Java's tap handler is shared by both lists).
+  // Java opens the accept / resume dialog over the Home list.
+  const [tracking, setTracking] = useState<{ task: Task; resumeOnHold: boolean } | null>(null);
   const openTask = useOpenTask(navigation, {
+    onOpenTracking: (t, options) => setTracking({ task: t, resumeOnHold: !!options?.resumeOnHold }),
     // Java rejects an InActive task more than 3 days old instead of accepting it;
     // TaskTracking opens directly on its reject step for that case.
     onLateInactive: t => navigation.navigate('TaskTracking', { task: t, autoReject: true }),
@@ -611,6 +615,17 @@ export default function HomeScreen({ navigation }: any) {
           </View>
         </View>
       </Modal>
+
+      {tracking && (
+        <TaskTrackingSheet
+          task={tracking.task}
+          resumeOnHold={tracking.resumeOnHold}
+          navigation={navigation}
+          onClose={() => setTracking(null)}
+          onFinished={() => setTracking(null)}
+          onRejected={() => { loadTodayTasks(); loadTaskCounts(); }}
+        />
+      )}
 
       <TaskAttachmentsSheet
         visible={attachmentTask !== null}

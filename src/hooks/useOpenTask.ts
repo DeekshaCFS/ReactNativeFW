@@ -28,9 +28,14 @@ interface Options {
    * rejection reason and photos.
    */
   onLateInactive: (task: Task) => void;
+  /**
+   * Java shows the accept / resume dialog over the current list. When provided, the screen
+   * hosts the dialog itself instead of navigating to the TaskTracking screen.
+   */
+  onOpenTracking?: (task: Task, options?: { resumeOnHold?: boolean }) => void;
 }
 
-export function useOpenTask(navigation: any, { onLateInactive }: Options) {
+export function useOpenTask(navigation: any, { onLateInactive, onOpenTracking }: Options) {
   return useCallback(
     (task: Task) => {
       // ── Terminal states ──
@@ -97,12 +102,14 @@ export function useOpenTask(navigation: any, { onLateInactive }: Options) {
             return;
           }
 
-          navigation.navigate('TaskTracking', { task });
+          if (onOpenTracking) onOpenTracking(task);
+          else navigation.navigate('TaskTracking', { task });
           return;
         }
 
         if (task.TaskStatus === 'OnHold') {
-          navigation.navigate('TaskTracking', { task, resumeOnHold: true });
+          if (onOpenTracking) onOpenTracking(task, { resumeOnHold: true });
+          else navigation.navigate('TaskTracking', { task, resumeOnHold: true });
           return;
         }
       }
@@ -120,6 +127,6 @@ export function useOpenTask(navigation: any, { onLateInactive }: Options) {
         }
       }
     },
-    [navigation, onLateInactive],
+    [navigation, onLateInactive, onOpenTracking],
   );
 }

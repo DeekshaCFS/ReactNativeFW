@@ -15,6 +15,7 @@ import { getTaskTagList } from '../../../api/task/taskService';
 import { getTaskDoc } from '../../../api/taskList/taskListService';
 import type { GetPostedTaskDocFile } from '../../../api/taskList/taskList.types';
 import TaskAttachmentsSheet from '../../../components/TaskAttachmentsSheet';
+import TaskTrackingSheet from '../../../components/TaskTrackingSheet';
 import { getPendingTasks } from '../../../offline/offlineStore';
 import { userPermissions } from '../../../api/userPermission/userPermissionService';
 import { downloadReport } from '../../../api/report/reportService';
@@ -369,7 +370,11 @@ export default function TaskScreen({ navigation, route }: any) {
 
   const loadMore = () => fetchTasks(pageRef.current + 1);
 
+  // Java opens the accept / resume dialog over the Task list.
+  const [tracking, setTracking] = useState<{ task: Task; resumeOnHold: boolean } | null>(null);
+
   const openTask = useOpenTask(navigation, {
+    onOpenTracking: (t, options) => setTracking({ task: t, resumeOnHold: !!options?.resumeOnHold }),
     onLateInactive: t => {
       setSelectedTask(t);
       setShowLateRejectSheet(true);
@@ -491,6 +496,17 @@ export default function TaskScreen({ navigation, route }: any) {
       <Pressable style={styles.syncFab} onPress={handleSyncFab} accessibilityLabel="Sync Data">
         <Ionicons name="sync-outline" size={ms(30)} color={COLORS.white} />
       </Pressable>
+
+      {tracking && (
+        <TaskTrackingSheet
+          task={tracking.task}
+          resumeOnHold={tracking.resumeOnHold}
+          navigation={navigation}
+          onClose={() => setTracking(null)}
+          onFinished={() => setTracking(null)}
+          onRejected={() => fetchTasks(1, true)}
+        />
+      )}
 
       <TaskAttachmentsSheet
         visible={attachmentTask !== null}
