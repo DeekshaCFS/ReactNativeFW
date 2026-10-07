@@ -14,6 +14,7 @@ import type { UserDetailsResultData } from '../api/users/users.types';
 import { authEvents, AUTH_CHANGED } from '../utils/authEvents';
 import { ms, sp, scale } from '../utils/responsive';
 import { checkedInTodayKey } from '../utils/attendanceKey';
+import { setPassbookTabOrder } from '../state/passbookTabOrder';
 
 // Same local-date key Home writes on check-in (see utils/attendanceKey.ts).
 const todayKey = checkedInTodayKey;
@@ -240,6 +241,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
               return;
             }
             if (screen) {
+              if (screen === 'Expenditure') setPassbookTabOrder('expenditureFirst');
               navigation.navigate(tabsRoute, {
                 screen: tabsRootRoute,
                 params: { screen },

@@ -5,6 +5,7 @@ import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/theme';
+import { setPassbookTabOrder } from '../state/passbookTabOrder';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { ms, sp, scale } from '../utils/responsive';
 
@@ -62,6 +63,7 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
             canPreventDefault: true,
           });
           if (!event.defaultPrevented) {
+            if (name === 'Passbook') setPassbookTabOrder('passbookFirst');
             navigation.navigate(name as never);
           }
         }}

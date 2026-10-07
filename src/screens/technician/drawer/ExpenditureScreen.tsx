@@ -18,7 +18,7 @@ import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ms, sp, scale } from '../../../utils/responsive';
+import { ms, sp, scale, vs, useAppHeaderHeight } from '../../../utils/responsive';
 import { requestLocationPermission } from '../../../utils/locationPermision';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import {
@@ -28,6 +28,7 @@ import {
 import type { ExpenseDetailsExpenseList, ExpenseDetailsResultData } from '../../../api/expenditure/expenditure.types';
 import { formatAmount } from '../../../utils/decimal';
 import { getCurrentUserId, getCurrentUserProfile } from '../../../state/session';
+import { usePassbookTabOrder } from '../../../state/passbookTabOrder';
 
 type NavigationProp = NativeStackNavigationProp<TechnicianStackParamList, 'Expenditure'>;
 
@@ -59,7 +60,9 @@ export default function ExpenditureScreen() {
   const [saving, setSaving] = useState(false);
 
   const navigation = useNavigation<NavigationProp>();
+  const tabOrder = usePassbookTabOrder();
   const insets = useSafeAreaInsets();
+  const headerHeight = useAppHeaderHeight();
 
   const load = useCallback(async () => {
     const userId = getCurrentUserId();
@@ -127,11 +130,11 @@ export default function ExpenditureScreen() {
 
   const money = (v?: number) => `${formatAmount(v)}`;
   const rows = [
-    { label: 'Credited Amount:', value: details?.CreditedAmonut },
-    { label: 'Opening Amount:', value: details?.OpeningBalance },
-    { label: 'Earned Amount:', value: details?.EarnedAmount },
-    { label: 'Total Expense:', value: details?.Expenses },
-    { label: 'Return:', value: details?.ReturnAmount },
+    { label: 'Credited Amount :', value: details?.CreditedAmonut },
+    { label: 'Opening Amount :', value: details?.OpeningBalance },
+    { label: 'Earned Amount :', value: details?.EarnedAmount },
+    { label: 'Total Expense :', value: details?.Expenses },
+    { label: 'Return :', value: details?.ReturnAmount },
   ];
   const expenses: ExpenseDetailsExpenseList[] = Array.isArray(details?.ExpenseList)
     ? (details?.ExpenseList as ExpenseDetailsExpenseList[])
@@ -223,83 +226,91 @@ export default function ExpenditureScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: ms(140) }}
       >
-        {/* Tab Row — offset by real status bar height */}
-        <View style={styles.tabRow}>
-          <Pressable style={styles.activeTab}>
-            <Text style={styles.activeTabText}>EXPENDITURE</Text>
-          </Pressable>
-          <Pressable
-            style={styles.inactiveTab}
-            onPress={() => navigation.navigate('Passbook')}
-          >
-            <Text style={styles.inactiveTabText}>PASSBOOK</Text>
-          </Pressable>
+        {/* Tab Row — order depends on how the screen was opened (see passbookTabOrder.ts) */}
+        <View style={[styles.tabRow, { paddingTop: headerHeight + vs(4) }]}>
+          {(tabOrder === 'passbookFirst' ? ['passbook', 'expenditure'] : ['expenditure', 'passbook']).map(t =>
+            t === 'expenditure' ? (
+              <Pressable key={t} style={styles.activeTab}>
+                <Text style={styles.activeTabText}>EXPENDITURE</Text>
+              </Pressable>
+            ) : (
+              <Pressable key={t} style={styles.inactiveTab} onPress={() => navigation.navigate('Passbook')}>
+                <Text style={styles.inactiveTabText}>PASSBOOK</Text>
+              </Pressable>
+            ),
+          )}
         </View>
 
-        <View style={styles.headerRow}>
-          <Text style={styles.headerSub}>{toLabel(date)}</Text>
-          <Pressable onPress={openDatePicker}>
+        <View style={styles.content}>
+          <Pressable style={styles.dateRow} onPress={openDatePicker}>
+            <Text style={styles.dateText}>{toLabel(date)}</Text>
             <Ionicons name="chevron-down" size={scale(18)} color={COLORS.primary} />
           </Pressable>
-        </View>
 
-        <Text style={styles.bold} numberOfLines={1}>{details?.FullName || getCurrentUserProfile().userFirstName}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.techName} numberOfLines={1}>
+              {details?.FullName || getCurrentUserProfile().userFirstName}
+            </Text>
+          </View>
 
-        {loading ? (
-          <ActivityIndicator style={{ marginTop: ms(20) }} color={COLORS.primary} />
-        ) : (
-          <>
-            <View style={styles.whiteCard}>
-              {rows.map(({ label, value }) => (
-                <View key={label} style={styles.rowBetween}>
-                  <Text style={styles.label}>{label}</Text>
-                  <Text style={styles.bold}>{money(value)}</Text>
+          {loading ? (
+            <ActivityIndicator style={{ marginTop: ms(20) }} color={COLORS.primary} />
+          ) : (
+            <>
+              <View style={styles.detailsCard}>
+                <View style={styles.detailsBody}>
+                  {rows.map(({ label, value }, i) => (
+                    <View key={label} style={[styles.rowBetween, i > 0 && { marginTop: vs(10) }]}>
+                      <Text style={styles.label}>{label}</Text>
+                      <Text style={styles.value}>{money(value)}</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
-
-              <View style={styles.divider} />
-
-              <View style={styles.rowBetween}>
-                <Text style={styles.bold}>Remaining Amount:</Text>
-                <Text style={styles.bold}>{money(details?.RemainingBalance)}</Text>
+                <View style={styles.divider} />
+                <View style={styles.remainingRow}>
+                  <Text style={styles.value}>Remaining Amount :</Text>
+                  <Text style={styles.value}>{money(details?.RemainingBalance)}</Text>
+                </View>
               </View>
-              {/* bottom padding inside card */}
-              <View style={{ height: ms(12) }} />
-            </View>
 
-            <View style={styles.lowerRow}>
-              <Text style={styles.lowerTitle}>Expense List</Text>
-              <Pressable
-                onPress={() => setShowAddExpenseModal(true)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="add" size={scale(30)} color={COLORS.primary} />
-              </Pressable>
-            </View>
+              <View style={styles.lowerRow}>
+                <Text style={styles.lowerTitle}>Expense List</Text>
+                <Pressable
+                  onPress={() => setShowAddExpenseModal(true)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="add" size={scale(30)} color={COLORS.primary} />
+                </Pressable>
+              </View>
 
-            <View style={styles.whiteCard}>
               {expenses.length === 0 ? (
-                <Text style={styles.naText}>NA</Text>
+                <View style={styles.naCard}>
+                  <Text style={styles.naText}>NA</Text>
+                </View>
               ) : (
                 expenses.map((item, index) => (
-                  <View key={index} style={styles.expenseRow}>
-                    {item.ExpensePhoto ? (
-                      <Pressable onPress={() => setFullScreenPhoto(item.ExpensePhoto ?? null)}>
+                  <View key={index} style={styles.expenseCard}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.expenseName} numberOfLines={1}>{item.ExpenseName}</Text>
+                      <Text style={styles.expenseAmount} numberOfLines={1}>{money(item.Amount)}</Text>
+                    </View>
+                    <Pressable
+                      disabled={!item.ExpensePhoto}
+                      onPress={() => setFullScreenPhoto(item.ExpensePhoto ?? null)}
+                      style={styles.expensePhotoBox}
+                    >
+                      {item.ExpensePhoto ? (
                         <Image source={{ uri: item.ExpensePhoto }} style={styles.expensePhoto} />
-                      </Pressable>
-                    ) : (
-                      <View style={[styles.expensePhoto, styles.photoPlaceholder]}>
-                        <Ionicons name="image-outline" size={scale(20)} color="#9aa0a6" />
-                      </View>
-                    )}
-                    <Text style={styles.expenseName} numberOfLines={1}>{item.ExpenseName}</Text>
-                    <Text style={styles.bold}>{money(item.Amount)}</Text>
+                      ) : (
+                        <Ionicons name="image-outline" size={scale(22)} color={COLORS.ink} />
+                      )}
+                    </Pressable>
                   </View>
                 ))
               )}
-            </View>
-          </>
-        )}
+            </>
+          )}
+        </View>
       </ScrollView>
 
       {/* Add Expense Modal */}
@@ -314,7 +325,7 @@ export default function ExpenditureScreen() {
                 <Image source={{ uri: expensePhoto.uri }} style={styles.expImagePreview} />
               ) : (
                 <>
-                  <Ionicons name="image-outline" size={scale(52)} color="#999" />
+                  <Ionicons name="image-outline" size={scale(42)} color={COLORS.lightGray} />
                   <Text style={styles.uploadHint}>Upload Expense Photo</Text>
                 </>
               )}
@@ -322,7 +333,7 @@ export default function ExpenditureScreen() {
 
             <TextInput
               placeholder="Expense Name"
-              placeholderTextColor="#999"
+              placeholderTextColor={COLORS.lightGray}
               style={styles.expInput}
               returnKeyType="next"
               value={expenseName}
@@ -331,7 +342,7 @@ export default function ExpenditureScreen() {
 
             <TextInput
               placeholder="Please Enter Amount"
-              placeholderTextColor="#999"
+              placeholderTextColor={COLORS.lightGray}
               style={styles.expInput}
               keyboardType="numeric"
               returnKeyType="done"
@@ -419,131 +430,113 @@ const styles = StyleSheet.create({
   },
   datePickerTitle: { fontSize: sp(17), fontWeight: '600', marginBottom: ms(8), color: COLORS.textPrimary, textAlign: 'center' },
 
-  root: {
-    flex: 1,
-    backgroundColor: '#f7f7f7',
-  },
+  root: { flex: 1, backgroundColor: COLORS.white },
 
-  // Tab row — height driven by content + dynamic paddingTop
   tabRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: ms(12),
-    height: 'auto',
+    backgroundColor: COLORS.white,
+    elevation: 2,
+    shadowColor: COLORS.black,
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
   },
   activeTab: {
-    borderBottomWidth: ms(3),
+    flex: 1,
+    borderBottomWidth: ms(4),
     borderColor: COLORS.primary,
-    backgroundColor: '#f5d7d784',
-    paddingVertical: ms(8),
-    height: ms(44),
-    width: '50%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activeTabText: {
-    fontSize: sp(15),
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  inactiveTab: {
-    paddingVertical: ms(8),
+    backgroundColor: COLORS.tabSelector,
     height: ms(44),
     alignItems: 'center',
     justifyContent: 'center',
-    width: '50%',
   },
-  inactiveTabText: {
-    fontSize: sp(15),
-    fontWeight: '400',
-    color: COLORS.textQuaternary,
-  },
+  activeTabText: { fontSize: sp(15), fontWeight: '600', color: COLORS.primary },
+  inactiveTab: { flex: 1, height: ms(44), alignItems: 'center', justifyContent: 'center' },
+  inactiveTabText: { fontSize: sp(15), fontWeight: '400', color: COLORS.textQuaternary },
 
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginTop: ms(8),
-    paddingHorizontal: ms(20),
-    gap: ms(8),
-  },
-  headerSub: {
-    fontSize: sp(16),
-    color: COLORS.primary,
-    fontWeight: '700',
-  },
+  // Java expense_details_new: 10dp content padding, everything on white.
+  content: { padding: scale(10) },
+  dateRow: { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', gap: scale(4) },
+  dateText: { fontSize: sp(16), fontWeight: '700', color: COLORS.primary },
+  nameRow: { margin: scale(10) },
+  techName: { fontSize: sp(15), fontWeight: '700', color: COLORS.ink, paddingLeft: scale(5) },
 
-  bold: {
-    fontWeight: '600',
-    fontSize: sp(16),
-    paddingHorizontal: ms(18),
-    color: COLORS.textPrimary,
-  },
-
-  whiteCard: {
-    backgroundColor: '#fff',
-    borderRadius: ms(15),
-    paddingTop: ms(12),
-    paddingHorizontal: ms(6),
-    marginTop: ms(14),
+  detailsCard: {
+    backgroundColor: COLORS.white,
+    marginHorizontal: scale(10),
+    marginTop: vs(10),
+    borderRadius: scale(12),
     elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    marginHorizontal: ms(15),
+    shadowColor: COLORS.black,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
   },
-
-  rowBetween: {
+  detailsBody: { padding: scale(15) },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  label: { fontSize: sp(14), color: COLORS.ink },
+  value: { fontSize: sp(14), fontWeight: '700', color: COLORS.ink },
+  divider: { height: 1, marginTop: vs(10), backgroundColor: COLORS.lightGray },
+  remainingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: ms(8),
-    paddingHorizontal: ms(12),
-  },
-
-  divider: {
-    height: 1,
-    backgroundColor: '#000',
-    marginVertical: ms(6),
-    marginHorizontal: ms(12),
-  },
-
-  label: {
-    fontSize: sp(15),
-    color: COLORS.textPrimary,
+    marginHorizontal: scale(15),
+    marginTop: vs(10),
+    marginBottom: vs(20),
   },
 
   lowerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: ms(20),
+    marginHorizontal: scale(10),
+    marginTop: vs(20),
   },
-  lowerTitle: {
-    color: COLORS.primary,
-    fontSize: sp(16),
-    fontWeight: '400',
-  },
+  lowerTitle: { color: COLORS.primary, fontSize: sp(16) },
 
-  naText: {
-    color: COLORS.black,
-    fontSize: sp(15),
-    fontWeight: '400',
-    paddingHorizontal: ms(12),
-    paddingBottom: ms(14),
+  naCard: {
+    backgroundColor: COLORS.white,
+    marginHorizontal: scale(10),
+    marginTop: vs(10),
+    borderRadius: scale(8),
+    elevation: 2,
+    shadowColor: COLORS.black,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
   },
+  naText: { margin: scale(10), fontSize: sp(14), color: COLORS.ink },
 
-  expenseRow: {
+  // Java expense_list_new
+  expenseCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: ms(10),
-    paddingHorizontal: ms(12),
-    paddingVertical: ms(10),
+    backgroundColor: COLORS.white,
+    marginHorizontal: scale(15),
+    marginVertical: scale(10),
+    padding: scale(20),
+    borderRadius: scale(12),
+    elevation: 2,
+    shadowColor: COLORS.black,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
   },
-  expensePhoto: { width: ms(40), height: ms(40), borderRadius: ms(8) },
-  photoPlaceholder: { backgroundColor: '#f1f3f4', alignItems: 'center', justifyContent: 'center' },
-  expenseName: { flex: 1, fontSize: sp(14), color: COLORS.textPrimary },
+  expenseName: { fontSize: sp(16), fontWeight: '700', color: COLORS.ink },
+  expenseAmount: { fontSize: sp(12), color: COLORS.textBlack, marginTop: vs(5) },
+  expensePhotoBox: {
+    width: scale(40),
+    height: scale(40),
+    padding: 1,
+    borderRadius: scale(8),
+    borderWidth: 0.7,
+    borderColor: COLORS.passbookBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  expensePhoto: { width: '100%', height: '100%', borderRadius: scale(7) },
 
   // Modal
   modalOverlay: {
@@ -562,36 +555,35 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: sp(22),
-    fontWeight: '500',
     marginBottom: ms(12),
-    color: COLORS.textPrimary,
+    color: COLORS.ink,
   },
   expImage: {
     borderWidth: 1,
-    borderColor: '#382f2f',
-    borderRadius: ms(20),
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
     padding: ms(10),
     marginVertical: ms(12),
-    height: ms(160),
+    height: ms(145),
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   expImagePreview: { width: '100%', height: '100%', borderRadius: ms(18) },
   uploadHint: {
-    color: '#999',
-    fontSize: sp(15),
-    marginTop: ms(8),
+    color: COLORS.lightGray,
+    fontSize: sp(18),
+    marginTop: ms(4),
   },
   expInput: {
     borderWidth: 1,
-    borderColor: '#382f2f',
-    borderRadius: ms(30),
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
     paddingHorizontal: ms(16),
-    marginBottom: ms(14),
-    height: ms(50),
+    marginBottom: ms(16),
+    height: ms(42),
     fontSize: sp(16),
-    color: COLORS.textPrimary,
+    color: COLORS.ink,
   },
   confirmBtn: {
     borderRadius: ms(30),
@@ -599,18 +591,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 4,
-    height: ms(50),
-    marginTop: ms(4),
+    height: ms(46),
+    marginTop: ms(8),
   },
   confirmText: {
-    fontSize: sp(17),
-    color: '#fff',
-    fontWeight: '600',
+    fontSize: sp(18),
+    color: COLORS.white,
+    fontWeight: '500',
   },
   cancelText: {
-    fontSize: sp(17),
+    fontSize: sp(18),
     color: COLORS.primary,
-    fontWeight: '500',
     textAlign: 'center',
     marginTop: ms(20),
     paddingVertical: ms(8),

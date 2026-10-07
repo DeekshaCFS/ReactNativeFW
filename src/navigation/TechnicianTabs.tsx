@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from 'react-native-geolocation-service';
 
 import AppHeader from '../components/AppHeader';
+import { usePassbookTabOrder } from '../state/passbookTabOrder';
 import BottomTabBar, { QuickAction } from '../components/BottomTabBar';
 import AddQuoteModal from '../screens/admin/AddQuoteModal';
 import AddLeadModal from '../screens/admin/AddLeadModal';
@@ -109,6 +110,9 @@ const PUSHED_SCREENS: {
 const PushedTabScreen = Tab.Screen as any;
 
 export default function TechnicianTabs() {
+  // Java opens Passbook/Expenditure in one tab host: from the Passbook bottom tab it is titled
+  // "Passbook" with Passbook highlighted; from the drawer it stays on Home ("FieldWeb").
+  const passbookTabOrder = usePassbookTabOrder();
   const watchIdRef = useRef<number | null>(null);
   const [ownerId, setOwnerId] = useState<number | null>(null);
   const [isAddQuoteModalOpen, setIsAddQuoteModalOpen] = useState(false);
@@ -201,9 +205,11 @@ export default function TechnicianTabs() {
             <>
               {/* Pushed-style screens show their own back-arrow header. */}
               {/* Leave is the Leaves sub-tab of Attendance in Java: same header + tab. */}
-              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave') && (
+              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave' || currentRoute === 'Expenditure') && (
                 <AppHeader
-                  title={getTitle(currentRoute)}
+                  title={currentRoute === 'Expenditure'
+                    ? (passbookTabOrder === 'passbookFirst' ? 'Passbook' : 'FieldWeb')
+                    : getTitle(currentRoute)}
                   navigation={props.navigation as any}
                 />
               )}
@@ -211,7 +217,10 @@ export default function TechnicianTabs() {
               <BottomTabBar
                 {...props}
                 visibleTabs={MAIN_TABS}
-                activeAlias={{ Leave: 'Attendance' }}
+                activeAlias={{
+                  Leave: 'Attendance',
+                  Expenditure: passbookTabOrder === 'passbookFirst' ? 'Passbook' : 'Home',
+                }}
                 quickActions={quickActions}
               />
             </>
@@ -230,7 +239,9 @@ export default function TechnicianTabs() {
             component={component}
             initialParams={initialParams}
             options={({ navigation }: any) =>
-              name === 'Leave' ? { headerShown: false } : pushedScreenOptions(title, navigation)}
+              name === 'Leave' || name === 'Expenditure'
+                ? { headerShown: false }
+                : pushedScreenOptions(title, navigation)}
           />
         ))}
       </Tab.Navigator>

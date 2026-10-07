@@ -26,6 +26,7 @@ import {
   getYearlyPassbook,
 } from '../../../api/passbook/passbookService';
 import { formatAmount } from '../../../utils/decimal';
+import { usePassbookTabOrder } from '../../../state/passbookTabOrder';
 import { getCurrentUserId } from '../../../state/session';
 
 // Passbook is a real tab, but also needs to push 'Expenditure', which now
@@ -55,6 +56,7 @@ const EMPTY_FIELDS: PassbookFields = {
 export default function PassbookScreen() {
   const headerHeight = useAppHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
+  const tabOrder = usePassbookTabOrder();
 
   const [activePeriod, setActivePeriod] = useState<Period>('today');
   // Drives the Monthly/Yearly caret navigation (Java opens a month/year picker dialog).
@@ -198,12 +200,17 @@ export default function PassbookScreen() {
       >
         {/* Tab Row */}
         <View style={[styles.tabRow, { paddingTop: headerHeight + vs(4) }]}>
-          <Pressable style={styles.activeTab}>
-            <Text style={styles.activeTabText}>PASSBOOK</Text>
-          </Pressable>
-          <Pressable style={styles.inactiveTab} onPress={() => navigation.navigate('Expenditure')}>
-            <Text style={styles.inactiveTabText}>EXPENDITURE</Text>
-          </Pressable>
+          {(tabOrder === 'passbookFirst' ? ['passbook', 'expenditure'] : ['expenditure', 'passbook']).map(t =>
+            t === 'passbook' ? (
+              <Pressable key={t} style={styles.activeTab}>
+                <Text style={styles.activeTabText}>PASSBOOK</Text>
+              </Pressable>
+            ) : (
+              <Pressable key={t} style={styles.inactiveTab} onPress={() => navigation.navigate('Expenditure')}>
+                <Text style={styles.inactiveTabText}>EXPENDITURE</Text>
+              </Pressable>
+            ),
+          )}
         </View>
 
         {/* Period selector */}
