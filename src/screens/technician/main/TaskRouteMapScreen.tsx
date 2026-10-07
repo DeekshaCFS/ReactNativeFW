@@ -17,6 +17,7 @@ import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { requestLocationPermission, getCurrentPosition, Coordinates } from '../../../utils/locationPermision';
 import { fetchDrivingRoute, DrivingRoute } from '../../../utils/routing';
 import { getCurrentUserProfile } from '../../../state/session';
+import { placeTeleCmiCall } from '../../../utils/teleCmiCall';
 import { FieldWebLocationPin, FieldWebTechMarker } from '../../../components/MapMarkers';
 import { FIELDWEB_MAP_STYLE } from '../../../config/mapStyle';
 
@@ -157,7 +158,9 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
 
   const handleCall = () => {
     const phone = task.ContactNo ?? task.TechContactNo;
-    if (phone && phone.trim()) Linking.openURL(`tel:${phone}`);
+    // Java: TeleCMI module on -> bridged call (number stays hidden); otherwise the dialer.
+    if (masked) placeTeleCmiCall(phone);
+    else if (phone && phone.trim()) Linking.openURL(`tel:${phone}`);
     else Alert.alert('Unavailable', 'Contact number is not available.');
   };
 

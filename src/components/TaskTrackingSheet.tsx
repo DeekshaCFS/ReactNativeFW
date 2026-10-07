@@ -53,7 +53,7 @@ const handleLocationTask = async (task: Task) => {
 };
 
 // drawable/ic_close_popupp: red disc, light ring, white cross.
-const ClosePopupIcon = ({ size }: { size: number }) => (
+export const ClosePopupIcon = ({ size }: { size: number }) => (
   <Svg width={size} height={size} viewBox="0 0 64 64">
     <Path fill="#FFFFFF" d="M12.5547,12.5547C1.8164,23.293 1.8164,40.707 12.5547,51.4453C23.293,62.1836 40.707,62.1836 51.4453,51.4453C62.1836,40.707 62.1836,23.293 51.4453,12.5547C40.707,1.8164 23.293,1.8164 12.5547,12.5547Z" />
     <Path fill="#C3002F" d="M17.8555,17.8594C10.0469,25.668 10.0469,38.332 17.8594,46.1406C25.668,53.9531 38.332,53.9531 46.1406,46.1406C53.9531,38.332 53.9531,25.668 46.1406,17.8594C38.332,10.0469 25.668,10.0469 17.8555,17.8594Z" />
