@@ -111,6 +111,11 @@ const LeadDetailsScreen = ({
       if (typeof value === 'string' && value.trim()) {
         return value.trim();
       }
+      // LeadDetailsDTO.ResultData fields are Java Strings, but the API can send numeric
+      // values (e.g. MobileNumber) which Gson stringifies.
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
+      }
     }
     return '';
   };
@@ -571,8 +576,10 @@ const LeadDetailsScreen = ({
     return timeLabel ? `${dateLabel}  ${timeLabel}` : dateLabel;
   };
 
-  const openAddTask = (item: LeadListItem) => {
+  const openAddTask = async (item: LeadListItem) => {
     const rec = item as Record<string, unknown>;
+    // The in-memory profile is empty after a cold start/reload; Home keeps the name in storage.
+    const storedName = technician ? await AsyncStorage.getItem('name') : null;
     const str = (...keys: string[]) => getStringValue(item, keys);
     setAddTaskValues({
       title: '',
@@ -586,6 +593,7 @@ const LeadDetailsScreen = ({
       taskTagId: 0,
       taskTagName: '',
       customerId: getNumberValue(rec, ['customerDetailsid', 'CustomerDetailsid']) || undefined,
+      leadId,
       latitude: str('latitude', 'Latitude'),
       longitude: str('longitude', 'Longitude'),
       // Java (technician): the assignee is the logged-in user.
@@ -595,6 +603,7 @@ const LeadDetailsScreen = ({
             assignedFieldworkerName:
               getCurrentUserProfile().userFirstName ||
               `${getCurrentUserProfile().details?.FirstName ?? ""} ${getCurrentUserProfile().details?.LastName ?? ""}`.trim() ||
+              storedName ||
               "Me",
             lockAssignedFieldworker: true,
           }

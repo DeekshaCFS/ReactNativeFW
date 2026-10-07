@@ -12,12 +12,19 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import DateTimePicker, {type DateTimePickerChangeEvent} from '@react-native-community/datetimepicker';
 import Modal from '../../components/AppModal';
+import OutlinedInput from '../../components/OutlinedInput';
+import {ContactBookIcon, InvoiceIcon} from '../../components/FabIcons';
+import {COLORS} from '../../theme/theme';
+import {ms, sp} from '../../utils/responsive';
+import {getCurrentUserId, getCurrentUserProfile, isIndiaCountryDetailsId} from '../../state/session';
 import AudioRecord from 'react-native-audio-record';
 import RNFS from 'react-native-fs';
 import Sound from 'react-native-sound';
@@ -60,7 +67,7 @@ import {
   normalizeCustomerOption,
   normalizeStateOption,
   normalizeTaskTag,
-  styles,
+  styles as sharedStyles,
   type CityOption,
   type CustomerOption,
   type ServiceNode,
@@ -69,6 +76,302 @@ import {
 } from './crmShared';
 
 Sound.setCategory('Playback');
+
+const BORDER = COLORS.lightGray; // TextInputLayoutStyle boxStrokeColor
+const SEGMENT_DARK = COLORS.ink; // SegmentedGroup sc_tint_color @color/background_gray
+
+// dialog_add_task_new.xml: 20dp margins, Material outlined (34dp-radius) fields with the 20dp
+// error row reserved under each, 40dp spinners, 40dp SegmentedGroups. Overrides the CRM-wide
+// styles (shared with the other CRM modals) for this form only.
+const taskStyles = StyleSheet.create({
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    width: '100%',
+    maxWidth: ms(560),
+    alignSelf: 'center',
+    maxHeight: '94%',
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
+    overflow: 'hidden',
+  },
+  // gradient_addtask header (#353935, 20dp corners), 60dp tall, 22sp title.
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.statusOnHold,
+    paddingHorizontal: ms(20),
+    height: ms(60),
+    borderRadius: ms(20),
+  },
+  modalHeaderTitle: {
+    color: '#FFFFFF',
+    fontSize: sp(22),
+    fontWeight: '400',
+  },
+  modalCloseIcon: {
+    color: '#FFFFFF',
+    fontSize: sp(26),
+    marginRight: ms(2),
+  },
+  modalScrollContent: {
+    paddingHorizontal: ms(20),
+    paddingTop: ms(12),
+    paddingBottom: ms(30),
+  },
+  fieldWrap: {
+    marginBottom: ms(26),
+    position: 'relative',
+    zIndex: 1,
+  },
+  fieldRow: {
+    flexDirection: 'row',
+    gap: ms(10),
+    marginBottom: ms(26),
+  },
+  // Date/Time row sits 10dp below the title field's reserved error row.
+  dateRow: {
+    marginTop: ms(8),
+    marginBottom: ms(25),
+  },
+  stateCityFieldRow: {
+    gap: ms(20),
+    zIndex: 20,
+    elevation: 20,
+  },
+  pillInput: {
+    borderWidth: ms(1),
+    borderColor: BORDER,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    paddingVertical: 0,
+    height: ms(41),
+    fontSize: sp(16),
+    color: COLORS.ink,
+  },
+  // AutoCompleteTextView (autoComplete_cust_name / edittext_customer_number): no explicit
+  // textColor, so the typed text renders in the muted theme gray.
+  pillInputMuted: {
+    color: COLORS.lightGray,
+  },
+  halfField: {
+    flex: 1,
+  },
+  dropdownPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: ms(1),
+    borderColor: BORDER,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    height: ms(41),
+    marginBottom: ms(16),
+  },
+  dropdownPillTextPlaceholder: {
+    fontSize: sp(16),
+    color: COLORS.darkGray,
+    flex: 1,
+  },
+  dropdownPillTextValue: {
+    fontSize: sp(16),
+    color: COLORS.ink,
+    flex: 1,
+  },
+  dropdownChevron: {
+    fontSize: sp(20),
+    color: COLORS.ink,
+    marginLeft: ms(6),
+  },
+  // Spinner right under the tag spinner / wages row (spin_technicians has 10dp top margin).
+  technicianPill: {
+    marginTop: 0,
+    marginBottom: ms(24),
+  },
+  // spin_tag has 16dp below it + the segmented group's 5dp top margin.
+  tagPill: {
+    marginBottom: ms(22),
+  },
+  warrantyRow: {
+    flexDirection: 'row',
+    gap: ms(10),
+    marginBottom: ms(26),
+  },
+  // SegmentedGroup: one 1dp outer border (25dp corners) with 1dp dividers between segments.
+  warrantyToggleGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    height: ms(40),
+    marginLeft: ms(5),
+    borderRadius: ms(25),
+    borderWidth: 1,
+    borderColor: SEGMENT_DARK,
+    overflow: 'hidden',
+  },
+  warrantyToggleButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 0,
+    paddingHorizontal: ms(4),
+  },
+  warrantyToggleButtonLeft: {
+    borderRightWidth: 1,
+    borderRightColor: SEGMENT_DARK,
+    borderRadius: 0,
+  },
+  warrantyToggleButtonRight: {
+    borderLeftWidth: 0,
+    borderRadius: 0,
+  },
+  warrantyToggleButtonActive: {
+    backgroundColor: SEGMENT_DARK,
+  },
+  warrantyToggleText: {
+    fontSize: sp(14),
+    fontWeight: '400',
+    color: SEGMENT_DARK,
+    textAlign: 'center',
+  },
+  warrantyToggleTextActive: {
+    fontSize: sp(14),
+    fontWeight: '400',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  amcDisabledField: {
+    flex: 1,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  amcDisabledInput: {
+    borderWidth: ms(1),
+    borderColor: BORDER,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    paddingVertical: 0,
+    height: ms(41),
+    fontSize: sp(16),
+    color: COLORS.lightGray,
+    backgroundColor: '#FFFFFF',
+  },
+  amcPlaceholderOverlay: {
+    position: 'absolute',
+    left: ms(18),
+    right: ms(18),
+    fontSize: sp(16),
+    color: COLORS.lightGray,
+  },
+  amcEnabledInput: {
+    borderColor: BORDER,
+    color: COLORS.ink,
+    backgroundColor: '#FFFFFF',
+  },
+  // spinWarranty / start-end dates follow the wages row.
+  warrantyTypePill: {
+    marginTop: ms(4),
+    marginBottom: ms(26),
+  },
+  warrantyDatesRow: {
+    marginTop: ms(4),
+  },
+  // Brand/Model/Serial: spinners with 10dp start / 5dp inner margins, i.e. 10dp wider than the
+  // 20dp column on the left.
+  productRow: {
+    flexDirection: 'row',
+    gap: ms(10),
+    marginLeft: -ms(10),
+    marginBottom: ms(16),
+  },
+  productPill: {
+    marginBottom: 0,
+  },
+  productSerialRow: {
+    marginBottom: ms(10),
+  },
+  taskFormTabsRow: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: SEGMENT_DARK,
+    borderRadius: ms(25),
+    overflow: 'hidden',
+    marginBottom: ms(20),
+  },
+  taskFormTabButton: {
+    flex: 1,
+    height: ms(40),
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderLeftWidth: 0,
+  },
+  taskFormTabDivider: {
+    borderLeftWidth: 1,
+    borderLeftColor: SEGMENT_DARK,
+  },
+  taskFormTabButtonActive: {
+    backgroundColor: SEGMENT_DARK,
+  },
+  taskFormTabText: {
+    fontSize: sp(14),
+    fontWeight: '400',
+    color: SEGMENT_DARK,
+  },
+  taskFormTabTextActive: {
+    fontSize: sp(14),
+    fontWeight: '400',
+    color: '#FFFFFF',
+  },
+  customerNameWrap: {
+    marginBottom: ms(21),
+  },
+  pillInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  phonebookButton: {
+    position: 'absolute',
+    right: ms(15),
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  // button_add: rounded_button_new (#353935), 18sp white text, ic_terms drawableLeft.
+  darkAddButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(24),
+    height: ms(48),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
+  },
+  addButtonIconWrap: {
+    position: 'absolute',
+    left: ms(17),
+  },
+  darkAddButtonText: {
+    color: '#FFFFFF',
+    fontSize: sp(18),
+    fontWeight: '500',
+  },
+  // button_cancel: transparent, 18sp colorPrimary, not all-caps.
+  cancelText: {
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    color: COLORS.primary,
+    fontSize: sp(18),
+    fontWeight: '400',
+    height: ms(48),
+    lineHeight: ms(48),
+    marginBottom: ms(20),
+  },
+});
+
+const styles = {...sharedStyles, ...taskStyles};
 
 export type AddTaskInitialValues = {
   title: string;
@@ -84,6 +387,8 @@ export type AddTaskInitialValues = {
   // Optional AMC-service prefill (used when adding a task from AMCDetailsScreen,
   // matching Java's AMCDetailsFragment -> HomeActivityNew.addTask(...) flow).
   customerId?: number;
+  /** Lead the task is raised from (Java addTaskFromLeadDetailsTech: addTask.setLeadId). */
+  leadId?: number;
   productBrand?: string;
   modelNumber?: string;
   amcServiceDetailsId?: number;
@@ -395,6 +700,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDate, setTaskDate] = useState(getTodayDateString());
   const [taskTime, setTaskTime] = useState(getTaskStartTimeString());
+  // Java DateUtils.datePicker / timePicker: native dialogs behind the read-only date fields.
+  const [taskPicker, setTaskPicker] = useState<'date' | 'time' | 'start' | 'end' | null>(null);
+  const [taskPickerValue, setTaskPickerValue] = useState(new Date());
   const [selectedFieldworker, setSelectedFieldworker] = useState<{
     id: number;
     name: string;
@@ -602,6 +910,41 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setIsItemSearchModalOpen(false);
     setItemSearchQuery('');
   }, [visible, initialValues]);
+
+  const openTaskPicker = (kind: 'date' | 'time' | 'start' | 'end') => {
+    const current =
+      kind === 'date' ? taskDate : kind === 'time' ? taskTime : kind === 'start' ? warrantyStartDate : warrantyEndDate;
+    const base = new Date();
+    if (kind === 'time') {
+      const [h, m] = current.split(':').map(part => parseInt(part, 10));
+      if (!isNaN(h) && !isNaN(m)) {
+        base.setHours(h, m, 0, 0);
+      }
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(current.trim())) {
+      const parsed = new Date(`${current.trim()}T00:00:00`);
+      if (!isNaN(parsed.getTime())) {
+        base.setTime(parsed.getTime());
+      }
+    }
+    setTaskPickerValue(base);
+    setTaskPicker(kind);
+  };
+
+  const applyTaskPicker = (kind: 'date' | 'time' | 'start' | 'end', picked: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    if (kind === 'time') {
+      setTaskTime(`${pad(picked.getHours())}:${pad(picked.getMinutes())}:00`);
+      return;
+    }
+    const formatted = `${picked.getFullYear()}-${pad(picked.getMonth() + 1)}-${pad(picked.getDate())}`;
+    if (kind === 'date') {
+      setTaskDate(formatted);
+    } else if (kind === 'start') {
+      setWarrantyStartDate(formatted);
+    } else {
+      setWarrantyEndDate(formatted);
+    }
+  };
 
   const loadFieldworkers = useCallback(() => {
     if (allFieldworkers.length > 0 || isFieldworkerLoading) {
@@ -1488,20 +1831,51 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     if (isSubmittingTask) {
       return;
     }
-    if (!taskTitle.trim()) {
-      Alert.alert('Add Task', 'Please enter a Task Title.');
-      return;
-    }
-    if (!taskAddress.trim()) {
-      Alert.alert('Add Task', 'Please enter Customer Address.');
-      return;
-    }
-    if (!taskState.trim() || !taskCity.trim()) {
-      Alert.alert('Add Task', 'Please enter State and City.');
-      return;
-    }
-    if (!taskPinCode.trim()) {
-      Alert.alert('Add Task', 'Please enter Pin Code.');
+    // Java buttonSaveTask validation chain (TaskDialogNew), same order and messages. State/City/
+    // Pin Code/Tag are only enforced when the owner's task configuration enables them.
+    const {isStateEnable, isCityEnable, isPincodeEnable, isTaskTagEnable} =
+      getCurrentUserProfile().taskConfiguration;
+    const currentUserId = getCurrentUserId() || ownerId;
+    const hasLeadingSpace = (text: string) => /^\s/.test(text) || (text.length > 0 && !text.trim());
+    const customerNumber = taskCustomerNumber.trim();
+    const [timeH, timeM, timeS] = taskTime.split(':').map(part => parseInt(part, 10) || 0);
+    const taskMoment = new Date(`${taskDate}T00:00:00`);
+    taskMoment.setHours(timeH === 0 && timeM === 0 && timeS === 0 ? 24 : timeH, timeM, timeS);
+    const validationError = (() => {
+      if (!taskTitle) return 'Please Enter Task Name';
+      if (hasLeadingSpace(taskTitle)) return 'Space is not allowed';
+      if (taskCustomerName && hasLeadingSpace(taskCustomerName)) return 'Space is not allowed';
+      if (!selectedFieldworker) return 'Please select a option';
+      if (!taskAddress) return 'Please Enter Address';
+      if (!taskLandmark) return 'Please Enter Landmark';
+      if (hasLeadingSpace(taskLandmark)) return 'Space is not allowed';
+      if (!taskDate) return 'Please Enter Date';
+      if (!taskTime) return 'Please Enter Time';
+      if (!(taskMoment.getTime() > Date.now())) return 'Please Enter Valid Date/Time';
+      if (taskSpecialInstructions && hasLeadingSpace(taskSpecialInstructions)) return 'Space is not allowed';
+      if (taskCustomerName && !customerNumber) return 'Please Enter Customer Number';
+      if (!taskCustomerName && customerNumber) return 'Please Enter Customer Name';
+      if (isStateEnable && !taskState) return 'Please Enter State';
+      if (isCityEnable && !taskCity) return 'Please Enter City';
+      if (isPincodeEnable && !taskPinCode) return 'Please Enter Pin Code';
+      if (isTaskTagEnable && !selectedAddTaskTag) return 'Please Select Valid Tag';
+      if (taskEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(taskEmail.trim())) {
+        return 'Please enter a valid email ID';
+      }
+      if (customerNumber) {
+        if (Number(customerNumber) === 0) return 'Please Enter a Valid Number';
+        if (isIndiaCountryDetailsId() ? !/^\d{10,12}$/.test(customerNumber) : customerNumber.length <= 6) {
+          return 'Please Enter a Valid Number';
+        }
+      }
+      if (warrantyMode === 'out') {
+        if (!amcAmount) return 'Please Enter Rate';
+        if (Number(amcAmount) === 0) return 'Please Enter valid Amount';
+      }
+      return null;
+    })();
+    if (validationError) {
+      Alert.alert(formTitle, validationError);
       return;
     }
     const hasInvalidItemQuantity = taskItemRows.some(
@@ -1516,7 +1890,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
     let resolvedLatitude = taskLatitude;
     let resolvedLongitude = taskLongitude;
-    if (!resolvedLatitude || !resolvedLongitude) {
+    if (!Number(resolvedLatitude) || !Number(resolvedLongitude)) {
       const fullAddress = [
         taskAddress.trim(),
         taskCity.trim(),
@@ -1534,8 +1908,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       }
     }
 
-    if (taskEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(taskEmail.trim())) {
-      Alert.alert('Add Task', 'Please enter a valid email address.');
+    // Java: no resolved lat/long -> "Please enter address correctly".
+    if (!resolvedLatitude || !resolvedLongitude || Number(resolvedLatitude) === 0 || Number(resolvedLongitude) === 0) {
+      setIsSubmittingTask(false);
+      Alert.alert(formTitle, 'Please enter address correctly');
       return;
     }
 
@@ -1557,6 +1933,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       try {
         instructionAudioBase64 = await RNFS.readFile(instructionAudioPath, 'base64');
       } catch {
+        setIsSubmittingTask(false);
         Alert.alert('Add Task', 'Unable to read the recorded instruction.');
         return;
       }
@@ -1571,7 +1948,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       City: taskCity.trim(),
       ContactNo: taskCustomerNumber.trim(),
       CountryDetailsId: 0,
-      CreatedBy: ownerId,
+      // Java: CreatedBy/UpdatedBy are the logged-in user (SharedPrefManager.getUserId()); only
+      // the lookups use the owner id.
+      CreatedBy: currentUserId,
       CustomerDetailsid: taskCustomerId,
       CustomerName: taskCustomerName.trim(),
       CustomerTagId: 0,
@@ -1584,8 +1963,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       IsSuccessful: true,
       ItemId: 0,
       ItemQuantity: 0,
-      LeadId: 0,
-      LocDescription: taskPinCode.trim(),
+      LeadId: initialValues?.leadId ?? 0,
+      LocDescription: taskLandmark.trim(),
       LocIsActive: true,
       LocName: '',
       LocationId: taskCityId,
@@ -1604,8 +1983,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         WarrantyTypeName: selectedWarrantyType?.label ?? '',
         StartDate: warrantyStartDate.trim(),
         EndDate: warrantyEndDate.trim(),
-        UserId: ownerId,
-        CreatedBy: ownerId,
+        UserId: currentUserId,
+        CreatedBy: currentUserId,
       },
       MultipleItemAssigned: multipleItemAssigned,
       Name: taskTitle.trim(),
@@ -1622,8 +2001,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       TaskTagId: selectedAddTaskTag?.id || 0,
       TaskType: 1,
       Time: taskTime,
-      UpdatedBy: ownerId,
-      UserId: selectedFieldworker?.id || ownerId,
+      UpdatedBy: currentUserId,
+      UserId: selectedFieldworker?.id || currentUserId,
       WagesPerHour: warrantyMode === 'out' ? Number(amcAmount) || 0 : 0,
       latitude: resolvedLatitude,
     };
@@ -1698,40 +2077,50 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 keyboardShouldPersistTaps="handled"
               >
                 <View style={styles.fieldWrap}>
-                  <TextInput
+                  <OutlinedInput
                     style={styles.pillInput}
                     placeholder="Task Title *"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     value={taskTitle}
                     onChangeText={setTaskTitle}
+                    maxLength={100}
                   />
                 </View>
 
-                <View style={styles.fieldRow}>
-                  <View style={styles.floatingFieldHalf}>
-                    <Text style={styles.floatingLabel}>Date *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                {/* Java: edittext_date_picker / edittext_time are focusable=false and open pickers. */}
+                <View style={[styles.fieldRow, styles.dateRow]}>
+                  <TouchableOpacity
+                    style={styles.halfField}
+                    activeOpacity={0.7}
+                    onPress={() => openTaskPicker('date')}
+                  >
+                    <OutlinedInput
+                      style={styles.pillInput}
+                      placeholder="Date *"
+                      placeholderTextColor={COLORS.lightGray}
                       value={taskDate}
-                      onChangeText={setTaskDate}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#9aa0a6"
+                      editable={false}
+                      pointerEvents="none"
                     />
-                  </View>
-                  <View style={styles.floatingFieldHalf}>
-                    <Text style={styles.floatingLabel}>Time *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.halfField}
+                    activeOpacity={0.7}
+                    onPress={() => openTaskPicker('time')}
+                  >
+                    <OutlinedInput
+                      style={styles.pillInput}
+                      placeholder="Time *"
+                      placeholderTextColor={COLORS.lightGray}
                       value={taskTime}
-                      onChangeText={setTaskTime}
-                      placeholder="HH:MM:SS + 00:15:00"
-                      placeholderTextColor="#9aa0a6"
+                      editable={false}
+                      pointerEvents="none"
                     />
-                  </View>
+                  </TouchableOpacity>
                 </View>
 
                 <TouchableOpacity
-                  style={styles.dropdownPill}
+                  style={[styles.dropdownPill, styles.technicianPill]}
                   disabled={initialValues?.lockAssignedFieldworker}
                   onPress={() => {
                     loadFieldworkers();
@@ -1750,13 +2139,11 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       ? selectedFieldworker.name
                       : 'Select Fieldworker'}
                   </Text>
-                  {initialValues?.lockAssignedFieldworker ? null : (
-                    <Ionicons name="chevron-down" style={styles.dropdownChevron} />
-                  )}
+                  <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.dropdownPill}
+                  style={[styles.dropdownPill, styles.tagPill]}
                   onPress={() => {
                     loadTaskTags();
                     setIsAddTaskTagModalOpen(true);
@@ -1851,61 +2238,71 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 {/* Warranty type + dates sit right under the wages row, before
                     the address block -- same order as dialog_add_task_new.xml
                     (spinWarranty, taskWarrantyStartDate/EndDate). */}
-                <View style={styles.fieldWrap}>
+                <TouchableOpacity
+                  style={[styles.dropdownPill, styles.warrantyTypePill]}
+                  onPress={() => openProductPicker('warranty')}
+                >
+                  <Text
+                    style={
+                      selectedWarrantyType?.label
+                        ? styles.dropdownPillTextValue
+                        : styles.dropdownPillTextPlaceholder
+                    }
+                    numberOfLines={1}
+                  >
+                    {selectedWarrantyType?.label || 'Select'}
+                  </Text>
+                  <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                </TouchableOpacity>
+
+                <View style={[styles.fieldRow, styles.warrantyDatesRow]}>
                   <TouchableOpacity
-                      style={styles.dropdownPill}
-                      onPress={() => openProductPicker('warranty')}
-                    >
-                      <Text
-                        style={
-                          selectedWarrantyType?.label
-                            ? styles.dropdownPillTextValue
-                            : styles.dropdownPillTextPlaceholder
-                        }
-                        numberOfLines={1}
-                      >
-                        {selectedWarrantyType?.label || 'Select Warranty Type'}
-                      </Text>
-                      <Ionicons name="chevron-down" style={styles.dropdownChevron} />
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.fieldRow}>
-                  <View style={styles.floatingFieldHalf}>
-                    <TextInput
-                      style={styles.floatingInput}
+                    style={styles.halfField}
+                    activeOpacity={0.7}
+                    onPress={() => openTaskPicker('start')}
+                  >
+                    <OutlinedInput
+                      style={styles.pillInput}
                       placeholder="Start Date"
-                      placeholderTextColor="#9aa0a6"
+                      placeholderTextColor={COLORS.lightGray}
                       value={warrantyStartDate}
-                      onChangeText={setWarrantyStartDate}
+                      editable={false}
+                      pointerEvents="none"
                     />
-                  </View>
-                  <View style={styles.floatingFieldHalf}>
-                    <TextInput
-                      style={styles.floatingInput}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.halfField}
+                    activeOpacity={0.7}
+                    onPress={() => openTaskPicker('end')}
+                  >
+                    <OutlinedInput
+                      style={styles.pillInput}
                       placeholder="End Date"
-                      placeholderTextColor="#9aa0a6"
+                      placeholderTextColor={COLORS.lightGray}
                       value={warrantyEndDate}
-                      onChangeText={setWarrantyEndDate}
+                      editable={false}
+                      pointerEvents="none"
                     />
-                  </View>
+                  </TouchableOpacity>
                 </View>
 
                 <View style={styles.fieldWrap}>
-                  <TextInput
+                  <OutlinedInput
                     style={styles.pillInput}
                     placeholder="Customer Address *"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     value={taskAddress}
                     onChangeText={setTaskAddress}
+                    maxLength={100}
                   />
                 </View>
 
                 <View style={[styles.fieldRow, styles.stateCityFieldRow]}>
-                  <View style={[styles.floatingFieldHalf, styles.stateFieldWrap]}>
-                    <Text style={styles.floatingLabel}>State *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                  <View style={[styles.halfField, styles.stateFieldWrap]}>
+                    <OutlinedInput
+                      style={styles.pillInput}
+                      placeholder="State *"
+                      placeholderTextColor={COLORS.lightGray}
                       value={taskState}
                       onChangeText={text => {
                         setTaskState(text);
@@ -1952,10 +2349,11 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       </View>
                     ) : null}
                   </View>
-                  <View style={[styles.floatingFieldHalf, styles.cityFieldWrap]}>
-                    <Text style={styles.floatingLabel}>City *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                  <View style={[styles.halfField, styles.cityFieldWrap]}>
+                    <OutlinedInput
+                      style={styles.pillInput}
+                      placeholder="City *"
+                      placeholderTextColor={COLORS.lightGray}
                       value={taskCity}
                       onChangeText={text => {
                         setTaskCity(text);
@@ -2008,11 +2406,13 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   </View>
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <View style={styles.floatingFieldFull}>
-                    <Text style={styles.floatingLabel}>Pin Code *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                {/* Java: Pin Code takes the left half; the right half is an invisible spacer. */}
+                <View style={styles.fieldRow}>
+                  <View style={styles.halfField}>
+                    <OutlinedInput
+                      style={styles.pillInput}
+                      placeholder="Pin Code *"
+                      placeholderTextColor={COLORS.lightGray}
                       value={taskPinCode}
                       onChangeText={text =>
                         setTaskPinCode(text.replace(/[^0-9]/g, '').slice(0, 6))
@@ -2021,22 +2421,23 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       maxLength={6}
                     />
                   </View>
+                  <View style={styles.halfField} />
                 </View>
 
                 <View style={styles.fieldWrap}>
-                  <TextInput
+                  <OutlinedInput
                     style={styles.pillInput}
                     placeholder="Landmark *"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     value={taskLandmark}
                     onChangeText={setTaskLandmark}
                   />
                 </View>
 
-                <View style={styles.fieldRow}>
+                <View style={styles.productRow}>
                   <View style={styles.pillFieldHalf}>
                     <TouchableOpacity
-                      style={styles.dropdownPill}
+                      style={[styles.dropdownPill, styles.productPill]}
                       onPress={() => openProductPicker('brand')}
                     >
                       <Text
@@ -2054,7 +2455,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   </View>
                   <View style={styles.pillFieldHalf}>
                     <TouchableOpacity
-                      style={styles.dropdownPill}
+                      style={[styles.dropdownPill, styles.productPill]}
                       onPress={() => openProductPicker('model')}
                     >
                       <Text
@@ -2072,9 +2473,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   </View>
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <TouchableOpacity
-                      style={styles.dropdownPill}
+                <View style={[styles.productRow, styles.productSerialRow]}>
+                  <View style={styles.pillFieldHalf}>
+                    <TouchableOpacity
+                      style={[styles.dropdownPill, styles.productPill]}
                       onPress={() => openProductPicker('serial')}
                     >
                       <Text
@@ -2089,14 +2491,17 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       </Text>
                       <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                     </TouchableOpacity>
+                  </View>
+                  <View style={styles.pillFieldHalf} />
                 </View>
 
                 <View style={styles.taskFormTabsRow}>
-                  {TASK_FORM_TABS.map(tab => (
+                  {TASK_FORM_TABS.map((tab, tabIndex) => (
                     <TouchableOpacity
                       key={tab.key}
                       style={[
                         styles.taskFormTabButton,
+                        tabIndex > 0 ? styles.taskFormTabDivider : null,
                         activeTaskFormTab === tab.key
                           ? styles.taskFormTabButtonActive
                           : null,
@@ -2118,11 +2523,12 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
                 {activeTaskFormTab === 'cust' ? (
                   <>
-                    <View style={[styles.fieldWrap, styles.customerFieldWrap]}>
+                    <View style={[styles.customerNameWrap, styles.customerFieldWrap]}>
                       <TextInput
-                        style={styles.pillInput}
+                        style={[styles.pillInput, styles.pillInputMuted]}
                         placeholder="Customer Name"
-                        placeholderTextColor="#9aa0a6"
+                        placeholderTextColor={COLORS.lightGray}
+                        editable={!initialValues?.leadId}
                         value={taskCustomerName}
                         onChangeText={text => {
                           setTaskCustomerName(text);
@@ -2167,26 +2573,28 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     </View>
 
                     <View style={styles.fieldWrap}>
-                      <View style={styles.pillInputRow}>
-                        <TextInput
-                          style={styles.pillInputFlex}
+                      <View>
+                        <OutlinedInput
+                          style={[styles.pillInput, styles.pillInputMuted, {paddingRight: ms(52)}]}
                           placeholder="Customer Number"
-                          placeholderTextColor="#9aa0a6"
+                          placeholderTextColor={COLORS.lightGray}
                           value={taskCustomerNumber}
                           onChangeText={setTaskCustomerNumber}
-                          keyboardType="phone-pad"
+                          keyboardType="number-pad"
+                          maxLength={15}
+                          editable={!initialValues?.leadId}
                         />
-                        <Text style={styles.contactPickerIcon}>
-                          <Ionicons name="person-circle-outline" size={24} />
-                        </Text>
+                        <View style={styles.phonebookButton} pointerEvents="none">
+                          <ContactBookIcon size={ms(25)} />
+                        </View>
                       </View>
                     </View>
 
                     <View style={styles.fieldWrap}>
-                      <TextInput
+                      <OutlinedInput
                         style={styles.pillInput}
                         placeholder="Email ID"
-                        placeholderTextColor="#9aa0a6"
+                        placeholderTextColor={COLORS.lightGray}
                         value={taskEmail}
                         onChangeText={setTaskEmail}
                         keyboardType="email-address"
@@ -2406,7 +2814,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <>
-                      <Text style={styles.addButtonIcon}>📄</Text>
+                      <View style={styles.addButtonIconWrap}>
+                        <InvoiceIcon size={ms(30)} color="#FFFFFF" />
+                      </View>
                       <Text style={styles.darkAddButtonText}>{submitLabel}</Text>
                     </>
                   )}
@@ -2420,6 +2830,23 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
           </View>
         </View>
       </Modal>
+
+      {taskPicker ? (
+        <DateTimePicker
+          value={taskPickerValue}
+          mode={taskPicker === 'time' ? 'time' : 'date'}
+          is24Hour={false}
+          display="default"
+          minimumDate={taskPicker === 'time' ? undefined : new Date(Date.now() - 1000)}
+          onValueChange={(_: DateTimePickerChangeEvent, picked: Date) => {
+            applyTaskPicker(taskPicker, picked);
+            setTaskPicker(null);
+          }}
+          onDismiss={() => setTaskPicker(null)}
+          positiveButton={{label: 'OK', textColor: COLORS.primary}}
+          negativeButton={{label: 'CANCEL', textColor: COLORS.primary}}
+        />
+      ) : null}
 
       <Modal
         visible={isFieldworkerModalOpen}
@@ -2522,7 +2949,6 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 value={addTaskTagSearch}
                 onChangeText={setAddTaskTagSearch}
               />
-              <Text style={styles.searchModalIcon}>🔍</Text>
             </View>
             {isTaskTagLoading ? (
               <ActivityIndicator
@@ -2628,7 +3054,6 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 value={taskServiceTypeSearch}
                 onChangeText={setTaskServiceTypeSearch}
               />
-              <Text style={styles.searchModalIcon}>🔍</Text>
             </View>
             {isServiceTypeLoading ? (
               <ActivityIndicator
