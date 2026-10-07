@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/theme';
 import { pick, types as pickerTypes } from '@react-native-documents/picker';
 import { launchImageLibrary } from 'react-native-image-picker';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -323,12 +323,9 @@ export default function TechProfileScreen() {
   // of 'dismissed', so checking strictly for 'set' can leave the picker stuck
   // open. iOS keeps the inline wheel open until the person taps away, so we
   // only update the date there and let onDateChange close it separately.
-  const handleDobChange = (event: DateTimePickerEvent, date?: Date) => {
+  const handleDobChange = (_event: DateTimePickerChangeEvent, date: Date) => {
     if (Platform.OS === 'android') {
       setShowDobPicker(false);
-    }
-    if (event.type === 'dismissed' || !date) {
-      return;
     }
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -604,7 +601,8 @@ export default function TechProfileScreen() {
             mode="date"
             display={Platform.OS === 'android' ? 'calendar' : 'inline'}
             maximumDate={new Date()}
-            onChange={handleDobChange}
+            onValueChange={handleDobChange}
+            onDismiss={() => setShowDobPicker(false)}
           />
         )}
 

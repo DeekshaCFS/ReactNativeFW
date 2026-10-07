@@ -1302,9 +1302,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                   value={datePickerValue}
                   mode="date"
                   display="inline"
-                  onChange={(_: DateTimePickerChangeEvent, date?: Date) => {
-                    if (date) setDatePickerValue(date);
-                  }}
+                  onValueChange={(_: DateTimePickerChangeEvent, date: Date) => setDatePickerValue(date)}
                   themeVariant="light"
                   accentColor={COLORS.primary}
                 />
@@ -1329,11 +1327,11 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
             value={datePickerValue}
             mode="date"
             display="default"
-            onChange={(event: DateTimePickerChangeEvent, date?: Date) => {
-              const e = event as any;
-              if (e.type === 'set' && date) applyPickedDate(date);
+            onValueChange={(_: DateTimePickerChangeEvent, date: Date) => {
+              applyPickedDate(date);
               setDatePickerField(null);
             }}
+            onDismiss={() => setDatePickerField(null)}
             positiveButton={{label: 'OK', textColor: COLORS.primary}}
             negativeButton={{label: 'CANCEL', textColor: COLORS.primary}}
           />

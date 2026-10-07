@@ -11,7 +11,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme/theme';
 import { launchImageLibrary } from 'react-native-image-picker';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getProfileDetails,
@@ -245,9 +245,8 @@ export default function AdminProfileScreen() {
   };
 
   // ─── DOB picker (mirrors onDateSet in the Java reference) ──────────────────
-  const handleDobChange = (event: DateTimePickerEvent, date?: Date) => {
+  const handleDobChange = (_event: DateTimePickerChangeEvent, date: Date) => {
     if (Platform.OS === 'android') setShowDobPicker(false);
-    if (event.type === 'dismissed' || !date) return;
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -539,7 +538,8 @@ export default function AdminProfileScreen() {
             mode="date"
             display={Platform.OS === 'android' ? 'calendar' : 'inline'}
             maximumDate={new Date()}
-            onChange={handleDobChange}
+            onValueChange={handleDobChange}
+            onDismiss={() => setShowDobPicker(false)}
           />
         )}
 

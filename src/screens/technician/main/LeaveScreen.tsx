@@ -8,7 +8,7 @@ import MonthYearPickerDialog from '../../../components/MonthYearPickerDialog';
 import SearchPickerModal from '../../../components/SearchPickerModal';
 import { useState, useCallback, useMemo } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, ms, useAppHeaderHeight } from '../../../utils/responsive';
@@ -278,10 +278,10 @@ export default function LeaveScreen() {
     setErrorLabel('');
   };
 
-  const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
+  const onDateChange = (_event: DateTimePickerChangeEvent, date: Date) => {
     const field = activeDateField;
     setActiveDateField(null);
-    if (event.type === 'dismissed' || !date || !field) return;
+    if (!field) return;
 
     const iso = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
     setForm(prev => {
@@ -601,7 +601,8 @@ export default function LeaveScreen() {
                 mode="date"
                 display={Platform.OS === 'android' ? 'calendar' : 'inline'}
                 minimumDate={new Date(Date.now() - 7 * 86400000)}
-                onChange={onDateChange}
+                onValueChange={onDateChange}
+                onDismiss={() => setActiveDateField(null)}
               />
             )}
 
@@ -802,6 +803,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.statusOnHold,
     paddingHorizontal: scale(20),
     height: vs(60),
+    borderBottomLeftRadius: scale(25),
+    borderBottomRightRadius: scale(25),
   },
   sheetTitle: { fontSize: sp(22), color: COLORS.white },
   sheetBody: { paddingHorizontal: scale(30), paddingTop: vs(8), paddingBottom: vs(10) },

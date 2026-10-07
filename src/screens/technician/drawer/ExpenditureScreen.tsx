@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../../../theme/theme';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
@@ -105,22 +105,12 @@ export default function ExpenditureScreen() {
         display: 'spinner',
         maximumDate: new Date(),
         minimumDate: minSelectableDate(),
-        onChange: (event: DateTimePickerEvent, selected?: Date) => {
-          if (event.type === 'set' && selected) setDate(selected);
-        },
+        onValueChange: (_event: DateTimePickerChangeEvent, selected: Date) => setDate(selected),
       });
       return;
     }
     setTempDate(date);
     setShowDatePicker(true);
-  };
-
-  const onDatePickerChange = (event: DateTimePickerEvent, selected?: Date) => {
-    if (event.type === 'dismissed') {
-      setShowDatePicker(false);
-      return;
-    }
-    if (selected) setTempDate(selected);
   };
 
   const confirmDatePicker = () => {
@@ -395,7 +385,8 @@ export default function ExpenditureScreen() {
               display="spinner"
               maximumDate={new Date()}
               minimumDate={minSelectableDate()}
-              onChange={onDatePickerChange}
+              onValueChange={(_event: DateTimePickerChangeEvent, selected: Date) => setTempDate(selected)}
+              onDismiss={() => setShowDatePicker(false)}
             />
             <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: '#eee', marginTop: ms(12) }}>
               <Pressable style={{ flex: 1, paddingVertical: ms(14), alignItems: 'center' }} onPress={() => setShowDatePicker(false)}>

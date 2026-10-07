@@ -703,9 +703,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                   value={datePickerValue}
                   mode="date"
                   display="inline"
-                  onChange={(_: DateTimePickerChangeEvent, date?: Date) => {
-                    if (date) setDatePickerValue(date);
-                  }}
+                  onValueChange={(_: DateTimePickerChangeEvent, date: Date) => setDatePickerValue(date)}
                   themeVariant="light"
                   accentColor={COLORS.primary}
                 />
@@ -731,13 +729,16 @@ export default function ItemRequestScreen({ navigation, route }: any) {
             value={datePickerValue}
             mode="date"
             display="default"
-            onChange={(event: DateTimePickerChangeEvent, date?: Date) => {
-              const e = event as any;
+            onValueChange={(_: DateTimePickerChangeEvent, date: Date) => {
               setDatePickerVisible(false);
-              if (e.type === 'set' && date && pendingDateRef.current) {
+              if (pendingDateRef.current) {
                 const { itemId, field } = pendingDateRef.current;
                 updateItem(itemId, { [field]: formatDate(date) });
               }
+              pendingDateRef.current = null;
+            }}
+            onDismiss={() => {
+              setDatePickerVisible(false);
               pendingDateRef.current = null;
             }}
             positiveButton={{ label: 'OK', textColor: COLORS.primary }}

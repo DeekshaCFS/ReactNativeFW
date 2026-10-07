@@ -94,10 +94,8 @@ export default function TaskInputScreen({ navigation, route }: any) {
     });
   };
 
-  const handleDateChange = (fieldId: number) => (event: DateTimePickerChangeEvent, date?: Date) => {
-    const e = event as any;
+  const handleDateChange = (fieldId: number) => (_event: DateTimePickerChangeEvent, date: Date) => {
     setActiveDatePicker(null);
-    if (e.type === 'dismissed' || !date) return;
     setFieldValue(fieldId, formatDate(date));
   };
 
@@ -275,7 +273,8 @@ export default function TaskInputScreen({ navigation, route }: any) {
                             value={new Date()}
                             mode="date"
                             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                            onChange={handleDateChange(field.FieldId)}
+                            onValueChange={handleDateChange(field.FieldId)}
+                            onDismiss={() => setActiveDatePicker(null)}
                           />
                         )}
                       </>
