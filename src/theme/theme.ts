@@ -49,6 +49,16 @@ export const COLORS = {
   redIcon:         '#C22033', // @color/red_icon
   lighterGray:      '#EDEDED', // @color/lighter_gray (progress track, list separator)
   alertRed:        '#FF4A4A', // @color/red (notification Rejected / AMC titles)
+  green500:        '#4CAF50', // @color/green_500 (leave Approved / Full Day)
+  darkGray:        '#535353', // @color/dark_gray
+  tabSelector:     '#FFF3F5', // @color/tabselector (selected tab background)
+
+  // Attendance / leave status palette (Java gradient_* / curve_card_* drawables)
+  attAbsent:       '#F37777', // gradient_absent, curve_card_absent
+  attPresentTag:   '#A9F2A4', // curve_card_present
+  attIdleTag:      '#FFD066', // curve_card_idle
+  attLeave:        '#0E0E0E', // gradient_onleave (@color/black)
+  attLeaveTag:     '#414140', // curve_card_onleave
 } as const;
 
 export const TEXT = {
