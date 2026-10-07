@@ -1,7 +1,7 @@
 // src/screens/technician/main/HomeScreen.tsx
 import {
   View, Text, StyleSheet, FlatList,
-  Pressable, Alert, ActivityIndicator,
+  Pressable, Alert, ActivityIndicator, Linking,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import { COLORS } from '../../../theme/theme';
@@ -18,6 +18,9 @@ import { setCurrentCountryDetails } from '../../../state/session';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { scale, vs, sp, ms, wps, useAppHeaderHeight } from '../../../utils/responsive';
 import TaskListCard from '../../../components/TaskListCard';
+import TaskAttachmentsSheet from '../../../components/TaskAttachmentsSheet';
+import { getTaskDoc } from '../../../api/taskList/taskListService';
+import type { GetPostedTaskDocFile } from '../../../api/taskList/taskList.types';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useOpenTask } from '../../../hooks/useOpenTask';
@@ -395,11 +398,54 @@ export default function HomeScreen({ navigation }: any) {
     onLateInactive: t => navigation.navigate('TaskTracking', { task: t, autoReject: true }),
   });
 
+  // ── attachments (same as the Task tab: InActive / Completed cards show the clip icon) ──
+
+  const [attachmentFiles, setAttachmentFiles] = useState<GetPostedTaskDocFile[]>([]);
+  const [attachmentTask, setAttachmentTask] = useState<Task | null>(null);
+
+  const handleViewAttachments = async (task: Task) => {
+    if (!userId) return;
+    try {
+      const response = await getTaskDoc({
+        userId: Number(userId),
+        taskId: task.TaskStatus === 'InActive' ? 0 : task.Id,
+        customerId: task.CustomerDetailsid,
+      });
+      const files = response?.ResultData?.Files ?? [];
+      if (files.length === 0) {
+        Alert.alert('Attachments', 'You have no attachment!');
+        return;
+      }
+      setAttachmentFiles(files);
+      setAttachmentTask(task);
+    } catch {
+      Alert.alert('Attachments', 'You have no attachment!');
+    }
+  };
+
+  const handleDownloadFile = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch (err: any) {
+      Alert.alert('Download failed', err?.message || 'Could not open the file.');
+    }
+  };
+
   // ── task card ─────────────────────────────────────────────────────────────
 
   const renderTaskCard = ({ item }: { item: Task }) => (
     <View style={styles.cardWrap}>
-      <TaskListCard task={item} onPress={() => openTask(item)} />
+      <TaskListCard
+        task={item}
+        onPress={() => openTask(item)}
+        actions={
+          item.TaskStatus === 'InActive' || item.TaskStatus === 'Completed' ? (
+            <Pressable onPress={() => handleViewAttachments(item)} hitSlop={8} style={styles.actionIcon}>
+              <Ionicons name="attach" size={ms(20)} color={COLORS.primary} />
+            </Pressable>
+          ) : null
+        }
+      />
     </View>
   );
 
@@ -565,6 +611,14 @@ export default function HomeScreen({ navigation }: any) {
           </View>
         </View>
       </Modal>
+
+      <TaskAttachmentsSheet
+        visible={attachmentTask !== null}
+        taskName={attachmentTask?.Name}
+        files={attachmentFiles}
+        onClose={() => setAttachmentTask(null)}
+        onDownload={handleDownloadFile}
+      />
     </View>
   );
 }
@@ -630,6 +684,7 @@ const styles = StyleSheet.create({
   divider: { height: ms(10), marginVertical: ms(10), backgroundColor: COLORS.lighterGray },
 
   cardWrap: { marginHorizontal: ms(14) },
+  actionIcon: { marginRight: ms(8) },
 
   emptyText: { textAlign: 'center', color: '#9ca3af', fontSize: sp(14), marginTop: vs(24) },
 });
