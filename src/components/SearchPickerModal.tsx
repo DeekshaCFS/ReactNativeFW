@@ -29,8 +29,12 @@ type Props = {
   emptyText?: string;
   onSelect: (option: PickerOption) => void;
   onClose: () => void;
+  /** Placeholder of the search box (Java dialogs use "Search..." or a per-dialog hint). */
+  searchHint?: string;
   /** Remote search; when set, `options` is shown as-is instead of filtered locally. */
   onSearch?: (text: string) => void;
+  /** Plain spinner-style list without the search box (Java's Spinner dropdowns). */
+  hideSearch?: boolean;
 };
 
 const SearchPickerModal: React.FC<Props> = ({
@@ -42,6 +46,8 @@ const SearchPickerModal: React.FC<Props> = ({
   onSelect,
   onClose,
   onSearch,
+  searchHint = 'Search...',
+  hideSearch = false,
 }) => {
   const [query, setQuery] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,22 +88,27 @@ const SearchPickerModal: React.FC<Props> = ({
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.box} onPress={() => {}}>
+        <Pressable style={[styles.box, hideSearch && styles.boxCompact]} onPress={() => {}}>
           <Text style={styles.title}>{title}</Text>
-          <View style={styles.searchWrap}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search..."
-              placeholderTextColor={COLORS.lightGray}
-              value={query}
-              onChangeText={handleChange}
-              autoCorrect={false}
-            />
-          </View>
+          {hideSearch ? null : (
+            <View style={styles.searchWrap}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder={searchHint}
+                placeholderTextColor={COLORS.lightGray}
+                value={query}
+                onChangeText={handleChange}
+                autoCorrect={false}
+              />
+            </View>
+          )}
           {loading ? (
             <ActivityIndicator color={COLORS.primary} style={styles.loader} />
           ) : (
-            <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              style={hideSearch ? styles.listCompact : styles.list}
+              keyboardShouldPersistTaps="handled"
+            >
               {shown.map(option => (
                 <TouchableOpacity
                   key={option.id}
@@ -132,6 +143,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     padding: scale(16),
   },
+  boxCompact: { height: undefined, maxHeight: vs(315) },
   title: { fontSize: sp(20), fontWeight: '700', color: COLORS.textBlack },
   searchWrap: {
     marginTop: vs(8),
@@ -144,6 +156,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { fontSize: sp(18), color: COLORS.textBlack, padding: 0 },
   list: { flex: 1 },
+  listCompact: { flexGrow: 0, marginTop: vs(8) },
   item: { minHeight: vs(48), justifyContent: 'center', paddingHorizontal: scale(16) },
   itemText: { fontSize: sp(18), color: COLORS.textBlack },
   loader: { marginVertical: vs(18) },

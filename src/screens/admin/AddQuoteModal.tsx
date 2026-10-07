@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {OutlinedInput} from '../../components/OutlinedInput';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
 import DateTimePicker, {type DateTimePickerChangeEvent} from '@react-native-community/datetimepicker';
 import {pick} from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
@@ -43,10 +45,15 @@ type ItemInventoryListItem = ItemsListResultData;
 type SaveQuotationServiceRequest = SaveQuotationDTOQuoteServiceList;
 type SaveQuotationItemRequest = SaveQuotationDTOQuoteItemList;
 
-const HEADER_DARK = '#3a3a3c';
-const SEGMENT_DARK = '#232b3a';
-const RED = '#c3002f';
-const BORDER = '#d5d7db';
+const HEADER_DARK = COLORS.statusOnHold; // gradient_addtask #353935
+const SEGMENT_DARK = COLORS.ink; // @color/background_gray
+const RED = COLORS.primary;
+const BORDER = COLORS.lightGray; // TextInputLayoutStyle boxStrokeColor
+const TAX_MODE_OPTIONS: PickerOption[] = [
+  {id: 0, label: 'Select Tax'},
+  {id: 1, label: 'With Tax'},
+  {id: 2, label: 'Without Tax'},
+];
 
 type SectionKey = 'service' | 'items' | 'discount';
 
@@ -157,6 +164,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   // Technician flow: customer autocomplete (Java: autoComplete_cust_name / edittext_quote_number).
   const [customers, setCustomers] = useState<CustomerListResultData[]>([]);
   const [customerId, setCustomerId] = useState(0);
+  const [isPlaceSearchOpen, setIsPlaceSearchOpen] = useState(false);
   const [customerLat, setCustomerLat] = useState('0');
   const [customerLng, setCustomerLng] = useState('0');
   const [suggestFor, setSuggestFor] = useState<'name' | 'phone' | null>(null);
@@ -183,6 +191,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   const [taxName, setTaxName] = useState('');
   const [taxOptions, setTaxOptions] = useState<Array<PickerOption & {name: string; percent: number}>>([]);
   const [isTaxPickerOpen, setIsTaxPickerOpen] = useState(false);
+  const [isTaxModePickerOpen, setIsTaxModePickerOpen] = useState(false);
   const [isLoadingTaxes, setIsLoadingTaxes] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -310,7 +319,11 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   };
 
   const removeServiceRow = (id: string) => {
-    setServiceRows(prev => (prev.length > 1 ? prev.filter(row => row.id !== id) : prev));
+    setServiceRows(prev =>
+      prev.length > 1
+        ? prev.filter(row => row.id !== id)
+        : prev.map(row => ({ ...row, serviceTypeId: null, serviceTypeName: '', quantity: '', price: '' })),
+    );
   };
 
   const addItemRow = () => {
@@ -322,7 +335,11 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   };
 
   const removeItemRow = (id: string) => {
-    setItemRows(prev => (prev.length > 1 ? prev.filter(row => row.id !== id) : prev));
+    setItemRows(prev =>
+      prev.length > 1
+        ? prev.filter(row => row.id !== id)
+        : prev.map(row => ({ ...row, itemId: null, itemName: '', quantity: '', price: '' })),
+    );
   };
 
   // Java's "Attach SLA": any document (pdf, images, xlsx, txt, zip...), max 6 MB,
@@ -372,8 +389,16 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       .finally(() => setIsLoadingPaymentTypes(false));
   };
 
-  const openTaxPicker = () => {
-    setIsTaxPickerOpen(true);
+  // `selectFirst` mimics Java's spinner, which shows (and submits) the first tax until another is picked.
+  const openTaxPicker = (selectFirst = false) => {
+    if (selectFirst && taxOptions.length > 0) {
+      setTaxName(taxOptions[0].name);
+      setTaxPercent(String(taxOptions[0].percent));
+      return;
+    }
+    if (!selectFirst) {
+      setIsTaxPickerOpen(true);
+    }
     if (taxOptions.length > 0 || isLoadingTaxes) {
       return;
     }
@@ -381,18 +406,21 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     getTaxList({UserId: ownerId})
       .then(response => {
         const rows = Array.isArray(response?.ResultData) ? response.ResultData : [];
-        setTaxOptions(
-          rows.map((row, index) => {
-            const name = String(row.TaxName ?? '').trim();
-            const percent = Number(row.TaxPercentage) || 0;
-            return {
-              id: Number(row.Id) || index + 1,
-              label: `${name}: ${percent}%`,
-              name,
-              percent,
-            };
-          }),
-        );
+        const mapped = rows.map((row, index) => {
+          const name = String(row.TaxName ?? '').trim();
+          const percent = Number(row.TaxPercentage) || 0;
+          return {
+            id: Number(row.Id) || index + 1,
+            label: `${name}: ${percent}%`,
+            name,
+            percent,
+          };
+        });
+        setTaxOptions(mapped);
+        if (selectFirst && mapped.length > 0) {
+          setTaxName(mapped[0].name);
+          setTaxPercent(String(mapped[0].percent));
+        }
       })
       .catch(() => setTaxOptions([]))
       .finally(() => setIsLoadingTaxes(false));
@@ -783,129 +811,70 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       </View>
     ) : null;
 
-  const renderServiceTypeDropdown = (row: ServiceRow) => {
-    const dropdownKey = `service-${row.id}`;
-    const isOpen = openDropdownKey === dropdownKey;
-
-    return (
-      <View style={styles.dropdownWrap}>
-        <Pressable
-          style={styles.dropdownField}
-          onPress={() => setOpenDropdownKey(isOpen ? null : dropdownKey)}>
-          <Text
-            style={row.serviceTypeName ? styles.dropdownValueText : styles.dropdownPlaceholderText}
-            numberOfLines={1}>
-            {isLoadingServiceTypes
-              ? 'Loading...'
-              : row.serviceTypeName || 'Select Service Type'}
-          </Text>
-          <Ionicons name="chevron-down" style={styles.dropdownChevron} />
-        </Pressable>
-        {isOpen ? (
-          <View style={styles.dropdownList}>
-            <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
-              {serviceTypes.map(item => {
-                const typeId = getServiceTypeId(item);
-                const typeName = getServiceTypeName(item);
-                return (
-                  <Pressable
-                    key={`${typeId}-${typeName}`}
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      if (
-                        technician &&
-                        serviceRows.some(r => r.id !== row.id && r.serviceTypeName.toLowerCase() === typeName.toLowerCase())
-                      ) {
-                        Alert.alert(docTitle, 'Same Service name not allowed!');
-                        setOpenDropdownKey(null);
-                        return;
-                      }
-                      setServiceRows(prev =>
-                        prev.map(r =>
-                          r.id === row.id
-                            ? {
-                                ...r,
-                                serviceTypeId: typeId,
-                                serviceTypeName: typeName,
-                                // Java (technician): picking a service fills its master price.
-                                ...(technician ? {price: String(Number(item.Price) || 0)} : {}),
-                              }
-                            : r,
-                        ),
-                      );
-                      setOpenDropdownKey(null);
-                    }}>
-                    <Text style={styles.dropdownItemText}>{typeName}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        ) : null}
-      </View>
+  // Java: tapping the spinner opens dialog_searchable_spinner_service_type / _item (centered
+  // searchable list) instead of an inline dropdown.
+  const selectServiceType = (rowId: string, item: LeadServiceTypeItem) => {
+    const typeId = getServiceTypeId(item);
+    const typeName = getServiceTypeName(item);
+    if (
+      technician &&
+      serviceRows.some(r => r.id !== rowId && r.serviceTypeName.toLowerCase() === typeName.toLowerCase())
+    ) {
+      Alert.alert(docTitle, 'Same Service name not allowed!');
+      return;
+    }
+    setServiceRows(prev =>
+      prev.map(r =>
+        r.id === rowId
+          ? {
+              ...r,
+              serviceTypeId: typeId,
+              serviceTypeName: typeName,
+              // Java (technician): picking a service fills its master price.
+              ...(technician ? {price: String(Number(item.Price) || 0)} : {}),
+            }
+          : r,
+      ),
     );
   };
 
-  const renderItemDropdown = (row: ItemRow) => {
-    const dropdownKey = `item-${row.id}`;
-    const isOpen = openDropdownKey === dropdownKey;
-
-    return (
-      <View style={styles.dropdownWrap}>
-        <Pressable
-          style={styles.dropdownField}
-          onPress={() => setOpenDropdownKey(isOpen ? null : dropdownKey)}>
-          <Text
-            style={row.itemName ? styles.dropdownValueText : styles.dropdownPlaceholderText}
-            numberOfLines={1}>
-            {isLoadingItems ? 'Loading...' : row.itemName || 'Select Item'}
-          </Text>
-          <Ionicons name="chevron-down" style={styles.dropdownChevron} />
-        </Pressable>
-        {isOpen ? (
-          <View style={styles.dropdownList}>
-            <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
-              {items.map((item, index) => {
-                const id = getItemId(item);
-                const name = getItemName(item);
-                const price = getItemPrice(item);
-                return (
-                  <Pressable
-                    key={`${id}-${index}`}
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      if (
-                        technician &&
-                        itemRows.some(r => r.id !== row.id && r.itemName.toLowerCase() === name.toLowerCase())
-                      ) {
-                        Alert.alert(docTitle, 'Same Item name not allowed!');
-                        setOpenDropdownKey(null);
-                        return;
-                      }
-                      setItemRows(prev =>
-                        prev.map(r =>
-                          r.id === row.id
-                            ? {
-                                ...r,
-                                itemId: id,
-                                itemName: name,
-                                price: r.price ? r.price : String(price || ''),
-                              }
-                            : r,
-                        ),
-                      );
-                      setOpenDropdownKey(null);
-                    }}>
-                    <Text style={styles.dropdownItemText}>{name}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        ) : null}
-      </View>
+  const selectItem = (rowId: string, item: ItemInventoryListItem) => {
+    const id = getItemId(item);
+    const name = getItemName(item);
+    const price = getItemPrice(item);
+    if (technician && itemRows.some(r => r.id !== rowId && r.itemName.toLowerCase() === name.toLowerCase())) {
+      Alert.alert(docTitle, 'Same Item name not allowed!');
+      return;
+    }
+    setItemRows(prev =>
+      prev.map(r =>
+        r.id === rowId ? {...r, itemId: id, itemName: name, price: r.price ? r.price : String(price || '')} : r,
+      ),
     );
   };
+
+  const renderServiceTypeDropdown = (row: ServiceRow) => (
+    <Pressable style={styles.dropdownField} onPress={() => setOpenDropdownKey(`service-${row.id}`)}>
+      <Text
+        style={row.serviceTypeName ? styles.dropdownValueText : styles.dropdownPlaceholderText}
+        numberOfLines={1}>
+        {isLoadingServiceTypes ? 'Loading...' : row.serviceTypeName || 'Select Service Type'}
+      </Text>
+      <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+    </Pressable>
+  );
+
+  const renderItemDropdown = (row: ItemRow) => (
+    <Pressable style={styles.dropdownField} onPress={() => setOpenDropdownKey(`item-${row.id}`)}>
+      <Text style={row.itemName ? styles.dropdownValueText : styles.dropdownPlaceholderText} numberOfLines={1}>
+        {isLoadingItems ? 'Loading...' : row.itemName || 'Select Item'}
+      </Text>
+      <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+    </Pressable>
+  );
+
+  const pickerKind = openDropdownKey?.startsWith('service-') ? 'service' : openDropdownKey?.startsWith('item-') ? 'item' : null;
+  const pickerRowId = openDropdownKey ? openDropdownKey.replace(/^(service|item)-/, '') : '';
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
@@ -914,7 +883,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{docTitle}</Text>
             <TouchableOpacity onPress={handleClose} hitSlop={12}>
-              <Text style={styles.headerClose}>{'\u2715'}</Text>
+              <Ionicons name="close" size={ms(30)} color={COLORS.white} />
             </TouchableOpacity>
           </View>
 
@@ -924,51 +893,41 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
             <ScrollView
               contentContainerStyle={styles.scrollContent}
               keyboardShouldPersistTaps="handled">
-              <TextInput
+              <OutlinedInput
                 style={styles.pillInput}
                 placeholder={`${docLabel} Name *`}
-                placeholderTextColor="#9aa0a6"
+                placeholderTextColor={COLORS.lightGray}
                 value={quoteName}
                 onChangeText={setQuoteName}
               />
 
               <View style={styles.fieldRow}>
-                <View style={styles.halfInput}>
-                  <Text style={styles.outsideLabel}>{docLabel} Date*</Text>
-                  <View style={[styles.pillInput, styles.dateInputWrap]}>
-                    <TextInput
-                      style={styles.dateInputText}
+                <TouchableOpacity style={styles.halfInput} activeOpacity={0.7} onPress={() => openDatePicker('quote')}>
+                  <View pointerEvents="none">
+                    <OutlinedInput
+                      style={styles.pillInput}
+                      placeholder={`${docLabel} Date*`}
                       value={quoteDate}
-                      onChangeText={setQuoteDate}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#9aa0a6"
+                      editable={false}
                     />
-                    <TouchableOpacity onPress={() => openDatePicker('quote')} hitSlop={8}>
-                      <Ionicons name="calendar-outline" size={ms(18)} color={COLORS.primary} />
-                    </TouchableOpacity>
                   </View>
-                </View>
-                <View style={styles.halfInput}>
-                  <Text style={styles.outsideLabel}>Validity Date*</Text>
-                  <View style={[styles.pillInput, styles.dateInputWrap]}>
-                    <TextInput
-                      style={styles.dateInputText}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#9aa0a6"
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.halfInput} activeOpacity={0.7} onPress={() => openDatePicker('validity')}>
+                  <View pointerEvents="none">
+                    <OutlinedInput
+                      style={styles.pillInput}
+                      placeholder="Validity Date*"
                       value={validityDate}
-                      onChangeText={setValidityDate}
+                      editable={false}
                     />
-                    <TouchableOpacity onPress={() => openDatePicker('validity')} hitSlop={8}>
-                      <Ionicons name="calendar-outline" size={ms(18)} color={COLORS.primary} />
-                    </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               </View>
 
-              <TextInput
+              <OutlinedInput
                 style={styles.pillInput}
                 placeholder="Customer Name *"
-                placeholderTextColor="#9aa0a6"
+                placeholderTextColor={COLORS.lightGray}
                 value={customerName}
                 onChangeText={text => {
                   setCustomerName(text);
@@ -981,34 +940,39 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               />
               {renderSuggestions('name')}
 
-              <TextInput
-                style={styles.pillInput}
-                placeholder="Address *"
-                placeholderTextColor="#9aa0a6"
-                value={address}
-                onChangeText={setAddress}
-              />
+              {/* Java: tapping the address opens the full-screen Google Places search. */}
+              <TouchableOpacity activeOpacity={0.7} onPress={() => setIsPlaceSearchOpen(true)}>
+                <View pointerEvents="none">
+                  <OutlinedInput
+                    style={styles.pillInput}
+                    placeholder="Address *"
+                    placeholderTextColor={COLORS.lightGray}
+                    value={address}
+                    editable={false}
+                  />
+                </View>
+              </TouchableOpacity>
 
-              <TextInput
+              <OutlinedInput
                 style={styles.pillInput}
                 placeholder="Building / Flat Number"
-                placeholderTextColor="#9aa0a6"
+                placeholderTextColor={COLORS.lightGray}
                 value={buildingFlatNumber}
                 onChangeText={setBuildingFlatNumber}
               />
 
               <View style={styles.fieldRow}>
-                <TextInput
+                <OutlinedInput
                   style={[styles.pillInput, styles.halfInput]}
                   placeholder="Landmark *"
-                  placeholderTextColor="#9aa0a6"
+                  placeholderTextColor={COLORS.lightGray}
                   value={landmark}
                   onChangeText={setLandmark}
                 />
-                <TextInput
+                <OutlinedInput
                   style={[styles.pillInput, styles.halfInput]}
                   placeholder="Phone Number *"
-                  placeholderTextColor="#9aa0a6"
+                  placeholderTextColor={COLORS.lightGray}
                   keyboardType="phone-pad"
                   value={phoneNumber}
                   onChangeText={text => {
@@ -1024,7 +988,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
               <View style={styles.segmentRow}>
                 <TouchableOpacity
-                  style={[styles.segmentButton, activeSection === 'service' ? styles.segmentButtonActive : null]}
+                  style={[styles.segmentButton, styles.segmentDivider, activeSection === 'service' ? styles.segmentButtonActive : null]}
                   onPress={() => setActiveSection('service')}>
                   <Text
                     style={[
@@ -1035,7 +999,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.segmentButton, activeSection === 'items' ? styles.segmentButtonActive : null]}
+                  style={[styles.segmentButton, styles.segmentDivider, activeSection === 'items' ? styles.segmentButtonActive : null]}
                   onPress={() => setActiveSection('items')}>
                   <Text
                     style={[
@@ -1063,19 +1027,16 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                     <View key={row.id} style={styles.rowCard}>
                       <View style={styles.rowCardHeader}>
                         <Text style={styles.rowCardTitle}>Services #{index + 1}</Text>
-                        {serviceRows.length > 1 ? (
-                          <TouchableOpacity onPress={() => removeServiceRow(row.id)} hitSlop={10}>
-                            <Text style={styles.rowCardRemove}>{'\u2715'}</Text>
-                          </TouchableOpacity>
-                        ) : null}
+                        <TouchableOpacity onPress={() => removeServiceRow(row.id)} hitSlop={10}>
+                          <Ionicons name="close" size={ms(26)} color={RED} />
+                        </TouchableOpacity>
                       </View>
                       <View style={styles.rowCardFields}>
                         {renderServiceTypeDropdown(row)}
                         <TextInput
-                          style={[styles.pillInput, styles.thirdInput]}
-                          placeholder="Qty"
-                          placeholderTextColor="#9aa0a6"
+                          style={styles.qtyInput}
                           keyboardType="numeric"
+                          maxLength={3}
                           value={row.quantity}
                           onChangeText={value => {
                             const qty = technician ? value.replace(/[^0-9]/g, '') : value;
@@ -1093,10 +1054,10 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                             );
                           }}
                         />
-                        <TextInput
-                          style={[styles.pillInput, styles.thirdInput]}
+                        <OutlinedInput
+                          style={[styles.pillInput, styles.thirdInput, {flex: 2}]}
                           placeholder="Price"
-                          placeholderTextColor="#9aa0a6"
+                          placeholderTextColor={COLORS.lightGray}
                           keyboardType="decimal-pad"
                           value={row.price}
                           onChangeText={value =>
@@ -1121,28 +1082,26 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                     <View key={row.id} style={styles.rowCard}>
                       <View style={styles.rowCardHeader}>
                         <Text style={styles.rowCardTitle}>Item #{index + 1}</Text>
-                        {itemRows.length > 1 ? (
-                          <TouchableOpacity onPress={() => removeItemRow(row.id)} hitSlop={10}>
-                            <Text style={styles.rowCardRemove}>{'\u2715'}</Text>
-                          </TouchableOpacity>
-                        ) : null}
+                        <TouchableOpacity onPress={() => removeItemRow(row.id)} hitSlop={10}>
+                          <Ionicons name="close" size={ms(26)} color={RED} />
+                        </TouchableOpacity>
                       </View>
                       <View style={styles.rowCardFields}>
                         {renderItemDropdown(row)}
-                        <TextInput
+                        <OutlinedInput
                           style={[styles.pillInput, styles.thirdInput]}
-                          placeholder="Qty"
-                          placeholderTextColor="#9aa0a6"
+                          placeholder="Qty."
+                          placeholderTextColor={COLORS.lightGray}
                           keyboardType="numeric"
                           value={row.quantity}
                           onChangeText={value =>
                             setItemRows(prev => prev.map(r => (r.id === row.id ? {...r, quantity: value} : r)))
                           }
                         />
-                        <TextInput
-                          style={[styles.pillInput, styles.thirdInput]}
+                        <OutlinedInput
+                          style={[styles.pillInput, styles.thirdInput, {flex: 2}]}
                           placeholder="Price"
-                          placeholderTextColor="#9aa0a6"
+                          placeholderTextColor={COLORS.lightGray}
                           keyboardType="decimal-pad"
                           value={row.price}
                           onChangeText={value =>
@@ -1162,10 +1121,10 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
               {activeSection === 'discount' ? (
                 <View>
-                  <TextInput
+                  <OutlinedInput
                     style={styles.pillInput}
                     placeholder="Discount %"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     keyboardType="decimal-pad"
                     value={discountPercent}
                     onChangeText={t =>
@@ -1173,53 +1132,47 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                       setDiscountPercent(technician ? t.replace(/[^0-9]/g, '') : sanitizeDecimalInput(t))
                     }
                   />
-                  <View style={styles.fieldRow}>
-                    {([
-                      [0, 'Select Tax'],
-                      [1, 'With Tax'],
-                      [2, 'Without Tax'],
-                    ] as const).map(([taxModeOption, label]) => (
-                      <TouchableOpacity
-                        key={taxModeOption}
-                        style={[
-                          styles.pillInput,
-                          styles.halfInput,
-                          taxMode === taxModeOption ? {borderColor: '#c3002f'} : null,
-                        ]}
-                        onPress={() => {
-                          setTaxMode(taxModeOption);
-                          if (taxModeOption !== 1) {
-                            setTaxPercent('');
-                            setTaxName('');
-                          }
-                        }}>
-                        <Text style={{color: taxMode === taxModeOption ? '#c3002f' : '#555'}}>{label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  {taxMode === 1 ? (
-                    <TouchableOpacity style={styles.pillInput} onPress={openTaxPicker}>
-                      <Text style={{color: taxName ? '#222' : '#9aa0a6'}}>
-                        {taxName ? `${taxName}: ${taxPercent}%` : 'Select Tax Percentage'}
+                  <View style={[styles.fieldRow, styles.taxRow]}>
+                    {/* Java spin_tax + spin_percent: two 50/50 spinners; the second is invisible unless "With Tax". */}
+                    <TouchableOpacity
+                      style={[styles.dropdownField, styles.halfInput, styles.taxSpinner]}
+                      activeOpacity={0.7}
+                      onPress={() => setIsTaxModePickerOpen(true)}>
+                      <Text style={styles.taxSpinnerText} numberOfLines={1}>
+                        {TAX_MODE_OPTIONS.find(o => o.id === taxMode)?.label}
                       </Text>
+                      <Ionicons name="chevron-down" style={styles.taxChevron} />
                     </TouchableOpacity>
-                  ) : null}
+                    {taxMode === 1 ? (
+                      <TouchableOpacity
+                        style={[styles.dropdownField, styles.halfInput, styles.taxSpinner]}
+                        activeOpacity={0.7}
+                        onPress={() => openTaxPicker()}>
+                        <Text style={styles.taxSpinnerText} numberOfLines={1}>
+                          {taxName ? `${taxName}: ${taxPercent}%` : 'Select Tax Percentage'}
+                        </Text>
+                        <Ionicons name="chevron-down" style={styles.taxChevron} />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.halfInput} />
+                    )}
+                  </View>
                 </View>
               ) : null}
 
               <Text style={styles.extraLabel}>Extra</Text>
               <View style={styles.fieldRow}>
-                <TextInput
-                  style={[styles.pillInput, styles.halfInput]}
+                <OutlinedInput
+                  style={[styles.pillInput, styles.halfInput, {flex: 1.5}]}
                   placeholder="Name"
-                  placeholderTextColor="#9aa0a6"
+                  placeholderTextColor={COLORS.lightGray}
                   value={extraName}
                   onChangeText={setExtraName}
                 />
-                <TextInput
+                <OutlinedInput
                   style={[styles.pillInput, styles.halfInput]}
                   placeholder="Price"
-                  placeholderTextColor="#9aa0a6"
+                  placeholderTextColor={COLORS.lightGray}
                   keyboardType="decimal-pad"
                   value={extraPrice}
                   onChangeText={t => setExtraPrice(sanitizeDecimalInput(t))}
@@ -1239,10 +1192,10 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                 </>
               )} */}
 
-              <TextInput
+              <OutlinedInput
                 style={[styles.pillInput, styles.termInput]}
                 placeholder="Terms & Condition"
-                placeholderTextColor="#9aa0a6"
+                placeholderTextColor={COLORS.lightGray}
                 value={termCondition}
                 onChangeText={setTermCondition}
               />
@@ -1265,8 +1218,27 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       </View>
 
       <SearchPickerModal
+        visible={isTaxModePickerOpen}
+        title="Select Tax"
+        hideSearch
+        options={TAX_MODE_OPTIONS}
+        onSelect={option => {
+          setTaxMode(option.id as 0 | 1 | 2);
+          if (option.id !== 1) {
+            setTaxPercent('');
+            setTaxName('');
+          } else if (!taxName) {
+            openTaxPicker(true);
+          }
+          setIsTaxModePickerOpen(false);
+        }}
+        onClose={() => setIsTaxModePickerOpen(false)}
+      />
+
+      <SearchPickerModal
         visible={isTaxPickerOpen}
         title="Select Tax"
+        hideSearch
         options={taxOptions}
         loading={isLoadingTaxes}
         emptyText="No taxes found."
@@ -1290,6 +1262,39 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
           setIsPaymentTypePickerOpen(false);
         }}
         onClose={() => setIsPaymentTypePickerOpen(false)}
+      />
+
+      <PlaceSearchModal
+        visible={isPlaceSearchOpen}
+        onClose={() => setIsPlaceSearchOpen(false)}
+        onSelect={place => {
+          setAddress(place.address);
+          setCustomerLat(String(place.latitude));
+          setCustomerLng(String(place.longitude));
+          setIsPlaceSearchOpen(false);
+        }}
+      />
+
+      <SearchPickerModal
+        visible={pickerKind !== null}
+        title={pickerKind === 'item' ? 'Select Item' : 'Select Service Type'}
+        searchHint={pickerKind === 'item' ? 'Please Enter Min 3 Characters...' : 'Search...'}
+        options={
+          pickerKind === 'item'
+            ? items.map((item, index) => ({id: index, label: getItemName(item)}))
+            : serviceTypes.map((item, index) => ({id: index, label: getServiceTypeName(item)}))
+        }
+        onSelect={option => {
+          if (pickerKind === 'item') {
+            const item = items[option.id];
+            if (item) selectItem(pickerRowId, item);
+          } else {
+            const item = serviceTypes[option.id];
+            if (item) selectServiceType(pickerRowId, item);
+          }
+          setOpenDropdownKey(null);
+        }}
+        onClose={() => setOpenDropdownKey(null)}
       />
 
       {datePickerField && (
@@ -1381,10 +1386,10 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               <Text style={styles.extraLabel}>Total: {formatAmount(grandTotal)}</Text>
               {isInvoice ? (
                 <View>
-                  <TextInput
+                  <OutlinedInput
                     style={styles.pillInput}
                     placeholder="Amount Received"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     keyboardType="decimal-pad"
                     value={receivedAmount}
                     onChangeText={t => setReceivedAmount(sanitizeDecimalInput(t))}
@@ -1429,21 +1434,22 @@ const styles = StyleSheet.create({
     maxWidth: ms(560),
     maxHeight: '94%',
     overflow: 'hidden',
-    borderRadius: ms(10),
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
   },
+  // Java: gradient_addtask header (#353935, 20dp corners), 60dp tall, 22sp title.
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: HEADER_DARK,
-    paddingHorizontal: ms(18),
-    paddingVertical: ms(16),
-    borderRadius: ms(10),
+    paddingHorizontal: ms(20),
+    height: ms(60),
+    borderRadius: ms(20),
   },
   headerTitle: {
     color: '#FFFFFF',
-    fontSize: sp(17),
-    fontWeight: '700',
+    fontSize: sp(22),
   },
   headerClose: {
     color: '#FFFFFF',
@@ -1464,18 +1470,40 @@ const styles = StyleSheet.create({
   halfInput: {
     flex: 1,
   },
+  // Java layout_discount: spinners with 20dp side margins (40dp gap), 10dp+10dp top, 16dp bottom.
+  taxRow: {
+    gap: ms(40),
+    marginTop: ms(15),
+    marginBottom: ms(25),
+  },
+  taxSpinner: {
+    flex: 1,
+    marginRight: 0,
+    marginBottom: 0,
+    paddingHorizontal: ms(18),
+  },
+  taxSpinnerText: {
+    fontSize: sp(16),
+    color: COLORS.ink,
+    flex: 1,
+  },
+  taxChevron: {
+    fontSize: sp(20),
+    color: COLORS.ink,
+    marginLeft: ms(6),
+  },
   thirdInput: {
     flex: 1,
   },
   pillInput: {
     borderWidth: ms(1),
     borderColor: BORDER,
-    borderRadius: ms(24),
-    paddingHorizontal: ms(16),
-    height: ms(46),
-    fontSize: sp(13),
-    color: '#222',
-    marginBottom: ms(14),
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    height: ms(39),
+    fontSize: sp(16),
+    color: COLORS.ink,
+    marginBottom: ms(26), // Material errorEnabled reserves ~20dp under every field
   },
   termInput: {
     marginTop: ms(4),
@@ -1557,7 +1585,7 @@ const styles = StyleSheet.create({
   },
   segmentRow: {
     flexDirection: 'row',
-    borderRadius: ms(20),
+    borderRadius: ms(25),
     overflow: 'hidden',
     marginBottom: ms(16),
     borderWidth: 1,
@@ -1567,17 +1595,20 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: ms(12),
+    height: ms(39),
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: SEGMENT_DARK,
+  },
+  // Java SegmentedGroup: one 1dp outer border (25dp corners) with 1dp dividers between segments.
+  segmentDivider: {
+    borderRightWidth: 1,
+    borderRightColor: SEGMENT_DARK,
   },
   segmentButtonActive: {
     backgroundColor: SEGMENT_DARK,
   },
   segmentButtonText: {
-    fontSize: sp(12),
-    fontWeight: '700',
+    fontSize: sp(14),
+    fontWeight: '400',
     color: SEGMENT_DARK,
   },
   segmentButtonTextActive: {
@@ -1586,8 +1617,11 @@ const styles = StyleSheet.create({
   rowCard: {
     borderWidth: ms(1),
     borderColor: '#eceef0',
-    borderRadius: ms(10),
-    padding: ms(14),
+    borderRadius: ms(24),
+    paddingHorizontal: ms(14),
+    paddingTop: ms(8),
+    paddingBottom: ms(14),
+    marginHorizontal: ms(10),
     marginBottom: ms(12),
     backgroundColor: '#FFFFFF',
     elevation: 2,
@@ -1600,7 +1634,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: ms(12),
+    marginBottom: ms(8),
   },
   rowCardTitle: {
     color: RED,
@@ -1616,33 +1650,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: ms(8),
   },
-  dropdownWrap: {
-    flex: 2,
-    position: 'relative',
-    zIndex: 5,
-  },
   dropdownField: {
+    flex: 3,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: ms(1),
     borderColor: BORDER,
-    borderRadius: ms(24),
-    paddingHorizontal: ms(14),
-    height: ms(46),
+    borderRadius: ms(34),
+    paddingHorizontal: ms(10),
+    height: ms(39),
+    marginRight: ms(2),
+    backgroundColor: COLORS.white,
+  },
+  // Java txtUnassignQty: rounded_border (20dp, light_gray stroke), centered, bold dark_gray 14sp.
+  qtyInput: {
+    flex: 1,
+    height: ms(39),
+    borderWidth: ms(1),
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(20),
+    textAlign: 'center',
+    fontSize: sp(14),
+    fontWeight: '700',
+    color: COLORS.darkGray,
+    padding: 0,
+    marginLeft: ms(5),
+    marginRight: ms(5),
   },
   dropdownPlaceholderText: {
-    fontSize: sp(12),
-    color: '#9aa0a6',
+    fontSize: sp(13),
+    color: COLORS.ink,
     flex: 1,
   },
   dropdownValueText: {
-    fontSize: sp(12),
-    color: '#222',
+    fontSize: sp(13),
+    color: COLORS.ink,
     flex: 1,
   },
   dropdownChevron: {
-    fontSize: sp(14),
+    fontSize: sp(12),
     color: '#8a8f98',
     marginLeft: ms(6),
   },
@@ -1686,12 +1733,12 @@ const styles = StyleSheet.create({
   addMoreText: {
     color: RED,
     fontWeight: '700',
-    fontSize: sp(13),
+    fontSize: sp(20),
   },
   extraLabel: {
-    fontSize: sp(13),
-    fontWeight: '700',
-    color: '#222',
+    marginLeft: ms(2),
+    fontSize: sp(16),
+    color: COLORS.textBlack,
     marginBottom: ms(10),
   },
   attachBox: {
@@ -1708,9 +1755,10 @@ const styles = StyleSheet.create({
     color: '#9aa0a6',
   },
   saveButton: {
-    backgroundColor: SEGMENT_DARK,
-    borderRadius: ms(24),
-    height: ms(50),
+    backgroundColor: COLORS.statusOnHold, // Java rounded_button_new #353935
+    borderRadius: ms(34),
+    height: ms(52),
+    elevation: 4,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: ms(6),
@@ -1718,14 +1766,11 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#FFFFFF',
-    fontSize: sp(14),
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: sp(20),
   },
   cancelText: {
     color: RED,
-    fontSize: sp(14),
-    fontWeight: '700',
+    fontSize: sp(18),
     textAlign: 'center',
   },
 });
