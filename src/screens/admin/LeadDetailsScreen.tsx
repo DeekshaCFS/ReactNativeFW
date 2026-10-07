@@ -1,7 +1,12 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
-import BackBar from '../../components/BackBar';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {COLORS} from '../../theme/theme';
+import {InvoiceIcon, DeleteIcon} from '../../components/FabIcons';
+import {getCurrentCountryCode, getCurrentUserId, getCurrentUserProfile} from '../../state/session';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import AddTaskModal, {type AddTaskInitialValues} from './AddTaskModal';
 import {
   ActivityIndicator,
   Alert,
@@ -27,6 +32,8 @@ import {
 import { getLeadstatusList, getLeadetailsByLeadId, updateLeadStatus as updateLeadStatusApi } from '../../api/lead/leadService';
 
 type LeadDetailsScreenProps = {
+  /** Technician view: no Update Status / delete (Java LeadDetailsFragment). */
+  technician?: boolean;
   userId: number;
   leadId: number;
   onBack: () => void;
@@ -35,30 +42,51 @@ type LeadDetailsScreenProps = {
   onDelete?: (lead: LeadListItem) => void;
 };
 
-const THEME_PRIMARY = '#c3002f';
+const THEME_PRIMARY = COLORS.primary;
 
+// Java LeadDetailsFragment: status text colour per lead status.
 const getStatusColor = (status: string) => {
   const normalized = status.trim().toLowerCase();
-  if (normalized.includes('discussion')) {
-    return '#06a9ee';
-  }
   if (normalized.includes('inactive')) {
-    return '#9ca3af';
+    return COLORS.lightGray;
   }
   if (normalized.includes('assign')) {
-    return '#ffc12c';
+    return '#FBC02D'; // @color/task_ongoing_dark
   }
-  if (normalized.includes('close') || normalized.includes('complete')) {
-    return '#18a957';
+  if (normalized.includes('discussion')) {
+    return '#03A9F4'; // @color/quantum_lightblue
   }
-  if (normalized.includes('reject') || normalized.includes('cancel')) {
-    return '#d32f2f';
+  if (normalized.includes('called')) {
+    return COLORS.tagBlue;
   }
-
+  if (normalized.includes('dormant')) {
+    return '#D1395C'; // @color/dot_dark_screen1
+  }
+  if (normalized.includes('quote')) {
+    return '#F98DA5'; // @color/dot_light_screen1
+  }
+  if (normalized.includes('convert')) {
+    return COLORS.statusCompleted;
+  }
   return THEME_PRIMARY;
 };
 
+// Java loads the photo with a person placeholder; show it when the path is missing or fails to load.
+const PhotoSlot = ({url}: {url: string | null}) => {
+  const [failed, setFailed] = useState(false);
+  return (
+    <View style={styles.photoSlot}>
+      {url && !failed ? (
+        <Image source={{uri: url}} style={styles.photoImage} resizeMode="contain" onError={() => setFailed(true)} />
+      ) : (
+        <Ionicons name="person-circle" size={ms(78)} color="#E1E3EE" />
+      )}
+    </View>
+  );
+};
+
 const LeadDetailsScreen = ({
+  technician = false,
   userId,
   leadId,
   onBack,
@@ -67,6 +95,15 @@ const LeadDetailsScreen = ({
   onDelete,
 }: LeadDetailsScreenProps) => {
   const [lead, setLead] = useState<LeadListItem | null>(null);
+  // Java: the terms icon opens Add Task prefilled from the lead (TaskDialogNew.addTaskFromLeadDetailsTech).
+  const [addTaskValues, setAddTaskValues] = useState<AddTaskInitialValues | null>(null);
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const [taskOwnerId, setTaskOwnerId] = useState(userId);
+  useEffect(() => {
+    if (technician) {
+      AsyncStorage.getItem('owner_id').then(v => setTaskOwnerId(Number(v) || userId));
+    }
+  }, [technician, userId]);
 
   const getStringValue = (item: any, keys: string[]) => {
     for (const key of keys) {
@@ -352,6 +389,8 @@ const LeadDetailsScreen = ({
 
   const getLeadLandmark = (item: LeadListItem) =>
     getStringValue(item, [
+      'locDescription',
+      'LocDescription',
       'landmark',
       'Landmark',
       'landMark',
@@ -517,7 +556,7 @@ const LeadDetailsScreen = ({
       if (tMatch) {
         let h = Number(tMatch[1]);
         const m = Number(tMatch[2]);
-        const sfx = h >= 12 ? 'pm' : 'am';
+        const sfx = h >= 12 ? 'PM' : 'AM';
         const h12 = h % 12 || 12;
         timeLabel = `${String(h12).padStart(2, '0')}:${String(m).padStart(
           2,
@@ -529,7 +568,39 @@ const LeadDetailsScreen = ({
     if (!dateLabel) {
       return timeLabel || 'NA';
     }
-    return timeLabel ? `${dateLabel} ${timeLabel}` : dateLabel;
+    return timeLabel ? `${dateLabel}  ${timeLabel}` : dateLabel;
+  };
+
+  const openAddTask = (item: LeadListItem) => {
+    const rec = item as Record<string, unknown>;
+    const str = (...keys: string[]) => getStringValue(item, keys);
+    setAddTaskValues({
+      title: '',
+      address: str('address', 'Address'),
+      state: str('state', 'State'),
+      city: str('city', 'City'),
+      pinCode: str('pinCode', 'PinCode'),
+      landmark: str('locDescription', 'LocDescription'),
+      customerName: str('customerName', 'CustomerName'),
+      customerNumber: str('mobileNumber', 'MobileNumber'),
+      taskTagId: 0,
+      taskTagName: '',
+      customerId: getNumberValue(rec, ['customerDetailsid', 'CustomerDetailsid']) || undefined,
+      latitude: str('latitude', 'Latitude'),
+      longitude: str('longitude', 'Longitude'),
+      // Java (technician): the assignee is the logged-in user.
+      ...(technician
+        ? {
+            assignedFieldworkerId: getCurrentUserId(),
+            assignedFieldworkerName:
+              getCurrentUserProfile().userFirstName ||
+              `${getCurrentUserProfile().details?.FirstName ?? ""} ${getCurrentUserProfile().details?.LastName ?? ""}`.trim() ||
+              "Me",
+            lockAssignedFieldworker: true,
+          }
+        : {}),
+    });
+    setIsAddTaskOpen(true);
   };
 
   const openCall = (phone: string) => {
@@ -556,12 +627,31 @@ const LeadDetailsScreen = ({
   const lat = getCoordinate(lead, ['latitude', 'Latitude', 'lat', 'Lat']);
   const lng = getCoordinate(lead, ['longitude', 'Longitude', 'lng', 'Lng', 'long', 'Long']);
 
+  // Java: "+<countryCode> XXXXXXXXXX" when the TeleCMI module masks numbers, else the real number.
+  const masked = getCurrentUserProfile().teleCmiModuleFlag === 'true';
+  const countryCode = getCurrentCountryCode();
+  const numberLabel = masked || (technician && !phone)
+    ? `+${countryCode} XXXXXXXXXX`
+    : phone
+      ? `+${countryCode} ${phone}`
+      : 'NA';
+  const photoPaths = [
+    getStringValue(lead, ['PhotoPath', 'photopath', 'photoPath']),
+    getStringValue(lead, ['PhotoPath1', 'photopath1', 'photoPath1']),
+    getStringValue(lead, ['PhotoPath2', 'photopath2', 'photoPath2']),
+  ];
+  const hasPhotos = photoPaths.some(path => Boolean(path && path.trim()));
+  const photoUrl = (path: string) =>
+    path.startsWith('http')
+      ? path
+      : `http://192.169.3.8/API/${path.startsWith('/') ? path.slice(1) : path}`;
+  const notes =
+    getStringValue(lead, ['Description', 'description', 'notes', 'Notes', 'requirement', 'Requirement']) || '-NA-';
+
   return (
     <View style={styles.container}>
-      <BackBar onBack={onBack} />
-
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
-        {/* Map Mock */}
+      <View style={styles.content}>
+        {/* Java: 200dp map inside the card, 30dp rounded top corners */}
         <View style={styles.mapMock}>
           {lat && lng ? (
             <Image
@@ -576,28 +666,34 @@ const LeadDetailsScreen = ({
           )}
         </View>
 
-        {/* Info Card */}
         <View style={styles.infoCard}>
           <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>{status}</Text>
+            <Text style={[styles.statusLabel, {color: getStatusColor(status)}]}>{status}</Text>
             <View style={styles.actionRow}>
-              <TouchableOpacity style={styles.updateStatusBtn} onPress={() => setStatusModalVisible(true)}>
-                <Text style={styles.updateStatusBtnText}>Update Status</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconBtn} onPress={() => onEdit?.(lead)}>
-                <Text style={styles.iconText}>📝</Text>
+              {!technician && (
+                <TouchableOpacity style={styles.updateStatusBtn} onPress={() => setStatusModalVisible(true)}>
+                  <Text style={styles.updateStatusBtnText}>Update Status</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.iconBtn} onPress={() => openAddTask(lead)}>
+                <InvoiceIcon size={ms(22)} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconBtn} onPress={() => openCall(phone)}>
-                <Text style={styles.iconText}>📞</Text>
+                <Image source={require('../../../assets/images/ic_phone.png')} style={styles.phoneIcon} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconBtn} onPress={() => onDelete?.(lead)}>
-                <Text style={styles.iconText}>🗑️</Text>
-              </TouchableOpacity>
+              {!technician && (
+                <TouchableOpacity style={styles.iconBtn} onPress={() => onDelete?.(lead)}>
+                  <DeleteIcon size={ms(20)} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Lead Details</Text>
+        </View>
+        <ScrollView style={{flex: 1}} contentContainerStyle={styles.contentInner} showsVerticalScrollIndicator={false}>
+        <View style={styles.infoCard}>
+          <Text style={styles.sectionTitle}>Lead Details</Text>
+          <View style={styles.details}>
             <View style={styles.fieldRow}>
               <Text style={styles.fieldLabel}>Customer Name</Text>
               <Text style={styles.fieldValue}>{getLeadTitle(lead)}</Text>
@@ -608,124 +704,89 @@ const LeadDetailsScreen = ({
             </View>
             <View style={styles.fieldRow}>
               <Text style={styles.fieldLabel}>Customer Number</Text>
-              <Text style={styles.fieldValue}>{phone || 'NA'}</Text>
+              <Text style={styles.fieldValue}>{numberLabel}</Text>
             </View>
             <View style={styles.fieldRow}>
               <Text style={styles.fieldLabel}>Customer Address</Text>
               <Text style={styles.fieldValue}>{getLeadAddress(lead)}</Text>
             </View>
-            <View style={styles.fieldRow}>
+            <View style={[styles.fieldRow, {marginBottom: ms(10)}]}>
               <Text style={styles.fieldLabel}>Landmark</Text>
               <Text style={styles.fieldValue}>{getLeadLandmark(lead)}</Text>
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Services Details</Text>
-            <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Service Type</Text>
-              <Text style={styles.fieldValue}>{getServiceType(lead)}</Text>
-            </View>
+          <Text style={[styles.sectionTitle, {marginTop: ms(10), marginBottom: ms(12)}]}>Services Details</Text>
+          <View style={styles.fieldRow}>
+            <Text style={styles.fieldLabel}>Service Type</Text>
+            <Text style={styles.fieldValue}>{getServiceType(lead)}</Text>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Attached Photos</Text>
-            <View style={styles.photoRow}>
-              {[
-                getStringValue(lead, ['PhotoPath', 'photopath', 'photoPath']),
-                getStringValue(lead, ['PhotoPath1', 'photopath1', 'photoPath1']),
-                getStringValue(lead, ['PhotoPath2', 'photopath2', 'photoPath2']),
-              ]
-                .filter(path => Boolean(path && path.trim()))
-                .map((path, index) => {
-                  const baseUrl = 'http://192.169.3.8/API/';
-                  const fullUrl = path
-                    ? path.startsWith('http')
-                      ? path
-                      : `${baseUrl}${path.startsWith('/') ? path.slice(1) : path}`
-                    : null;
-
-                  if (!fullUrl) return null;
-
-                  return (
-                    <View key={index} style={styles.photoSlot}>
-                      <Image
-                        source={{uri: fullUrl}}
-                        style={styles.photoImage}
-                        resizeMode="cover"
-                      />
-                    </View>
-                  );
-                })}
-            </View>
-          </View>
-
-          {history && history.length > 0 ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Follow up History</Text>
-              {history.map((item, index) => {
-                const hStatus = getStringValue(item, [
-                  'LeadStatusName',
-                  'leadStatusName',
-                  'statusName',
-                  'StatusName',
-                  'leadStatus',
-                  'LeadStatus',
-                ]) || 'InActive';
-                
-                const hDate = formatLeadDateTime(item);
-                const hNotes = getStringValue(item, [
-                  'LeadNotes',
-                  'leadNotes',
-                  'description',
-                  'Description',
-                  'notes',
-                  'Notes',
-                  'requirement',
-                  'Requirement',
-                ]) || '-NA-';
-
-                return (
-                  <View key={index} style={styles.historyItem}>
-                    <View style={styles.historyHeader}>
-                      <Text style={[styles.historyIndex, {color: getStatusColor(hStatus)}]}>
-                        {index + 1}. {hStatus}
-                      </Text>
-                      <Text style={styles.historyDate}>{hDate}</Text>
-                    </View>
-                    <Text style={styles.historyNotes}>{hNotes}</Text>
+          {hasPhotos && (
+            <>
+              <Text style={[styles.sectionTitle, {marginTop: ms(20)}]}>Attached Photos</Text>
+              <View style={styles.photoRow}>
+                {photoPaths.map((path, index) => (
+                  <View key={index} style={{flex: 1}}>
+                    <PhotoSlot url={path && path.trim() ? photoUrl(path) : null} />
                   </View>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Follow up History</Text>
-              <View style={styles.historyItem}>
-                <View style={styles.historyHeader}>
-                  <Text style={styles.historyIndex}>1. {status}</Text>
-                  <Text style={styles.historyDate}>{dateTime}</Text>
-                </View>
-                <Text style={styles.historyNotes}>-NA-</Text>
+                ))}
               </View>
-            </View>
+            </>
           )}
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Notes</Text>
-            <Text style={styles.notesText}>
-              {getStringValue(lead, [
-                'Description',
+          <Text style={[styles.sectionTitle, {marginTop: ms(10), marginBottom: ms(5)}]}>Follow up History</Text>
+          {(history && history.length > 0
+            ? history
+            : [{LeadStatusName: status, LeadDate: undefined, LeadNotes: undefined}]
+          ).map((item: any, index: number) => {
+            const hStatus =
+              getStringValue(item, [
+                'LeadStatusName',
+                'leadStatusName',
+                'statusName',
+                'StatusName',
+                'leadStatus',
+                'LeadStatus',
+              ]) || 'InActive';
+            const hDate = history && history.length > 0 ? formatLeadDateTime(item) : dateTime;
+            const hNotes =
+              getStringValue(item, [
+                'LeadNotes',
+                'leadNotes',
                 'description',
+                'Description',
                 'notes',
                 'Notes',
                 'requirement',
                 'Requirement',
-              ]) || 'NA'}
-            </Text>
-          </View>
+              ]) || '-NA-';
+
+            return (
+              <View key={index} style={styles.historyItem}>
+                <View style={styles.historyHeader}>
+                  <Text style={[styles.historyIndex, {color: getStatusColor(hStatus)}]}>
+                    {index + 1}. {hStatus}
+                  </Text>
+                  <Text style={[styles.historyDate, {color: getStatusColor(hStatus)}]}>{hDate}</Text>
+                </View>
+                <Text style={styles.historyNotes}>{hNotes}</Text>
+              </View>
+            );
+          })}
+
+          <Text style={[styles.sectionTitle, {marginTop: ms(30), marginBottom: ms(12)}]}>Notes</Text>
+          <Text style={styles.notesText}>{notes}</Text>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
+
+      <AddTaskModal
+        visible={isAddTaskOpen}
+        onClose={() => setIsAddTaskOpen(false)}
+        ownerId={taskOwnerId}
+        initialValues={addTaskValues}
+      />
 
       {/* Update Lead Status Modal */}
       <Modal
@@ -875,7 +936,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
   },
   contentInner: {
     paddingBottom: ms(100),
@@ -883,6 +946,9 @@ const styles = StyleSheet.create({
   mapMock: {
     height: ms(200),
     backgroundColor: '#E5E7EB',
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    overflow: 'hidden',
   },
   mapImage: {
     width: '100%',
@@ -894,87 +960,85 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   mapPlaceholderText: {
-    color: '#9CA3AF',
+    color: COLORS.lightGray,
     fontSize: sp(14),
     fontWeight: '600',
   },
   infoCard: {
-    backgroundColor: '#FFFFFF',
-    marginTop: ms(-20),
-    borderTopLeftRadius: ms(24),
-    borderTopRightRadius: ms(24),
-    padding: ms(20),
-    minHeight: '100%',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: ms(20),
   },
   statusRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: ms(24),
+    marginTop: ms(20),
+    marginBottom: ms(10),
   },
   statusLabel: {
-    fontSize: sp(15),
-    fontWeight: '600',
-    color: '#6B7280',
+    fontSize: sp(16),
+    fontWeight: '700',
   },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   updateStatusBtn: {
-    backgroundColor: '#374151',
+    backgroundColor: COLORS.statusOnHold,
+    height: ms(25),
     paddingHorizontal: ms(12),
-    paddingVertical: ms(6),
-    borderRadius: ms(16),
-    marginRight: ms(12),
+    borderRadius: ms(34),
+    marginRight: ms(10),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   updateStatusBtnText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: sp(12),
-    fontWeight: '700',
   },
   iconBtn: {
-    marginLeft: ms(16),
+    marginLeft: ms(30),
   },
-  iconText: {
-    fontSize: sp(18),
-  },
-  section: {
-    marginBottom: ms(24),
+  phoneIcon: {
+    width: ms(24),
+    height: ms(24),
+    resizeMode: 'contain',
   },
   sectionTitle: {
     fontSize: sp(16),
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: ms(12),
+    fontWeight: '700',
+    color: COLORS.ink,
+  },
+  details: {
+    marginTop: ms(12),
+    marginBottom: ms(10),
   },
   fieldRow: {
     flexDirection: 'row',
-    marginBottom: ms(8),
+    marginTop: ms(4),
   },
   fieldLabel: {
-    flex: 1,
-    fontSize: sp(14),
-    color: '#4B5563',
-    fontWeight: '600',
+    flex: 0.4,
+    fontSize: sp(15),
+    color: COLORS.ink,
   },
   fieldValue: {
-    flex: 1.2,
-    fontSize: sp(14),
-    color: '#374151',
-    fontWeight: '500',
+    flex: 0.6,
+    fontSize: sp(15),
+    color: COLORS.lightGray,
   },
   photoRow: {
     flexDirection: 'row',
-    gap: ms(12),
+    gap: ms(20),
+    marginTop: ms(20),
+    marginBottom: ms(20),
   },
   photoSlot: {
-    flex: 1,
-    aspectRatio: 1.5,
-    backgroundColor: '#FFFFFF',
+    height: ms(100),
+    backgroundColor: COLORS.white,
     borderWidth: ms(1),
-    borderColor: '#D1D5DB',
-    borderRadius: ms(12),
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(15),
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -983,36 +1047,29 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  photoPlaceholder: {
-    fontSize: sp(32),
-    color: '#E5E7EB',
-  },
   historyItem: {
-    marginTop: ms(4),
+    marginTop: ms(3),
+    marginHorizontal: ms(5),
   },
   historyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: ms(4),
+    alignItems: 'center',
   },
   historyIndex: {
     fontSize: sp(13),
     fontWeight: '700',
-    color: '#6B7280',
   },
   historyDate: {
     fontSize: sp(12),
-    color: '#9CA3AF',
   },
   historyNotes: {
     fontSize: sp(13),
-    color: '#9CA3AF',
-    marginLeft: ms(14),
+    color: COLORS.lightGray,
   },
   notesText: {
-    fontSize: sp(14),
-    color: '#6B7280',
-    lineHeight: sp(20),
+    fontSize: sp(15),
+    color: COLORS.lightGray,
   },
   modalOverlay: {
     flex: 1,

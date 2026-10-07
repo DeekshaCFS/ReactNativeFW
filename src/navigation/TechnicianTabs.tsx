@@ -11,7 +11,6 @@ import AppHeader from '../components/AppHeader';
 import { usePassbookTabOrder } from '../state/passbookTabOrder';
 import BottomTabBar, { QuickAction } from '../components/BottomTabBar';
 import AddQuoteModal from '../screens/admin/AddQuoteModal';
-import AddLeadModal from '../screens/admin/AddLeadModal';
 
 import HomeScreen from '../screens/technician/main/HomeScreen';
 import TaskScreen from '../screens/technician/main/TaskScreen';
@@ -117,7 +116,6 @@ export default function TechnicianTabs() {
   const [ownerId, setOwnerId] = useState<number | null>(null);
   const [isAddQuoteModalOpen, setIsAddQuoteModalOpen] = useState(false);
   const [isAddInvoiceModalOpen, setIsAddInvoiceModalOpen] = useState(false);
-  const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem('owner_id').then(v => setOwnerId(Number(v) || 0));
@@ -166,19 +164,20 @@ export default function TechnicianTabs() {
   // the current tab, never a full page transition.
   const quickActions: QuickAction[] = [
     {
-      icon: 'cube-outline',
+      icon: 'fab-quote',
       label: 'Add Quote',
       onPress: () => setIsAddQuoteModalOpen(true),
     },
     {
-      icon: 'document-text-outline',
+      icon: 'fab-invoice',
       label: 'Add Invoice',
       onPress: () => setIsAddInvoiceModalOpen(true),
     },
     {
-      icon: 'people-outline',
+      icon: 'fab-lead',
       label: 'Add Lead',
-      onPress: () => setIsAddLeadModalOpen(true),
+      // Java (CommonDialog.linear_add_lead) opens the Leads screen; its "+ Lead" button adds one.
+      route: 'Leads',
     },
   ];
 
@@ -205,11 +204,13 @@ export default function TechnicianTabs() {
             <>
               {/* Pushed-style screens show their own back-arrow header. */}
               {/* Leave is the Leaves sub-tab of Attendance in Java: same header + tab. */}
-              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave' || currentRoute === 'Expenditure') && (
+              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave' || currentRoute === 'Expenditure' || currentRoute === 'Leads') && (
                 <AppHeader
                   title={currentRoute === 'Expenditure'
                     ? (passbookTabOrder === 'passbookFirst' ? 'Passbook' : 'FieldWeb')
-                    : getTitle(currentRoute)}
+                    : currentRoute === 'Leads'
+                      ? 'FieldWeb'
+                      : getTitle(currentRoute)}
                   navigation={props.navigation as any}
                 />
               )}
@@ -220,6 +221,7 @@ export default function TechnicianTabs() {
                 activeAlias={{
                   Leave: 'Attendance',
                   Expenditure: passbookTabOrder === 'passbookFirst' ? 'Passbook' : 'Home',
+                  Leads: 'Home',
                 }}
                 quickActions={quickActions}
               />
@@ -239,7 +241,7 @@ export default function TechnicianTabs() {
             component={component}
             initialParams={initialParams}
             options={({ navigation }: any) =>
-              name === 'Leave' || name === 'Expenditure'
+              name === 'Leave' || name === 'Expenditure' || name === 'Leads'
                 ? { headerShown: false }
                 : pushedScreenOptions(title, navigation)}
           />
@@ -263,12 +265,6 @@ export default function TechnicianTabs() {
           onClose={() => setIsAddInvoiceModalOpen(false)}
         />
       )}
-
-      <AddLeadModal
-        technician
-        visible={isAddLeadModalOpen}
-        onClose={() => setIsAddLeadModalOpen(false)}
-      />
     </View>
   );
 }

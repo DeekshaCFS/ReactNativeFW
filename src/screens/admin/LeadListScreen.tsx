@@ -1,7 +1,7 @@
 // src/screens/admin/LeadListScreen.tsx
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ms, sp} from '../../utils/responsive';
+import {ms, sp, useAppHeaderHeight} from '../../utils/responsive';
 import {
   ActivityIndicator,
   Alert,
@@ -10,6 +10,7 @@ import {
   Linking,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -18,6 +19,7 @@ import {
 } from 'react-native';
 import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {COLORS} from '../../theme/theme';
 import {
   type LeadListItem,
   type LeadListResponse,
@@ -43,7 +45,7 @@ type LeadStatusOption = {
 };
 
 const PAGE_START = 1;
-const THEME_PRIMARY = '#c3002f';
+const THEME_PRIMARY = COLORS.primary;
 const HEADER_PRIMARY = '#d0003f';
 const ALL_STATUS: LeadStatusOption = {id: 0, label: 'Select Lead Status'};
 
@@ -141,22 +143,22 @@ const getLeadDisplayId = (item: LeadListItem) => {
 
 const getLeadTitle = (item: LeadListItem) =>
   getStringValue(item, [
-    'leadName',
-    'LeadName',
     'customerName',
     'CustomerName',
+    'leadName',
+    'LeadName',
     'name',
     'Name',
   ]) || `Lead ${getLeadDisplayId(item) || '-'}`;
 
 const getLeadDescription = (item: LeadListItem) =>
   getStringValue(item, [
+    'serviceName',
+    'ServiceName',
     'description',
     'Description',
     'requirement',
     'Requirement',
-    'serviceName',
-    'ServiceName',
   ]);
 
 const getLeadStatus = (item: LeadListItem) =>
@@ -315,7 +317,7 @@ const formatLeadDateTime = (item: LeadListItem) => {
     if (tMatch) {
       let h = Number(tMatch[1]);
       const m = Number(tMatch[2]);
-      const sfx = h >= 12 ? 'pm' : 'am';
+      const sfx = h >= 12 ? 'PM' : 'AM';
       const h12 = h % 12 || 12;
       timeLabel = `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${sfx}`;
     }
@@ -324,25 +326,32 @@ const formatLeadDateTime = (item: LeadListItem) => {
   if (!dateLabel) {
     return timeLabel;
   }
-  return timeLabel ? `${dateLabel} ${timeLabel}` : dateLabel;
+  return timeLabel ? `${dateLabel}  ${timeLabel}` : dateLabel;
 };
 
+// Java LeadListAdapter: inactive/assigned/in discussion/called/dormant/quote sent/converted drawables.
 const getStatusColor = (status: string) => {
   const normalized = status.trim().toLowerCase();
-  if (normalized.includes('discussion')) {
-    return '#06a9ee';
-  }
   if (normalized.includes('inactive')) {
-    return '#9ca3af';
+    return COLORS.lightGray;
   }
   if (normalized.includes('assign')) {
-    return '#ffc12c';
+    return '#FBC02D'; // @color/task_ongoing_dark
   }
-  if (normalized.includes('close') || normalized.includes('complete')) {
-    return '#18a957';
+  if (normalized.includes('discussion')) {
+    return '#03A9F4'; // @color/quantum_lightblue
   }
-  if (normalized.includes('reject') || normalized.includes('cancel')) {
-    return '#d32f2f';
+  if (normalized.includes('called')) {
+    return COLORS.tagBlue;
+  }
+  if (normalized.includes('dormant')) {
+    return '#D1395C'; // @color/dot_dark_screen1
+  }
+  if (normalized.includes('quote')) {
+    return '#F98DA5'; // @color/dot_light_screen1
+  }
+  if (normalized.includes('convert')) {
+    return COLORS.statusCompleted;
   }
 
   return THEME_PRIMARY;
@@ -376,6 +385,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isLastPage, setIsLastPage] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const headerHeight = useAppHeaderHeight();
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const latestRequestId = useRef(0);
 
@@ -576,13 +586,13 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
             hitSlop={10}
             style={styles.actionButton}
             onPress={() => openWhatsapp(phone)}>
-            <Text style={styles.whatsappIcon}>WA</Text>
+            <Ionicons name="logo-whatsapp" size={ms(24)} color={COLORS.ink} />
           </Pressable>
           <Pressable
             hitSlop={10}
             style={styles.actionButton}
             onPress={() => openCall(phone)}>
-            <Text style={styles.callIcon}>Call</Text>
+            <Ionicons name="call-outline" size={ms(24)} color={COLORS.ink} />
           </Pressable>
         </View>
       </TouchableOpacity>
@@ -618,6 +628,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
   if (selectedLeadId !== null) {
     return (
       <LeadDetailsScreen
+        technician={technician}
         userId={userId}
         leadId={selectedLeadId}
         onBack={() => setSelectedLeadId(null)}
@@ -668,7 +679,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
       <View style={styles.panel}>
         <View style={styles.searchRow}>
           <View style={styles.searchBox}>
-            <Text style={styles.searchIcon}>Search</Text>
+            <Ionicons name="search" size={ms(22)} color={COLORS.lightGray} style={styles.searchIconGlyph} />
             <TextInput
               value={searchText}
               onChangeText={value => {
@@ -686,7 +697,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
             />
             {searchText ? (
               <Pressable hitSlop={12} onPress={clearSearch}>
-                <Text style={styles.clearText}>x</Text>
+                <Ionicons name="close" size={ms(24)} color={COLORS.lightGray} />
               </Pressable>
             ) : null}
           </View>
@@ -736,7 +747,8 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
           }
           onEndReachedThreshold={0.35}
           onEndReached={() => {
-            if (!isInitialLoading && !isLoadingMore && !isLastPage) {
+            // Ignore the end-reached event an empty list fires on mount; it would race the first page.
+            if (leads.length > 0 && !isInitialLoading && !isLoadingMore && !isLastPage) {
               fetchLeadPage({nextPage: pageIndex + 1, replace: false});
             }
           }}
@@ -748,34 +760,25 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
         transparent
         animationType="fade"
         onRequestClose={() => setIsStatusModalOpen(false)}>
+        {/* Java: native Spinner popup -- a plain menu card anchored under the status row, no dimming. */}
         <Pressable
-          style={styles.modalBackdrop}
+          style={styles.spinnerBackdrop}
           onPress={() => setIsStatusModalOpen(false)}>
-          <Pressable style={styles.modalPanel}>
-            <Text style={styles.modalTitle}>Select Lead Status</Text>
-            {statusOptions.map(status => (
-              <TouchableOpacity
-                key={`${status.id}-${status.label}`}
-                style={[
-                  styles.modalItem,
-                  status.id === selectedStatus.id ? styles.modalItemActive : null,
-                ]}
-                onPress={() => {
-                  setSelectedStatus(status);
-                  setIsStatusModalOpen(false);
-                }}>
-                <Text
-                  style={[
-                    styles.modalItemText,
-                    status.id === selectedStatus.id
-                      ? styles.modalItemTextActive
-                      : null,
-                  ]}>
-                  {status.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </Pressable>
+          <View style={[styles.spinnerMenu, {top: headerHeight + ms(6)}]}>
+            <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+              {statusOptions.map(status => (
+                <TouchableOpacity
+                  key={`${status.id}-${status.label}`}
+                  style={styles.spinnerItem}
+                  onPress={() => {
+                    setSelectedStatus(status);
+                    setIsStatusModalOpen(false);
+                  }}>
+                  <Text style={styles.spinnerItemText}>{status.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </Pressable>
       </Modal>
 
@@ -836,48 +839,49 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   statusSelector: {
-    height: ms(82),
+    height: ms(52),
     backgroundColor: THEME_PRIMARY,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: ms(18),
-    paddingBottom: ms(16),
+    paddingHorizontal: ms(12),
+    paddingBottom: ms(6),
   },
   statusSelectorText: {
     color: '#FFFFFF',
-    fontSize: sp(20),
-    fontWeight: '600',
+    fontSize: sp(16),
   },
   statusSelectorChevron: {
     marginLeft: ms(12),
     color: '#FFFFFF',
-    fontSize: sp(28),
+    fontSize: sp(20),
     lineHeight: sp(30),
     fontWeight: '900',
   },
   panel: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: ms(40),
-    borderTopRightRadius: ms(40),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
     overflow: 'hidden',
   },
   searchRow: {
-    minHeight: ms(74),
+    minHeight: ms(52),
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: ms(24),
-    gap: ms(12),
+    paddingHorizontal: ms(15),
+    paddingTop: ms(10),
+    gap: ms(8),
   },
   searchBox: {
     flex: 1,
     minWidth: 0,
-    height: ms(52),
+    height: ms(40),
     borderBottomWidth: ms(1),
-    borderBottomColor: '#c9c9c9',
+    borderBottomColor: COLORS.lightGray,
     flexDirection: 'row',
     alignItems: 'center',
   },
+  searchIconGlyph: { marginRight: ms(8) },
   searchIcon: {
     color: '#b9b9b9',
     fontSize: sp(12),
@@ -887,8 +891,8 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     height: ms(50),
-    color: '#222222',
-    fontSize: sp(18),
+    color: COLORS.ink,
+    fontSize: sp(16),
     paddingHorizontal: 0,
     paddingVertical: 0,
   },
@@ -898,18 +902,16 @@ const styles = StyleSheet.create({
     lineHeight: sp(30),
   },
   addButton: {
-    height: ms(42),
-    minWidth: ms(74),
-    borderRadius: ms(13),
-    backgroundColor: '#080808',
+    height: ms(30),
+    width: ms(60),
+    borderRadius: ms(10),
+    backgroundColor: COLORS.textBlack,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: ms(12),
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: sp(13),
-    fontWeight: '900',
+    fontSize: sp(12),
   },
   linkButton: {
     height: ms(42),
@@ -936,16 +938,16 @@ const styles = StyleSheet.create({
   listContent: {
     flexGrow: 1,
     paddingHorizontal: ms(18),
-    paddingTop: ms(4),
+    paddingTop: ms(8),
     paddingBottom: ms(110),
   },
   leadCard: {
-    minHeight: ms(120),
+    minHeight: ms(90),
     borderWidth: ms(1),
     borderColor: '#ededed',
-    borderRadius: ms(12),
+    borderRadius: ms(10),
     backgroundColor: '#FFFFFF',
-    marginBottom: ms(20),
+    marginBottom: ms(16),
     overflow: 'hidden',
     elevation: 4,
     shadowColor: '#000000',
@@ -957,10 +959,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    minWidth: ms(104),
+    minWidth: ms(100),
     maxWidth: '42%',
-    height: ms(30),
-    borderBottomRightRadius: ms(14),
+    height: ms(24),
+    borderBottomRightRadius: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: ms(12),
@@ -968,24 +970,22 @@ const styles = StyleSheet.create({
   },
   statusRibbonText: {
     color: '#FFFFFF',
-    fontSize: sp(11),
-    fontWeight: '900',
+    fontSize: sp(12),
   },
   leadDateText: {
     position: 'absolute',
-    top: ms(12),
-    right: ms(12),
-    maxWidth: ms(168),
-    color: '#8b8b8b',
-    fontSize: sp(13),
-    fontWeight: '600',
+    top: ms(5),
+    right: ms(8),
+    maxWidth: ms(200),
+    color: COLORS.darkGray,
+    fontSize: sp(12),
     textAlign: 'right',
   },
   leadBody: {
-    paddingTop: ms(42),
-    paddingLeft: ms(20),
-    paddingRight: ms(154),
-    paddingBottom: ms(16),
+    paddingTop: ms(34),
+    paddingLeft: ms(15),
+    paddingRight: ms(100),
+    paddingBottom: ms(14),
   },
   leadTitleRow: {
     flexDirection: 'row',
@@ -994,22 +994,20 @@ const styles = StyleSheet.create({
   },
   leadTitle: {
     maxWidth: ms(150),
-    color: '#20283a',
-    fontSize: sp(18),
-    lineHeight: sp(23),
-    fontWeight: '900',
+    color: COLORS.ink,
+    fontSize: sp(16),
+    fontWeight: '700',
   },
   leadIdText: {
-    marginLeft: ms(8),
-    color: '#1976d2',
-    fontSize: sp(13),
-    fontWeight: '900',
+    marginLeft: ms(10),
+    color: COLORS.linkBlue,
+    fontSize: sp(12),
+    fontWeight: '700',
   },
   leadDescription: {
-    marginTop: ms(10),
-    color: '#666666',
-    fontSize: sp(15),
-    fontWeight: '500',
+    marginTop: ms(8),
+    color: COLORS.darkGray,
+    fontSize: sp(12),
   },
   leadActions: {
     position: 'absolute',
@@ -1074,6 +1072,22 @@ const styles = StyleSheet.create({
     fontSize: sp(13),
     lineHeight: sp(18),
   },
+  spinnerBackdrop: {flex: 1},
+  spinnerMenu: {
+    position: 'absolute',
+    left: ms(4),
+    width: ms(176),
+    maxHeight: '70%',
+    backgroundColor: '#FAFAFA',
+    borderRadius: ms(2),
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: {width: 0, height: 3},
+  },
+  spinnerItem: {height: ms(46.5), justifyContent: 'center', paddingHorizontal: ms(8)},
+  spinnerItemText: {fontSize: sp(16), color: COLORS.textBlack},
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',

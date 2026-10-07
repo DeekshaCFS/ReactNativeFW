@@ -29,6 +29,8 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { COLORS } from '../../theme/theme';
 import { scale, vs, sp } from '../../utils/responsive';
 import SearchPickerModal, { PickerOption } from '../../components/SearchPickerModal';
+import { OutlinedInput, OutlinedSelect } from '../../components/OutlinedInput';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
 import { ensureSuccess } from '../../utils/apiResponse';
 import {
   getCurrentUserId,
@@ -80,6 +82,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
   const [stateText, setStateText] = useState('');
   const [cityText, setCityText] = useState('');
   const [pincode, setPincode] = useState('');
+  const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
   const [latitude, setLatitude] = useState('0');
   const [longitude, setLongitude] = useState('0');
   const [notes, setNotes] = useState('');
@@ -295,7 +298,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Lead Form</Text>
             <Pressable onPress={onClose} hitSlop={12}>
-              <Text style={styles.headerClose}>{'✕'}</Text>
+              <Ionicons name="close" size={scale(30)} color={COLORS.white} />
             </Pressable>
           </View>
 
@@ -308,13 +311,12 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.content}
             >
-        <Text style={styles.label}>Customer Name *</Text>
-        <TextInput
+        <OutlinedInput
           style={styles.input}
           value={name}
           onChangeText={onNameChange}
-          placeholder="Enter customer name"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholder="Customer Name *"
+          placeholderTextColor={COLORS.lightGray}
         />
         {suggestions.length > 0 && (
           <View style={styles.suggestBox}>
@@ -331,72 +333,73 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
           </View>
         )}
 
-        <Text style={styles.label}>Mobile Number *</Text>
-        <TextInput
+        <OutlinedInput
           style={styles.input}
           value={mobile}
           onChangeText={t => setMobile(t.replace(/[^0-9]/g, ''))}
           keyboardType="number-pad"
           maxLength={15}
-          placeholder="Enter mobile number"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholder="Phone Number *"
+          placeholderTextColor={COLORS.lightGray}
         />
 
-        <Text style={styles.label}>Customer Address *</Text>
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          value={address}
-          onChangeText={setAddress}
-          multiline
-          placeholder="Enter address"
-          placeholderTextColor={COLORS.textTertiary}
-        />
-
-        <Text style={styles.label}>State{isStateEnable ? ' *' : ''}</Text>
-        <Pressable style={styles.select} onPress={() => setPicker('state')}>
-          <Text style={stateText ? styles.selectText : styles.selectPlaceholder}>
-            {stateText || 'Select state'}
-          </Text>
-          <Ionicons name="chevron-down" size={sp(18)} color={COLORS.icon} />
+        {/* Java: tapping the address opens the full-screen Google Places search. */}
+        <Pressable onPress={() => setPlaceSearchOpen(true)}>
+          <View pointerEvents="none">
+            <OutlinedInput
+              style={styles.input}
+              value={address}
+              editable={false}
+              placeholder="Customer Address *"
+              placeholderTextColor={COLORS.lightGray}
+            />
+          </View>
         </Pressable>
 
-        <Text style={styles.label}>City{isCityEnable ? ' *' : ''}</Text>
-        <Pressable style={styles.select} onPress={() => setPicker('city')}>
-          <Text style={cityText ? styles.selectText : styles.selectPlaceholder}>
-            {cityText || 'Select city'}
-          </Text>
-          <Ionicons name="chevron-down" size={sp(18)} color={COLORS.icon} />
-        </Pressable>
+        <View style={styles.halfRow}>
+          <OutlinedSelect
+            style={[styles.input, styles.half]}
+            label={`State${isStateEnable ? ' *' : ''}`}
+            value={stateText}
+            onPress={() => setPicker('state')}
+          />
+          <OutlinedSelect
+            style={[styles.input, styles.half]}
+            label={`City${isCityEnable ? ' *' : ''}`}
+            value={cityText}
+            onPress={() => setPicker('city')}
+          />
+        </View>
 
-        <Text style={styles.label}>Pincode{isPincodeEnable ? ' *' : ''}</Text>
-        <TextInput
-          style={styles.input}
-          value={pincode}
-          onChangeText={t => setPincode(t.replace(/[^0-9]/g, ''))}
-          keyboardType="number-pad"
-          maxLength={10}
-          placeholder="Enter pincode"
-          placeholderTextColor={COLORS.textTertiary}
-        />
+        <View style={styles.halfRow}>
+          <OutlinedInput
+            style={[styles.input, styles.half]}
+            value={pincode}
+            onChangeText={t => setPincode(t.replace(/[^0-9]/g, ''))}
+            keyboardType="number-pad"
+            maxLength={10}
+            placeholder={`Pin Code${isPincodeEnable ? ' *' : ''}`}
+            placeholderTextColor={COLORS.lightGray}
+          />
+          <View style={styles.half} />
+        </View>
 
-        <Text style={styles.label}>Landmark *</Text>
-        <TextInput
+        <OutlinedInput
           style={styles.input}
           value={landmark}
           onChangeText={setLandmark}
-          placeholder="Enter landmark"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholder="Landmark *"
+          placeholderTextColor={COLORS.lightGray}
         />
 
-        <Text style={styles.label}>Service Type *</Text>
-        <Pressable style={styles.select} onPress={() => setPicker('service')}>
-          <Text style={service ? styles.selectText : styles.selectPlaceholder}>
-            {service?.label ?? 'Select service type'}
-          </Text>
-          <Ionicons name="chevron-down" size={sp(18)} color={COLORS.icon} />
-        </Pressable>        
+        <OutlinedSelect
+          style={[styles.input, styles.serviceInput]}
+          label="Select Service Type"
+          value={service?.label}
+          chevron
+          onPress={() => setPicker('service')}
+        />
 
-        <Text style={styles.label}>Photos</Text>
         <View style={styles.photoRow}>
           {photos.map((p, i) => (
             <View key={i} style={styles.photoWrap}>
@@ -404,7 +407,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
                 {p ? (
                   <Image source={{ uri: p.uri }} style={styles.photoImg} />
                 ) : (
-                  <Ionicons name="camera-outline" size={sp(50)} color={COLORS.textTertiary} />
+                  <Ionicons name="camera-outline" size={sp(50)} color={COLORS.lightGray} />
                 )}
               </Pressable>
               {p && (
@@ -422,14 +425,13 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
           ))}
         </View>
 
-        <Text style={styles.label}>Notes</Text>
-        <TextInput
-          style={[styles.input, styles.multiline]}
+        <OutlinedInput
+          style={[styles.input, styles.notes]}
           value={notes}
           onChangeText={setNotes}
           multiline
-          placeholder="Enter notes"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholder="Notes"
+          placeholderTextColor={COLORS.lightGray}
         />
 
         <View style={styles.btnRow}>
@@ -451,6 +453,16 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
             </ScrollView>
           </KeyboardAvoidingView>
 
+          <PlaceSearchModal
+            visible={placeSearchOpen}
+            onClose={() => setPlaceSearchOpen(false)}
+            onSelect={place => {
+              setAddress(place.address);
+              setLatitude(String(place.latitude));
+              setLongitude(String(place.longitude));
+              setPlaceSearchOpen(false);
+            }}
+          />
           <SearchPickerModal
             visible={picker === 'service'}
             title="Select Service Type"
@@ -503,58 +515,45 @@ const styles = StyleSheet.create({
     width: '100%',
     maxHeight: '94%',
     overflow: 'hidden',
-    borderTopLeftRadius: scale(20),
-    borderTopRightRadius: scale(20),
+    borderTopLeftRadius: scale(25),
+    borderTopRightRadius: scale(25),
   },
+  // Java gradient_addtask header: #353935, 20dp corners, 60dp tall, 22sp title.
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.textQuaternary,
-    paddingHorizontal: scale(18),
-    paddingVertical: vs(16),
+    backgroundColor: COLORS.statusOnHold,
+    paddingHorizontal: scale(20),
+    height: vs(60),
+    borderRadius: scale(20),
   },
-  headerTitle: { color: '#fff', fontSize: sp(17), fontWeight: '700' },
-  headerClose: { color: '#fff', fontSize: sp(18) },
+  headerTitle: { color: COLORS.white, fontSize: sp(22) },
   flexShrink: { flexShrink: 1 },
-  content: { paddingHorizontal: scale(16), paddingVertical: vs(16), paddingBottom: vs(24) },
-  label: {
-    fontSize: sp(13),
-    fontWeight: '600',
-    color: COLORS.textQuaternary,
-    marginTop: vs(12),
-    marginBottom: vs(6),
-  },
+  content: { paddingHorizontal: scale(20), paddingTop: vs(20), paddingBottom: vs(24) },
+  // Java TextInputLayoutStyle: outlined pill, light-gray stroke, 34dp radius, 16sp text.
   input: {
     borderWidth: 1,
-    borderColor: COLORS.textQuaternary,
-    borderRadius: scale(20),
-    paddingHorizontal: scale(12),
-    paddingVertical: vs(10),
-    fontSize: sp(14),
-    color: COLORS.textPrimary,
-    backgroundColor: '#fff',
+    borderColor: COLORS.lightGray,
+    borderRadius: scale(34),
+    paddingHorizontal: scale(18),
+    height: vs(42),
+    fontSize: sp(16),
+    color: COLORS.ink,
+    backgroundColor: COLORS.white,
+    marginBottom: vs(26), // room Material reserves for the error line
   },
-  multiline: { minHeight: vs(70), textAlignVertical: 'top' },
-  select: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: COLORS.textQuaternary,
-    borderRadius: scale(15),
-    paddingHorizontal: scale(12),
-    paddingVertical: vs(12),
-    backgroundColor: '#fff',
-  },
-  selectText: { fontSize: sp(14), color: COLORS.textPrimary, flex: 1 },
-  selectPlaceholder: { fontSize: sp(14), color: COLORS.textTertiary, flex: 1 },
+  halfRow: { flexDirection: 'row', gap: scale(20) },
+  half: { flex: 1 },
+  serviceInput: { marginBottom: vs(16) },
+  notes: { height: vs(100), paddingTop: vs(14), textAlignVertical: 'top' },
   suggestBox: {
     borderWidth: 1,
-    borderColor: COLORS.textQuaternary,
+    borderColor: COLORS.lightGray,
     borderRadius: scale(15),
-    backgroundColor: '#fff',
-    marginTop: vs(4),
+    backgroundColor: COLORS.white,
+    marginTop: -vs(18),
+    marginBottom: vs(12),
   },
   suggestRow: {
     paddingHorizontal: scale(12),
@@ -562,31 +561,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
-  suggestName: { fontSize: sp(14), color: COLORS.textPrimary },
-  suggestSub: { fontSize: sp(12), color: COLORS.textMuted },
-  photoRow: { flexDirection: 'row', gap: scale(12) },
-  photoWrap: { position: 'relative' },
+  suggestName: { fontSize: sp(14), color: COLORS.ink },
+  suggestSub: { fontSize: sp(12), color: COLORS.lightGray },
+  photoRow: { flexDirection: 'row', gap: scale(16), marginBottom: vs(26) },
+  photoWrap: { position: 'relative', flex: 1 },
   photoBox: {
-    width: scale(110),
-    height: scale(110),
-    borderRadius: scale(15),
+    height: vs(100),
+    borderRadius: scale(20),
     borderWidth: 1,
-    borderColor: COLORS.textQuaternary,
+    borderColor: COLORS.lightGray,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   photoImg: { width: '100%', height: '100%' },
   photoRemove: { position: 'absolute', top: -scale(6), right: -scale(6) },
-  btnRow: { flexDirection: 'column', gap: scale(12), marginTop: vs(28) },
+  btnRow: { flexDirection: 'column', gap: scale(10), marginTop: vs(6) },
   btn: {
-    flex: 1,
-    height: vs(46),
-    borderRadius: scale(25),
+    height: vs(52),
+    borderRadius: scale(34),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnPrimary: { backgroundColor: COLORS.textQuaternary },
-  btnPrimaryText: { color: '#fff', fontSize: sp(18), fontWeight: '600' },
-  btnGhostText: { color: COLORS.primary, fontSize: sp(18), fontWeight: '600' },
+  btnPrimary: { backgroundColor: COLORS.statusOnHold, elevation: 4 },
+  btnPrimaryText: { color: COLORS.white, fontSize: sp(20) },
+  btnGhostText: { color: COLORS.primary, fontSize: sp(18) },
 });

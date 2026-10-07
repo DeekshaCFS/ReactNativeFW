@@ -64,6 +64,7 @@ export const COLORS = {
   passbookPink:    '#FCB6BE',
   passbookBackdrop:'#F2F2F2',
   passbookBorder:  '#E3E3E3',
+  dialogDim:       'rgba(19,20,22,0.72)', // @color/dialog_bg #B7131416
   pickerCancel:    '#E0E0E0', // @color/material_grey_300 (month/year dialog Cancel)
 } as const;
 

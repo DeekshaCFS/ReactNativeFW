@@ -5,6 +5,7 @@ import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/theme';
+import { FabIcon, isFabIcon } from './FabIcons';
 import { setPassbookTabOrder } from '../state/passbookTabOrder';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { ms, sp, scale } from '../utils/responsive';
@@ -116,16 +117,20 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
       {fabOpen && (
         <View style={[styles.bottomSheet, { paddingBottom: bottomPad + ms(16) }]}>
           <Pressable style={styles.closeBtn} onPress={() => setFabOpen(false)}>
-            <Ionicons name="close" size={scale(32)} color={COLORS.primary} />
+            <Ionicons name="close" size={scale(30)} color={COLORS.primary} />
           </Pressable>
 
-          {quickActions.map(action => (
+          {quickActions.map((action, i) => (
             <Pressable
               key={action.route ?? action.label}
-              style={styles.sheetItem}
+              style={[styles.sheetItem, i === quickActions.length - 1 && { marginBottom: scale(14) }]}
               onPress={() => navigateFromFab(action)}
             >
-              <Ionicons name={action.icon} size={scale(28)} color={COLORS.primary} />
+              {isFabIcon(action.icon) ? (
+                <FabIcon name={action.icon} size={scale(30)} />
+              ) : (
+                <Ionicons name={action.icon} size={scale(28)} color={COLORS.primary} />
+              )}
               <Text style={styles.sheetText}>{action.label}</Text>
             </Pressable>
           ))}
@@ -204,40 +209,39 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: COLORS.dialogDim,
     zIndex: 5,
   },
+  // Java dialog_add_tech_options: white card, 30dp corners, 20dp padding; rows are 10dp
+  // padded with the icon at 55dp and the 16sp bold label 30dp after it.
   bottomSheet: {
     position: 'absolute',
     bottom: 0,
     width: '100%',
-    backgroundColor: '#fff',
-    borderTopLeftRadius: ms(32),
-    borderTopRightRadius: ms(32),
-    paddingTop: ms(12),
-    paddingHorizontal: ms(24),
+    backgroundColor: COLORS.white,
+    borderRadius: scale(30),
+    padding: scale(20),
     elevation: 20,
     zIndex: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: -4 },
   },
   closeBtn: {
-    alignSelf: 'flex-end',
-    marginBottom: ms(16),
-    padding: ms(4),
+    position: 'absolute',
+    top: scale(8),
+    right: scale(4),
+    zIndex: 1,
+    padding: scale(4),
   },
   sheetItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: ms(24),
-    marginLeft: ms(40),
+    marginTop: scale(5),
+    padding: scale(10),
+    paddingLeft: scale(56),
   },
   sheetText: {
-    fontSize: sp(18),
-    fontWeight: '600',
-    marginLeft: ms(24),
-    color: '#1f2937',
+    fontSize: sp(16),
+    fontWeight: '700',
+    marginLeft: scale(30),
+    color: COLORS.ink,
   },
 });

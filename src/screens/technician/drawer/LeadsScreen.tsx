@@ -6,9 +6,18 @@
 // submits through the technician endpoint (postExternalLeadFormByTech).
 
 import React from 'react';
+import { View } from 'react-native';
 import LeadListScreen from '../../admin/LeadListScreen';
 import { getCurrentUserId } from '../../../state/session';
+import { COLORS } from '../../../theme/theme';
+import { useAppHeaderHeight } from '../../../utils/responsive';
 
 export default function LeadsScreen() {
-  return <LeadListScreen userId={getCurrentUserId()} technician />;
+  const headerHeight = useAppHeaderHeight();
+  // The shared AppHeader is drawn over the top of this screen by TechnicianTabs.
+  return (
+    <View style={{ flex: 1, paddingTop: headerHeight, backgroundColor: COLORS.primary }}>
+      <LeadListScreen userId={getCurrentUserId()} technician />
+    </View>
+  );
 }
