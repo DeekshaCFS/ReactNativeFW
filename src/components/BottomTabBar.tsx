@@ -32,12 +32,15 @@ type Props = BottomTabBarProps & {
   /** Tabs to list in the bar. The navigator may also hold screens that are
    *  reachable but not tabs (pushed-style screens); those are left out. */
   visibleTabs?: string[];
+  /** Highlight another tab while a hidden screen is focused (e.g. Leave -> Attendance). */
+  activeAlias?: Record<string, string>;
 };
 
-const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs }: Props) => {
+const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activeAlias }: Props) => {
   const [fabOpen, setFabOpen] = useState(false);
   const insets = useSafeAreaInsets();
-  const current = state.routes[state.index]?.name;
+  const rawCurrent = state.routes[state.index]?.name;
+  const current = activeAlias?.[rawCurrent] ?? rawCurrent;
 
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? ms(4) : 0);
 

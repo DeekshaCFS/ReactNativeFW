@@ -200,7 +200,8 @@ export default function TechnicianTabs() {
           return (
             <>
               {/* Pushed-style screens show their own back-arrow header. */}
-              {MAIN_TABS.includes(currentRoute) && (
+              {/* Leave is the Leaves sub-tab of Attendance in Java: same header + tab. */}
+              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave') && (
                 <AppHeader
                   title={getTitle(currentRoute)}
                   navigation={props.navigation as any}
@@ -210,6 +211,7 @@ export default function TechnicianTabs() {
               <BottomTabBar
                 {...props}
                 visibleTabs={MAIN_TABS}
+                activeAlias={{ Leave: 'Attendance' }}
                 quickActions={quickActions}
               />
             </>
@@ -227,7 +229,8 @@ export default function TechnicianTabs() {
             name={name}
             component={component}
             initialParams={initialParams}
-            options={({ navigation }: any) => pushedScreenOptions(title, navigation)}
+            options={({ navigation }: any) =>
+              name === 'Leave' ? { headerShown: false } : pushedScreenOptions(title, navigation)}
           />
         ))}
       </Tab.Navigator>
@@ -269,6 +272,7 @@ function getTitle(routeName: string) {
     case 'Task':
       return 'Tasks';
     case 'Attendance':
+    case 'Leave':
       return 'Attendance';
     case 'Passbook':
       return 'Passbook';

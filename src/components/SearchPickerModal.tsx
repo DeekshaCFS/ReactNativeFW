@@ -16,9 +16,8 @@ import {
   View,
 } from 'react-native';
 import Modal from './AppModal';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../theme/theme';
-import { ms, scale, sp, vs } from '../utils/responsive';
+import { scale, sp, vs } from '../utils/responsive';
 
 export type PickerOption = { id: number; label: string };
 
@@ -89,12 +88,11 @@ const SearchPickerModal: React.FC<Props> = ({
             <TextInput
               style={styles.searchInput}
               placeholder="Search..."
-              placeholderTextColor="#9aa0a6"
+              placeholderTextColor={COLORS.lightGray}
               value={query}
               onChangeText={handleChange}
               autoCorrect={false}
             />
-            <Ionicons name="search" size={sp(16)} color="#8a8f98" />
           </View>
           {loading ? (
             <ActivityIndicator color={COLORS.primary} style={styles.loader} />
@@ -118,36 +116,38 @@ const SearchPickerModal: React.FC<Props> = ({
   );
 };
 
+// Java dialog_searchable_spinner_*: 800x1000px window (~74% wide, ~315dp tall as rendered), square white
+// box with 16dp padding, 20sp bold title, red-bordered 10dp-radius search field, plain list
+// rows (simple_list_item_1: 18sp, 48dp tall, no dividers).
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: scale(24),
   },
   box: {
-    backgroundColor: '#fff',
-    borderRadius: scale(12),
-    padding: ms(16),
-    maxHeight: '70%',
+    width: '74%',
+    height: vs(315),
+    backgroundColor: COLORS.white,
+    padding: scale(16),
   },
-  title: { fontSize: sp(16), fontWeight: '700', color: '#222', marginBottom: vs(10) },
+  title: { fontSize: sp(20), fontWeight: '700', color: COLORS.textBlack },
   searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: scale(20),
-    paddingHorizontal: scale(12),
-    height: vs(40),
+    marginTop: vs(8),
     marginBottom: vs(8),
+    borderWidth: 1,
+    borderColor: COLORS.alertRed,
+    borderRadius: scale(10),
+    paddingHorizontal: scale(12),
+    paddingVertical: vs(10),
   },
-  searchInput: { flex: 1, fontSize: sp(13), color: '#222', padding: 0 },
-  list: { flexGrow: 0 },
-  item: { paddingVertical: vs(11), borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  itemText: { fontSize: sp(14), color: '#222' },
+  searchInput: { fontSize: sp(18), color: COLORS.textBlack, padding: 0 },
+  list: { flex: 1 },
+  item: { minHeight: vs(48), justifyContent: 'center', paddingHorizontal: scale(16) },
+  itemText: { fontSize: sp(18), color: COLORS.textBlack },
   loader: { marginVertical: vs(18) },
-  empty: { textAlign: 'center', color: '#8a8f98', paddingVertical: vs(16), fontSize: sp(13) },
+  empty: { textAlign: 'center', color: COLORS.lightGray, paddingVertical: vs(16), fontSize: sp(14) },
 });
 
 export default SearchPickerModal;
