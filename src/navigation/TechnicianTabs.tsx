@@ -204,17 +204,19 @@ export default function TechnicianTabs() {
             <>
               {/* Pushed-style screens show their own back-arrow header. */}
               {/* Leave is the Leaves sub-tab of Attendance in Java: same header + tab. */}
-              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave' || currentRoute === 'Expenditure' || currentRoute === 'Leads') && (
+              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave' || currentRoute === 'Expenditure' || currentRoute === 'Leads' || currentRoute === 'TaskRouteMap') && (
                 <AppHeader
                   title={currentRoute === 'Expenditure'
                     ? (passbookTabOrder === 'passbookFirst' ? 'Passbook' : 'FieldWeb')
-                    : currentRoute === 'Leads'
+                    : currentRoute === 'Leads' || currentRoute === 'TaskRouteMap'
                       ? 'FieldWeb'
                       : getTitle(currentRoute)}
                   navigation={props.navigation as any}
                 />
               )}
 
+              {/* Java hides the bottom navigation on the route map. */}
+              {currentRoute !== 'TaskRouteMap' && (
               <BottomTabBar
                 {...props}
                 visibleTabs={MAIN_TABS}
@@ -225,6 +227,7 @@ export default function TechnicianTabs() {
                 }}
                 quickActions={quickActions}
               />
+              )}
             </>
           );
         }}
@@ -241,7 +244,7 @@ export default function TechnicianTabs() {
             component={component}
             initialParams={initialParams}
             options={({ navigation }: any) =>
-              name === 'Leave' || name === 'Expenditure' || name === 'Leads'
+              name === 'Leave' || name === 'Expenditure' || name === 'Leads' || name === 'TaskRouteMap'
                 ? { headerShown: false }
                 : pushedScreenOptions(title, navigation)}
           />

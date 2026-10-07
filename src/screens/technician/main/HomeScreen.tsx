@@ -12,9 +12,9 @@ import { attendanceCheck, addAttendance } from '../../../api/attendance/attendan
 import { getTodayTaskList } from '../../../api/task/taskService';
 import { getTaskStatusCountOwnNew } from '../../../api/dashboard/dashboardService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getProfileDetails } from '../../../api/users/usersService';
+import { getProfileDetails, getUserDetails } from '../../../api/users/usersService';
 import { getCountrySymbol } from '../../../api/countryDetails/countryDetailsService';
-import { setCurrentCountryDetails } from '../../../state/session';
+import { setCurrentCountryDetails, setCurrentUserProfile } from '../../../state/session';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { scale, vs, sp, ms, wps, useAppHeaderHeight } from '../../../utils/responsive';
 import TaskListCard from '../../../components/TaskListCard';
@@ -87,6 +87,7 @@ export default function HomeScreen({ navigation }: any) {
   useEffect(() => {
     if (token && userId) {
       loadProfile();
+      loadUserDetails();
       loadCountrySymbol();
       if (!attendanceChecked) {
         checkAttendance();
@@ -213,6 +214,18 @@ export default function HomeScreen({ navigation }: any) {
       }
     } catch (err: any) {
       Alert.alert('Check-in Failed', err?.message || 'Please try again');
+    }
+  };
+
+  // Java HomeActivityNew.getUSerDetails(): caches IsTeleCmiEnabled (hides customer numbers) and the
+  // state/city/pin/tag task configuration for the session.
+  const loadUserDetails = async () => {
+    try {
+      if (!userId) return;
+      const response = await getUserDetails({ UserId: userId });
+      if (response?.ResultData) setCurrentUserProfile(response.ResultData);
+    } catch {
+      // silent
     }
   };
 
