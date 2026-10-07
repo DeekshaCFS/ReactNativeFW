@@ -59,6 +59,12 @@ export const COLORS = {
   attIdleTag:      '#FFD066', // curve_card_idle
   attLeave:        '#0E0E0E', // gradient_onleave (@color/black)
   attLeaveTag:     '#414140', // curve_card_onleave
+
+  // Passbook (Java passbook_gradient / curve_card / bg_curve_border_selected)
+  passbookPink:    '#FCB6BE',
+  passbookBackdrop:'#F2F2F2',
+  passbookBorder:  '#E3E3E3',
+  pickerCancel:    '#E0E0E0', // @color/material_grey_300 (month/year dialog Cancel)
 } as const;
 
 export const TEXT = {

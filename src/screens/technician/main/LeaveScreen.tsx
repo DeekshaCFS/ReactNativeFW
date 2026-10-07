@@ -4,7 +4,7 @@ import {
   Platform, StatusBar, TextInput, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
-import DrumPicker from '../../../components/DrumPicker';
+import MonthYearPickerDialog from '../../../components/MonthYearPickerDialog';
 import SearchPickerModal from '../../../components/SearchPickerModal';
 import { useState, useCallback, useMemo } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -119,21 +119,10 @@ export default function LeaveScreen() {
   const [statusFilter, setStatusFilter] = useState<LeaveStatusOption>('Status');
   const [activeDropdown, setActiveDropdown] = useState<'status' | null>(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
-  const yearOptions = useMemo(
-    () => Array.from({ length: YEAR_COUNT }, (_, i) => String(today.getFullYear() - (YEAR_COUNT - 1) + i)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-  const [tempMonthIdx, setTempMonthIdx] = useState(today.getMonth());
-  const [tempYearIdx, setTempYearIdx] = useState(YEAR_COUNT - 1);
-  const openMonthPicker = () => {
-    setTempMonthIdx(filterMonth);
-    setTempYearIdx(Math.max(0, yearOptions.indexOf(String(filterYear))));
-    setShowMonthPicker(true);
-  };
-
+  const openMonthPicker = () => setShowMonthPicker(true);
   // Java sends no month until the user picks one (label still shows the current month).
   const [monthPicked, setMonthPicked] = useState(false);
+
   const monthYearParam = monthPicked ? `${filterYear}-${pad2(filterMonth + 1)}` : '';
   const statusIdParam = useMemo(() => {
     if (statusFilter === 'Approved') return LeaveStatusId.APPROVED;
@@ -483,32 +472,21 @@ export default function LeaveScreen() {
         ListFooterComponent={loadingMore ? <ActivityIndicator color={COLORS.primary} style={{ marginVertical: vs(12) }} /> : null}
       />
 
-      {/* Month + year picker only (no day), like Java's month/year dialog */}
-      <Modal visible={showMonthPicker} transparent animationType="fade" onRequestClose={() => setShowMonthPicker(false)}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowMonthPicker(false)} />
-        <View style={styles.monthPickerBox}>
-          <View style={{ flexDirection: 'row', paddingHorizontal: scale(16) }}>
-            <DrumPicker data={MONTH_NAMES} selectedIndex={tempMonthIdx} onSelect={setTempMonthIdx} />
-            <DrumPicker data={yearOptions} selectedIndex={tempYearIdx} onSelect={setTempYearIdx} />
-          </View>
-          <View style={styles.monthPickerActions}>
-            <Pressable style={styles.monthPickerBtn} onPress={() => setShowMonthPicker(false)}>
-              <Text style={{ fontSize: sp(15), color: COLORS.lightGray }}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={styles.monthPickerBtn}
-              onPress={() => {
-                setMonthPicked(true);
-                setFilterMonth(tempMonthIdx);
-                setFilterYear(Number(yearOptions[tempYearIdx]));
-                setShowMonthPicker(false);
-              }}
-            >
-              <Text style={{ fontSize: sp(15), color: COLORS.primary, fontWeight: '600' }}>OK</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      {/* Java: Util/MonthYearPickerDialog */}
+      <MonthYearPickerDialog
+        visible={showMonthPicker}
+        minYear={today.getFullYear() - (YEAR_COUNT - 1)}
+        maxYear={today.getFullYear()}
+        activatedMonth={filterMonth}
+        activatedYear={filterYear}
+        onCancel={() => setShowMonthPicker(false)}
+        onConfirm={(month, year) => {
+          setMonthPicked(true);
+          setFilterMonth(month);
+          setFilterYear(year);
+          setShowMonthPicker(false);
+        }}
+      />
 
         {/* Status dropdown */}
         <Modal
