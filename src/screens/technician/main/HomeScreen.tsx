@@ -27,6 +27,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useOpenTask } from '../../../hooks/useOpenTask';
 import { checkedInTodayKey } from '../../../utils/attendanceKey';
 import DisclaimerModal from '../../../components/DisclaimerModal';
+import TourTarget from '../../../tour/TourTarget';
 import {
   getUserDisclaimer,
   acceptDisclaimer,
@@ -512,20 +513,22 @@ export default function HomeScreen({ navigation }: any) {
         ListHeaderComponent={
           <>
             {/* Profile completion (Java hides the bar and % once the profile is 100%) */}
-            <View style={styles.profileRow}>
-              <Pressable onPress={() => navigation.navigate('Profile')} style={styles.profileLeft}>
-                <Text style={styles.profileTitle}>Profile Completion</Text>
-                {profilePercent !== 100 && <Text style={styles.profileUpdate}>Update</Text>}
-              </Pressable>
-              {profilePercent !== 100 && (
-                <Text style={styles.profilePercentText}>{profilePercent.toFixed(1)}%</Text>
-              )}
-            </View>
-            {profilePercent !== 100 && (
-              <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${profilePercent}%` }]} />
+            <TourTarget tourKey="profileCompletion">
+              <View style={styles.profileRow}>
+                <Pressable onPress={() => navigation.navigate('Profile')} style={styles.profileLeft}>
+                  <Text style={styles.profileTitle}>Profile Completion</Text>
+                  {profilePercent !== 100 && <Text style={styles.profileUpdate}>Update</Text>}
+                </Pressable>
+                {profilePercent !== 100 && (
+                  <Text style={styles.profilePercentText}>{profilePercent.toFixed(1)}%</Text>
+                )}
               </View>
-            )}
+              {profilePercent !== 100 && (
+                <View style={styles.progressBar}>
+                  <View style={[styles.progressFill, { width: `${profilePercent}%` }]} />
+                </View>
+              )}
+            </TourTarget>
 
             {/* Date label */}
             <View style={styles.dateRow}>

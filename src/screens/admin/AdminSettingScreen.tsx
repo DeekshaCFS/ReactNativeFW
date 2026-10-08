@@ -6,11 +6,20 @@
 // includes that row while the technician screen omits it entirely. See
 // SettingsScreenBase.tsx for the shared layout/styling.
 
+import {useState} from 'react';
 import {Linking, Platform, Share} from 'react-native';
+import {useNavigation} from '@react-navigation/native';
+import {useTranslation} from 'react-i18next';
 import DeviceInfo from 'react-native-device-info';
 import SettingsScreenBase, {type SettingsRow} from '../../components/SettingsScreenBase';
+import LanguagePickerModal from '../../components/LanguagePickerModal';
+import {setAppLanguage, type LanguageCode} from '../../i18n';
 
 export default function AdminSettingScreen() {
+  const navigation = useNavigation<any>();
+  const {t, i18n} = useTranslation();
+  const [langModalVisible, setLangModalVisible] = useState(false);
+
   const handleRateUs = () => {
     const bundleId = DeviceInfo.getBundleId();
     const url =
@@ -22,6 +31,15 @@ export default function AdminSettingScreen() {
 
   const handleFeedback = () => {
     Linking.openURL('mailto:info@fieldweb.co.in?subject=FieldWeb%20Feedback').catch(() => {});
+  };
+
+  // Java: cardView_AppTour navigates back to the dashboard (and would kick
+  // off a TapTarget tour there, which isn't ported). Match the navigation.
+  const handleAppTour = () => navigation.navigate('Home');
+
+  const handleSelectLanguage = (code: LanguageCode) => {
+    setAppLanguage(code);
+    setLangModalVisible(false);
   };
 
   const handleInviteFriends = () => {
@@ -39,20 +57,42 @@ export default function AdminSettingScreen() {
   };
 
   const topCards: SettingsRow[] = [
-    {icon: 'phone-portrait-outline', title: 'App Tour'},
-    {icon: 'star-outline', title: 'Rate Us', onPress: handleRateUs},
-    {icon: 'thumbs-up-outline', title: 'Feedback', onPress: handleFeedback},
+    {icon: 'phone-portrait-outline', title: t('appTour'), onPress: handleAppTour},
+    {icon: 'star-outline', title: t('rateUs'), onPress: handleRateUs},
+    {icon: 'thumbs-up-outline', title: t('feedback'), onPress: handleFeedback},
   ];
 
+  // Order matches Java fragment_settings.xml: change lang, invite friends,
+  // delete account, terms, privacy, refund, about, then the bank/accounts
+  // row last.
   const listItems: SettingsRow[] = [
-    {icon: 'people-outline', title: 'Invite Friends', onPress: handleInviteFriends},
-    {icon: 'card-outline', title: 'Bank Details & Tax', route: 'BankDetailsTax'},
-    {icon: 'language-outline', title: 'Change Language'},
-    {icon: 'document-text-outline', title: 'Terms & Condition', route: 'TermsAndConditions'},
-    {icon: 'shield-checkmark-outline', title: 'Privacy Policy', route: 'PrivacyPolicy'},
-    {icon: 'cash-outline', title: 'Refund Policy', route: 'RefundPolicy'},
-    {icon: 'information-circle-outline', title: 'About Fieldweb', route: 'AboutFieldweb'},
+    {icon: 'language-outline', title: t('changeLanguage'), onPress: () => setLangModalVisible(true)},
+    {icon: 'people-outline', title: t('inviteFriends'), onPress: handleInviteFriends},
+    // Java: cardViewDeleteAccount has a click listener but its onClick case
+    // body is empty (commented out) -- the row is a silent dead tap there
+    // too, so no onPress here either.
+    {icon: 'trash-outline', title: t('deleteAccount')},
+    {icon: 'document-text-outline', title: t('termsCondition'), route: 'TermsAndConditions'},
+    {icon: 'shield-checkmark-outline', title: t('privacyPolicy'), route: 'PrivacyPolicy'},
+    {icon: 'cash-outline', title: t('refundPolicy'), route: 'RefundPolicy'},
+    {icon: 'information-circle-outline', title: t('aboutFieldweb'), route: 'AboutFieldweb'},
+    // Java: cardView_bank row's label is hardcoded "Accounts" in the layout
+    // XML (not a @string resource), so unlike every other row it does NOT
+    // change with the selected language -- stays "Accounts" in every
+    // locale, matching Java exactly. Icon is ic_miscellaneous_settings (a
+    // bank/columns glyph); same BankDetailsAndTaxFragmentTabHost target.
+    {icon: 'business-outline', title: 'Accounts', route: 'BankDetailsTax'},
   ];
 
-  return <SettingsScreenBase topCards={topCards} listItems={listItems} />;
+  return (
+    <>
+      <SettingsScreenBase topCards={topCards} listItems={listItems} />
+      <LanguagePickerModal
+        visible={langModalVisible}
+        selected={i18n.language as LanguageCode}
+        onSelect={handleSelectLanguage}
+        onCancel={() => setLangModalVisible(false)}
+      />
+    </>
+  );
 }

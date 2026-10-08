@@ -9,6 +9,7 @@ import { FabIcon, isFabIcon } from './FabIcons';
 import { setPassbookTabOrder } from '../state/passbookTabOrder';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { ms, sp, scale } from '../utils/responsive';
+import TourTarget from '../tour/TourTarget';
 
 const TAB_ICONS: Record<string, string> = {
   Home: 'home-outline',
@@ -50,7 +51,7 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
     const name = route.name;
     const active = current === name;
     const icon = TAB_ICONS[name] ?? 'ellipse-outline';
-    return (
+    const button = (
       <Pressable
         key={name}
         onPress={() => {
@@ -84,6 +85,16 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
           {name}
         </Text>
       </Pressable>
+    );
+    // Only the technician's on-demand App Tour targets this tab; wrapping it
+    // unconditionally is harmless since TourTarget is inert without an
+    // active tour.
+    return name === 'Task' ? (
+      <TourTarget key={name} tourKey="taskTab" style={styles.item}>
+        {button}
+      </TourTarget>
+    ) : (
+      button
     );
   };
 

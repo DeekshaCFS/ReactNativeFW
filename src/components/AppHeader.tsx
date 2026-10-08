@@ -31,6 +31,8 @@ import {
   HEADER_BAR_HEIGHT,
 } from '../utils/responsive';
 
+import TourTarget from '../tour/TourTarget';
+
 // Exported so screens rendered underneath this (absolutely-positioned)
 // header can pad their own top content by `insets.top + HEADER_CONTENT_HEIGHT`
 // instead of drawing their own duplicate toolbar.
@@ -81,15 +83,17 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     >
       <View style={styles.headerRow}>
         {/* LEFT */}
-        <Pressable
-          onPress={() =>
-            navigation.dispatch(DrawerActions.openDrawer())
-          }
-          hitSlop={10}
-          style={styles.sideBtn}
-        >
-          <Ionicons name="menu-outline" size={ms(26)} color="#fff" />
-        </Pressable>
+        <TourTarget tourKey="headerMenu">
+          <Pressable
+            onPress={() =>
+              navigation.dispatch(DrawerActions.openDrawer())
+            }
+            hitSlop={10}
+            style={styles.sideBtn}
+          >
+            <Ionicons name="menu-outline" size={ms(26)} color="#fff" />
+          </Pressable>
+        </TourTarget>
 
         {/* CENTER */}
         <View style={styles.centerContainer}>

@@ -8,6 +8,7 @@
 
 import {useState} from 'react';
 import {View, StyleSheet, Text, ScrollView, Pressable} from 'react-native';
+import {useTranslation} from 'react-i18next';
 import {COLORS} from '../theme/theme';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useNavigation} from '@react-navigation/native';
@@ -30,6 +31,7 @@ export default function SettingsScreenBase({topCards, listItems}: Props) {
   const navigation = useNavigation<any>();
   const [expanded, setExpanded] = useState(false);
   const insets = useSafeAreaInsets();
+  const {t} = useTranslation();
 
   return (
     <View style={styles.root}>
@@ -72,7 +74,7 @@ export default function SettingsScreenBase({topCards, listItems}: Props) {
             onPress={() => setExpanded(p => !p)}
             accessibilityRole="button"
           >
-            <Text style={styles.footerText}>CoreField Technologies Pvt. Ltd.</Text>
+            <Text style={styles.footerText}>{t('corefieldTech')}</Text>
             <View style={styles.chevronBox}>
               <Ionicons
                 name={expanded ? 'chevron-up-outline' : 'chevron-down-outline'}
@@ -85,24 +87,21 @@ export default function SettingsScreenBase({topCards, listItems}: Props) {
           {expanded && (
             <View style={styles.expandSection}>
               {/* Address */}
-              <Text style={styles.expandLabel}>Address</Text>
+              <Text style={styles.expandLabel}>{t('address')}</Text>
               <View style={styles.expandRow}>
-                <Text style={styles.expandValue}>
-                  90b, Delhi - Jaipur Expy, Sector 18,{'\n'}
-                  Gurugram, Haryana, India - 122008
-                </Text>
+                <Text style={styles.expandValue}>{t('addressValue')}</Text>
                 <Ionicons name="location-outline" size={scale(24)} color={COLORS.primary} />
               </View>
 
               {/* Phone */}
-              <Text style={styles.expandLabel}>Phone</Text>
+              <Text style={styles.expandLabel}>{t('phone')}</Text>
               <View style={styles.expandRow}>
                 <Text style={styles.expandValue}>+91 9315228028</Text>
                 <Ionicons name="call-outline" size={scale(24)} color={COLORS.primary} />
               </View>
 
               {/* Email */}
-              <Text style={styles.expandLabel}>Email</Text>
+              <Text style={styles.expandLabel}>{t('email')}</Text>
               <View style={styles.expandRow}>
                 <Text style={styles.expandValue}>info@fieldweb.co.in</Text>
                 <Ionicons name="mail-outline" size={scale(24)} color={COLORS.primary} />
