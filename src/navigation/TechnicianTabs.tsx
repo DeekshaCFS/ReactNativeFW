@@ -39,7 +39,7 @@ import ExpenditureScreen from '../screens/technician/drawer/ExpenditureScreen';
 import ServiceScreen from '../screens/technician/drawer/ServiceScreen';
 import AIScreen from '../screens/technician/drawer/AIScreen';
 import SettingScreen from '../screens/technician/drawer/SettingScreen';
-import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
+import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL, FEEDBACK_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
 import RefundPolicyScreen from '../screens/technician/drawer/RefundPolicy';
 import AboutFieldwebScreen from '../screens/technician/drawer/AboutFieldweb';
 import { unmountOnBlur, pushedScreenOptions } from './tabScreenHelpers';
@@ -96,6 +96,12 @@ const PUSHED_SCREENS: {
     component: unmountOnBlur(PrivacyPolicyScreen),
     title: 'Terms & Conditions',
     initialParams: { url: TERMS_AND_CONDITIONS_URL },
+  },
+  {
+    name: 'Feedback',
+    component: unmountOnBlur(PrivacyPolicyScreen),
+    title: 'Feedback',
+    initialParams: { url: FEEDBACK_URL },
   },
   { name: 'RefundPolicy', component: unmountOnBlur(RefundPolicyScreen), title: 'Refund Policy' },
   { name: 'AboutFieldweb', component: unmountOnBlur(AboutFieldwebScreen), title: 'About FieldWeb' },

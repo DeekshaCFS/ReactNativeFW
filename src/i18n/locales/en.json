@@ -21,5 +21,10 @@
   "tourTaskTitle": "Accept/Check assigned tasks",
   "tourTaskDesc": "Click Task to accept/check the assigned tasks",
   "tourMenuTitle": "Manage Issued Items and Expenditure",
-  "tourMenuDesc": "Manage all the business Items Issued to you and manage Expenditure."
+  "tourMenuDesc": "Manage all the business Items Issued to you and manage Expenditure.",
+  "rateAppTitle": "Write us a review",
+  "rateAppDesc": "Our team is working round the clock to contribute in your business growth. Leave us your valuable feedback for continuous development. \n\n Thanks for the support!",
+  "rateBtnPos": "Rate Now",
+  "rateBtnNut": "No, Thanks",
+  "rateBtnNeg": "Remind me later"
 }

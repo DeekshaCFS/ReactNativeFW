@@ -8,6 +8,8 @@ import { ms, sp } from '../../../utils/responsive';
 // shows on a different page (TermsAndConditionsFragment) -- pass `url` as a route param.
 export const PRIVACY_POLICY_URL = 'https://fieldweb.co.in/privacy-policy';
 export const TERMS_AND_CONDITIONS_URL = 'https://www.thefieldweb.com/terms-and-conditions';
+// Java: SettingsFragment's Feedback row -> SuggestionFeedbackFragment, a WebView on this URL.
+export const FEEDBACK_URL = 'https://www.thefieldweb.com/contact';
 
 export default function PrivacyPolicyScreen({ route }: any) {
   const pageUrl: string = route?.params?.url ?? PRIVACY_POLICY_URL;

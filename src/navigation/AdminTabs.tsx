@@ -29,7 +29,7 @@ import AMCDetailsScreen from '../screens/admin/AMCDetailsScreen';
 import BookDemoScreen from '../screens/admin/BookDemoScreen';
 import AdminNotificationScreen from '../screens/admin/AdminNotificationScreen';
 import AIScreen from '../screens/technician/drawer/AIScreen';
-import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
+import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL, FEEDBACK_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
 import RefundPolicyScreen from '../screens/technician/drawer/RefundPolicy';
 import AboutFieldwebScreen from '../screens/technician/drawer/AboutFieldweb';
 import { unmountOnBlur, pushedScreenOptions } from './tabScreenHelpers';
@@ -96,6 +96,12 @@ const STATIC_PUSHED_SCREENS: PushedScreen[] = [
     component: unmountOnBlur(PrivacyPolicyScreen),
     title: 'Terms & Conditions',
     initialParams: { url: TERMS_AND_CONDITIONS_URL },
+  },
+  {
+    name: 'Feedback',
+    component: unmountOnBlur(PrivacyPolicyScreen),
+    title: 'Feedback',
+    initialParams: { url: FEEDBACK_URL },
   },
   { name: 'RefundPolicy', component: unmountOnBlur(RefundPolicyScreen), title: 'Refund Policy' },
   { name: 'AboutFieldweb', component: unmountOnBlur(AboutFieldwebScreen), title: 'About FieldWeb' },

@@ -7,31 +7,27 @@
 // SettingsScreenBase.tsx for the shared layout/styling.
 
 import {useState} from 'react';
-import {Linking, Platform, Share} from 'react-native';
+import {Share} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {useTranslation} from 'react-i18next';
-import DeviceInfo from 'react-native-device-info';
 import SettingsScreenBase, {type SettingsRow} from '../../components/SettingsScreenBase';
 import LanguagePickerModal from '../../components/LanguagePickerModal';
+import RateUsModal from '../../components/RateUsModal';
 import {setAppLanguage, type LanguageCode} from '../../i18n';
 
 export default function AdminSettingScreen() {
   const navigation = useNavigation<any>();
   const {t, i18n} = useTranslation();
   const [langModalVisible, setLangModalVisible] = useState(false);
+  const [rateUsVisible, setRateUsVisible] = useState(false);
 
-  const handleRateUs = () => {
-    const bundleId = DeviceInfo.getBundleId();
-    const url =
-      Platform.OS === 'android'
-        ? `https://play.google.com/store/apps/details?id=${bundleId}`
-        : 'https://apps.apple.com/search?term=fieldweb';
-    Linking.openURL(url).catch(() => {});
-  };
+  // Java: card_RateUs -> HomeActivityNew.PlayStoreRatingDialog, a bottom
+  // sheet with Rate Now / No Thanks / Remind Later (not a direct store link).
+  const handleRateUs = () => setRateUsVisible(true);
 
-  const handleFeedback = () => {
-    Linking.openURL('mailto:info@fieldweb.co.in?subject=FieldWeb%20Feedback').catch(() => {});
-  };
+  // Java: card_ShareFeedback -> SuggestionFeedbackFragment, a WebView on
+  // thefieldweb.com/contact (not a mailto link).
+  const handleFeedback = () => navigation.navigate('Feedback');
 
   // Java: cardView_AppTour navigates back to the dashboard (and would kick
   // off a TapTarget tour there, which isn't ported). Match the navigation.
@@ -93,6 +89,7 @@ export default function AdminSettingScreen() {
         onSelect={handleSelectLanguage}
         onCancel={() => setLangModalVisible(false)}
       />
+      <RateUsModal visible={rateUsVisible} onClose={() => setRateUsVisible(false)} />
     </>
   );
 }
