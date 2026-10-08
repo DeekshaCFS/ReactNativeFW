@@ -91,18 +91,25 @@ export default function ServiceScreen() {
           <Ionicons name="chevron-down" size={scale(20)} color="#000" />
         </Pressable>
 
-        {/* Text input */}
+        {/* Text input -- Java: routineAssetId is textCapCharacters restricted to
+            A-Z0-9 (android:digits), routineCutomerNo is numeric. Both maxLength 10. */}
         <TextInput
-          placeholder={filter === 'Asset' ? 'Enter Asset ID/Model No.' : 'Enter Customer Number'}
+          placeholder={filter === 'Asset' ? 'Enter Asset ID/Model No.' : 'Enter Customer Mobile Number'}
           placeholderTextColor="#9ca3af"
           style={styles.input}
           cursorColor={COLORS.primary}
           value={inputValue}
           onChangeText={text => {
-            setInputValue(text);
+            const next =
+              filter === 'Asset'
+                ? text.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                : text.replace(/[^0-9]/g, '');
+            setInputValue(next);
             if (errorText) setErrorText('');
           }}
-          keyboardType={filter === 'Customer No.' ? 'phone-pad' : 'default'}
+          maxLength={10}
+          autoCapitalize={filter === 'Asset' ? 'characters' : 'none'}
+          keyboardType={filter === 'Customer No.' ? 'number-pad' : 'default'}
           returnKeyType="done"
         />
 
@@ -259,7 +266,7 @@ const styles = StyleSheet.create({
   dropdownBox: {
     position: 'absolute',
     alignSelf: 'center',
-    top: '38%',
+    top: '27%',
     width: FIELD_WIDTH,
     backgroundColor: '#fff',
     borderRadius: ms(12),

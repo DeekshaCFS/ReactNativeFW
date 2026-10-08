@@ -60,7 +60,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
   const handleCall = () => {
     const number = customer?.MobileNumber;
     if (!number) {
-      Alert.alert('', 'Contact number is not available.');
+      Alert.alert('', 'Contact Number is not available...!!');
       return;
     }
     Linking.openURL(`tel:${number}`);
@@ -69,7 +69,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
   const handleProceed = async () => {
     const trimmedName = taskName;
     if (!trimmedName.trim()) {
-      setTaskNameError('Please enter task name');
+      setTaskNameError('Please Enter Task Name');
       return;
     }
     if (/^\s/.test(trimmedName)) {
@@ -82,11 +82,11 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
     if (paymentMode === 'Rate') {
       wageValue = Number(wages);
       if (!wages.trim()) {
-        setWagesError('Please enter rate');
+        setWagesError('Please Enter Rate');
         return;
       }
       if (!Number.isFinite(wageValue) || wageValue === 0) {
-        setWagesError('Please enter valid amount');
+        setWagesError('Please Enter valid Amount');
         return;
       }
     }
@@ -174,28 +174,31 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
+          {/* Java: imageView_cancel is a FrameLayout-gravity="end|top" circle that
+              floats over the card's corner, with the title centered below/around it
+              (not sharing a row) -- not a left-aligned title + inline icon row. */}
           <View style={styles.header}>
             <Text style={styles.title}>Routine Service</Text>
-            <Pressable onPress={onClose} hitSlop={8}>
-              <Ionicons name="close-circle" size={scale(24)} color={COLORS.primary} />
-            </Pressable>
           </View>
+          <Pressable onPress={onClose} hitSlop={8} style={styles.closeButton}>
+            <Ionicons name="close-circle" size={scale(30)} color={COLORS.primary} />
+          </Pressable>
 
           <Text style={styles.sectionLabel}>Customer Details</Text>
           <Text style={styles.customerName}>{customer?.CustomerName}</Text>
           <View style={styles.addressRow}>
             <Text style={styles.addressText}>{customer?.Address}</Text>
             <Pressable onPress={handleCall} hitSlop={8}>
-              <Ionicons name="call" size={scale(18)} color={COLORS.primary} />
+              <Ionicons name="call-outline" size={scale(20)} color={COLORS.primary} />
             </Pressable>
           </View>
 
-          {!!customer?.Description && (
-            <>
-              <Text style={styles.sectionLabel}>Landmark</Text>
-              <Text style={styles.addressText}>{customer?.Description}</Text>
-            </>
-          )}
+          {/* Java always shows this section (no visibility=gone), even when blank.
+              Not styles.addressText here: that style's flex:1 only makes sense
+              inside addressRow's flex row -- standalone, it was collapsing
+              this Text to zero height and silently hiding the landmark value. */}
+          <Text style={styles.sectionLabel}>Landmark</Text>
+          <Text style={styles.landmarkText}>{customer?.Description}</Text>
 
           <TextInput
             value={taskName}
@@ -204,6 +207,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
             placeholderTextColor="#9ca3af"
             style={styles.input}
             maxLength={100}
+            autoCapitalize="words"
           />
           {!!taskNameError && <Text style={styles.errorText}>{taskNameError}</Text>}
 
@@ -226,19 +230,24 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
             <TextInput
               value={wages}
               onChangeText={text => { setWages(text.replace(/[^0-9.]/g, '')); if (wagesError) setWagesError(''); }}
-              placeholder={paymentMode === 'AMC' ? 'Not Applicable In AMC Mode' : 'Please enter amount'}
+              placeholder={paymentMode === 'AMC' ? 'Not Applicable In AMC Mode' : 'Please Enter Amount'}
               placeholderTextColor="#9ca3af"
               editable={paymentMode === 'Rate'}
               keyboardType="decimal-pad"
+              maxLength={10}
               style={[styles.inputRate, paymentMode === 'AMC' && styles.inputDisabled]}
             />
           </View>
           {!!wagesError && <Text style={styles.errorText}>{wagesError}</Text>}
 
-          <Pressable style={styles.input} onPress={() => setFsrPickerOpen(true)}>
+          <Pressable
+            style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+            onPress={() => setFsrPickerOpen(true)}
+          >
             <Text style={{ color: selectedFsr ? '#111' : '#9ca3af', fontSize: sp(15) }}>
               {selectedFsr?.FSRName ?? 'Select FSR'}
             </Text>
+            <Ionicons name="chevron-down" size={scale(18)} color="#111" />
           </Pressable>
 
           <Pressable
@@ -284,12 +293,14 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: { backgroundColor: '#fff', borderTopLeftRadius: ms(24), borderTopRightRadius: ms(24), padding: ms(20) },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: ms(12) },
-  title: { fontSize: sp(18), fontWeight: '700', color: COLORS.primary },
-  sectionLabel: { fontSize: sp(12), color: '#8a8f98', fontWeight: '600', marginTop: ms(8) },
-  customerName: { fontSize: sp(16), fontWeight: '600', color: COLORS.textPrimary, marginTop: ms(2) },
+  header: { alignItems: 'center', marginBottom: ms(12) },
+  title: { fontSize: sp(22), fontWeight: '500', color: COLORS.primary, textAlign: 'center' },
+  closeButton: { position: 'absolute', top: ms(8), right: ms(8) },
+  sectionLabel: { fontSize: sp(14), color: '#8a8f98', fontWeight: '600', marginTop: ms(8) },
+  customerName: { fontSize: sp(16), color: COLORS.textPrimary, marginTop: ms(2) },
   addressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: ms(4) },
-  addressText: { fontSize: sp(13), color: COLORS.textPrimary, flex: 1, marginRight: ms(8) },
+  addressText: { fontSize: sp(14), color: COLORS.textPrimary, flex: 1, marginRight: ms(8) },
+  landmarkText: { fontSize: sp(14), color: COLORS.textPrimary, marginTop: ms(2) },
   input: {
     height: ms(48),
     borderWidth: 1,
