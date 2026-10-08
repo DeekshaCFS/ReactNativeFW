@@ -30,7 +30,6 @@ import QRScanHistoryScreen from '../screens/technician/main/QRScanHistoryScreen'
 import NotificationScreen from '../screens/technician/main/NotificationScreen';
 import HelpChatScreen from '../screens/technician/main/HelpChatScreen';
 import SyncOfflineScreen from '../screens/technician/main/SyncOfflineScreen';
-import AMCDetailsScreen from '../screens/technician/main/AMCDetailsScreen';
 import TechProfileScreen from '../screens/technician/drawer/TechProfileScreen';
 import IssuedItems from '../screens/technician/drawer/IssuedItems';
 import RequestedItems from '../screens/technician/drawer/RequestedItems';
@@ -43,7 +42,6 @@ import SettingScreen from '../screens/technician/drawer/SettingScreen';
 import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
 import RefundPolicyScreen from '../screens/technician/drawer/RefundPolicy';
 import AboutFieldwebScreen from '../screens/technician/drawer/AboutFieldweb';
-import AMCListScreen from '../screens/technician/drawer/AMCListScreen';
 import { unmountOnBlur, pushedScreenOptions } from './tabScreenHelpers';
 import { requestLocationPermission } from '../utils/locationPermision';
 import { putLiveLocation } from '../utils/firebaseLiveLocation';
@@ -101,8 +99,6 @@ const PUSHED_SCREENS: {
   },
   { name: 'RefundPolicy', component: unmountOnBlur(RefundPolicyScreen), title: 'Refund Policy' },
   { name: 'AboutFieldweb', component: unmountOnBlur(AboutFieldwebScreen), title: 'About FieldWeb' },
-  { name: 'AMC', component: unmountOnBlur(AMCListScreen), title: 'AMC' },
-  { name: 'AMCDetails', component: unmountOnBlur(AMCDetailsScreen), title: 'AMC Details' },
 ];
 
 // Java shows these sheets under the plain "FieldWeb" header with no bottom navigation.

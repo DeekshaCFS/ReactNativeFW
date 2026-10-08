@@ -51,7 +51,6 @@ type RowModel = {
   color: string;
   icon: NotificationIconName;
   subtitle: Segment[];
-  viewDetails?: boolean;
 };
 
 const b = (text: string): Segment => ({ text, bold: true });
@@ -122,7 +121,6 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
           t(' AMC for '),
           b(String(amc.CustomerName ?? '')),
         ],
-        viewDetails: true,
       };
     }
     case 'FOC':
@@ -240,24 +238,6 @@ export default function NotificationScreen() {
     }
   };
 
-  const openAmcDetails = (n: NotificationResultData) => {
-    const amc = n.AMCServiceDetailDtoObj;
-    if (!amc || !userId) return;
-    // Java: mark read (with the AMC service id) then open AMC details.
-    updateNotificationIsRead({
-      IsRead: true,
-      UserId: userId,
-      OwnerId: userId,
-      NotificationType: n.NotificationType,
-      AMCServiceDetailsId: amc.AMCServiceDetailsId,
-    } as any).catch(() => {});
-    markLocallyRead(n);
-    navigation.navigate('AMCDetails', {
-      amcsId: Number(amc.AMCsId) || 0,
-      amcServiceDetailsId: Number(amc.AMCServiceDetailsId) || 0,
-    });
-  };
-
   const handleRowPress = (n: NotificationResultData) => {
     switch (n.NotificationType) {
       case 'Task':
@@ -326,11 +306,6 @@ export default function NotificationScreen() {
               </View>
             )}
 
-            {row.viewDetails && (
-              <Pressable style={styles.detailsButton} onPress={() => openAmcDetails(item)} hitSlop={8}>
-                <Text style={styles.detailsText}>View Details</Text>
-              </Pressable>
-            )}
           </View>
         </View>
       </Pressable>
@@ -410,15 +385,5 @@ const styles = StyleSheet.create({
   amcCell: { flex: 1, flexDirection: 'row' },
   amcText: { fontSize: sp(12), color: COLORS.textBlack },
   amcValue: { marginLeft: ms(5), flexShrink: 1 },
-  detailsButton: {
-    alignSelf: 'flex-start',
-    marginTop: ms(10),
-    marginLeft: ms(5),
-    backgroundColor: COLORS.primary,
-    borderRadius: ms(34),
-    paddingHorizontal: ms(10),
-    paddingVertical: ms(5),
-  },
-  detailsText: { fontSize: sp(12), fontWeight: 'bold', color: COLORS.white, textTransform: 'uppercase' },
   empty: { textAlign: 'center', color: COLORS.lightGray, marginTop: vs(40), fontSize: sp(13) },
 });

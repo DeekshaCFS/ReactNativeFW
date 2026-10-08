@@ -42,8 +42,6 @@ export type TechnicianStackParamList = {
   TermsAndConditions: { url?: string } | undefined;
   RefundPolicy: undefined;
   AboutFieldweb: undefined;
-  AMC: undefined;
-  AMCDetails: { amcsId: number; amcServiceDetailsId?: number };
   TaskRouteMap: { task: any };
   TaskExecution: { task: any };
   TaskTracking: { task: any; autoReject?: boolean; resumeOnHold?: boolean };
