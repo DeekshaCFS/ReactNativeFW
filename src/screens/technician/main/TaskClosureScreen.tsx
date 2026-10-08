@@ -1356,7 +1356,7 @@ export default function TaskClosure({ navigation, route }: any) {
           </Pressable>
           <Pressable
             style={[styles.tile, { backgroundColor: '#EEF0F3' }]}
-            onPress={() => navigation.navigate('TaskInput', { routeTask })}
+            onPress={() => navigation.navigate('TaskInput', { routeTask, returnTo: { name: 'TaskClosure', params: route.params } })}
           >
             <Text style={styles.tileTitle}>Add Task Input</Text>
             <Text style={styles.tileSub}>Click Here to Add Task Input</Text>
@@ -1452,7 +1452,7 @@ export default function TaskClosure({ navigation, route }: any) {
         {/* ── REQUEST ITEMS BTN ───────────────────────────────────────── */}
         <Pressable
           style={styles.requestBtn}
-          onPress={() => navigation.navigate('ItemRequest', { routeTask })}
+          onPress={() => navigation.navigate('ItemRequest', { routeTask, returnTo: { name: 'TaskClosure', params: route.params } })}
         >
           <Text style={styles.requestBtnText}>REQUEST ITEMS</Text>
         </Pressable>

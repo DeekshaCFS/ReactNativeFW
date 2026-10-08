@@ -10,7 +10,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  ToastAndroid,
   ActivityIndicator,
   Image,
 } from 'react-native';
@@ -18,7 +18,10 @@ import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp } from '../../../utils/responsive';
+import { ms, sp, useAppHeaderHeight } from '../../../utils/responsive';
+import SearchPickerModal, { PickerOption } from '../../../components/SearchPickerModal';
+import { ClosePopupIcon } from '../../../components/TaskTrackingSheet';
+import { UploadAttachmentIcon } from '../../../components/DialogIcons';
 import { getLargeItemAssignedUnassigned } from '../../../api/item/itemService';
 import { postFocDetails, getFocAttachmentList } from '../../../api/focItemRequest/focItemRequestService';
 import { pick } from '@react-native-documents/picker';
@@ -108,19 +111,6 @@ interface RequestItem {
   attachment: FileAsset | null;
 }
 
-interface DropdownOption {
-  id: number;
-  label: string;
-  description?: string;
-}
-
-// Java: getLargeItemList() -> Item/AllItemList (OwnerId + SearchParam). Item Name and
-// Product Id are searched on the server; Product Id also accepts free text.
-interface DropdownConfig {
-  remote?: boolean;
-  allowCustom?: boolean;
-}
-
 type DateField = 'invoiceDate' | 'installDate';
 
 // ─── Blank item factory ───────────────────────────────────────────────────────
@@ -141,22 +131,29 @@ const blankItem = (): RequestItem => ({
   attachment: null,
 });
 
+// Java shows the dates as yyyy-MM-dd and posts them as "<yyyy-MM-dd>T00:00:00" (no timezone shift).
 const formatDate = (date: Date): string => {
   const dd   = String(date.getDate()).padStart(2, '0');
   const mm   = String(date.getMonth() + 1).padStart(2, '0');
   const yyyy = date.getFullYear();
-  return `${dd}-${mm}-${yyyy}`;
+  return `${yyyy}-${mm}-${dd}`;
 };
 
-const parseDMY = (value: string): Date => {
-  const [dd, mm, yyyy] = value.split('-').map(Number);
+const parseYMD = (value: string): Date => {
+  const [yyyy, mm, dd] = value.split('-').map(Number);
   return new Date(yyyy, mm - 1, dd);
 };
+
+const toast = (msg: string) => ToastAndroid.show(msg, ToastAndroid.SHORT);
+
+const MAX_ITEMS = 5;
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ItemRequestScreen({ navigation, route }: any) {
   const routeTask = route?.params?.routeTask ?? null;
+  const returnTo = route?.params?.returnTo as { name: string; params?: any } | undefined;
+  const headerHeight = useAppHeaderHeight();
 
   const [items, setItems]         = useState<RequestItem[]>([blankItem()]);
   const [submitting, setSubmitting] = useState(false);
@@ -177,59 +174,44 @@ export default function ItemRequestScreen({ navigation, route }: any) {
     loadSession();
   }, []);
 
-  // ── Anchored inline dropdown state ──
-  const [dropdownVisible, setDropdownVisible]   = useState(false);
-  const [dropdownOptions, setDropdownOptions]   = useState<DropdownOption[]>([]);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
-  const [dropdownSearch, setDropdownSearch]     = useState('');
-  const dropdownCallback = useRef<((option: DropdownOption) => void) | null>(null);
-  const [dropdownConfig, setDropdownConfig]     = useState<DropdownConfig>({});
-  const [dropdownLoading, setDropdownLoading]   = useState(false);
+  // ── Picker (Java: dialog_searchable_* dialogs) ──
+  type PickerKind = 'item' | 'product' | 'attachment';
+  const [picker, setPicker] = useState<{ kind: PickerKind; itemId: number } | null>(null);
+  const [pickerOptions, setPickerOptions] = useState<PickerOption[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const descById = useRef<Record<number, string>>({});
+  const searchSeq = useRef(0);
 
   // ── Date picker state ──
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [datePickerValue, setDatePickerValue]     = useState(new Date());
   const pendingDateRef = useRef<{ itemId: number; field: DateField } | null>(null);
 
-  // ── Per-item per-field trigger refs ──
-  const triggerRefs = useRef<Record<string, Record<string, React.RefObject<View | null>>>>({});
-
-  const getTriggerRef = (itemId: number, field: string): React.RefObject<View | null> => {
-    const key = String(itemId);
-    if (!triggerRefs.current[key]) triggerRefs.current[key] = {};
-    if (!triggerRefs.current[key][field]) {
-      triggerRefs.current[key][field] = React.createRef<View>();
+  const openPicker = (kind: PickerKind, itemId: number) => {
+    searchSeq.current++;
+    setPicker({ kind, itemId });
+    if (kind === 'attachment') {
+      setPickerLoading(false);
+      setPickerOptions(attachmentTypeOptions);
+    } else {
+      // Java fetches the full list once as soon as the picker opens, then filters locally
+      // as the technician types -- not a 3-character minimum.
+      setPickerOptions([]);
+      searchItems('');
     }
-    return triggerRefs.current[key][field];
   };
 
-  const openDropdown = (
-    ref: React.RefObject<View | null>,
-    options: DropdownOption[],
-    callback: (option: DropdownOption) => void,
-    config: DropdownConfig = {},
-  ) => {
-    ref.current?.measureInWindow((x, y, width, height) => {
-      setDropdownPosition({ top: y + height + 4, left: x, width });
-      setDropdownOptions(options);
-      setDropdownConfig(config);
-      setDropdownSearch('');
-      dropdownCallback.current = callback;
-      setDropdownVisible(true);
-    });
-  };
-
-  const closeDropdown = () => {
-    setDropdownVisible(false);
-    setDropdownSearch('');
+  const closePicker = () => {
+    searchSeq.current++;
+    setPicker(null);
   };
 
   // ── Date picker helpers ──
   const openDatePicker = (itemId: number, field: DateField, currentValue: string) => {
-    // Parse existing dd-mm-yyyy back to a Date, or use today
+    // Parse existing yyyy-mm-dd back to a Date, or use today
     let initial = new Date();
     if (currentValue) {
-      const [dd, mm, yyyy] = currentValue.split('-').map(Number);
+      const [yyyy, mm, dd] = currentValue.split('-').map(Number);
       if (!isNaN(dd) && !isNaN(mm) && !isNaN(yyyy)) {
         initial = new Date(yyyy, mm - 1, dd);
       }
@@ -248,44 +230,59 @@ export default function ItemRequestScreen({ navigation, route }: any) {
     pendingDateRef.current = null;
   };
 
-  // ── Server-side item search (debounced) ──
-  // Item Name and Product Id both use Item/AllItemList with SearchParam, as Java does.
-  // Java shows the full list as soon as the picker opens (it's fetched once and cached,
-  // then filtered locally as the technician types) -- mirror that by fetching immediately
-  // on open (empty SearchParam returns the full list) instead of waiting on typed input.
-  useEffect(() => {
-    if (!dropdownVisible || !dropdownConfig.remote) return;
+  // Item Name and Product Id both call Item/AllItemList; the full list loads on open and
+  // narrows further as the technician types (server-side SearchParam).
+  const searchItems = async (text: string) => {
+    const seq = searchSeq.current;
+    try {
+      setPickerLoading(true);
+      const res = await getLargeItemAssignedUnassigned({ OwnerId: ownerId, SearchParam: text });
+      if (seq !== searchSeq.current) return;
+      const list = res.ResultData ?? [];
+      list.forEach((it: any) => {
+        descById.current[it.Id] = it.Description ?? '';
+      });
+      setPickerOptions(list.map((it: any) => ({ id: it.Id, label: it.Name })));
+    } catch {
+      if (seq === searchSeq.current) setPickerOptions([]);
+    } finally {
+      if (seq === searchSeq.current) setPickerLoading(false);
+    }
+  };
 
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      try {
-        setDropdownLoading(true);
-        const res = await getLargeItemAssignedUnassigned({
-          OwnerId: ownerId,
-          SearchParam: dropdownSearch.trim(),
-        });
-        if (cancelled) return;
-        setDropdownOptions(
-          (res.ResultData ?? []).map((item: any) => ({
-            id: item.Id,
-            label: item.Name,
-            description: item.Description,
-          })),
-        );
-      } catch {
-        if (!cancelled) setDropdownOptions([]);
-      } finally {
-        if (!cancelled) setDropdownLoading(false);
-      }
-    }, 400);
+  const onPickerSelect = (option: PickerOption) => {
+    if (!picker) return;
+    const { kind, itemId } = picker;
+    if (kind === 'item') {
+      // Java: the picked item's description fills (and locks) the description field.
+      updateItem(itemId, {
+        itemName: option.label,
+        itemNameId: option.id,
+        itemDescription: descById.current[option.id] ?? '',
+      });
+    } else if (kind === 'product') {
+      updateItem(itemId, {
+        productId: option.label,
+        productIdValue: option.id > 0 ? option.id : null,
+        productDescription: descById.current[option.id] ?? '',
+      });
+    } else {
+      updateItem(itemId, { attachmentType: option.label, attachmentTypeId: option.id });
+    }
+    closePicker();
+  };
 
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [dropdownSearch, dropdownVisible, dropdownConfig.remote, ownerId]);
+  // Java: closing the dialog with text typed and nothing picked keeps the typed text.
+  const onPickerDismissText = (text: string) => {
+    if (!picker) return;
+    if (picker.kind === 'item') {
+      updateItem(picker.itemId, { itemName: text, itemNameId: null, itemDescription: '' });
+    } else if (picker.kind === 'product') {
+      updateItem(picker.itemId, { productId: text, productIdValue: null, productDescription: '' });
+    }
+  };
 
-  const [attachmentTypeOptions, setAttachmentTypeOptions] = useState<DropdownOption[]>([]);
+  const [attachmentTypeOptions, setAttachmentTypeOptions] = useState<PickerOption[]>([]);
 
   // GET FOC_Item_Request/Get_FOC_Att_types_List -- Java fetches this once per
   // session (HomeActivityNew.getFOCAttachmentList) and reuses it on the Item
@@ -313,12 +310,42 @@ export default function ItemRequestScreen({ navigation, route }: any) {
     setItems(prev => prev.map(it => (it.id === id ? { ...it, ...patch } : it)));
   };
 
+  // Java (addItem): the next block only opens once the current one has a name, a non-zero
+  // quantity and a valid invoice/install date pair; the earlier block is then locked (its cross
+  // is hidden) and the button disappears after the 5th item.
+  const addItem = () => {
+    const last = items[items.length - 1];
+    if (last.invoiceDate && last.installDate && parseYMD(last.installDate) < parseYMD(last.invoiceDate)) {
+      toast('Error: Installation Date cannot be before Invoice Date!');
+      return;
+    }
+    if (!last.itemName.trim() || !last.quantity.trim() || Number(last.quantity) === 0) {
+      toast('Please Enter Item Name and Quantity!!');
+      return;
+    }
+    setItems(prev => [...prev, blankItem()]);
+  };
+
+  // The cross on the only block just clears it; otherwise the last block is removed.
   const removeItem = (id: number) => {
     if (items.length === 1) {
-      Alert.alert('Cannot Remove', 'At least one item is required.');
+      setItems([blankItem()]);
       return;
     }
     setItems(prev => prev.filter(it => it.id !== id));
+  };
+
+  // Back to whoever opened the sheet (closure / on-hold sheet / countdown).
+  const leaveSheet = () => {
+    if (route?.params?.fromOnHold) {
+      navigation.navigate('TaskExecution', { task: routeTask, reopenOnHold: true });
+    } else if (returnTo) {
+      navigation.navigate(returnTo.name, returnTo.params);
+    } else if (routeTask) {
+      navigation.navigate('TaskExecution', { task: routeTask });
+    } else {
+      navigation.goBack();
+    }
   };
 
   // -- Attach file --
@@ -341,29 +368,27 @@ export default function ItemRequestScreen({ navigation, route }: any) {
   };
 
   // ── Submit ──
-  // Matches Java's buttonAddQuote handler: item name, quantity (!=0), invoice date, and
-  // install date are all mandatory per row (a row missing any of these is silently
-  // dropped server-side in Java, surfaced as "Please Fill all Item Details!!"), and
-  // install date may not be before invoice date for any row.
+  // Java (buttonAddQuote): a date pair out of order is rejected first; then every open block
+  // needs item name, quantity (!= 0), invoice date and install date, else "Please Fill all
+  // Item Details!!".
   const handleSubmit = async () => {
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (!item.itemName.trim()) {
-        Alert.alert('Required', `Please select an Item Name for Item ${i + 1}.`);
+    for (const item of items) {
+      if (item.invoiceDate && item.installDate && parseYMD(item.installDate) < parseYMD(item.invoiceDate)) {
+        toast('Error: Installation Date cannot be before Invoice Date!');
         return;
       }
-      if (!item.quantity.trim() || Number(item.quantity) === 0) {
-        Alert.alert('Required', `Please enter a Quantity for Item ${i + 1}.`);
-        return;
-      }
-      if (!item.invoiceDate || !item.installDate) {
-        Alert.alert('Required', `Please select Invoice Date and Install Date for Item ${i + 1}.`);
-        return;
-      }
-      if (parseDMY(item.installDate) < parseDMY(item.invoiceDate)) {
-        Alert.alert('', 'Error: Installation Date cannot be before Invoice Date!');
-        return;
-      }
+    }
+    const incomplete = items.some(
+      item =>
+        !item.itemName.trim() ||
+        !item.quantity.trim() ||
+        Number(item.quantity) === 0 ||
+        !item.invoiceDate ||
+        !item.installDate,
+    );
+    if (incomplete) {
+      toast('Please Fill all Item Details!!');
+      return;
     }
 
     try {
@@ -375,8 +400,8 @@ export default function ItemRequestScreen({ navigation, route }: any) {
         FocRequestId:             0,
         ItemRequestName:          item.itemName,
         ItemRequestQty:           Number(item.quantity) || 1,
-        ItemRequestInvoice_Date:  parseDMY(item.invoiceDate).toISOString(),
-        ItemRequestInstall_date:  parseDMY(item.installDate).toISOString(),
+        ItemRequestInvoice_Date:  `${item.invoiceDate}T00:00:00`,
+        ItemRequestInstall_date:  `${item.installDate}T00:00:00`,
         AttachmentTypeID:         item.attachmentTypeId ?? 0,
         AttachmentTypeName:       item.attachmentType,
         AttachmentDoc:            item.attachment?.base64 ?? '',
@@ -387,14 +412,14 @@ export default function ItemRequestScreen({ navigation, route }: any) {
         IsItemRecieved:           false,
         IsAnyIssue:               false,
         DescribeIssue:            '',
-        IsExistingItem:           false,
+        IsExistingItem:           (item.itemNameId ?? 0) !== 0,
         UserId:                   uid,
         CreatedBy:                uid,
         CreatedDate:              now,
         UpdatedBy:                uid,
         UpdatedDate:              now,
         FieldWorkerDescribeIssue: '',
-        ExistingItemId:           0,
+        ExistingItemId:           item.itemNameId ?? 0,
         ExistingItemCode:         '',
         ExistingItemName:         '',
         ExistingItemQty:          0,
@@ -429,249 +454,219 @@ export default function ItemRequestScreen({ navigation, route }: any) {
       const response = await postFocDetails(payload);
 
       if (response.Code === '200') {
-        Alert.alert('Success', 'Item request submitted successfully.', [
-          {
-            text: 'OK',
-            onPress: () => {
-              // From the on-hold sheet: return to Execution and reopen that sheet.
-              if (route?.params?.fromOnHold) {
-                navigation.navigate('TaskExecution', { task: routeTask, reopenOnHold: true });
-              } else {
-                navigation.goBack();
-              }
-            },
-          },
-        ]);
+        toast('Item Requested Successfully');
+        leaveSheet();
       } else {
-        Alert.alert('Error', response.Message || 'Submission failed.');
+        toast(response.Message || 'Submission failed.');
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to submit request.');
+      toast(err?.message || 'Failed to submit request.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ── Filtered options ──
-  // Remote dropdowns are already filtered by the server; local ones filter here.
-  // The full list shows immediately (matching Java) -- typing just narrows it further.
-  const filteredOptions = dropdownConfig.remote
-    ? dropdownOptions
-    : dropdownSearch.trim()
-      ? dropdownOptions.filter(o => o.label.toLowerCase().includes(dropdownSearch.toLowerCase()))
-      : dropdownOptions;
-
   // ─── Render ───────────────────────────────────────────────────────────────
+  // Java: add_foc_fragment.xml -- white sheet (25dp top radius) under the FieldWeb header, no
+  // bottom bar; each item block is label row, name + qty, description, product id, product
+  // description, invoice/install dates, attachment type + dashed attachment box.
+
+  const lastIndex = items.length - 1;
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { paddingTop: headerHeight }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Red strip */}
-      <View style={styles.redBg} />
-
-      {/* White sheet */}
       <View style={styles.sheet}>
-
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Item Request</Text>
-        </View>
-
-        <View style={styles.headerDivider} />
-
-        {/* ── Scrollable content ── */}
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: ms(20) }}
         >
-          {items.map((item, idx) => (
-            <View key={item.id} style={styles.itemBlock}>
+          {/* ── Title + close ── */}
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Item Request</Text>
+          </View>
+          <Pressable style={styles.closeBtn} onPress={leaveSheet} hitSlop={8}>
+            <ClosePopupIcon size={ms(30)} />
+          </Pressable>
 
-              {/* ── Item header ── */}
-              <View style={styles.itemHeader}>
-                <Text style={styles.itemHeaderText}># Item {idx + 1}</Text>
-                <Pressable onPress={() => removeItem(item.id)} hitSlop={8}>
-                  <Ionicons name="close" size={sp(22)} color={COLORS.primary} />
-                </Pressable>
-              </View>
+          <View style={styles.divider} />
 
-              {/* ── Row: Item Name dropdown + Quantity ── */}
-              <View style={styles.row}>
-                <Pressable
-                  ref={getTriggerRef(item.id, 'itemName')}
-                  style={[styles.roundedInput, styles.dropdownInput, { flex: 1 }]}
-                  onPress={() =>
-                    openDropdown(
-                      getTriggerRef(item.id, 'itemName'),
-                      [],
-                      // Java: picking an item name fills its description too (same
-                      // Item/AllItemList result already carries Description).
-                      opt => updateItem(item.id, {
-                        itemName: opt.label,
-                        itemNameId: opt.id,
-                        itemDescription: opt.description ?? '',
-                      }),
-                      { remote: true },
-                    )
-                  }
-                >
-                  <Text style={{ color: item.itemName ? '#000' : '#a6a6a6', fontSize: sp(18), flex: 1 }}>
-                    {item.itemName || 'Item Name'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={sp(22)} color="#000" />
-                </Pressable>
+          {items.map((item, idx) => {
+            const locked = idx < lastIndex;
+            return (
+              <View key={item.id} style={idx > 0 && { marginTop: ms(16) }}>
+                {/* ── # Item N + cross (hidden once the next block is open) ── */}
+                <View style={styles.itemHeader}>
+                  <Text style={styles.itemHeaderText}># Item {idx + 1}</Text>
+                  {!locked && (
+                    <Pressable onPress={() => removeItem(item.id)} hitSlop={8}>
+                      <Ionicons name="close" size={ms(26)} color={COLORS.primary} />
+                    </Pressable>
+                  )}
+                </View>
 
-                <View style={styles.quantityWrap}>
-                  <Text style={styles.quantityLabel}>Quantity</Text>
+                {/* ── Item Name + Quantity ── */}
+                <View style={styles.nameRow}>
+                  <Pressable
+                    disabled={locked}
+                    style={[styles.spinner, { width: '63.1%' }]}
+                    onPress={() => openPicker('item', item.id)}
+                  >
+                    <Text style={[styles.spinnerText, !!item.itemName && styles.spinnerValue]} numberOfLines={1}>
+                      {item.itemName || 'Item Name'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={ms(22)} color={COLORS.ink} />
+                  </Pressable>
+
+                  <View style={styles.qtyCell}>
+                    <View style={styles.qtyBox}>
+                      <TextInput
+                        value={item.quantity}
+                        onChangeText={val => updateItem(item.id, { quantity: val.replace(/[^0-9]/g, '') })}
+                        keyboardType="numeric"
+                        maxLength={3}
+                        editable={!locked}
+                        placeholder="Quantity"
+                        placeholderTextColor={COLORS.lightGray}
+                        style={styles.qtyInput}
+                      />
+                      {!!item.quantity && <Text style={styles.floatLabel}>Quantity</Text>}
+                    </View>
+                  </View>
+                </View>
+
+                {/* ── Item Description ── */}
+                <View style={[styles.fieldWrap, { marginTop: ms(15) }]}>
                   <TextInput
-                    value={item.quantity}
-                    onChangeText={val => updateItem(item.id, { quantity: val })}
-                    keyboardType="numeric"
-                    style={styles.quantityInput}
-                    textAlign="center"
+                    value={item.itemDescription}
+                    onChangeText={val => updateItem(item.id, { itemDescription: val })}
+                    placeholder="Item Description"
+                    placeholderTextColor={COLORS.lightGray}
+                    maxLength={50}
+                    autoCapitalize="words"
+                    editable={!(item.itemNameId && item.itemDescription)}
+                    style={styles.box}
                   />
+                  {!!item.itemDescription && <Text style={styles.floatLabel}>Item Description</Text>}
+                </View>
+
+                {/* ── Product Id ── */}
+                <Pressable
+                  style={[styles.spinner, styles.productSpinner]}
+                  onPress={() => openPicker('product', item.id)}
+                >
+                  <Text style={[styles.spinnerText, { fontSize: sp(16) }, !!item.productId && styles.spinnerValue]} numberOfLines={1}>
+                    {item.productId || 'Product Id'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={ms(22)} color={COLORS.ink} />
+                </Pressable>
+
+                {/* ── Product Description ── */}
+                <View style={[styles.fieldWrap, { marginTop: ms(15) }]}>
+                  <TextInput
+                    value={item.productDescription}
+                    onChangeText={val => updateItem(item.id, { productDescription: val })}
+                    placeholder="Product Description"
+                    placeholderTextColor={COLORS.lightGray}
+                    maxLength={50}
+                    autoCapitalize="words"
+                    editable={!(item.productIdValue && item.productDescription)}
+                    style={styles.box}
+                  />
+                  {!!item.productDescription && <Text style={styles.floatLabel}>Product Description</Text>}
+                </View>
+
+                {/* ── Invoice Date + Install Date ── */}
+                <View style={styles.dateRow}>
+                  <Pressable
+                    disabled={locked}
+                    style={[styles.fieldWrap, { flex: 1, marginHorizontal: 0, marginRight: ms(8) }]}
+                    onPress={() => openDatePicker(item.id, 'invoiceDate', item.invoiceDate)}
+                  >
+                    <View style={[styles.box, styles.dateBox]}>
+                      <Text style={[styles.dateText, !item.invoiceDate && { color: COLORS.lightGray }]}>
+                        {item.invoiceDate || 'Invoice Date'}
+                      </Text>
+                    </View>
+                    {!!item.invoiceDate && <Text style={styles.floatLabel}>Invoice Date</Text>}
+                  </Pressable>
+
+                  <Pressable
+                    disabled={locked}
+                    style={[styles.fieldWrap, { flex: 1, marginHorizontal: 0 }]}
+                    onPress={() => openDatePicker(item.id, 'installDate', item.installDate)}
+                  >
+                    <View style={[styles.box, styles.dateBox]}>
+                      <Text style={[styles.dateText, !item.installDate && { color: COLORS.lightGray }]}>
+                        {item.installDate || 'Install Date'}
+                      </Text>
+                    </View>
+                    {!!item.installDate && <Text style={styles.floatLabel}>Install Date</Text>}
+                  </Pressable>
+                </View>
+
+                {/* ── Attachment Type + dashed attachment box ── */}
+                <View style={styles.attachRow}>
+                  <Pressable
+                    style={[styles.spinner, styles.attachSpinner]}
+                    onPress={() => openPicker('attachment', item.id)}
+                  >
+                    <Text style={[styles.spinnerText, !!item.attachmentType && styles.spinnerValue]} numberOfLines={1}>
+                      {item.attachmentType || 'Attachment Type'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={ms(22)} color={COLORS.ink} />
+                  </Pressable>
+
+                  <Pressable style={styles.attachBox} onPress={() => pickDocument(item.id)}>
+                    {item.attachment ? (
+                      <>
+                        {item.attachment.type.startsWith('image/') ? (
+                          <Image
+                            source={{ uri: item.attachment.uri }}
+                            style={styles.attachThumb}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.attachInner}>
+                            <Ionicons name="document-outline" size={ms(22)} color={COLORS.primary} />
+                            <Text style={styles.attachLabel} numberOfLines={2}>
+                              {item.attachment.name}
+                            </Text>
+                          </View>
+                        )}
+                        <Pressable
+                          style={styles.attachRemoveBtn}
+                          onPress={() => updateItem(item.id, { attachment: null })}
+                          hitSlop={6}
+                        >
+                          <Ionicons name="close" size={ms(12)} color="#fff" />
+                        </Pressable>
+                      </>
+                    ) : (
+                      <View style={styles.attachInner}>
+                        <View style={styles.attachIcon}>
+                          <UploadAttachmentIcon size={ms(50)} />
+                        </View>
+                        <Text style={styles.attachLabel} numberOfLines={2}>Attachment</Text>
+                      </View>
+                    )}
+                  </Pressable>
                 </View>
               </View>
+            );
+          })}
 
-              {/* ── Item Description ── */}
-              <TextInput
-                value={item.itemDescription}
-                onChangeText={val => updateItem(item.id, { itemDescription: val })}
-                placeholder="Item Description"
-                placeholderTextColor="#a6a6a6"
-                style={styles.roundedInput}
-              />
-
-              {/* ── Product Id dropdown ── */}
-              <Pressable
-                ref={getTriggerRef(item.id, 'productId')}
-                style={[styles.roundedInput, styles.dropdownInput]}
-                onPress={() =>
-                  openDropdown(
-                    getTriggerRef(item.id, 'productId'),
-                    [],
-                    // Java: picking a product fills (and locks) its description;
-                    // typing a value that isn't in the list is kept as free text.
-                    opt => updateItem(item.id, {
-                      productId: opt.label,
-                      productIdValue: opt.id > 0 ? opt.id : null,
-                      productDescription: opt.description ?? '',
-                    }),
-                    { remote: true, allowCustom: true },
-                  )
-                }
-              >
-                <Text style={{ color: item.productId ? '#000' : '#a6a6a6', fontSize: sp(18), flex: 1 }}>
-                  {item.productId || 'Product Id'}
-                </Text>
-                <Ionicons name="chevron-down" size={sp(22)} color="#000" />
-              </Pressable>
-
-              {/* ── Product Description ── */}
-              <TextInput
-                value={item.productDescription}
-                onChangeText={val => updateItem(item.id, { productDescription: val })}
-                placeholder="Product Description"
-                placeholderTextColor="#a6a6a6"
-                style={styles.roundedInput}
-              />
-
-              {/* ── Row: Invoice Date + Install Date ── */}
-              <View style={styles.row}>
-                {/* Invoice Date */}
-                <Pressable
-                  style={[styles.roundedInput, styles.dropdownInput, { flex: 1 }]}
-                  onPress={() => openDatePicker(item.id, 'invoiceDate', item.invoiceDate)}
-                >
-                  <Text style={{ color: item.invoiceDate ? '#000' : '#a6a6a6', fontSize: sp(18), flex: 1 }}>
-                    {item.invoiceDate || 'Invoice Date'}
-                  </Text>
-                </Pressable>
-
-                {/* Install Date */}
-                <Pressable
-                  style={[styles.roundedInput, styles.dropdownInput, { flex: 1 }]}
-                  onPress={() => openDatePicker(item.id, 'installDate', item.installDate)}
-                >
-                  <Text style={{ color: item.installDate ? '#000' : '#a6a6a6', fontSize: sp(18), flex: 1 }}>
-                    {item.installDate || 'Install Date'}
-                  </Text>
-                </Pressable>
-              </View>
-
-              {/* ── Row: Attachment Type + Attachment photo ── */}
-              <View style={styles.row}>
-                <Pressable
-                  ref={getTriggerRef(item.id, 'attachmentType')}
-                  style={[styles.roundedInput, styles.dropdownInput, { flex: 1 }]}
-                  onPress={() =>
-                    openDropdown(
-                      getTriggerRef(item.id, 'attachmentType'),
-                      attachmentTypeOptions,
-                      opt => updateItem(item.id, { attachmentType: opt.label, attachmentTypeId: opt.id }),
-                    )
-                  }
-                >
-                  <Text
-                    style={{ color: item.attachmentType ? '#000' : '#a6a6a6', fontSize: sp(15), flex: 1 }}
-                    numberOfLines={1}
-                  >
-                    {item.attachmentType || 'Attachment Type'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={sp(22)} color="#000" />
-                </Pressable>
-
-                {/* Dashed attachment box */}
-                <Pressable
-                  style={styles.attachBox}
-                  onPress={() => pickDocument(item.id)}   // ← pass item.id
-                >
-                  {item.attachment ? (
-                    <>
-                      {item.attachment.type.startsWith('image/') ? (
-                        <Image
-                          source={{ uri: item.attachment.uri }}
-                          style={styles.attachThumb}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={styles.attachInner}>
-                          <Ionicons name="document-outline" size={sp(20)} color={COLORS.primary} />
-                          <Text style={styles.attachLabel} numberOfLines={1}>
-                            {item.attachment.name}
-                          </Text>
-                        </View>
-                      )}
-                      <Pressable
-                        style={styles.attachRemoveBtn}
-                        onPress={() => updateItem(item.id, { attachment: null })}
-                        hitSlop={6}
-                      >
-                        <Ionicons name="close" size={sp(13)} color="#fff" />
-                      </Pressable>
-                    </>
-                  ) : (
-                    <View style={styles.attachInner}>
-                      <Ionicons name="cloud-upload-outline" size={sp(20)} color={COLORS.primary} />
-                      <Text style={styles.attachLabel}>Attachment</Text>
-                    </View>
-                  )}
-                </Pressable>
-              </View>
-
-            </View>
-          ))}
-
-          {/* ── + Add Item ── */}
-          <Pressable
-            style={styles.addItemBtn}
-            onPress={() => setItems(prev => [...prev, blankItem()])}
-          >
-            <Text style={styles.addItemText}>+ Add Item</Text>
-          </Pressable>
+          {/* ── + Add Item (gone after the 5th block) ── */}
+          {items.length < MAX_ITEMS ? (
+            <Pressable style={styles.addItemBtn} onPress={addItem}>
+              <Text style={styles.addItemText}>+ Add Item</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.addItemBtn} />
+          )}
 
           {/* ── SUBMIT ── */}
           <Pressable
@@ -685,7 +680,6 @@ export default function ItemRequestScreen({ navigation, route }: any) {
               <Text style={styles.submitBtnText}>SUBMIT</Text>
             )}
           </Pressable>
-
         </ScrollView>
       </View>
 
@@ -747,85 +741,27 @@ export default function ItemRequestScreen({ navigation, route }: any) {
         )
       )}
 
-      {/* ── Anchored inline dropdown with search ── */}
-      {dropdownVisible && (
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={closeDropdown}
-        >
-          <Pressable
-            style={[
-              styles.inlineDropdown,
-              {
-                top: dropdownPosition.top,
-                left: dropdownPosition.left,
-                width: dropdownPosition.width,
-              },
-            ]}
-            onPress={e => e.stopPropagation()}
-          >
-            {/* Search bar */}
-            <View style={styles.inlineSearchRow}>
-              <Ionicons name="search-outline" size={sp(18)} color="#a6a6a6" />
-              <TextInput
-                autoFocus
-                value={dropdownSearch}
-                onChangeText={setDropdownSearch}
-                placeholder="Search..."
-                placeholderTextColor="#a6a6a6"
-                style={styles.inlineSearchInput}
-              />
-              {dropdownSearch.length > 0 && (
-                <Pressable onPress={() => setDropdownSearch('')} hitSlop={6}>
-                  <Ionicons name="close-circle" size={sp(18)} color="#a6a6a6" />
-                </Pressable>
-              )}
-            </View>
-
-            {/* Results area */}
-            {dropdownLoading ? (
-              <Text style={styles.inlineSearchHint}>Searching...</Text>
-            ) : filteredOptions.length === 0 ? (
-              <>
-                <Text style={styles.inlineSearchHint}>No results found</Text>
-                {dropdownConfig.allowCustom && (
-                  <Pressable
-                    style={styles.inlineDropdownItem}
-                    onPress={() => {
-                      dropdownCallback.current?.({ id: 0, label: dropdownSearch.trim() });
-                      closeDropdown();
-                    }}
-                  >
-                    <Text style={styles.inlineDropdownText}>Use "{dropdownSearch.trim()}"</Text>
-                  </Pressable>
-                )}
-              </>
-            ) : (
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-                style={{ maxHeight: vs(200) }}
-              >
-                {filteredOptions.map((option, idx) => (
-                  <Pressable
-                    key={option.id}
-                    style={[
-                      styles.inlineDropdownItem,
-                      idx === filteredOptions.length - 1 && { borderBottomWidth: 0 },
-                    ]}
-                    onPress={() => {
-                      dropdownCallback.current?.(option);
-                      closeDropdown();
-                    }}
-                  >
-                    <Text style={styles.inlineDropdownText}>{option.label}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      )}
+      {/* ── Java-style searchable picker dialogs ── */}
+      <SearchPickerModal
+        visible={picker !== null}
+        title={
+          picker?.kind === 'item'
+            ? 'Select Item'
+            : picker?.kind === 'product'
+              ? 'Select Product Id'
+              : 'Select Attachment Type'
+        }
+        options={pickerOptions}
+        loading={pickerLoading}
+        onSelect={onPickerSelect}
+        onClose={closePicker}
+        {...(picker?.kind === 'attachment'
+          ? {}
+          : {
+              onSearch: searchItems,
+              onDismissText: onPickerDismissText,
+            })}
+      />
 
     </KeyboardAvoidingView>
   );
@@ -834,199 +770,161 @@ export default function ItemRequestScreen({ navigation, route }: any) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
-  },
-
-  redBg: {
-    height: vs(10),
-    backgroundColor: COLORS.primary,
-  },
-
+  root: { flex: 1, backgroundColor: COLORS.primary },
   sheet: {
     flex: 1,
+    marginTop: ms(5),
     backgroundColor: '#fff',
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
-    paddingBottom: vs(40),
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
     overflow: 'hidden',
   },
 
-  // ── Header ──
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: scale(20),
-    paddingTop: vs(15),
-    paddingBottom: vs(14),
-  },
-  headerTitle: {
-    fontSize: sp(28),
-    fontWeight: '400',
-    color: '#000',
-    flex: 1,
-    textAlign: 'center',
-  },
-  closeBtn: {
-    position: 'absolute',
-    right: scale(16),
-    top: vs(14),
-    width: scale(30),
-    height: scale(30),
-    borderRadius: scale(15),
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerDivider: {
-    height: 2,
-    backgroundColor: '#a6a6a6',
-    marginHorizontal: scale(20),
+  // ── Title ──
+  titleRow: { marginTop: ms(10), height: ms(30), alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: sp(22), color: COLORS.textBlack, textAlign: 'center' },
+  closeBtn: { position: 'absolute', right: ms(10), top: ms(5) },
+  divider: {
+    height: 1,
+    margin: ms(20),
+    backgroundColor: '#aaaaaa', // @android:color/darker_gray
   },
 
-  scrollContent: {
-    paddingHorizontal: scale(16),
-    paddingTop: vs(16),
-    paddingBottom: vs(40),
-    gap: vs(0),
-  },
-
-  // ── Item block ──
-  itemBlock: {
-    gap: vs(12),
-    marginBottom: vs(20),
-  },
+  // ── Item header ──
   itemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: vs(2),
+    paddingTop: ms(1.5),
+    paddingBottom: ms(2.5),
+    paddingRight: ms(8),
   },
   itemHeaderText: {
-    fontSize: sp(20),
-    fontWeight: '600',
+    marginVertical: ms(5),
+    paddingLeft: ms(15),
+    fontSize: sp(15),
+    fontWeight: 'bold',
     color: COLORS.primary,
   },
 
-  // ── Shared input ──
-  roundedInput: {
+  // ── Spinner-style fields (bg_spinner: 34dp radius, 1dp light-gray stroke, 12dp side padding) ──
+  spinner: {
+    height: ms(40),
     borderWidth: 1,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(30),
-    paddingHorizontal: scale(16),
-    height: vs(45),
-    fontSize: sp(18),
-    color: '#000',
-  },
-
-  dropdownInput: {
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(12),
+    backgroundColor: '#fff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  spinnerText: { flex: 1, fontSize: sp(14), color: '#666666' }, // TextView hint colour in Java
+  spinnerValue: { color: COLORS.ink },
 
-  // ── Row layout ──
-  row: {
+  nameRow: {
     flexDirection: 'row',
-    gap: scale(10),
-    alignItems: 'center',
+    marginHorizontal: ms(5),
+    marginTop: ms(5),
+    paddingLeft: ms(5),
+    height: ms(40),
   },
-
-  // ── Quantity ──
-  quantityWrap: {
-    width: scale(117),
+  qtyCell: { flex: 1, marginLeft: ms(11), justifyContent: 'center' },
+  qtyBox: {
+    height: ms(34),
     borderWidth: 1,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(30),
-    height: vs(45),
-    alignItems: 'center',
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
     justifyContent: 'center',
-    backgroundColor: '#fff',
-    position: 'relative',
   },
-  quantityLabel: {
-    position: 'absolute',
-    top: -vs(9),
-    fontSize: sp(16),
-    color: '#a6a6a6',
-    backgroundColor: '#fff',
-    paddingHorizontal: scale(4),
-  },
-  quantityInput: {
-    fontSize: sp(20),
-    color: '#000',
-    fontWeight: '500',
-    width: '100%',
+  qtyInput: {
+    padding: 0,
     textAlign: 'center',
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: COLORS.darkGray,
   },
 
-  // ── Attachment ──
-  attachBox: {
-    flex: 1,
-    height: vs(45),
-    borderWidth: 1.5,
-    borderColor: '#a6a6a6',
-    borderStyle: 'dashed',
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-  },
-  attachInner: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: scale(6),
-  },
-  attachLabel: {
+  // ── Outlined text boxes (TextInputLayoutStyle) ──
+  fieldWrap: { marginHorizontal: ms(5) },
+  box: {
+    height: ms(40),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(15),
+    paddingVertical: 0,
     fontSize: sp(16),
-    color: '#000',
-    fontWeight: '400',
+    color: COLORS.ink,
   },
-  attachThumb: {
-    width: '100%',
-    height: '100%',
+  floatLabel: {
+    position: 'absolute',
+    top: -ms(8),
+    left: ms(14),
+    paddingHorizontal: ms(4),
+    backgroundColor: COLORS.white,
+    fontSize: sp(12),
+    color: COLORS.lightGray,
   },
+  productSpinner: { height: ms(40), marginHorizontal: ms(5), marginTop: ms(11), paddingHorizontal: ms(10) },
+  dateRow: { flexDirection: 'row', marginHorizontal: ms(5), marginTop: ms(15) },
+  dateBox: { flexDirection: 'row', alignItems: 'center' },
+  dateText: { fontSize: sp(16), color: COLORS.ink },
+
+  // ── Attachment row ──
+  attachRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginLeft: ms(5),
+    marginRight: ms(10),
+    marginTop: ms(30),
+  },
+  attachSpinner: { width: '46.2%', marginLeft: ms(5), marginRight: ms(10), marginTop: ms(4.5) },
+  attachBox: {
+    width: '46.2%',
+    height: ms(50),
+    marginLeft: ms(5),
+    borderWidth: 1,
+    borderColor: '#A9A9A9',
+    borderStyle: 'dashed',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  attachInner: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  attachIcon: { width: '30%', alignItems: 'center' },
+  attachLabel: { flex: 1, marginHorizontal: ms(15), fontSize: sp(16), color: '#000000' },
+  attachThumb: { width: '100%', height: '100%' },
   attachRemoveBtn: {
     position: 'absolute',
-    top: scale(3),
-    right: scale(3),
-    width: scale(16),
-    height: scale(16),
-    borderRadius: scale(8),
+    top: ms(3),
+    right: ms(3),
+    width: ms(16),
+    height: ms(16),
+    borderRadius: ms(8),
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  // ── Add Item ──
+  // ── Add Item / Submit ──
   addItemBtn: {
-    alignSelf: 'center',
-    paddingVertical: vs(10),
-    marginBottom: vs(16),
-  },
-  addItemText: {
-    fontSize: sp(20),
-    color: COLORS.primary,
-    fontWeight: '500',
-  },
-
-  // ── Submit ──
-  submitBtn: {
-    height: vs(50),
-    backgroundColor: '#2B2B2B',
-    borderRadius: scale(30),
+    height: ms(30),
+    marginTop: ms(31.5),
+    marginHorizontal: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
   },
-  submitBtnText: {
-    color: '#fff',
-    fontSize: sp(20),
-    fontWeight: '400',
-    letterSpacing: 1.2,
+  addItemText: { fontSize: sp(18), fontWeight: 'bold', color: COLORS.primary },
+  submitBtn: {
+    minHeight: ms(48),
+    margin: ms(20),
+    borderRadius: ms(34),
+    backgroundColor: '#353935',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
   },
+  submitBtnText: { color: COLORS.white, fontSize: sp(18), fontWeight: '500' },
 
   // ── Date picker (iOS modal) ──
   dateBackdrop: {
@@ -1034,16 +932,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: scale(16),
+    paddingHorizontal: ms(16),
   },
   dateSheet: {
     backgroundColor: '#fff',
-    borderRadius: scale(20),
+    borderRadius: ms(20),
     width: '100%',
-    maxWidth: scale(400),
-    paddingTop: vs(16),
-    paddingBottom: vs(12),
-    paddingHorizontal: scale(12),
+    maxWidth: ms(400),
+    paddingTop: ms(16),
+    paddingBottom: ms(12),
+    paddingHorizontal: ms(12),
     elevation: 10,
   },
   dateSheetTitle: {
@@ -1051,89 +949,32 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1C1C1E',
     textAlign: 'center',
-    marginBottom: vs(8),
+    marginBottom: ms(8),
   },
   dateSheetActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: vs(12),
-    paddingHorizontal: scale(8),
-    gap: scale(12),
+    marginTop: ms(12),
+    paddingHorizontal: ms(8),
+    gap: ms(12),
   },
   dateCancelBtn: {
     flex: 1,
-    height: vs(44),
-    borderRadius: scale(30),
+    height: ms(44),
+    borderRadius: ms(30),
     borderWidth: 1,
-    borderColor: '#a6a6a6',
+    borderColor: COLORS.lightGray,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dateCancelText: {
-    fontSize: sp(16),
-    color: '#555',
-    fontWeight: '500',
-  },
+  dateCancelText: { fontSize: sp(16), color: '#555', fontWeight: '500' },
   dateConfirmBtn: {
     flex: 1,
-    height: vs(44),
-    borderRadius: scale(30),
+    height: ms(44),
+    borderRadius: ms(30),
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dateConfirmText: {
-    fontSize: sp(16),
-    color: '#fff',
-    fontWeight: '600',
-  },
-
-  // ── Anchored inline dropdown ──
-  inlineDropdown: {
-    position: 'absolute',
-    marginTop: vs(-100),
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(12),
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    zIndex: 999,
-    overflow: 'hidden',
-  },
-  inlineSearchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: scale(12),
-    paddingVertical: vs(8),
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
-    gap: scale(8),
-  },
-  inlineSearchInput: {
-    flex: 1,
-    fontSize: sp(16),
-    color: '#1C1C1E',
-    paddingVertical: 0,
-  },
-  inlineSearchHint: {
-    fontSize: sp(14),
-    color: '#a6a6a6',
-    textAlign: 'center',
-    paddingVertical: vs(14),
-    paddingHorizontal: scale(12),
-  },
-  inlineDropdownItem: {
-    paddingHorizontal: scale(16),
-    paddingVertical: vs(13),
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
-  },
-  inlineDropdownText: {
-    fontSize: sp(18),
-    color: '#1C1C1E',
-  },
+  dateConfirmText: { fontSize: sp(16), color: '#fff', fontWeight: '600' },
 });

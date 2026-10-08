@@ -15,9 +15,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import Modal from './AppModal';
 import { COLORS } from '../theme/theme';
-import { scale, sp, vs } from '../utils/responsive';
+import { ms, scale, sp, vs } from '../utils/responsive';
 
 export type PickerOption = { id: number; label: string };
 
@@ -35,6 +36,13 @@ type Props = {
   onSearch?: (text: string) => void;
   /** Plain spinner-style list without the search box (Java's Spinner dropdowns). */
   hideSearch?: boolean;
+  /** Java item/product dialogs list nothing until this many characters are typed. */
+  minChars?: number;
+  /** Red check next to the title (Java okbtn); `okRight` is its marginEnd in dp. */
+  showOk?: boolean;
+  okRight?: number;
+  /** Dialog dismissed (check, outside tap, back) with text typed but nothing picked. */
+  onDismissText?: (text: string) => void;
 };
 
 const SearchPickerModal: React.FC<Props> = ({
@@ -48,6 +56,10 @@ const SearchPickerModal: React.FC<Props> = ({
   onSearch,
   searchHint = 'Search...',
   hideSearch = false,
+  minChars = 0,
+  showOk = false,
+  okRight = 80,
+  onDismissText,
 }) => {
   const [query, setQuery] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,6 +87,14 @@ const SearchPickerModal: React.FC<Props> = ({
     return q ? options.filter(o => o.label.toLowerCase().includes(q)) : options;
   }, [onSearch, options, query]);
 
+  const dismiss = () => {
+    const typed = query.trim();
+    if (onDismissText && typed) {
+      onDismissText(typed);
+    }
+    onClose();
+  };
+
   const handleChange = (text: string) => {
     setQuery(text);
     if (onSearch) {
@@ -86,10 +106,25 @@ const SearchPickerModal: React.FC<Props> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={[styles.box, hideSearch && styles.boxCompact]} onPress={() => {}}>
-          <Text style={styles.title}>{title}</Text>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={dismiss}>
+      <Pressable style={styles.overlay} onPress={dismiss}>
+        <View style={minChars > 0 ? styles.window : styles.windowAuto}>
+        <Pressable
+          style={
+            minChars > 0
+              ? [styles.box, styles.boxInWindow, !loading && shown.length === 0 ? { height: undefined } : { height: '100%' }]
+              : [styles.box, hideSearch && styles.boxCompact]
+          }
+          onPress={() => {}}
+        >
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>{title}</Text>
+            {showOk ? (
+              <Pressable style={[styles.ok, { right: ms(okRight) }]} onPress={dismiss} hitSlop={8}>
+                <Ionicons name="checkmark-circle" size={ms(24)} color={COLORS.primary} />
+              </Pressable>
+            ) : null}
+          </View>
           {hideSearch ? null : (
             <View style={styles.searchWrap}>
               <TextInput
@@ -118,10 +153,13 @@ const SearchPickerModal: React.FC<Props> = ({
                   <Text style={styles.itemText}>{option.label}</Text>
                 </TouchableOpacity>
               ))}
-              {shown.length === 0 ? <Text style={styles.empty}>{emptyText}</Text> : null}
+              {shown.length === 0 && query.trim().length >= minChars ? (
+                <Text style={styles.empty}>{emptyText}</Text>
+              ) : null}
             </ScrollView>
           )}
         </Pressable>
+        </View>
       </Pressable>
     </Modal>
   );
@@ -138,13 +176,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   box: {
-    width: '74%',
+    width: '100%',
     height: vs(315),
     backgroundColor: COLORS.white,
     padding: scale(16),
   },
+  // Java sets these dialogs to a 800x1000px window with the white content pinned to its top: the
+  // box is as tall as its content while the list is empty and fills the window once it has rows.
+  window: { width: '74%', height: vs(381), justifyContent: 'flex-start' },
+  windowAuto: { width: '74%' },
+  boxInWindow: { width: '100%', maxHeight: '100%' },
   boxCompact: { height: undefined, maxHeight: vs(315) },
+  titleRow: { justifyContent: 'center' },
   title: { fontSize: sp(20), fontWeight: '700', color: COLORS.textBlack },
+  ok: { position: 'absolute' },
   searchWrap: {
     marginTop: vs(8),
     marginBottom: vs(8),

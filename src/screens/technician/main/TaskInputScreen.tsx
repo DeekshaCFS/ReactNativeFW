@@ -1,24 +1,27 @@
 // src/screens/technician/main/TaskInputScreen.tsx
+//
+// Java: AddCustomLabelInput_FW (add_custom_label.xml + task_closure_custom_label_row.xml).
+// A white rounded sheet under the FieldWeb header (no bottom bar) with a Sr.No / Label / Input
+// table; every row is 35dp of 14sp text next to an outlined 34dp-radius input.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  TextInput,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  ToastAndroid,
   ActivityIndicator,
-  FlatList,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp } from '../../../utils/responsive';
+import { ms, sp, useAppHeaderHeight } from '../../../utils/responsive';
+import OutlinedInput from '../../../components/OutlinedInput';
 import { getCustomFieldData, postTaskCustomField } from '../../../api/users/usersService';
 import type { CustomFieldDTOResultData } from '../../../api/users/users.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -38,8 +41,14 @@ const formatDate = (date: Date): string => {
   return `${dd}-${mm}-${yyyy}`;
 };
 
+const toast = (msg: string) => ToastAndroid.show(msg, ToastAndroid.SHORT);
+
 export default function TaskInputScreen({ navigation, route }: any) {
-  const { routeTask } = route.params as { routeTask: { Id: number; [key: string]: any } };
+  const { routeTask, returnTo } = route.params as {
+    routeTask: { Id: number; [key: string]: any };
+    returnTo?: { name: string; params?: any };
+  };
+  const headerHeight = useAppHeaderHeight();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -48,7 +57,19 @@ export default function TaskInputScreen({ navigation, route }: any) {
   const [values, setValues] = useState<Record<number, string>>({});
 
   const [activeDatePicker, setActiveDatePicker] = useState<number | null>(null);
-  const [activeDropdown, setActiveDropdown] = useState<CustomFieldDTOResultData | null>(null);
+  const [dropdown, setDropdown] = useState<{
+    field: CustomFieldDTOResultData;
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const dropdownRefs = useRef<Record<number, View | null>>({});
+
+  // Close/save go back to whichever screen opened the sheet (Java pops the fragment).
+  const closeSheet = () => {
+    const target = returnTo ?? { name: 'TaskExecution', params: { task: routeTask } };
+    navigation.navigate(target.name, target.params);
+  };
 
   // ─── Load field definitions ────────────────────────────────────────────────
 
@@ -69,7 +90,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
         });
         setValues(prefill);
       } catch (err) {
-        Alert.alert('Error', 'Could not load task input fields.');
+        ToastAndroid.show('Could not load task input fields.', ToastAndroid.SHORT);
       } finally {
         setLoading(false);
       }
@@ -100,12 +121,17 @@ export default function TaskInputScreen({ navigation, route }: any) {
   };
 
   const handleDropdownSelect = (fieldId: number, value: string) => {
-    setActiveDropdown(null);
+    setDropdown(null);
     if (value === 'Select') {
       clearFieldValue(fieldId);
       return;
     }
     setFieldValue(fieldId, value);
+  };
+
+  const openDropdown = (field: CustomFieldDTOResultData) => {
+    const node = dropdownRefs.current[field.FieldId];
+    node?.measureInWindow((x, y, width) => setDropdown({ field, top: y, left: x, width }));
   };
 
   // Boolean values are always written as canonical 'True'/'False', but prefill
@@ -117,14 +143,15 @@ export default function TaskInputScreen({ navigation, route }: any) {
   // ─── Submit ─────────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
-    if (fields.length === 0) {
-      Alert.alert('No Input', 'Please Provide an Input to proceed !!');
+    // Java: nothing entered at all -> one failure message, before any required-field check.
+    if (Object.keys(values).length === 0) {
+      ToastAndroid.show('Please Provide an Input to proceed !!', ToastAndroid.SHORT);
       return;
     }
 
     const missing = fields.filter(f => f.IsRequired && f.FieldId != null && !values[f.FieldId]?.trim());
     if (missing.length > 0) {
-      Alert.alert('Required', `Field '${missing[0].Label}' is required!`);
+      toast(`Field '${missing[missing.length - 1].Label}' is required!`);
       return;
     }
 
@@ -152,14 +179,13 @@ export default function TaskInputScreen({ navigation, route }: any) {
 
       const res = await postTaskCustomField({ UserId: userId, TaskId: routeTask.Id }, payload);
       if (res.Code === '200') {
-        Alert.alert('Success', res.Message || 'Task input saved successfully.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
+        toast(res.Message || 'Task input saved successfully.');
+        closeSheet();
       } else {
-        Alert.alert('Error', res.Message || 'Failed to save task input.');
+        toast(res.Message || 'Failed to save task input.');
       }
     } catch (err) {
-      Alert.alert('Error', 'Could not save task input. Please try again.');
+      toast('Could not save task input. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -167,206 +193,186 @@ export default function TaskInputScreen({ navigation, route }: any) {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.redBg}/>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Add Task Input</Text>
-        <Pressable style={styles.closeBtn} onPress={() => navigation.goBack()} hitSlop={8}>
-          <Ionicons name="close" size={sp(16)} color="#fff" />
-        </Pressable>
-      </View>
-
-      <View style={styles.headerDivider} />
-
-      {loading ? (
-        <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: vs(40) }} />
-      ) : (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
-          <View style={styles.columnHeaderRow}>
-            <Text style={[styles.columnHeaderText, styles.colSrNo]}>Sr.No</Text>
-            <Text style={[styles.columnHeaderText, styles.colLabel]}>Label</Text>
-            <Text style={[styles.columnHeaderText, styles.colInput]}>Input</Text>
+  const renderInput = (field: CustomFieldDTOResultData) => {
+    const id = field.FieldId;
+    switch (field.FieldTypeId) {
+      case FIELD_TYPE.NUMBER:
+        return (
+          <OutlinedInput
+            style={styles.box}
+            placeholder="Number"
+            placeholderTextColor={COLORS.lightGray}
+            keyboardType="numeric"
+            value={values[id] ?? ''}
+            onChangeText={t => {
+              const cleaned = t.replace(/[^0-9]/g, '');
+              if (cleaned.length === 0) clearFieldValue(id);
+              else setFieldValue(id, cleaned);
+            }}
+          />
+        );
+      case FIELD_TYPE.TEXT:
+        return (
+          <OutlinedInput
+            style={styles.box}
+            placeholder="Text"
+            placeholderTextColor={COLORS.lightGray}
+            autoCapitalize="words"
+            value={values[id] ?? ''}
+            onChangeText={t => {
+              // Java edtText digits: letters, numbers and space only.
+              const cleaned = t.replace(/[^A-Za-z0-9 ]/g, '');
+              if (cleaned.length === 0) clearFieldValue(id);
+              else setFieldValue(id, cleaned);
+            }}
+          />
+        );
+      case FIELD_TYPE.DATE:
+        return (
+          <>
+            <Pressable style={styles.dateWrap} onPress={() => setActiveDatePicker(id)}>
+              <View style={[styles.box, styles.dateBox]}>
+                <Text style={[styles.dateText, !values[id] && { color: COLORS.lightGray }]}>
+                  {values[id] || 'Date'}
+                </Text>
+                <Ionicons name="calendar" size={ms(20)} color={COLORS.primary} />
+              </View>
+              {!!values[id] && <Text style={styles.floatLabel}>Date</Text>}
+            </Pressable>
+            {activeDatePicker === id && (
+              <DateTimePicker
+                value={new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onValueChange={handleDateChange(id)}
+                onDismiss={() => setActiveDatePicker(null)}
+              />
+            )}
+          </>
+        );
+      case FIELD_TYPE.BOOLEAN:
+        return (
+          <View style={styles.boolGroup}>
+            {(['False', 'True'] as const).map(v => (
+              <Pressable
+                key={v}
+                style={styles.radioRow}
+                onPress={() => setFieldValue(id, v)}
+                hitSlop={6}
+              >
+                <View style={[styles.radioOuter, isBooleanValue(id, v) && styles.radioOuterActive]}>
+                  {isBooleanValue(id, v) && <View style={styles.radioInner} />}
+                </View>
+                <Text style={styles.radioLabel}>{v === 'True' ? 'Yes' : 'NO'}</Text>
+              </Pressable>
+            ))}
           </View>
+        );
+      case FIELD_TYPE.DROPDOWN:
+        return (
+          <Pressable
+            ref={node => {
+              dropdownRefs.current[id] = node;
+            }}
+            collapsable={false}
+            style={styles.spinner}
+            onPress={() => openDropdown(field)}
+          >
+            <Text style={styles.spinnerText} numberOfLines={1}>
+              {values[id] || 'Select'}
+            </Text>
+            <Ionicons name="chevron-down" size={ms(20)} color={COLORS.textBlack} />
+          </Pressable>
+        );
+      default:
+        return null;
+    }
+  };
 
+  return (
+    <View style={[styles.root, { paddingTop: headerHeight }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.sheet}
+      >
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Add Task Input</Text>
+          <Pressable style={styles.closeBtn} onPress={closeSheet} hitSlop={8}>
+            <Ionicons name="close" size={ms(18)} color="#fff" />
+          </Pressable>
+        </View>
+
+        <View style={styles.divider} />
+
+        {loading ? (
+          <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: ms(40) }} />
+        ) : (
           <ScrollView
-            contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: ms(30) }}
           >
-            {fields.length === 0 ? (
-              <Text style={styles.emptyText}>No custom input fields configured for this task.</Text>
-            ) : (
-              fields.map(field => (
+            <View style={styles.columnHeaderRow}>
+              <Text style={[styles.columnHeaderText, styles.colSrNo]}>Sr.No</Text>
+              <Text style={[styles.columnHeaderText, styles.colLabel]}>Label</Text>
+              <Text style={[styles.columnHeaderText, styles.colInput, { textAlign: 'center' }]}>Input</Text>
+            </View>
+
+            <View style={styles.list}>
+              {fields.map(field => (
                 <View key={field.FieldId} style={styles.fieldRow}>
                   <Text style={[styles.cellText, styles.colSrNo]}>{field.SerialNo}</Text>
-
-                  <Text style={[styles.cellText, styles.colLabel]}>
-                    {field.Label}
-                    {field.IsRequired && <Text style={styles.requiredMark}> *</Text>}
-                  </Text>
-
-                  <View style={styles.colInput}>
-                    {field.FieldTypeId === FIELD_TYPE.NUMBER && (
-                      <View style={styles.floatingFieldBox}>
-                        <Text style={styles.floatingLabel}>Number</Text>
-                        <TextInput
-                          style={styles.floatingValueInput}
-                          keyboardType="numeric"
-                          value={values[field.FieldId] ?? ''}
-                          onChangeText={t => {
-                            const cleaned = t.replace(/[^0-9]/g, '');
-                            if (cleaned.length === 0) {
-                              clearFieldValue(field.FieldId);
-                            } else {
-                              setFieldValue(field.FieldId, cleaned);
-                            }
-                          }}
-                          placeholder="0"
-                          placeholderTextColor="#c7c7c7"
-                        />
-                      </View>
-                    )}
-
-                    {field.FieldTypeId === FIELD_TYPE.TEXT && (
-                      <View style={styles.floatingFieldBox}>
-                        <Text style={styles.floatingLabel}>Text</Text>
-                        <TextInput
-                          style={styles.floatingValueInput}
-                          value={values[field.FieldId] ?? ''}
-                          onChangeText={t => {
-                            if (t.length === 0) {
-                              clearFieldValue(field.FieldId);
-                            } else {
-                              setFieldValue(field.FieldId, t);
-                            }
-                          }}
-                          placeholder="Enter text"
-                          placeholderTextColor="#c7c7c7"
-                        />
-                      </View>
-                    )}
-
-                    {field.FieldTypeId === FIELD_TYPE.DATE && (
-                      <>
-                        <Pressable
-                          style={styles.floatingFieldBox}
-                          onPress={() => setActiveDatePicker(field.FieldId)}
-                        >
-                          <Text style={styles.floatingLabel}>Date</Text>
-                          <View style={styles.dateValueRow}>
-                            <Text
-                              style={
-                                values[field.FieldId] ? styles.floatingValueText : styles.floatingPlaceholder
-                              }
-                            >
-                              {values[field.FieldId] || 'dd-mm-yyyy'}
-                            </Text>
-                            <Ionicons name="calendar" size={sp(18)} color={COLORS.primary} />
-                          </View>
-                        </Pressable>
-                        {activeDatePicker === field.FieldId && (
-                          <DateTimePicker
-                            value={new Date()}
-                            mode="date"
-                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                            onValueChange={handleDateChange(field.FieldId)}
-                            onDismiss={() => setActiveDatePicker(null)}
-                          />
-                        )}
-                      </>
-                    )}
-
-                    {field.FieldTypeId === FIELD_TYPE.BOOLEAN && (
-                      <View style={styles.boolGroup}>
-                        <Pressable
-                          style={styles.radioRow}
-                          onPress={() => setFieldValue(field.FieldId, 'False')}
-                          hitSlop={6}
-                        >
-                          <View
-                            style={[
-                              styles.radioOuter,
-                              isBooleanValue(field.FieldId, 'False') && styles.radioOuterActive,
-                            ]}
-                          >
-                            {isBooleanValue(field.FieldId, 'False') && <View style={styles.radioInner} />}
-                          </View>
-                          <Text style={styles.radioLabel}>NO</Text>
-                        </Pressable>
-
-                        <Pressable
-                          style={styles.radioRow}
-                          onPress={() => setFieldValue(field.FieldId, 'True')}
-                          hitSlop={6}
-                        >
-                          <View
-                            style={[
-                              styles.radioOuter,
-                              isBooleanValue(field.FieldId, 'True') && styles.radioOuterActive,
-                            ]}
-                          >
-                            {isBooleanValue(field.FieldId, 'True') && <View style={styles.radioInner} />}
-                          </View>
-                          <Text style={styles.radioLabel}>Yes</Text>
-                        </Pressable>
-                      </View>
-                    )}
-
-                    {field.FieldTypeId === FIELD_TYPE.DROPDOWN && (
-                      <Pressable style={styles.pillInput} onPress={() => setActiveDropdown(field)}>
-                        <Text style={values[field.FieldId] ? styles.pillValueText : styles.pillPlaceholder}>
-                          {values[field.FieldId] || 'Select'}
-                        </Text>
-                        <Ionicons name="chevron-down" size={sp(18)} color="#000" />
-                      </Pressable>
-                    )}
-                  </View>
+                  <Text style={[styles.cellText, styles.colLabel]}>{field.Label}</Text>
+                  <View style={styles.colInput}>{renderInput(field)}</View>
                 </View>
-              ))
-            )}
-          </ScrollView>
+              ))}
+            </View>
 
-          <Pressable
-            style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
-            onPress={handleSubmit}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitBtnText}>UPDATE</Text>
-            )}
-          </Pressable>
-        </KeyboardAvoidingView>
-      )}
-
-      {/* Dropdown picker modal */}
-      <Modal
-        visible={activeDropdown !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setActiveDropdown(null)}
-      >
-        <Pressable style={styles.dropdownOverlay} onPress={() => setActiveDropdown(null)}>
-          <View style={styles.dropdownSheet}>
-            <Text style={styles.dropdownTitle}>{activeDropdown?.Label}</Text>
-            <FlatList
-              data={['Select', ...(activeDropdown?.DropdownValue ?? [])]}
-              keyExtractor={(item, idx) => `${item}-${idx}`}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.dropdownOption}
-                  onPress={() => activeDropdown && handleDropdownSelect(activeDropdown.FieldId, item)}
-                >
-                  <Text style={styles.dropdownOptionText}>{item}</Text>
-                </Pressable>
+            <Pressable
+              style={[styles.updateBtn, submitting && { opacity: 0.6 }]}
+              onPress={handleSubmit}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.updateBtnText}>UPDATE</Text>
               )}
-            />
-          </View>
+            </Pressable>
+          </ScrollView>
+        )}
+      </KeyboardAvoidingView>
+
+      {/* Spinner popup (Java's simple_spinner_dropdown_item list, anchored on the field) */}
+      <Modal
+        visible={dropdown !== null}
+        transparent
+        animationType="none"
+        onRequestClose={() => setDropdown(null)}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => setDropdown(null)}>
+          {dropdown && (
+            <View
+              style={[
+                styles.popup,
+                { top: dropdown.top, left: dropdown.left, width: dropdown.width },
+              ]}
+            >
+              <ScrollView style={{ maxHeight: ms(250) }} showsVerticalScrollIndicator={false}>
+                {['Select', ...(dropdown.field.DropdownValue ?? [])].map((item, idx) => (
+                  <Pressable
+                    key={`${item}-${idx}`}
+                    style={styles.popupItem}
+                    onPress={() => handleDropdownSelect(dropdown.field.FieldId, item)}
+                  >
+                    <Text style={styles.popupItemText} numberOfLines={1}>
+                      {item}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </Pressable>
       </Modal>
     </View>
@@ -374,231 +380,125 @@ export default function TaskInputScreen({ navigation, route }: any) {
 }
 
 const styles = StyleSheet.create({
-  redBg: { 
-    height: vs(17), 
-  },
-
-  container: {
+  root: { flex: 1, backgroundColor: COLORS.primary },
+  sheet: {
     flex: 1,
+    marginTop: ms(5),
     backgroundColor: '#fff',
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
     overflow: 'hidden',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: scale(20),
-    //paddingTop: vs(10),
-    paddingBottom: vs(14),
-  },
-  headerTitle: {
-    color: '#000',
-    fontSize: sp(24),
-    fontWeight: '400',
-    textAlign: 'center',
-  },
+
+  // ── Title ──
+  titleRow: { height: ms(40), alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: sp(22), color: COLORS.textBlack, textAlign: 'center' },
   closeBtn: {
-    width: scale(28),
-    height: scale(28),
-    borderRadius: scale(14),
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerDivider: {
-    height: 2,
-    backgroundColor: '#a6a6a6',
-    marginHorizontal: scale(20),
-  },
-  columnHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: scale(16),
-    paddingTop: vs(14),
-    paddingBottom: vs(8),
-  },
-  columnHeaderText: {
-    fontSize: sp(18),
-    fontWeight: '400',
-  },
-  colSrNo: {
-    flex: 0.5,
-  },
-  colLabel: {
-    flex: 1,
-  },
-  colInput: {
-    flex: 1.8,
-  },
-  listContent: {
-    padding: scale(18),
-    paddingTop: vs(6),
-    paddingBottom: vs(20),
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#ababab',
-    fontSize: sp(16),
-    marginTop: vs(40),
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: vs(22),
-  },
-  cellText: {
-    fontSize: sp(20),
-    fontWeight: '400',
-  },
-  requiredMark: {
-    color: COLORS.primary,
-  },
-
-  // ── Floating-label box (Number / Text / Date) ──
-  floatingFieldBox: {
-    borderWidth: 1,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(10),
-    paddingHorizontal: scale(14),
-    paddingTop: vs(10),
-    paddingBottom: vs(8),
-    backgroundColor: '#fff',
-  },
-  floatingLabel: {
     position: 'absolute',
-    top: -vs(9),
-    left: scale(10),
-    fontSize: sp(13),
-    color: '#a6a6a6',
-    backgroundColor: '#fff',
-    paddingHorizontal: scale(4),
-  },
-  floatingValueInput: {
-    fontSize: sp(20),
-    fontWeight: '600',
-    color: '#000',
-    padding: 0,
-  },
-  floatingValueText: {
-    fontSize: sp(20),
-    fontWeight: '600',
-    color: '#000',
-  },
-  floatingPlaceholder: {
-    fontSize: sp(18),
-    color: '#c7c7c7',
-  },
-  dateValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  // ── Boolean radio group ──
-  boolGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale(28),
-  },
-  radioRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale(8),
-  },
-  radioOuter: {
-    width: scale(22),
-    height: scale(22),
-    borderRadius: scale(11),
-    borderWidth: 2,
-    borderColor: '#a6a6a6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioOuterActive: {
-    borderColor: COLORS.primary,
-  },
-  radioInner: {
-    width: scale(11),
-    height: scale(11),
-    borderRadius: scale(6),
+    right: ms(16),
+    top: ms(6),
+    width: ms(28),
+    height: ms(28),
+    borderRadius: ms(14),
     backgroundColor: COLORS.primary,
-  },
-  radioLabel: {
-    fontSize: sp(16),
-    fontWeight: '600',
-    color: '#222',
-  },
-
-  // ── Dropdown pill ──
-  pillInput: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(24),
-    paddingHorizontal: scale(16),
-    paddingVertical: vs(11),
-    backgroundColor: '#fff',
+    justifyContent: 'center',
+    elevation: 3,
   },
-  pillValueText: {
-    fontSize: sp(17),
-    color: '#000',
-  },
-  pillPlaceholder: {
-    fontSize: sp(17),
-    color: '#a6a6a6',
+  divider: {
+    height: 1,
+    marginVertical: ms(8),
+    marginHorizontal: ms(20),
+    backgroundColor: '#aaaaaa', // @android:color/darker_gray
   },
 
-  // ── Submit ──
-  submitBtn: {
-    backgroundColor: '#2B2B2B',
-    marginHorizontal: scale(16),
-    marginBottom: vs(16),
-    height: vs(50),
-    borderRadius: scale(30),
+  // ── Table header / rows (weightSum 3 → 0.5 / 1 / 1.5) ──
+  columnHeaderRow: { flexDirection: 'row', margin: ms(5) },
+  columnHeaderText: { fontSize: sp(14), fontWeight: 'bold', color: COLORS.ink },
+  colSrNo: { flex: 0.5 },
+  colLabel: { flex: 1 },
+  colInput: { flex: 1.5 },
+  list: { margin: ms(5) },
+  fieldRow: { flexDirection: 'row', margin: ms(2), alignItems: 'flex-start' },
+  cellText: { height: ms(35), fontSize: sp(14), color: COLORS.ink, textAlignVertical: 'center' },
+
+  // ── Outlined inputs (TextInputLayoutStyle: 1dp light_gray stroke, 34dp radius) ──
+  box: {
+    height: ms(35),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(10),
+    paddingVertical: 0,
+    fontSize: sp(16),
+    color: COLORS.ink,
+    marginBottom: ms(24), // room Material reserves for the error line
+  },
+  dateWrap: { marginBottom: 0 },
+  dateBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dateText: { fontSize: sp(16), color: COLORS.ink },
+  floatLabel: {
+    position: 'absolute',
+    top: -ms(8),
+    left: ms(14),
+    paddingHorizontal: ms(4),
+    backgroundColor: COLORS.white,
+    fontSize: sp(12),
+    color: COLORS.lightGray,
+  },
+
+  // ── Yes / No radios ──
+  boolGroup: { flexDirection: 'row', alignItems: 'center', minHeight: ms(35) },
+  radioRow: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingLeft: ms(6) },
+  radioOuter: {
+    width: ms(20),
+    height: ms(20),
+    borderRadius: ms(10),
+    borderWidth: 2,
+    borderColor: COLORS.darkGray,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  submitBtnText: {
-    color: '#fff',
-    fontSize: sp(18),
-    fontWeight: '400',
-    letterSpacing: 1.2,
-  },
+  radioOuterActive: { borderColor: COLORS.primary },
+  radioInner: { width: ms(10), height: ms(10), borderRadius: ms(5), backgroundColor: COLORS.primary },
+  radioLabel: { marginLeft: ms(8), fontSize: sp(16), color: COLORS.ink },
 
-  // ── Dropdown modal ──
-  dropdownOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  dropdownSheet: {
+  // ── Spinner (bg_spinner: 30dp tall, 34dp radius, 12dp side padding) ──
+  spinner: {
+    height: ms(30),
+    margin: ms(5),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(12),
     backgroundColor: '#fff',
-    borderTopLeftRadius: scale(16),
-    borderTopRightRadius: scale(16),
-    maxHeight: '60%',
-    paddingBottom: vs(10),
-    width: '100%',
-    maxWidth: scale(560),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  dropdownTitle: {
-    fontSize: sp(15),
-    fontWeight: '700',
-    color: '#222',
-    padding: scale(16),
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  spinnerText: { flex: 1, fontSize: sp(14), color: COLORS.textBlack },
+
+  // ── Update button (rounded_button_new: #353935, 34dp radius, min height 48dp) ──
+  updateBtn: {
+    minHeight: ms(48),
+    marginHorizontal: ms(30),
+    marginTop: ms(10),
+    borderRadius: ms(34),
+    backgroundColor: '#353935',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
   },
-  dropdownOption: {
-    paddingHorizontal: scale(18),
-    paddingVertical: vs(13),
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f3f3',
+  updateBtnText: { color: COLORS.white, fontSize: sp(18), fontWeight: '500' },
+
+  // ── Dropdown popup ──
+  popup: {
+    position: 'absolute',
+    backgroundColor: '#fff',
+    borderRadius: ms(4),
+    elevation: 8,
+    overflow: 'hidden',
   },
-  dropdownOptionText: {
-    fontSize: sp(14),
-    color: '#333',
-  },
+  popupItem: { minHeight: ms(48), justifyContent: 'center', paddingHorizontal: ms(16) },
+  popupItemText: { fontSize: sp(16), color: COLORS.textBlack },
 });

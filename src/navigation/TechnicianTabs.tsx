@@ -105,6 +105,9 @@ const PUSHED_SCREENS: {
   { name: 'AMCDetails', component: unmountOnBlur(AMCDetailsScreen), title: 'AMC Details' },
 ];
 
+// Java shows these sheets under the plain "FieldWeb" header with no bottom navigation.
+const SHEET_SCREENS = ['TaskRouteMap', 'ItemRequest', 'TaskInput'];
+
 // Tab.Screen's typed name only accepts the four tab names; these are dynamic.
 const PushedTabScreen = Tab.Screen as any;
 
@@ -204,11 +207,11 @@ export default function TechnicianTabs() {
             <>
               {/* Pushed-style screens show their own back-arrow header. */}
               {/* Leave is the Leaves sub-tab of Attendance in Java: same header + tab. */}
-              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave' || currentRoute === 'Expenditure' || currentRoute === 'Leads' || currentRoute === 'TaskRouteMap') && (
+              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave' || currentRoute === 'Expenditure' || currentRoute === 'Leads' || SHEET_SCREENS.includes(currentRoute)) && (
                 <AppHeader
                   title={currentRoute === 'Expenditure'
                     ? (passbookTabOrder === 'passbookFirst' ? 'Passbook' : 'FieldWeb')
-                    : currentRoute === 'Leads' || currentRoute === 'TaskRouteMap'
+                    : currentRoute === 'Leads' || SHEET_SCREENS.includes(currentRoute)
                       ? 'FieldWeb'
                       : getTitle(currentRoute)}
                   navigation={props.navigation as any}
@@ -216,7 +219,7 @@ export default function TechnicianTabs() {
               )}
 
               {/* Java hides the bottom navigation on the route map. */}
-              {currentRoute !== 'TaskRouteMap' && (
+              {!SHEET_SCREENS.includes(currentRoute) && (
               <BottomTabBar
                 {...props}
                 visibleTabs={MAIN_TABS}
@@ -244,7 +247,7 @@ export default function TechnicianTabs() {
             component={component}
             initialParams={initialParams}
             options={({ navigation }: any) =>
-              name === 'Leave' || name === 'Expenditure' || name === 'Leads' || name === 'TaskRouteMap'
+              name === 'Leave' || name === 'Expenditure' || name === 'Leads' || SHEET_SCREENS.includes(name)
                 ? { headerShown: false }
                 : pushedScreenOptions(title, navigation)}
           />
