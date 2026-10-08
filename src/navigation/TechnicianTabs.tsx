@@ -207,7 +207,9 @@ export default function TechnicianTabs() {
             <>
               {/* Pushed-style screens show their own back-arrow header. */}
               {/* Leave is the Leaves sub-tab of Attendance in Java: same header + tab. */}
-              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave' || currentRoute === 'Expenditure' || currentRoute === 'Leads' || SHEET_SCREENS.includes(currentRoute)) && (
+              {/* Profile reuses HomeActivityNew's own toolbar in Java (hamburger + "Profile"
+                  title + location/headset/bell icons), not a back-arrow push header. */}
+              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave' || currentRoute === 'Expenditure' || currentRoute === 'Leads' || currentRoute === 'Profile' || SHEET_SCREENS.includes(currentRoute)) && (
                 <AppHeader
                   title={currentRoute === 'Expenditure'
                     ? (passbookTabOrder === 'passbookFirst' ? 'Passbook' : 'FieldWeb')
@@ -227,6 +229,7 @@ export default function TechnicianTabs() {
                   Leave: 'Attendance',
                   Expenditure: passbookTabOrder === 'passbookFirst' ? 'Passbook' : 'Home',
                   Leads: 'Home',
+                  Profile: 'Home',
                 }}
                 quickActions={quickActions}
               />
@@ -247,7 +250,7 @@ export default function TechnicianTabs() {
             component={component}
             initialParams={initialParams}
             options={({ navigation }: any) =>
-              name === 'Leave' || name === 'Expenditure' || name === 'Leads' || SHEET_SCREENS.includes(name)
+              name === 'Leave' || name === 'Expenditure' || name === 'Leads' || name === 'Profile' || SHEET_SCREENS.includes(name)
                 ? { headerShown: false }
                 : pushedScreenOptions(title, navigation)}
           />
@@ -289,6 +292,8 @@ function getTitle(routeName: string) {
       return 'Attendance';
     case 'Passbook':
       return 'Passbook';
+    case 'Profile':
+      return 'Profile';
     default:
       return 'FieldWeb';
   }

@@ -1,14 +1,17 @@
 // src/screens/technician/drawer/TechProfileScreen.tsx
+//
+// Java: ProfileFragmentNew (fragment_edit_profile_new.xml). Reuses HomeActivityNew's own
+// toolbar retitled "Profile" (hamburger + location/headset/bell, no back arrow) -- handled by
+// TechnicianTabs, not this screen -- then a single white rounded card with no gap below it.
 import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Image, ScrollView,
-  Pressable, Alert, ActivityIndicator, Platform, StatusBar, TouchableOpacity, Linking,
+  Pressable, Alert, ActivityIndicator, Platform, ToastAndroid, TouchableOpacity, Linking,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/theme';
 import { pick, types as pickerTypes } from '@react-native-documents/picker';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -26,7 +29,9 @@ import {
 import type { UserDetailsResultData, UpdateUserResultData } from '../../../api/users/users.types';
 import { getKycList } from '../../../api/umEmployeeList/umEmployeeListService';
 import type { KYC_List_DTOResultData } from '../../../api/umEmployeeList/umEmployeeList.types';
-import { ms, sp, scale, hp, vs } from '../../../utils/responsive';
+import { ms, sp, scale, vs, useAppHeaderHeight } from '../../../utils/responsive';
+import { PencilEditIcon, EditFieldIcon } from '../../../components/DialogIcons';
+import PlaceSearchModal from '../../../components/PlaceSearchModal';
 
 // `UserResultData` / `KycDocType` are just local aliases for the api-layer
 // DTO shapes, kept so the rest of this screen reads the same as before.
@@ -37,40 +42,52 @@ type KycDocType = Required<Pick<KYC_List_DTOResultData, 'DocTypeId' | 'DocTypeNa
   Omit<KYC_List_DTOResultData, 'DocTypeId' | 'DocTypeName'>;
 
 // ─── Field Component ────────────────────────────────────────────────────────
+// Java's TextInputLayoutStyle: 1dp light_gray outlined pill with a floating hint.
 
 interface FieldProps {
   label: string;
   value?: string;
   keyboard?: 'default' | 'email-address' | 'phone-pad';
+  /** Overlaid plain glyph at the field's top-right corner (Java's imageView_editMobile/Email —
+   *  no border, no background, just the icon sitting over the field's border). */
   showEditIcon?: boolean;
   editable?: boolean;
   onChange?: (v: string) => void;
   onEditIconPress?: () => void;
+  onPress?: () => void;
   maxLength?: number;
 }
 
 const Field: React.FC<FieldProps> = ({
   label, value, keyboard = 'default', showEditIcon = false, editable = true,
-  onChange, onEditIconPress, maxLength,
+  onChange, onEditIconPress, onPress, maxLength,
 }) => (
   <View style={fieldStyles.wrapper}>
     <Text style={fieldStyles.floatingLabel}>{label}</Text>
-    <View style={fieldStyles.inputBox}>
-      <TextInput
-        style={fieldStyles.input}
-        value={value ?? ''}
-        keyboardType={keyboard}
-        onChangeText={onChange}
-        editable={editable}
-        maxLength={maxLength}
-        cursorColor={COLORS.primary}
-      />
-      {showEditIcon && (
-        <Pressable style={fieldStyles.editIcon} onPress={onEditIconPress}>
-          <Ionicons name="create-outline" size={scale(20)} color={COLORS.primary} />
-        </Pressable>
-      )}
-    </View>
+    {onPress ? (
+      <Pressable style={fieldStyles.inputBox} onPress={onPress}>
+        <Text style={[fieldStyles.input, !value && { color: COLORS.lightGray }]} numberOfLines={1}>
+          {value || ''}
+        </Text>
+      </Pressable>
+    ) : (
+      <View style={fieldStyles.inputBox}>
+        <TextInput
+          style={fieldStyles.input}
+          value={value ?? ''}
+          keyboardType={keyboard}
+          onChangeText={onChange}
+          editable={editable}
+          maxLength={maxLength}
+          cursorColor={COLORS.primary}
+        />
+      </View>
+    )}
+    {showEditIcon && (
+      <Pressable style={fieldStyles.editIconOverlay} onPress={onEditIconPress} hitSlop={8}>
+        <EditFieldIcon size={ms(20)} />
+      </Pressable>
+    )}
   </View>
 );
 
@@ -100,10 +117,9 @@ const isValidPhone = (value: string) => value.trim().length === 10;
 const isValidEmailFormat = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
-const hasNoSpacesAndNotEmpty = (value: string) => {
-  const trimmed = value.trim();
-  return trimmed.length > 0 && !value.includes(' ');
-};
+// Java's editText_firstname/lastname `digits` attribute only allows A-Z/a-z — no digits,
+// symbols or even spaces — so names can never contain a space through typing.
+const stripToLetters = (raw: string) => raw.replace(/[^A-Za-z]/g, '');
 
 // Ported from medtAadharCard's TextWatcher: insert a space after every 4 digits,
 // capped at the 14-char "9999 9999 9999" format.
@@ -113,23 +129,24 @@ const formatAadhar = (raw: string) => {
   return groups.join(' ');
 };
 
+const toast = (msg: string) => ToastAndroid.show(msg, ToastAndroid.SHORT);
+
 const fieldStyles = StyleSheet.create({
   wrapper:        { marginBottom: ms(16) },
   floatingLabel:  {
     position: 'absolute', left: ms(22), top: -ms(8),
     backgroundColor: '#fff', paddingHorizontal: ms(4),
-    fontSize: sp(12), color: '#8a8a8a', zIndex: 10,
+    fontSize: sp(12), color: COLORS.lightGray, zIndex: 10,
   },
   inputBox: {
-    height: ms(50), borderRadius: ms(28), borderWidth: 1,
-    borderColor: '#d1d1d1', paddingHorizontal: ms(18),
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', backgroundColor: '#f9f9f9',
+    minHeight: ms(46), borderRadius: ms(28), borderWidth: 1,
+    borderColor: COLORS.lightGray, paddingHorizontal: ms(18), paddingVertical: ms(10),
+    justifyContent: 'center', backgroundColor: '#fff',
   },
-  input:   { flex: 1, fontSize: sp(15), color: '#333' },
-  editIcon: {
-    borderWidth: 1, borderColor: COLORS.primary,
-    borderRadius: ms(6), padding: ms(4),
+  input: { fontSize: sp(16), color: COLORS.textBlack, padding: 0 },
+  // Overlaps the field's top border at its right edge, like Java's negative-margin ImageView.
+  editIconOverlay: {
+    position: 'absolute', top: ms(10), right: ms(10),
   },
 });
 
@@ -137,7 +154,7 @@ const fieldStyles = StyleSheet.create({
 
 export default function TechProfileScreen() {
   const navigation = useNavigation<any>();
-  const insets = useSafeAreaInsets();
+  const headerHeight = useAppHeaderHeight();
 
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserResultData | null>(null);
@@ -150,12 +167,7 @@ export default function TechProfileScreen() {
   // failures and fall back explicitly.
   const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
   const [docNumber, setDocNumber] = useState('');
-  // Tracks cursor position for the Aadhar field. Reformatting the string on
-  // every keystroke (inserting spaces) can desync Android's native cursor
-  // index from the new value, which makes typed characters appear not to
-  // show up at all until the input loses focus. Pinning selection to the end
-  // after every change keeps the native widget and JS state in agreement.
-  const [aadharSelection, setAadharSelection] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
+  const [showPlaceSearch, setShowPlaceSearch] = useState(false);
 
   // KYC doc-type list, loaded from GetDocumentTypeListByUserId (getKYCListByUsr in Java)
   const [kycList, setKycList] = useState<KycDocType[]>([]);
@@ -177,15 +189,17 @@ export default function TechProfileScreen() {
   const [isMobileNoUpdate, setIsMobileNoUpdate] = useState(false);
   const [isEmailIdUpdate, setIsEmailIdUpdate] = useState(false);
 
-  // Mobile / Email OTP-verify flow (VerifyOTPDialog in Java)
+  // Mobile / Email OTP verification (Java's VerifyOTPDialog / otp_verified.xml): a single card
+  // holding the new-value field and, once it looks complete, a 4-digit OTP row beneath it.
+  // Validate sends the OTP; Submit only lights up once 4 digits are entered.
   const [otpModal, setOtpModal] = useState<{
     visible: boolean;
     from: 'MOBILE' | 'EMAIL' | null;
-    stage: 'enter' | 'otp';
     newValue: string;
     otpValue: string;
     sentOtp: number | null;
-  }>({ visible: false, from: null, stage: 'enter', newValue: '', otpValue: '', sentOtp: null });
+    fieldError: string | null;
+  }>({ visible: false, from: null, newValue: '', otpValue: '', sentOtp: null, fieldError: null });
 
   useEffect(() => {
     AsyncStorage.getItem('uid').then(setUserId);
@@ -280,9 +294,9 @@ export default function TechProfileScreen() {
         FileName: asset.fileName || 'profile.jpg',
       });
       fetchProfile();
-      Alert.alert('Success', 'Profile photo updated successfully');
+      toast('Profile photo updated successfully');
     } catch {
-      Alert.alert('Error', 'Failed to upload profile photo');
+      toast('Failed to upload profile photo');
     }
   };
 
@@ -340,41 +354,41 @@ export default function TechProfileScreen() {
 
   // ─── Mobile / Email OTP verification (VerifyOTPDialog in Java) ─────────────
   const openOtpFlow = (from: 'MOBILE' | 'EMAIL') => {
-    setOtpModal({
-      visible: true, from, stage: 'enter',
-      newValue: '', otpValue: '', sentOtp: null,
-    });
+    setOtpModal({ visible: true, from, newValue: '', otpValue: '', sentOtp: null, fieldError: null });
   };
 
   const closeOtpFlow = () => {
-    setOtpModal({ visible: false, from: null, stage: 'enter', newValue: '', otpValue: '', sentOtp: null });
+    setOtpModal({ visible: false, from: null, newValue: '', otpValue: '', sentOtp: null, fieldError: null });
   };
+
+  // Java only reveals the OTP boxes once the typed value "looks complete": 10 digits for
+  // mobile, or contains "@" for email (profileotp_view visibility toggle in the TextWatcher).
+  const otpInputReady = otpModal.from === 'MOBILE'
+    ? otpModal.newValue.length === 10
+    : otpModal.newValue.includes('@');
 
   // Mirrors textView_validate.onClick: sends an OTP to the new mobile/email,
   // guarding against duplicates and bad formats the same way the Java does.
-  // Both branches now follow the identical shape — IsMobileNoExistForUpdateProfile
-  // and IsTechEmailIdExistForUpdateProfile both take a UserId and return
-  // ResultData.OTP — so mobile and email go through the same two-stage flow.
   const handleSendOtp = async () => {
     const { from, newValue } = otpModal;
     if (!from || !userId) return;
 
     if (from === 'MOBILE') {
       if (!isValidPhone(newValue)) {
-        Alert.alert('Validation', 'Please enter a valid 10-digit number');
+        setOtpModal(prev => ({ ...prev, fieldError: 'Please Enter a Valid Number' }));
         return;
       }
       if (newValue === profile?.ContactNo) {
-        Alert.alert('Validation', 'This is a duplicate mobile number');
+        setOtpModal(prev => ({ ...prev, fieldError: 'Same Mobile number not allowed' }));
         return;
       }
     } else {
       if (!isValidEmailFormat(newValue)) {
-        Alert.alert('Validation', 'Please enter a valid email id');
+        setOtpModal(prev => ({ ...prev, fieldError: 'Please Enter Valid Email ID' }));
         return;
       }
       if (newValue.toLowerCase() === (profile?.Email ?? '').toLowerCase()) {
-        Alert.alert('Validation', 'This is a duplicate email id');
+        setOtpModal(prev => ({ ...prev, fieldError: 'Same Email Id not allowed' }));
         return;
       }
     }
@@ -388,12 +402,12 @@ export default function TechProfileScreen() {
         : await authenticateEmail({ EmailId: newValue, UserId: Number(userId) });
 
       if (body?.Message?.toLowerCase().includes('already registered')) {
-        Alert.alert('Notice', body.Message);
+        setOtpModal(prev => ({ ...prev, fieldError: body.Message ?? null }));
         return;
       }
-      setOtpModal(prev => ({ ...prev, stage: 'otp', sentOtp: body?.ResultData?.OTP ?? null }));
+      setOtpModal(prev => ({ ...prev, fieldError: null, sentOtp: body?.ResultData?.OTP ?? null }));
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to send OTP');
+      setOtpModal(prev => ({ ...prev, fieldError: e?.message || 'Failed to send OTP' }));
     }
   };
 
@@ -403,7 +417,7 @@ export default function TechProfileScreen() {
   const handleVerifyOtp = () => {
     const { from, newValue, otpValue, sentOtp } = otpModal;
     if (sentOtp == null || Number(otpValue) !== sentOtp) {
-      Alert.alert('Error', 'Invalid OTP');
+      toast('Invalid OTP');
       return;
     }
 
@@ -414,38 +428,26 @@ export default function TechProfileScreen() {
       setProfile(prev => prev ? { ...prev, Email: newValue } : prev);
       setIsEmailIdUpdate(true);
     }
-    Alert.alert('Success', 'OTP verified');
+    toast('OTP Verified');
     closeOtpFlow();
   };
 
   // ─── Update ───────────────────────────────────────────────────────────────
   const validate = (): string | null => {
-    if (!profile?.FirstName || !hasNoSpacesAndNotEmpty(profile.FirstName)) {
-      return !profile?.FirstName
-        ? 'Please enter first name'
-        : 'Space is not allowed';
-    }
-    if (!profile?.LastName || !hasNoSpacesAndNotEmpty(profile.LastName)) {
-      return !profile?.LastName
-        ? 'Please enter last name'
-        : 'Space is not allowed';
-    }
-    if (!profile?.ContactNo) {
-      return 'Please enter contact number';
-    }
-    if (!isValidPhone(profile.ContactNo)) {
-      return 'Please enter a valid 10-digit contact number';
-    }
-    if (profile?.Email && !isValidEmailFormat(profile.Email)) {
-      return 'Please enter a valid email id';
-    }
+    if (!profile?.FirstName) return 'First Name';
+    if (profile.FirstName.includes(' ') || !profile.FirstName.trim()) return 'Space is not allowed';
+    if (!profile?.LastName) return 'Last Name';
+    if (profile.LastName.includes(' ') || !profile.LastName.trim()) return 'Space is not allowed';
+    if (!profile?.ContactNo) return 'Please Enter Contact Number';
+    if (!isValidPhone(profile.ContactNo)) return 'Please Enter a Valid Number';
+    if (profile?.Email && !isValidEmailFormat(profile.Email)) return 'Please Enter Valid Email ID';
     return null;
   };
 
   const handleUpdate = async () => {
     const validationError = validate();
     if (validationError) {
-      Alert.alert('Validation', validationError);
+      toast(validationError);
       return;
     }
     if (!profile || !userId) return;
@@ -488,7 +490,7 @@ export default function TechProfileScreen() {
       const isSuccess = code === '200' || code === 'success';
 
       if (isSuccess) {
-        Alert.alert('Success', message);
+        toast(message);
         const savedAadhar = formatAadhar(body?.ResultData?.AadharCardNo ?? payload.AadharCardNo ?? '');
         setIsMobileNoUpdate(false);
         setIsEmailIdUpdate(false);
@@ -498,10 +500,10 @@ export default function TechProfileScreen() {
         await fetchProfile();
         setDocNumber(savedAadhar);
       } else {
-        Alert.alert('Error', message);
+        toast(message);
       }
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to update profile');
+      toast(e?.message || 'Failed to update profile');
     } finally {
       setUpdating(false);
     }
@@ -509,23 +511,21 @@ export default function TechProfileScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loader}>
+      <View style={[styles.loader, { paddingTop: headerHeight }]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
 
   const manager = `${profile?.OwnerFirstName ?? ''} ${profile?.OwnerLastName ?? ''}`.trim();
-  const AVATAR = ms(100);
+  const AVATAR = ms(120);
   const hasExistingDoc = !!profile?.EmpDocument;
 
   return (
     <View style={styles.root}>
-      <View style={[styles.redBg, { height: vs(10) }]} />
-
       <ScrollView
-        style={styles.whiteSheet}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + ms(40) }]}
+        style={[styles.whiteSheet, { marginTop: headerHeight }]}
+        contentContainerStyle={[styles.content, { paddingBottom: ms(40) }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -544,14 +544,14 @@ export default function TechProfileScreen() {
             style={styles.avatarEdit}
             onPress={() => setShowPhotoSourceModal(true)}
           >
-            <Ionicons name="create-outline" size={scale(14)} color="#fff" />
+            <PencilEditIcon size={ms(40)} />
           </Pressable>
         </View>
 
-        <Field label="First Name" value={profile?.FirstName}
-          onChange={(v) => setProfile(prev => prev ? { ...prev, FirstName: v } : prev)} />
-        <Field label="Last Name" value={profile?.LastName}
-          onChange={(v) => setProfile(prev => prev ? { ...prev, LastName: v } : prev)} />
+        <Field label="First Name" value={profile?.FirstName} maxLength={16}
+          onChange={(v) => setProfile(prev => prev ? { ...prev, FirstName: stripToLetters(v) } : prev)} />
+        <Field label="Last Name" value={profile?.LastName} maxLength={16}
+          onChange={(v) => setProfile(prev => prev ? { ...prev, LastName: stripToLetters(v) } : prev)} />
 
         <View style={styles.managerRow}>
           <Text style={styles.managerLabel}>Reporting Manager : </Text>
@@ -569,17 +569,23 @@ export default function TechProfileScreen() {
           onEditIconPress={() => openOtpFlow('MOBILE')}
         />
 
-        <Field label="Address" value={profile?.Address}
-          onChange={(v) => setProfile(prev => prev ? { ...prev, Address: v } : prev)} />
+        {/* Address — read-only, opens the Google Places search (Java's AutocompleteActivity) */}
+        <Field
+          label="Address"
+          value={profile?.Address}
+          onPress={() => setShowPlaceSearch(true)}
+        />
 
-        {/* E-Mail — read-only once set, edit via OTP (imageView_editEmail) */}
+        {/* E-Mail — Java always disables this field (txtEmailId_Layout.setEnabled(false) runs
+            in both the "has email" and "no email yet" branches) and the pencil icon has no
+            visibility toggle at all, so both are unconditional -- unlike Contact No below,
+            which is only read-only/iconed once a value exists. */}
         <Field
           label="E-Mail ID"
           value={profile?.Email}
           keyboard="email-address"
-          editable={!profile?.Email}
-          showEditIcon={!!profile?.Email}
-          onChange={(v) => setProfile(prev => prev ? { ...prev, Email: v } : prev)}
+          editable={false}
+          showEditIcon
           onEditIconPress={() => openOtpFlow('EMAIL')}
         />
 
@@ -589,7 +595,7 @@ export default function TechProfileScreen() {
             style={fieldStyles.inputBox}
             onPress={() => setShowDobPicker(true)}
           >
-            <Text style={{ fontSize: sp(15), color: profile?.DOB ? '#333' : '#aaa' }}>
+            <Text style={{ fontSize: sp(16), color: profile?.DOB ? COLORS.textBlack : COLORS.lightGray }}>
               {profile?.DOB ? new Date(profile.DOB).toLocaleDateString('en-GB').replace(/\//g, '-') : 'Select...'}
             </Text>
           </Pressable>
@@ -621,13 +627,13 @@ export default function TechProfileScreen() {
         <View style={fieldStyles.wrapper}>
           <Text style={fieldStyles.floatingLabel}>Please Select Document</Text>
           <Pressable
-            style={fieldStyles.inputBox}
+            style={[fieldStyles.inputBox, styles.selectRow]}
             onPress={() => setShowDocDropdown(!showDocDropdown)}
           >
-            <Text style={{ fontSize: sp(15), color: docTypeName ? '#333' : '#aaa' }}>
+            <Text style={{ fontSize: sp(16), color: docTypeName ? COLORS.textBlack : COLORS.lightGray }}>
               {docTypeName || 'Select...'}
             </Text>
-            <Ionicons name="chevron-down" size={scale(18)} color="#333" />
+            <Ionicons name="chevron-down" size={scale(18)} color={COLORS.textBlack} />
           </Pressable>
 
           {showDocDropdown && (
@@ -667,7 +673,7 @@ export default function TechProfileScreen() {
             </Text>
           </Pressable>
         )}
-        
+
         <Pressable style={styles.attachBox} onPress={pickDocument}>
           <Text style={styles.attachText}>
             {selectedFile
@@ -695,7 +701,7 @@ export default function TechProfileScreen() {
       {/* Photo source picker */}
       <Modal visible={showPhotoSourceModal} transparent animationType="fade" onRequestClose={() => setShowPhotoSourceModal(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setShowPhotoSourceModal(false)}>
-          <Pressable>
+          <Pressable style={styles.modalSheetWrap} onPress={() => {}}>
             <View style={styles.photoSourceSheet}>
               <Text style={styles.photoSourceTitle}>Select Image Source</Text>
               <View style={styles.photoSourceDivider} />
@@ -721,51 +727,77 @@ export default function TechProfileScreen() {
         </Pressable>
       </Modal>
 
-      {/* Mobile / Email OTP verification (VerifyOTPDialog in Java) */}
+      {/* Address search (Java's full-screen Places Autocomplete) */}
+      <PlaceSearchModal
+        visible={showPlaceSearch}
+        onClose={() => setShowPlaceSearch(false)}
+        onSelect={(place) => {
+          setProfile(prev => prev ? { ...prev, Address: place.address } : prev);
+          setShowPlaceSearch(false);
+        }}
+      />
+
+      {/* Mobile / Email OTP verification (VerifyOTPDialog / otp_verified.xml in Java):
+          one card, field + (once it looks complete) the 4-digit OTP row, Validate / Submit. */}
       <Modal visible={otpModal.visible} transparent animationType="fade" onRequestClose={closeOtpFlow}>
         <Pressable style={styles.modalBackdrop} onPress={closeOtpFlow}>
-          <Pressable>
+          <Pressable style={styles.modalSheetWrap} onPress={() => {}}>
             <View style={styles.otpSheet}>
               <View style={styles.otpHeaderRow}>
                 <Text style={styles.otpTitle}>
-                  {otpModal.from === 'MOBILE' ? 'Update Mobile Number' : 'Update Email ID'}
+                  {otpModal.from === 'MOBILE' ? 'Change your contact number' : 'Change your Email id'}
                 </Text>
-                <Pressable onPress={closeOtpFlow}>
+                <Pressable onPress={closeOtpFlow} hitSlop={8}>
                   <Ionicons name="close" size={scale(20)} color="#444" />
                 </Pressable>
               </View>
 
-              {otpModal.stage === 'enter' ? (
-                <>
+              <View style={fieldStyles.wrapper}>
+                <Text style={fieldStyles.floatingLabel}>
+                  {otpModal.from === 'MOBILE' ? 'Contact No' : 'E-Mail ID'}
+                </Text>
+                <View style={fieldStyles.inputBox}>
                   <TextInput
-                    style={styles.otpInput}
-                    placeholder={otpModal.from === 'MOBILE' ? 'Enter new mobile number' : 'Enter new email id'}
+                    style={fieldStyles.input}
                     keyboardType={otpModal.from === 'MOBILE' ? 'phone-pad' : 'email-address'}
+                    maxLength={otpModal.from === 'MOBILE' ? 12 : 40}
                     value={otpModal.newValue}
-                    onChangeText={(v) => setOtpModal(prev => ({ ...prev, newValue: v }))}
+                    onChangeText={(v) => setOtpModal(prev => ({ ...prev, newValue: v, fieldError: null }))}
                   />
-                  <Pressable style={styles.otpActionBtn} onPress={handleSendOtp}>
-                    <Text style={styles.otpActionText}>Send OTP</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.otpHint}>
-                    Enter the OTP sent to {otpModal.newValue}
-                  </Text>
-                  <TextInput
-                    style={styles.otpInput}
-                    placeholder="Enter OTP"
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    value={otpModal.otpValue}
-                    onChangeText={(v) => setOtpModal(prev => ({ ...prev, otpValue: v }))}
-                  />
-                  <Pressable style={styles.otpActionBtn} onPress={handleVerifyOtp}>
-                    <Text style={styles.otpActionText}>Verify & Submit</Text>
-                  </Pressable>
-                </>
+                </View>
+              </View>
+              {!!otpModal.fieldError && <Text style={styles.otpFieldError}>{otpModal.fieldError}</Text>}
+
+              {otpInputReady && (
+                <View style={fieldStyles.wrapper}>
+                  <Text style={fieldStyles.floatingLabel}>OTP</Text>
+                  <View style={fieldStyles.inputBox}>
+                    <TextInput
+                      style={[fieldStyles.input, styles.otpBoxesInput]}
+                      keyboardType="number-pad"
+                      maxLength={4}
+                      value={otpModal.otpValue}
+                      onChangeText={(v) => setOtpModal(prev => ({ ...prev, otpValue: v.replace(/[^0-9]/g, '') }))}
+                    />
+                  </View>
+                </View>
               )}
+
+              <View style={styles.otpActionsRow}>
+                <Pressable style={styles.otpValidateBtn} onPress={handleSendOtp}>
+                  <Text style={styles.otpActionText}>Send OTP</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.otpSubmitBtn,
+                    otpModal.otpValue.length !== 4 && styles.otpSubmitBtnDisabled,
+                  ]}
+                  onPress={handleVerifyOtp}
+                  disabled={otpModal.otpValue.length !== 4}
+                >
+                  <Text style={styles.otpActionText}>Submit</Text>
+                </Pressable>
+              </View>
             </View>
           </Pressable>
         </Pressable>
@@ -779,71 +811,61 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.primary,
   },
-  redBg: {
-    backgroundColor: COLORS.primary,
-  },
   whiteSheet: {
     flex: 1,
     backgroundColor: '#fff',
-    borderTopLeftRadius: ms(28),
-    borderTopRightRadius: ms(28),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
   },
   content: {
-    padding: ms(16),
+    padding: ms(20),
   },
   loader: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.primary,
   },
 
   /* Avatar */
   avatarWrapper: {
     alignItems: 'center',
     marginBottom: ms(20),
-    marginTop: ms(8),
   },
   avatarEdit: {
     position: 'absolute',
-    bottom: ms(4),
-    right: '38%',
-    backgroundColor: COLORS.primary,
-    width: ms(24),
-    height: ms(24),
-    borderRadius: ms(12),
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
+    bottom: 0,
+    right: '34%',
   },
 
   /* Manager Row */
   managerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: ms(16),
+    marginBottom: ms(10),
     flexWrap: 'wrap',
   },
   managerLabel: {
-    fontSize: sp(13),
-    color: 'rgba(182,180,182,0.93)',
+    fontSize: sp(12),
+    color: COLORS.lightGray,
   },
   managerValue: {
-    fontSize: sp(14),
-    color: COLORS.textPrimary,
+    fontSize: sp(16),
+    color: COLORS.textBlack,
     flex: 1,
   },
 
   /* KYC */
   sectionTitle: {
     fontSize: sp(16),
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: ms(8),
     marginBottom: ms(12),
-    color: COLORS.textPrimary,
+    color: COLORS.textBlack,
   },
+  selectRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   existingDocLink: {
-    color: 'blue',
+    color: COLORS.tagBlue,
     textDecorationLine: 'underline',
     fontSize: sp(13),
     marginBottom: ms(12),
@@ -881,9 +903,9 @@ const styles = StyleSheet.create({
   /* File attach */
   attachLabel: {
     fontSize: sp(15),
-    fontWeight: '500',
+    fontWeight: '700',
     marginBottom: ms(8),
-    color: COLORS.textPrimary,
+    color: COLORS.textBlack,
   },
   attachBox: {
     borderWidth: 1,
@@ -902,27 +924,32 @@ const styles = StyleSheet.create({
 
   /* Buttons */
   updateBtn: {
-    backgroundColor: '#2f2f2f',
-    height: ms(52),
+    backgroundColor: '#353935',
+    height: ms(50),
     borderRadius: ms(30),
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: ms(10),
     elevation: 3,
   },
   updateText: {
     color: '#fff',
-    fontSize: sp(17),
-    fontWeight: '600',
+    fontSize: sp(18),
   },
   cancelText: {
     textAlign: 'center',
     color: COLORS.primary,
     marginTop: ms(16),
-    fontSize: sp(16),
+    marginBottom: ms(20),
+    fontSize: sp(18),
     paddingVertical: ms(8),
   },
 
   modalBackdrop:         { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: scale(32) },
+  // Absorbs taps so they don't bubble to modalBackdrop's dismiss handler. Needs an explicit
+  // width: without one, the sheet inside (which is itself width:'100%') has nothing to resolve
+  // its percentage against and collapses to a sliver.
+  modalSheetWrap:        { width: '100%' },
   photoSourceSheet:      { backgroundColor: '#fff', borderRadius: scale(16), width: '100%', maxWidth: scale(360), paddingVertical: vs(8), elevation: 10 },
   photoSourceTitle:      { fontSize: sp(17), fontWeight: '600', color: '#111', paddingHorizontal: scale(20), paddingVertical: vs(14) },
   photoSourceDivider:    { height: 1, backgroundColor: '#F3F4F6' },
@@ -930,25 +957,27 @@ const styles = StyleSheet.create({
   photoSourceIconWrap:   { width: scale(34), height: scale(34), borderRadius: scale(17), alignItems: 'center', justifyContent: 'center' },
   photoSourceOptionText: { fontSize: sp(15), color: '#1F2937' },
 
-  /* OTP modal */
+  /* OTP modal (Java: single card, field + OTP row, Validate/Submit) */
   otpSheet: {
     backgroundColor: '#fff', borderRadius: scale(16), width: '100%', maxWidth: scale(400),
     padding: scale(20), elevation: 10,
   },
   otpHeaderRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: vs(14),
+    alignItems: 'center', marginBottom: vs(16),
   },
-  otpTitle: { fontSize: sp(16), fontWeight: '600', color: '#111' },
-  otpHint: { fontSize: sp(13), color: '#666', marginBottom: vs(10) },
-  otpInput: {
-    height: ms(46), borderRadius: ms(10), borderWidth: 1,
-    borderColor: '#d1d1d1', paddingHorizontal: ms(14),
-    fontSize: sp(15), color: '#333', marginBottom: vs(14),
-  },
-  otpActionBtn: {
-    backgroundColor: COLORS.primary, height: ms(46), borderRadius: ms(24),
+  otpTitle: { flex: 1, fontSize: sp(18), color: COLORS.ink, marginRight: scale(8) },
+  otpFieldError: { fontSize: sp(12), color: COLORS.primary, marginTop: -ms(12), marginBottom: ms(10) },
+  otpBoxesInput: { letterSpacing: scale(8), fontSize: sp(18) },
+  otpActionsRow: { flexDirection: 'row', gap: scale(10), marginTop: ms(4) },
+  otpValidateBtn: {
+    flex: 1, backgroundColor: COLORS.primary, height: ms(42), borderRadius: ms(24),
     justifyContent: 'center', alignItems: 'center',
   },
+  otpSubmitBtn: {
+    flex: 1, backgroundColor: COLORS.primary, height: ms(42), borderRadius: ms(24),
+    justifyContent: 'center', alignItems: 'center',
+  },
+  otpSubmitBtnDisabled: { backgroundColor: COLORS.lightGray },
   otpActionText: { color: '#fff', fontSize: sp(15), fontWeight: '600' },
 });
