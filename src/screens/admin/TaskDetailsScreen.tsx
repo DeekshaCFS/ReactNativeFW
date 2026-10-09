@@ -25,6 +25,10 @@ import {getStringField, getNumberField} from './crmShared';
 import {ms, sp} from '../../utils/responsive';
 import {formatAmount} from '../../utils/decimal';
 import BackBar from '../../components/BackBar';
+import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {COLORS} from '../../theme/theme';
 import {downloadReport} from '../../api/report/reportService';
 import AddTaskModal, {buildTaskFormValues, type AddTaskInitialValues} from './AddTaskModal';
 import TaskClosureSection, {type TaskClosureSectionHandle} from './TaskClosureSection';
@@ -178,6 +182,9 @@ const TaskDetailsScreen = ({
   source = 'crm',
 }: TaskDetailsScreenProps) => {
   const closureRef = useRef<TaskClosureSectionHandle>(null);
+  const insets = useSafeAreaInsets();
+  // With the shared (absolute) AppHeader above and no back bar, push the whole screen below it.
+  const headerOffset = hideBackBar && underAppHeader ? insets.top + HEADER_CONTENT_HEIGHT : 0;
   const [closureLoaded, setClosureLoaded] = useState(false);
   const [hasQrScans, setHasQrScans] = useState(false);
   const [task, setTask] = useState<TaskDetailsTask | null>(fallbackTask ?? null);
@@ -386,7 +393,7 @@ const TaskDetailsScreen = ({
     .filter(Boolean);
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, headerOffset ? {paddingTop: headerOffset} : null]}>
       {hideBackBar ? null : <BackBar onBack={onBack} underAppHeader={underAppHeader} />}
 
       {showTrackingLayout ? (
@@ -396,6 +403,8 @@ const TaskDetailsScreen = ({
           isOngoing={status.toLowerCase() === 'ongoing'}
           fieldLatitude={Number(record.Latitude ?? record.latitude) || 0}
           fieldLongitude={Number(record.Longitude ?? record.longitude) || 0}
+          taskName={taskName}
+          customerName={custName}
         />
       ) : null}
       {showCompletedLayout || showTrackingLayout ? null : (
@@ -429,10 +438,10 @@ const TaskDetailsScreen = ({
             <Text style={[styles.statusLabel, {color: getStatusColor(status)}]}>{status || NA}</Text>
             <View style={styles.actionIconsRow}>
               <TouchableOpacity style={styles.actionIconButton} onPress={() => openWhatsapp(custPhoneWhatsapp)}>
-                <Text style={styles.actionIconText}>💬</Text>
+                <Ionicons name="logo-whatsapp" style={styles.actionIconText} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionIconButton} onPress={() => openCall(custPhone)}>
-                <Text style={styles.actionIconText}>📞</Text>
+                <Ionicons name="call-outline" style={styles.actionIconText} />
               </TouchableOpacity>
             </View>
           </View>
@@ -443,7 +452,8 @@ const TaskDetailsScreen = ({
           {renderRows([
             ['Task Name', valueOrNA(taskName)],
             ['Task Tag', valueOrNA(taskTag)],
-            ['Estimated Amount', `Rs. ${formatAmount(wagesPerHour)}`],
+            // Java hides the row unless the task has an estimated amount.
+            ...(wagesPerHour ? ([['Estimated Amount', `Rs. ${formatAmount(wagesPerHour)}`]] as [string, string][]) : []),
             ['Payment Mode', valueOrNA(paymentMode)],
             ['Fieldworker', valueOrNA(employeeName)],
             ...(isOnHold
@@ -520,10 +530,10 @@ const TaskDetailsScreen = ({
             <Text style={[styles.statusLabel, {color: getStatusColor(status)}]}>{status || NA}</Text>
             <View style={styles.actionIconsRow}>
               <TouchableOpacity style={styles.actionIconButton} onPress={() => openWhatsapp(custPhoneWhatsapp)}>
-                <Text style={styles.actionIconText}>💬</Text>
+                <Ionicons name="logo-whatsapp" style={styles.actionIconText} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionIconButton} onPress={() => openCall(custPhone)}>
-                <Text style={styles.actionIconText}>📞</Text>
+                <Ionicons name="call-outline" style={styles.actionIconText} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.actionIconButton}
@@ -532,16 +542,16 @@ const TaskDetailsScreen = ({
                     buildTaskFormValues(task as never, isCompleted ? 'reassignCompleted' : 'reassign'),
                   )
                 }>
-                <Text style={styles.actionIconText}>↻</Text>
+                <Ionicons name="refresh" style={styles.actionIconText} />
               </TouchableOpacity>
               {hasQrScans ? (
                 <TouchableOpacity style={styles.actionIconButton} onPress={() => closureRef.current?.openQrHistory()}>
-                  <Text style={styles.actionIconText}>▦</Text>
+                  <Ionicons name="qr-code-outline" style={styles.actionIconText} />
                 </TouchableOpacity>
               ) : null}
               {isCompleted ? (
                 <TouchableOpacity style={styles.actionIconButton} onPress={handleDownloadReport}>
-                  <Text style={styles.actionIconText}>⬇</Text>
+                  <Ionicons name="download-outline" style={styles.actionIconText} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -635,14 +645,14 @@ const TaskDetailsScreen = ({
               {isCompleted && task ? (
                 <>
                   <TouchableOpacity style={styles.actionIconButton} onPress={handleDownloadReport}>
-                    <Text style={styles.actionIconText}>⬇</Text>
+                    <Ionicons name="download-outline" style={styles.actionIconText} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.actionIconButton}
                     onPress={() =>
                       setReassignValues(buildTaskFormValues(task as never, 'reassignCompleted'))
                     }>
-                    <Text style={styles.actionIconText}>↻</Text>
+                    <Ionicons name="refresh" style={styles.actionIconText} />
                   </TouchableOpacity>
                 </>
               ) : null}
@@ -650,13 +660,13 @@ const TaskDetailsScreen = ({
                 style={styles.actionIconButton}
                 onPress={() => openWhatsapp(custPhoneWhatsapp)}
               >
-                <Text style={styles.actionIconText}>💬</Text>
+                <Ionicons name="logo-whatsapp" style={styles.actionIconText} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.actionIconButton}
                 onPress={() => openCall(custPhone)}
               >
-                <Text style={styles.actionIconText}>📞</Text>
+                <Ionicons name="call-outline" style={styles.actionIconText} />
               </TouchableOpacity>
             </View>
           </View>
@@ -882,13 +892,11 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: ms(16),
-    borderTopRightRadius: ms(16),
   },
   bodyContent: {
-    paddingHorizontal: ms(16),
-    paddingTop: ms(16),
-    paddingBottom: ms(32),
+    paddingHorizontal: ms(20),
+    paddingTop: ms(20),
+    paddingBottom: ms(110),
     width: '100%',
     maxWidth: ms(640),
     alignSelf: 'center',
@@ -930,19 +938,18 @@ const styles = StyleSheet.create({
     marginBottom: ms(12),
   },
   statusLabel: {
-    fontSize: sp(13),
-    fontWeight: '700',
+    fontSize: sp(16),
   },
   actionIconsRow: {
     flexDirection: 'row',
-    gap: ms(20),
+    gap: ms(24),
   },
   actionIconButton: {
     padding: ms(2),
   },
   actionIconText: {
-    fontSize: sp(18),
-    color: THEME_PRIMARY,
+    fontSize: ms(26),
+    color: COLORS.primary,
   },
   titleRow: {
     flexDirection: 'row',
@@ -950,33 +957,32 @@ const styles = StyleSheet.create({
     marginBottom: ms(10),
   },
   sectionHeading: {
-    fontSize: sp(13),
+    fontSize: sp(14),
     fontWeight: '700',
-    color: '#1F2937',
+    color: COLORS.ink,
   },
   sectionSpacing: {
     marginTop: ms(16),
     marginBottom: ms(4),
   },
   taskIdText: {
-    fontSize: sp(13),
-    fontWeight: '600',
-    color: '#1565c0',
+    fontSize: sp(14),
+    color: COLORS.linkBlue,
   },
   fieldRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: ms(6),
+    marginTop: ms(3),
   },
   fieldLabel: {
-    fontSize: sp(13),
-    color: '#1F2937',
-    flex: 1,
+    fontSize: sp(15),
+    color: COLORS.ink,
+    flex: 0.4,
   },
   fieldValue: {
-    fontSize: sp(13),
-    color: '#9CA3AF',
-    flex: 1,
+    fontSize: sp(15),
+    color: COLORS.lightGray,
+    flex: 0.6,
     textAlign: 'left',
   },
   itemDetailsHeaderRow: {

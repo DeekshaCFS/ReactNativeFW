@@ -115,7 +115,7 @@ const STATIC_PUSHED_SCREENS: PushedScreen[] = [
 
 // Screens that keep HomeActivityNew's own toolbar (hamburger + title + headset/bell)
 // instead of the back-arrow push header.
-const MAIN_HEADER_SCREENS = ['notification', 'help'];
+const MAIN_HEADER_SCREENS = ['notification', 'help', 'TaskDetails'];
 
 // Task, CRM and Employee all need the owner's id, which none of these
 // screens can look up on their own — they take it as a prop. `component=`
@@ -252,6 +252,7 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
             source={route.params.source}
             onBack={() => navigation.goBack()}
             hideBackBar
+            underAppHeader
           />
         )),
       },
@@ -346,7 +347,9 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
                   ? 'Notification'
                   : currentRoute.name === 'help'
                     ? 'Help & Support'
-                    : getAdminTabTitle(currentRoute.name as keyof AdminTabParamList);
+                    : currentRoute.name === 'TaskDetails'
+                      ? 'Tasks'
+                      : getAdminTabTitle(currentRoute.name as keyof AdminTabParamList);
 
           return (
             <>

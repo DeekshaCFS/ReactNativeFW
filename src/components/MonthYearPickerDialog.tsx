@@ -78,14 +78,17 @@ type Props = {
   activatedMonth: number; // 0-11
   activatedYear: number;
   title?: string;
+  /** 'holo': Android's stock grey month/year dialog (Task tab) instead of the rounded white one. */
+  variant?: 'default' | 'holo';
   onConfirm: (month: number, year: number) => void;
   onCancel: () => void;
 };
 
 export default function MonthYearPickerDialog({
   visible, yearOnly = false, minYear, maxYear, activatedMonth, activatedYear,
-  title = 'Select Month & Year', onConfirm, onCancel,
+  title = 'Select Month & Year', variant = 'default', onConfirm, onCancel,
 }: Props) {
+  const holo = variant === 'holo';
   const years: string[] = [];
   for (let y = minYear; y <= maxYear; y++) years.push(String(y));
 
@@ -106,8 +109,8 @@ export default function MonthYearPickerDialog({
       <View style={styles.overlay}>
         {/* Backdrop is a sibling (not a parent) so it can't steal the wheels' scroll gestures. */}
         <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
-        <View style={styles.card}>
-          <Text style={styles.title}>{title}</Text>
+        <View style={holo ? styles.holoCard : styles.card}>
+          {holo ? null : <Text style={styles.title}>{title}</Text>}
           <View style={styles.wheels}>
             {!yearOnly && (
               <View style={{ marginRight: scale(16) }}>
@@ -116,6 +119,19 @@ export default function MonthYearPickerDialog({
             )}
             <Wheel key={`y${visible}`} labels={years} index={yearIdx} onChange={setYearIdx} />
           </View>
+          {holo ? (
+            <View style={styles.holoButtons}>
+              <Pressable style={styles.holoBtn} onPress={onCancel}>
+                <Text style={styles.holoBtnText}>Cancel</Text>
+              </Pressable>
+              <View style={styles.holoDivider} />
+              <Pressable
+                style={styles.holoBtn}
+                onPress={() => onConfirm(yearOnly ? 0 : monthIdx, Number(years[yearIdx]))}>
+                <Text style={styles.holoBtnText}>OK</Text>
+              </Pressable>
+            </View>
+          ) : (
           <View style={styles.buttons}>
             <Pressable style={[styles.btn, { backgroundColor: COLORS.pickerCancel }]} onPress={onCancel}>
               <Text style={[styles.btnText, { color: COLORS.textBlack }]}>Cancel</Text>
@@ -127,6 +143,7 @@ export default function MonthYearPickerDialog({
               <Text style={[styles.btnText, { color: COLORS.white }]}>OK</Text>
             </Pressable>
           </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -144,6 +161,21 @@ const styles = StyleSheet.create({
     padding: scale(20),
     alignItems: 'center',
   },
+  // Stock Android (holo) month/year dialog: grey card, cyan wheel lines, flat Cancel | OK footer.
+  holoCard: {
+    width: scale(300),
+    backgroundColor: '#F5F5F5',
+    elevation: 8,
+  },
+  holoButtons: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    marginTop: vs(20),
+  },
+  holoBtn: { flex: 1, height: vs(50), alignItems: 'center', justifyContent: 'center' },
+  holoDivider: { width: 1, backgroundColor: '#E0E0E0' },
+  holoBtnText: { fontSize: sp(16), color: COLORS.textBlack },
   title: { fontSize: sp(18), fontWeight: '700', color: COLORS.textBlack, marginBottom: vs(16) },
   wheels: { flexDirection: 'row', justifyContent: 'center', marginBottom: vs(20) },
   wheel: { width: WHEEL_W, height: ITEM_H * 3 },

@@ -4,15 +4,20 @@
 //  - isTechnicianPresent(): Attendance/GetTodayAttandanceIsExist. When the
 //    fieldworker hasn't checked in, the map is replaced by
 //    "<name> is currently Absent or Unavailable".
-//  - Otherwise a map with the task (field) location marker. For Ongoing tasks
+//  - Otherwise a 300dp map with the task (field) location pin. For Ongoing tasks
 //    it also follows the fieldworker's live Firebase location and draws the
-//    route + Distance / Time from the Google Directions API.
-import React, {useEffect, useState} from 'react';
+//    route; a white 30dp card over the map shows Distance / Time.
+// The map itself reuses the technician route map's pieces (FIELDWEB_MAP_STYLE,
+// FieldWebLocationPin / FieldWebTechMarker, black polyline, fetchDrivingRoute).
+import React, {useEffect, useRef, useState} from 'react';
 import {Platform, StyleSheet, Text, View} from 'react-native';
-import MapView, {Marker, Polyline, PROVIDER_GOOGLE, type LatLng} from 'react-native-maps';
+import MapView, {Marker, Polyline, PROVIDER_GOOGLE} from 'react-native-maps';
 import {attendanceCheck} from '../../api/attendance/attendanceService';
 import {getLiveLocation} from '../../utils/firebaseLiveLocation';
-import {DIRECTIONS_API_KEY} from '../../config/maps';
+import {fetchDrivingRoute, type DrivingRoute} from '../../utils/routing';
+import {FieldWebLocationPin, FieldWebTechMarker} from '../../components/MapMarkers';
+import {FIELDWEB_MAP_STYLE} from '../../config/mapStyle';
+import {COLORS} from '../../theme/theme';
 import {ms, sp, vs} from '../../utils/responsive';
 
 type Props = {
@@ -21,39 +26,13 @@ type Props = {
   isOngoing: boolean;
   fieldLatitude: number;
   fieldLongitude: number;
+  taskName?: string;
+  customerName?: string;
 };
+
+type Point = {latitude: number; longitude: number};
 
 const LIVE_POLL_MS = 10000;
-
-// Standard Google encoded-polyline decoder (the format is defined with bit ops).
-/* eslint-disable no-bitwise */
-const decodePolyline = (encoded: string): LatLng[] => {
-  const points: LatLng[] = [];
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
-  while (index < encoded.length) {
-    for (const axis of ['lat', 'lng'] as const) {
-      let result = 0;
-      let shift = 0;
-      let byte: number;
-      do {
-        byte = encoded.charCodeAt(index++) - 63;
-        result |= (byte & 0x1f) << shift;
-        shift += 5;
-      } while (byte >= 0x20);
-      const delta = result & 1 ? ~(result >> 1) : result >> 1;
-      if (axis === 'lat') {
-        lat += delta;
-      } else {
-        lng += delta;
-      }
-    }
-    points.push({latitude: lat / 1e5, longitude: lng / 1e5});
-  }
-  return points;
-};
-/* eslint-enable no-bitwise */
 
 const OwnerTaskTrackingMap: React.FC<Props> = ({
   technicianId,
@@ -61,14 +40,16 @@ const OwnerTaskTrackingMap: React.FC<Props> = ({
   isOngoing,
   fieldLatitude,
   fieldLongitude,
+  taskName,
+  customerName,
 }) => {
   const [present, setPresent] = useState<boolean | null>(null);
-  const [tech, setTech] = useState<LatLng | null>(null);
-  const [route, setRoute] = useState<LatLng[]>([]);
-  const [distance, setDistance] = useState('NA');
-  const [duration, setDuration] = useState('NA');
-  const destination: LatLng = {latitude: fieldLatitude, longitude: fieldLongitude};
+  const [tech, setTech] = useState<Point | null>(null);
+  const [route, setRoute] = useState<DrivingRoute | null>(null);
+  const [routeFailed, setRouteFailed] = useState(false);
+  const destination: Point = {latitude: fieldLatitude, longitude: fieldLongitude};
   const hasDestination = !!fieldLatitude && !!fieldLongitude;
+  const destinationMarkerRef = useRef<React.ComponentRef<typeof Marker> | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -107,37 +88,23 @@ const OwnerTaskTrackingMap: React.FC<Props> = ({
     };
   }, [present, isOngoing, technicianId]);
 
-  // Route + Distance / Time (Java: getDirections(origin, destination, mode, apiKey)).
+  // Route + Distance / Time between the technician and the task (same helper as the
+  // technician route map; falls back to a straight line and "NA").
   useEffect(() => {
     if (!tech || !hasDestination) {
       return;
     }
-    if (!DIRECTIONS_API_KEY) {
-      setRoute([tech, destination]);
-      return;
-    }
-    const url =
-      'https://maps.googleapis.com/maps/api/directions/json' +
-      `?origin=${tech.latitude},${tech.longitude}` +
-      `&destination=${fieldLatitude},${fieldLongitude}&mode=driving&key=${DIRECTIONS_API_KEY}`;
-    fetch(url)
-      .then(r => r.json())
-      .then(data => {
-        const first = data?.routes?.[0];
-        const leg = first?.legs?.[0];
-        if (!first || !leg) {
-          setDistance('NA');
-          setDuration('NA');
-          return;
-        }
-        setRoute(decodePolyline(String(first.overview_polyline?.points ?? '')));
-        setDistance(String(leg.distance?.text ?? 'NA'));
-        setDuration(String(leg.duration?.text ?? 'NA'));
-      })
-      .catch(() => {
-        setDistance('NA');
-        setDuration('NA');
-      });
+    let active = true;
+    fetchDrivingRoute(tech, destination).then(result => {
+      if (!active) {
+        return;
+      }
+      setRoute(result);
+      setRouteFailed(!result);
+    });
+    return () => {
+      active = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tech?.latitude, tech?.longitude, fieldLatitude, fieldLongitude]);
 
@@ -150,40 +117,89 @@ const OwnerTaskTrackingMap: React.FC<Props> = ({
     );
   }
 
+  const distanceText = routeFailed || !route ? 'NA' : route.distanceText;
+  const durationText = routeFailed || !route ? 'NA' : route.durationText;
+
   return (
-    <View>
-      {tech ? (
-        <View style={styles.distanceRow}>
-          <Text style={styles.distanceLabel}>Distance</Text>
-          <Text style={styles.distanceValue}>{distance}</Text>
-          <Text style={styles.distanceLabel}>Time</Text>
-          <Text style={styles.distanceValue}>{duration}</Text>
-        </View>
-      ) : null}
+    <View style={styles.mapWrap}>
       {present && hasDestination ? (
         <MapView
           style={styles.map}
           provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-          initialRegion={{...destination, latitudeDelta: 0.08, longitudeDelta: 0.08}}
+          customMapStyle={FIELDWEB_MAP_STYLE}
+          showsUserLocation={false}
+          showsMyLocationButton={false}
           zoomControlEnabled
-          toolbarEnabled>
-          <Marker coordinate={destination} pinColor="red" />
-          {tech ? <Marker coordinate={tech} pinColor="blue" title={technicianName} /> : null}
-          {route.length > 1 ? <Polyline coordinates={route} strokeWidth={4} strokeColor="#1a73e8" /> : null}
+          onMapReady={() => destinationMarkerRef.current?.showCallout()}
+          initialRegion={{
+            latitude: (tech ?? destination).latitude,
+            longitude: (tech ?? destination).longitude,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }}>
+          <Marker
+            ref={destinationMarkerRef}
+            coordinate={destination}
+            anchor={{x: 0.5, y: 0.5}}
+            title={taskName ?? ''}
+            description={customerName ?? ''}>
+            <FieldWebLocationPin size={ms(35)} />
+          </Marker>
+          {tech ? (
+            <Marker coordinate={tech} anchor={{x: 0.5, y: 0.5}}>
+              <FieldWebTechMarker size={ms(40)} />
+            </Marker>
+          ) : null}
+          {tech ? (
+            <Polyline
+              coordinates={route?.coordinates ?? [tech, destination]}
+              strokeColor="#000000"
+              strokeWidth={5}
+              geodesic
+            />
+          ) : null}
         </MapView>
       ) : (
         <View style={styles.mapPlaceholder} />
       )}
+      {/* linear_distance: white 10dp-radius card, 30dp tall, weights 0.2 / 0.3 / 0.2 / 0.4 */}
+      <View style={styles.distanceCard} pointerEvents="none">
+        <Text style={[styles.distanceLabel, styles.col2]}>Distance</Text>
+        <Text style={[styles.distanceValue, styles.col3]} numberOfLines={1}>
+          {distanceText}
+        </Text>
+        <Text style={[styles.distanceLabel, styles.col2]}>Time</Text>
+        <Text style={[styles.distanceValue, styles.col4]} numberOfLines={1}>
+          {durationText}
+        </Text>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  map: {height: vs(240), width: '100%'},
-  mapPlaceholder: {height: vs(40)},
-  distanceRow: {flexDirection: 'row', alignItems: 'center', gap: ms(8), padding: ms(10), backgroundColor: '#fff'},
-  distanceLabel: {fontSize: sp(12), color: '#5f6368'},
-  distanceValue: {fontSize: sp(13), color: '#20283A', fontWeight: '700', marginRight: ms(12)},
+  mapWrap: {width: '100%', height: ms(300), backgroundColor: COLORS.white, borderTopLeftRadius: ms(30), borderTopRightRadius: ms(30), overflow: 'hidden'},
+  map: {...StyleSheet.absoluteFill},
+  mapPlaceholder: {...StyleSheet.absoluteFill, backgroundColor: '#EDE9E0'},
+  distanceCard: {
+    position: 'absolute',
+    top: ms(10),
+    left: ms(10),
+    right: ms(10),
+    height: ms(30),
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: ms(5),
+    backgroundColor: COLORS.white,
+    borderRadius: ms(10),
+    elevation: 8,
+    zIndex: 10,
+  },
+  distanceLabel: {fontSize: sp(14), color: COLORS.textBlack},
+  distanceValue: {fontSize: sp(14), color: COLORS.statusRejected},
+  col2: {flex: 0.2},
+  col3: {flex: 0.3},
+  col4: {flex: 0.4},
   absent: {alignItems: 'center', paddingVertical: vs(20)},
   absentName: {fontSize: sp(16), color: '#fff', fontWeight: '700'},
   absentText: {fontSize: sp(12), color: '#fff', marginTop: vs(4)},

@@ -25,6 +25,9 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
 import {ms, sp} from '../../utils/responsive';
 import {COLORS} from '../../theme/theme';
+import SearchPickerModal from '../../components/SearchPickerModal';
+import MonthYearPickerDialog from '../../components/MonthYearPickerDialog';
+import {ResetIcon} from '../../components/FocRequestCard';
 import AddTaskModal, {
   buildTaskFormValues,
   type AddTaskInitialValues,
@@ -747,119 +750,21 @@ const MainTaskFragmentNewScreen = ({
   };
 
   const monthPicker = (
-    <Modal
-      animationType="fade"
-      transparent
+    <MonthYearPickerDialog
       visible={isMonthPickerOpen}
-      onRequestClose={() => setIsMonthPickerOpen(false)}>
-      <Pressable
-        style={styles.monthPickerBackdrop}
-        onPress={() => setIsMonthPickerOpen(false)}>
-        <Pressable style={styles.monthPickerPanel} onPress={() => {}}>
-          <View style={styles.monthPickerHeader}>
-            <Text style={styles.monthPickerTitle}>Select month</Text>
-            <Text style={styles.monthPickerSubtitle}>
-              {formatMonthYearLabel(pendingMonth, pendingYear)}
-            </Text>
-          </View>
-
-          <View style={styles.monthPickerBody}>
-            <View style={styles.monthPickerColumn}>
-              <Text style={styles.monthPickerColumnTitle}>Month</Text>
-              <ScrollView style={styles.monthPickerList}>
-                {pendingMonthOptions.map(option => {
-                  const selected =
-                    option.month === pendingMonth && option.year === pendingYear;
-                  return (
-                    <Pressable
-                      key={`${option.year}-${option.month}`}
-                      onPress={() => setPendingMonth(option.month)}
-                      style={[
-                        styles.monthPickerItem,
-                        selected ? styles.monthPickerItemSelected : null,
-                      ]}>
-                      <Text
-                        style={[
-                          styles.monthPickerItemText,
-                          selected ? styles.monthPickerItemTextSelected : null,
-                        ]}>
-                        {MONTH_LABELS[option.month - 1] ?? '---'}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-
-            <View style={styles.monthPickerColumn}>
-              <Text style={styles.monthPickerColumnTitle}>Year</Text>
-              <ScrollView style={styles.monthPickerList}>
-                {yearOptions.map(value => {
-                  const selected = value === pendingYear;
-                  return (
-                    <Pressable
-                      key={String(value)}
-                      onPress={() => {
-                        const optionsForYear = monthOptions.filter(
-                          option => option.year === value,
-                        );
-                        const fallbackMonth =
-                          optionsForYear.find(
-                            option => option.month === pendingMonth,
-                          ) ?? optionsForYear[optionsForYear.length - 1];
-
-                        setPendingYear(value);
-                        if (fallbackMonth) {
-                          setPendingMonth(fallbackMonth.month);
-                        }
-                      }}
-                      style={[
-                        styles.monthPickerItem,
-                        selected ? styles.monthPickerItemSelected : null,
-                      ]}>
-                      <Text
-                        style={[
-                          styles.monthPickerItemText,
-                          selected ? styles.monthPickerItemTextSelected : null,
-                        ]}>
-                        {value}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          </View>
-
-          <View style={styles.monthPickerFooter}>
-            <Pressable
-              onPress={() => setIsMonthPickerOpen(false)}
-              style={styles.monthPickerButton}>
-              <Text style={styles.monthPickerButtonText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                if (hasMonthYearOption(monthOptions, pendingMonth, pendingYear)) {
-                  setOwnMonthYear({month: pendingMonth, year: pendingYear});
-                }
-                setIsMonthPickerOpen(false);
-              }}
-              style={[
-                styles.monthPickerButton,
-                styles.monthPickerButtonPrimary,
-              ]}>
-              <Text
-                style={[
-                  styles.monthPickerButtonText,
-                  styles.monthPickerButtonTextPrimary,
-                ]}>
-                OK
-              </Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      variant="holo"
+      minYear={Math.min(...yearOptions, year)}
+      maxYear={Math.max(...yearOptions, year)}
+      activatedMonth={month - 1}
+      activatedYear={year}
+      onCancel={() => setIsMonthPickerOpen(false)}
+      onConfirm={(m, y) => {
+        setIsMonthPickerOpen(false);
+        if (hasMonthYearOption(monthOptions, m + 1, y)) {
+          setOwnMonthYear({month: m + 1, year: y});
+        }
+      }}
+    />
   );
 
   // In controlled/embedded mode the parent already drew the toolbar and month
@@ -869,7 +774,7 @@ const MainTaskFragmentNewScreen = ({
       <View style={styles.panelHeader}>
         <View style={styles.searchRow}>
         <View style={styles.searchWrap}>
-          <Text style={styles.searchIcon}>⌕</Text>
+          <Ionicons name="search" style={styles.searchIcon} />
           <TextInput
             value={searchText}
             onChangeText={value => {
@@ -881,7 +786,7 @@ const MainTaskFragmentNewScreen = ({
             onSubmitEditing={submitSearch}
             returnKeyType="search"
             placeholder="Customer Or Task Id Number"
-            placeholderTextColor="#9E9E9E"
+            placeholderTextColor={COLORS.lightGray}
             style={styles.searchInput}
           />
           {searchText ? (
@@ -891,7 +796,7 @@ const MainTaskFragmentNewScreen = ({
                 setSearchText('');
                 setSubmittedSearch('');
               }}>
-              <Text style={styles.clearSearch}>×</Text>
+              <Ionicons name="close" style={styles.clearSearch} />
             </Pressable>
           ) : null}
         </View>
@@ -921,7 +826,9 @@ const MainTaskFragmentNewScreen = ({
           </Pressable>
           <Pressable style={styles.refreshButton} onPress={resetAndLoad}>
             <Text style={styles.refreshText}>Refresh List</Text>
-            <Text style={styles.refreshIcon}>↻</Text>
+            <View style={styles.refreshIcon}>
+              <ResetIcon size={ms(24)} />
+            </View>
           </Pressable>
         </View>
       </View>
@@ -956,67 +863,34 @@ const MainTaskFragmentNewScreen = ({
         }}
       />
 
-      <Modal
+      <SearchPickerModal
         visible={tagModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setTagModalVisible(false)}>
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setTagModalVisible(false)}>
-          <Pressable style={styles.modalPanel}>
-            <Text style={styles.modalTitle}>Select Task Tag</Text>
-            <TouchableOpacity
-              style={styles.modalItem}
-              onPress={() => {
-                setSelectedTag({id: 0, name: 'Select Task Tag'});
-                setTagModalVisible(false);
-              }}>
-              <Text style={styles.modalItemText}>All Tags</Text>
-            </TouchableOpacity>
-            {tags.length === 0 ? (
-              <Text style={styles.modalHint}>No task tags returned.</Text>
-            ) : (
-              tags.map(tag => (
-                <TouchableOpacity
-                  key={tag.id}
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setSelectedTag(tag);
-                    setTagModalVisible(false);
-                  }}>
-                  <Text style={styles.modalItemText}>{tag.name}</Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select Task Tag"
+        options={tags.map(tag => ({id: tag.id, label: tag.name}))}
+        emptyText="No task tags returned."
+        onClose={() => setTagModalVisible(false)}
+        onSelect={option => {
+          setSelectedTag({id: option.id, name: option.label});
+          setTagModalVisible(false);
+        }}
+      />
 
-      <Modal
+      <SearchPickerModal
         visible={statusModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setStatusModalVisible(false)}>
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setStatusModalVisible(false)}>
-          <Pressable style={styles.modalPanel}>
-            <Text style={styles.modalTitle}>Status</Text>
-            {TASK_STATUSES.map(status => (
-              <TouchableOpacity
-                key={status.id}
-                style={styles.modalItem}
-                onPress={() => {
-                  setSelectedStatus(status);
-                  setStatusModalVisible(false);
-                }}>
-                <Text style={styles.modalItemText}>{status.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Status"
+        options={TASK_STATUSES.filter(status => status.id !== 0).map(status => ({
+          id: status.id,
+          label: status.label,
+        }))}
+        onClose={() => setStatusModalVisible(false)}
+        onSelect={option => {
+          const status = TASK_STATUSES.find(item => item.id === option.id);
+          if (status) {
+            setSelectedStatus(status);
+          }
+          setStatusModalVisible(false);
+        }}
+      />
 
       <AddTaskModal
         visible={taskFormValues !== null}
@@ -1237,7 +1111,7 @@ const styles = StyleSheet.create({
     marginLeft: ms(10),
     width: ms(60),
     height: ms(30),
-    borderRadius: ms(10),
+    borderRadius: ms(15),
     backgroundColor: COLORS.textBlack,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1245,36 +1119,32 @@ const styles = StyleSheet.create({
   addTaskText: {
     color: COLORS.white,
     fontSize: sp(12),
-    fontWeight: '600',
   },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
     height: ms(40),
-    borderBottomWidth: ms(1),
-    borderBottomColor: '#C8C8C8',
+    paddingHorizontal: ms(8),
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.darkGray,
   },
   searchIcon: {
-    width: ms(24),
-    color: '#B2B2B2',
-    fontSize: sp(20),
-    lineHeight: sp(24),
+    color: COLORS.lightGray,
+    fontSize: ms(20),
+    marginRight: ms(8),
   },
   searchInput: {
     flex: 1,
     height: ms(40),
-    paddingHorizontal: ms(6),
+    paddingHorizontal: 0,
     paddingVertical: 0,
-    color: '#222222',
+    color: COLORS.textBlack,
     fontSize: sp(14),
-    fontWeight: '400',
   },
   clearSearch: {
-    color: '#777777',
-    fontSize: sp(26),
-    lineHeight: sp(28),
-    fontWeight: '300',
+    color: COLORS.textBlack,
+    fontSize: ms(20),
   },
   filterRow: {
     marginTop: ms(10),
@@ -1293,7 +1163,6 @@ const styles = StyleSheet.create({
     flex: 1,
     color: COLORS.textBlack,
     fontSize: sp(14),
-    fontWeight: '500',
   },
   filterChevron: {
     flexShrink: 0,
@@ -1310,14 +1179,10 @@ const styles = StyleSheet.create({
   refreshText: {
     color: THEME_PRIMARY,
     fontSize: sp(13),
-    fontWeight: '800',
+    fontWeight: '700',
   },
   refreshIcon: {
-    marginLeft: ms(6),
-    color: THEME_PRIMARY,
-    fontSize: sp(18),
-    lineHeight: sp(20),
-    fontWeight: '800',
+    marginLeft: ms(5),
   },
   loadingOverlay: {
     paddingVertical: ms(20),
@@ -1437,17 +1302,15 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   taskSubline: {
-    marginTop: ms(6),
-    paddingRight: ms(110),
+    marginTop: ms(5),
+    paddingRight: '38%',
     color: COLORS.lightGray,
     fontSize: sp(12),
-    fontWeight: '500',
   },
   customerText: {
-    marginTop: ms(6),
+    marginTop: ms(5),
     color: COLORS.ink,
     fontSize: sp(12),
-    fontWeight: '500',
   },
   taskAmountText: {
     position: 'absolute',
