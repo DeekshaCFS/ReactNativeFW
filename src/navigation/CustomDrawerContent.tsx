@@ -213,7 +213,6 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
           ]
         : [
             { icon: 'cube-outline',                   label: 'Item Inventory',  screen: 'Issued Items' },
-            { icon: 'people-outline',                 label: 'Leads',           screen: 'Leads' },
             { icon: 'cash-outline',                   label: 'Expenditure',     screen: 'Expenditure' },
             { icon: 'list-outline',                   label: 'Routine Service', screen: 'Routine Service' },
             { icon: 'chatbox-ellipses-outline',       label: 'FieldWeb AI',     screen: 'FieldWeb AI' },
