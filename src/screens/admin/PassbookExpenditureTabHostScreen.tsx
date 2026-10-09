@@ -1,5 +1,6 @@
 import TabStrip from '../../components/TabStrip';
 import PassbookSummary from '../../components/PassbookSummary';
+import {usePassbook} from '../../hooks/usePassbook';
 import MonthYearPickerDialog from '../../components/MonthYearPickerDialog';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
@@ -23,14 +24,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   type ExpenseTechnicianItem,
   type ExpenseTechnicianListResponse,
-  type MonthlyPassbookData,
-  type MonthlyPassbookItem,
-  type MonthlyPassbookResponse,
-  type PassbookSummaryData,
-  type TodayPassbookResponse,
-  type YearlyPassbookResponse,
 } from './adminLegacyApiTypes';
-import { getTodayPassbook, getMonthlyPassbook, getYearlyPassbook } from '../../api/passbook/passbookService';
 import { getExpenseUserList } from '../../api/expenditure/expenditureService';
 import ManageBalanceModal from './ManageBalanceModal';
 import TechnicianExpenseDetailsModal from './TechnicianExpenseDetailsModal';
@@ -40,59 +34,10 @@ type PassbookExpenditureTabHostScreenProps = {
 };
 
 type MainTab = 'passbook' | 'expenditure';
-type PassbookPeriod = 'today' | 'monthly' | 'yearly';
-
-type PassbookValues = {
-  estimated: number;
-  earnings: number;
-  credit: number;
-  expenses: number;
-  received: number;
-  remaining: number;
-};
 
 const THEME_PRIMARY = '#c3002f';
 const LIGHT_PRIMARY = '#ffc3cf';
 const DEFAULT_PROFILE_ICON = require('../../../assets/images/image.png');
-
-const MONTH_LABELS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-const emptyPassbookValues: PassbookValues = {
-  estimated: 0,
-  earnings: 0,
-  credit: 0,
-  expenses: 0,
-  received: 0,
-  remaining: 0,
-};
 
 const getCode = (response: {code?: string; Code?: string}) =>
   String(response.code ?? response.Code ?? '');
@@ -100,31 +45,7 @@ const getCode = (response: {code?: string; Code?: string}) =>
 const getMessage = (response: {message?: string; Message?: string}) =>
   String(response.message ?? response.Message ?? '').trim();
 
-const getFriendlyPassbookError = (error: unknown) => {
-  const message = error instanceof Error ? error.message.trim() : '';
-  
-  if (!message) {
-    return 'Unable to load passbook data. Please try again.';
-  }
-  
-  if (message.toLowerCase().includes('network')) {
-    return 'Network connection failed. Please check your internet connection and try again.';
-  }
-  
-  if (message.toLowerCase() === 'request failed') {
-    return 'Server error. Please try again later.';
-  }
-
-  return message;
-};
-
-const isSuccessOrNoData = (
-  response:
-    | TodayPassbookResponse
-    | MonthlyPassbookResponse
-    | YearlyPassbookResponse
-    | ExpenseTechnicianListResponse,
-) => {
+const isSuccessOrNoData = (response: ExpenseTechnicianListResponse) => {
   const code = getCode(response);
   return code === '200' || code === '';
 };
@@ -133,117 +54,6 @@ const toNumber = (value: unknown) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
-
-const getSummaryNumber = (
-  item: PassbookSummaryData | MonthlyPassbookData | null | undefined,
-  keys: string[],
-) => {
-  const record = item as Record<string, unknown> | null | undefined;
-  if (!record) {
-    return 0;
-  }
-
-  for (const key of keys) {
-    const parsed = toNumber(record[key]);
-    if (parsed !== 0 || record[key] === 0 || record[key] === '0') {
-      return parsed;
-    }
-  }
-
-  return 0;
-};
-
-const getTodayData = (response: TodayPassbookResponse) =>
-  response.resultData ?? response.ResultData ?? null;
-
-const getMonthlyData = (response: MonthlyPassbookResponse | YearlyPassbookResponse) =>
-  response.resultData ?? response.ResultData ?? null;
-
-const getMonthlyItems = (data: MonthlyPassbookData | null): MonthlyPassbookItem[] =>
-  data?.monthlyALlDataList ??
-  data?.MonthlyALlDataList ??
-  data?.monthlyAllDataList ??
-  data?.MonthlyAllDataList ??
-  [];
-
-const findMonthItem = (
-  data: MonthlyPassbookData | null,
-  month: number,
-  year: number,
-) => {
-  const monthLabel = MONTH_LABELS[month - 1] ?? '';
-  const monthName = MONTH_NAMES[month - 1] ?? '';
-  const monthStr = String(month);
-
-  return getMonthlyItems(data).find(item => {
-    const itemMonth = String(item.month ?? item.Month ?? '').toLowerCase().trim();
-    const itemYear = String(item.year ?? item.Year ?? '').trim();
-    
-    // Year must match exactly
-    if (itemYear !== String(year)) {
-      return false;
-    }
-
-    // Month can match by various formats
-    if (!itemMonth) {
-      return false;
-    }
-
-    // Try exact month number match
-    if (itemMonth === monthStr) {
-      return true;
-    }
-
-    // Try month label match (e.g., "jan", "feb")
-    if (itemMonth.includes(monthLabel.toLowerCase())) {
-      return true;
-    }
-
-    // Try full month name match (e.g., "january", "february")
-    if (itemMonth.includes(monthName.toLowerCase())) {
-      return true;
-    }
-
-    return false;
-  });
-};
-
-const valuesFromToday = (data: PassbookSummaryData | null): PassbookValues => ({
-  estimated: getSummaryNumber(data, ['earningAmount', 'EarningAmount']),
-  earnings: getSummaryNumber(data, ['earningAmount', 'EarningAmount']),
-  credit: getSummaryNumber(data, ['credit', 'Credit']),
-  expenses: getSummaryNumber(data, ['expenses', 'Expenses']),
-  received: getSummaryNumber(data, ['return', 'Return', 'deduction', 'Deduction']),
-  remaining: getSummaryNumber(data, ['balance', 'Balance']),
-});
-
-const valuesFromMonthly = (
-  data: MonthlyPassbookData | null,
-  monthItem: MonthlyPassbookItem | undefined,
-): PassbookValues => ({
-  estimated:
-    getSummaryNumber(monthItem, ['estimated', 'Estimated']) ||
-    getSummaryNumber(data, ['totalEstimated', 'TotalEstimated']),
-  earnings:
-    getSummaryNumber(monthItem, ['earning', 'Earning', 'earned', 'Earned']) ||
-    getSummaryNumber(data, ['totalEarned', 'TotalEarned']),
-  credit: getSummaryNumber(data, ['totalCredit', 'TotalCredit']),
-  expenses:
-    getSummaryNumber(monthItem, ['expenses', 'Expenses']) ||
-    getSummaryNumber(data, ['totalExpenses', 'TotalExpenses']),
-  received: getSummaryNumber(data, ['totalDeduction', 'TotalDeduction']),
-  remaining: getSummaryNumber(data, ['totalOpening', 'TotalOpening']),
-});
-
-const valuesFromYearly = (data: MonthlyPassbookData | null): PassbookValues => ({
-  estimated: getSummaryNumber(data, ['totalEstimated', 'TotalEstimated']),
-  earnings: getSummaryNumber(data, ['totalEarned', 'TotalEarned']),
-  credit: getSummaryNumber(data, ['totalCredit', 'TotalCredit']),
-  expenses: getSummaryNumber(data, ['totalExpenses', 'TotalExpenses']),
-  received: getSummaryNumber(data, ['totalDeduction', 'TotalDeduction']),
-  remaining: getSummaryNumber(data, ['totalOpening', 'TotalOpening']),
-});
-
 
 const formatMoney = (value: number) => `₹ ${formatAmount(value)}`;
 
@@ -310,33 +120,12 @@ const getTechnicianBalance = (item: ExpenseTechnicianItem) =>
 const getTechnicianPhoto = (item: ExpenseTechnicianItem) =>
   getExpenseString(item, ['profileImage', 'ProfileImage', 'photo', 'Photo']);
 
-const getDefaultMonthYear = () => {
-  const date = new Date();
-  return {
-    month: date.getMonth() + 1,
-    year: date.getFullYear(),
-  };
-};
-
 const PassbookExpenditureTabHostScreen = ({
   userId,
 }: PassbookExpenditureTabHostScreenProps) => {
   const [activeTab, setActiveTab] = useState<MainTab>('passbook');
   const [expenseTechnician, setExpenseTechnician] = useState<{id: number; name: string} | null>(null);
-  const [period, setPeriod] = useState<PassbookPeriod>('today');
-  const [passbookValues, setPassbookValues] =
-    useState<PassbookValues>(emptyPassbookValues);
-  const [passbookTitle, setPassbookTitle] = useState("Today's Earnings");
-  const [selectedMonthYear, setSelectedMonthYear] = useState(getDefaultMonthYear);
-  const [pendingMonth, setPendingMonth] = useState(selectedMonthYear.month);
-  const [pendingYear, setPendingYear] = useState(selectedMonthYear.year);
-  const [pickerMode, setPickerMode] = useState<Exclude<PassbookPeriod, 'today'>>(
-    'monthly',
-  );
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [isPassbookLoading, setIsPassbookLoading] = useState(false);
-  const [passbookError, setPassbookError] = useState('');
-  const latestPassbookRequestId = useRef(0);
+  const passbook = usePassbook(userId);
 
   const [technicians, setTechnicians] = useState<ExpenseTechnicianItem[]>([]);
   const [expenseSearch, setExpenseSearch] = useState('');
@@ -352,134 +141,6 @@ const PassbookExpenditureTabHostScreen = ({
     // Show exactly 2 years: current year and the previous year
     return [currentYear, currentYear - 1];
   }, []);
-
-  const loadTodayPassbook = useCallback(
-    async (refreshing = false) => {
-      if (!refreshing) {
-        setIsPassbookLoading(true);
-      }
-      setPassbookError('');
-      const requestId = latestPassbookRequestId.current + 1;
-      latestPassbookRequestId.current = requestId;
-
-      try {
-        const response = await getTodayPassbook({ UserId: userId }) as TodayPassbookResponse;
-
-        if (requestId !== latestPassbookRequestId.current) {
-          return;
-        }
-
-        if (!isSuccessOrNoData(response)) {
-          throw new Error(getMessage(response) || 'Unable to load passbook.');
-        }
-
-        setPassbookValues(valuesFromToday(getTodayData(response)));
-        setPassbookTitle("Today's Earnings");
-      } catch (error) {
-        if (requestId !== latestPassbookRequestId.current) {
-          return;
-        }
-        setPassbookValues(emptyPassbookValues);
-        setPassbookError(getFriendlyPassbookError(error));
-      } finally {
-        if (requestId === latestPassbookRequestId.current) {
-          setIsPassbookLoading(false);
-        }
-      }
-    },
-    [userId],
-  );
-
-  const loadMonthlyPassbook = useCallback(
-    async (month: number, year: number) => {
-      setIsPassbookLoading(true);
-      setPassbookError('');
-      setPassbookTitle(`${MONTH_NAMES[month - 1] ?? 'Invalid'} ${year}'s Earnings`);
-      const requestId = latestPassbookRequestId.current + 1;
-      latestPassbookRequestId.current = requestId;
-
-      try {
-        const response = (await getMonthlyPassbook({
-          UserId: userId,
-          PassbookMonth: month,
-          PassbookYear: year,
-        })) as MonthlyPassbookResponse;
-
-        if (requestId !== latestPassbookRequestId.current) {
-          return;
-        }
-
-        if (!isSuccessOrNoData(response)) {
-          throw new Error(getMessage(response) || 'Unable to load monthly passbook.');
-        }
-
-        const data = getMonthlyData(response);
-        
-        // Validate that we received data
-        if (!data) {
-          throw new Error('No data received from server. Please try again.');
-        }
-        
-        const monthItem = findMonthItem(data, month, year);
-        setPassbookValues(valuesFromMonthly(data, monthItem));
-        setPassbookTitle(`${MONTH_NAMES[month - 1]} ${year}'s Earnings`);
-      } catch (error) {
-        if (requestId !== latestPassbookRequestId.current) {
-          return;
-        }
-        setPassbookValues(emptyPassbookValues);
-        setPassbookError(getFriendlyPassbookError(error));
-      } finally {
-        if (requestId === latestPassbookRequestId.current) {
-          setIsPassbookLoading(false);
-        }
-      }
-    },
-    [userId],
-  );
-
-  const loadYearlyPassbook = useCallback(
-    async (year: number) => {
-      setIsPassbookLoading(true);
-      setPassbookError('');
-      setPassbookTitle(`${year}'s Earnings`);
-      const requestId = latestPassbookRequestId.current + 1;
-      latestPassbookRequestId.current = requestId;
-
-      try {
-        const response = (await getYearlyPassbook({ UserId: userId, PassbookYear: year })) as YearlyPassbookResponse;
-
-        if (requestId !== latestPassbookRequestId.current) {
-          return;
-        }
-
-        if (!isSuccessOrNoData(response)) {
-          throw new Error(getMessage(response) || 'Unable to load yearly passbook.');
-        }
-
-        const data = getMonthlyData(response);
-        
-        // Validate that we received data
-        if (!data) {
-          throw new Error('No data received from server. Please try again.');
-        }
-        
-        setPassbookValues(valuesFromYearly(data));
-        setPassbookTitle(`${year}'s Earnings`);
-      } catch (error) {
-        if (requestId !== latestPassbookRequestId.current) {
-          return;
-        }
-        setPassbookValues(emptyPassbookValues);
-        setPassbookError(getFriendlyPassbookError(error));
-      } finally {
-        if (requestId === latestPassbookRequestId.current) {
-          setIsPassbookLoading(false);
-        }
-      }
-    },
-    [userId],
-  );
 
   const openBalanceModal = (
     mode: 'add' | 'deduct',
@@ -537,10 +198,6 @@ const PassbookExpenditureTabHostScreen = ({
   );
 
   useEffect(() => {
-    loadTodayPassbook();
-  }, [loadTodayPassbook]);
-
-  useEffect(() => {
     if (activeTab === 'expenditure' && technicians.length === 0 && !expenseError) {
       loadExpenseTechnicians();
     }
@@ -550,23 +207,6 @@ const PassbookExpenditureTabHostScreen = ({
     loadExpenseTechnicians,
     technicians.length,
   ]);
-
-  const openPicker = (mode: Exclude<PassbookPeriod, 'today'>) => {
-    setPickerMode(mode);
-    setPendingMonth(selectedMonthYear.month);
-    setPendingYear(selectedMonthYear.year);
-    setIsPickerOpen(true);
-  };
-
-  const handlePeriodPress = (nextPeriod: PassbookPeriod) => {
-    if (nextPeriod === 'today') {
-      setPeriod('today');
-      loadTodayPassbook();
-      return;
-    }
-
-    openPicker(nextPeriod);
-  };
 
   const filteredTechnicians = useMemo(() => {
     const query = expenseSearch.trim().toLowerCase();
@@ -581,30 +221,17 @@ const PassbookExpenditureTabHostScreen = ({
 
   const renderPassbook = () => (
     <PassbookSummary
-      period={period}
-      onSelectPeriod={handlePeriodPress}
-      title={passbookTitle}
-      fields={passbookValues}
-      loading={isPassbookLoading}
-      onPrev={() => openPicker(period === 'yearly' ? 'yearly' : 'monthly')}
-      onNext={() => openPicker(period === 'yearly' ? 'yearly' : 'monthly')}
-      prevDisabled={period === 'today'}
-      nextDisabled={period === 'today'}
+      period={passbook.period}
+      onSelectPeriod={passbook.selectPeriod}
+      title={passbook.title}
+      fields={passbook.fields}
+      loading={passbook.loading}
+      onPrev={() => passbook.shift(-1)}
+      onNext={() => passbook.shift(1)}
+      prevDisabled={passbook.period === 'today'}
+      nextDisabled={passbook.period === 'today' || passbook.forwardBlocked}
     />
   );
-
-  const confirmPicker = (month: number, year: number) => {
-    const nextMonthYear = {month: month + 1, year};
-    setSelectedMonthYear(nextMonthYear);
-    setIsPickerOpen(false);
-    if (pickerMode === 'monthly') {
-      setPeriod('monthly');
-      loadMonthlyPassbook(nextMonthYear.month, nextMonthYear.year);
-    } else {
-      setPeriod('yearly');
-      loadYearlyPassbook(nextMonthYear.year);
-    }
-  };
 
   const renderTechnician = ({item}: {item: ExpenseTechnicianItem}) => {
     const photo = getTechnicianPhoto(item);
@@ -726,14 +353,14 @@ const PassbookExpenditureTabHostScreen = ({
 
       {/* Java: Util/MonthYearPickerDialog (Monthly: current year and one before; Yearly: current and two before) */}
       <MonthYearPickerDialog
-        visible={isPickerOpen}
-        yearOnly={pickerMode === 'yearly'}
-        minYear={new Date().getFullYear() - (pickerMode === 'yearly' ? 2 : 1)}
+        visible={passbook.pickerFor !== null}
+        yearOnly={passbook.pickerFor === 'yearly'}
+        minYear={new Date().getFullYear() - (passbook.pickerFor === 'yearly' ? 2 : 1)}
         maxYear={new Date().getFullYear()}
-        activatedMonth={selectedMonthYear.month - 1}
-        activatedYear={selectedMonthYear.year}
-        onCancel={() => setIsPickerOpen(false)}
-        onConfirm={confirmPicker}
+        activatedMonth={new Date().getMonth()}
+        activatedYear={new Date().getFullYear()}
+        onCancel={passbook.cancelPicker}
+        onConfirm={passbook.confirmPicker}
       />
 
       <TechnicianExpenseDetailsModal

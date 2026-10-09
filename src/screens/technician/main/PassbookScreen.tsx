@@ -1,31 +1,25 @@
 // src/screens/technician/main/PassbookScreen.tsx
 //
 // Port of Java's HomePassbookFragmentNew (layout home_passbook_fragment_new).
-// Today/Monthly/Yearly tabs each hit a different Passbook endpoint; the field
-// mapping below (which API field feeds which row) mirrors the Java fragment
-// exactly, including its quirks (e.g. Yearly's "Credit Given" and "Remaining
-// Amount" both read TotalOpening — that's what the live app does).
+// The data loading + Today/Monthly/Yearly navigation lives in usePassbook (shared
+// with the admin Passbook); this file only owns the tab row and screen wiring.
 import {
   View, Text, StyleSheet, Pressable,
 } from 'react-native';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { COLORS } from '../../../theme/theme';
 import MonthYearPickerDialog from '../../../components/MonthYearPickerDialog';
-import PassbookSummary, { type PassbookFields, type PassbookPeriod } from '../../../components/PassbookSummary';
-import { scale, vs, sp, ms, useAppHeaderHeight } from '../../../utils/responsive';
+import PassbookSummary from '../../../components/PassbookSummary';
+import { vs, ms, sp, useAppHeaderHeight } from '../../../utils/responsive';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { TechnicianTabParamList } from '../../../navigation/TechnicianTabs';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CompositeNavigationProp } from '@react-navigation/native';
-import {
-  getTodayPassbook,
-  getMonthlyPassbook,
-  getYearlyPassbook,
-} from '../../../api/passbook/passbookService';
 import { usePassbookTabOrder } from '../../../state/passbookTabOrder';
 import { getCurrentUserId } from '../../../state/session';
+import { usePassbook } from '../../../hooks/usePassbook';
 
 // Passbook is a real tab, but also needs to push 'Expenditure', which now
 // lives one level up in TechnicianStack — so the nav type is a composite.
@@ -33,149 +27,26 @@ type NavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<TechnicianTabParamList, 'Passbook'>,
   NativeStackNavigationProp<TechnicianStackParamList>
 >;
-type Period = PassbookPeriod;
-
-// Java: DateUtils.getMonthName() — new DateFormatSymbols(ENGLISH).getShortMonths().
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const EMPTY_FIELDS: PassbookFields = {
-  estimated: 0, credit: 0, expenses: 0, received: 0, remaining: 0, earnings: 0,
-};
 
 export default function PassbookScreen() {
   const headerHeight = useAppHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
   const tabOrder = usePassbookTabOrder();
 
-  const [activePeriod, setActivePeriod] = useState<Period>('today');
-  // Drives the Monthly/Yearly caret navigation (Java opens a month/year picker dialog).
-  const [refDate, setRefDate] = useState(() => new Date());
-  const [fields, setFields] = useState<PassbookFields>(EMPTY_FIELDS);
-  const [loading, setLoading] = useState(false);
+  const passbook = usePassbook(getCurrentUserId());
+  const { period, reload } = passbook;
+  const now = new Date();
 
-  // Java (btnMonthYear/btnYear): switching to Monthly/Yearly always opens the
-  // month/year dialog rather than assuming the current month/year.
-  const [pickerFor, setPickerFor] = useState<'monthly' | 'yearly' | null>(null);
-
-  const load = useCallback(async (period: Period, date: Date) => {
-    const userId = getCurrentUserId();
-    if (!userId) {
-      return;
-    }
-    setLoading(true);
-    try {
-      if (period === 'today') {
-        const res = await getTodayPassbook({ UserId: userId });
-        const d = res?.ResultData;
-        // Java: txtEstimatedEarning and txtEarnings both read EarningAmount here.
-        setFields({
-          estimated: d?.EarningAmount ?? 0,
-          credit: d?.Credit ?? 0,
-          expenses: d?.Expenses ?? 0,
-          received: d?.Return ?? 0,
-          remaining: d?.Balance ?? 0,
-          earnings: d?.EarningAmount ?? 0,
-        });
-      } else if (period === 'monthly') {
-        const month = date.getMonth();
-        const year = date.getFullYear();
-        const res = await getMonthlyPassbook({ UserId: userId, PassbookMonth: month + 1, PassbookYear: year });
-        const d = res?.ResultData;
-        const monthName = MONTHS[month];
-        // API scopes MonthlyALlDataList to the requested year via
-        // PassbookMonth/PassbookYear already, and its per-row Year field
-        // comes back blank -- matching on it (as Java's equalsIgnoreCase
-        // check does) always misses, so match on Month name alone.
-        const row = d?.MonthlyALlDataList?.find(item => item.Month?.includes(monthName));
-        setFields({
-          estimated: row?.Estimated ?? 0,
-          credit: d?.TotalCredit ?? 0,
-          expenses: row?.Expenses ?? 0,
-          received: d?.TotalDeduction ?? 0,
-          remaining: d?.TotalOpening ?? 0,
-          earnings: row?.Earning ?? 0,
-        });
-      } else {
-        const year = date.getFullYear();
-        const res = await getYearlyPassbook({ UserId: userId, PassbookYear: year });
-        const d = res?.ResultData;
-        // Java: Credit Given and Remaining Amount both read TotalOpening for Yearly.
-        setFields({
-          estimated: d?.TotalEstimated ?? 0,
-          credit: d?.TotalOpening ?? 0,
-          expenses: d?.TotalExpenses ?? 0,
-          received: d?.TotalDeduction ?? 0,
-          remaining: d?.TotalOpening ?? 0,
-          earnings: d?.TotalEarned ?? 0,
-        });
-      }
-    } catch {
-      setFields(EMPTY_FIELDS);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => { load(activePeriod, refDate); }, [load, activePeriod, refDate]),
-  );
+  // Coming back to the tab refreshes whatever period is selected.
+  useFocusEffect(useCallback(() => { reload(); }, [reload]));
 
   // Re-tapping the Passbook tab while already on it refreshes the screen.
   useEffect(() => {
     const unsubscribe = navigation.addListener('tabPress', () => {
-      if (navigation.isFocused()) load(activePeriod, refDate);
+      if (navigation.isFocused()) reload();
     });
     return unsubscribe;
-  }, [navigation, load, activePeriod, refDate]);
-
-  const selectPeriod = (period: Period) => {
-    if (period === 'today') {
-      setActivePeriod(period);
-      const now = new Date();
-      setRefDate(now);
-      load(period, now);
-      return;
-    }
-    setPickerFor(period);
-  };
-
-  const confirmPeriodPicker = (month: number, year: number) => {
-    if (!pickerFor) return;
-    const next = new Date(year, pickerFor === 'monthly' ? month : 0, 1);
-    setActivePeriod(pickerFor);
-    setRefDate(next);
-    load(pickerFor, next);
-    setPickerFor(null);
-  };
-
-  // The carets can't move past the current month (Monthly) or current year (Yearly).
-  const nowDate = new Date();
-  const forwardBlocked =
-    (activePeriod === 'yearly' && refDate.getFullYear() >= nowDate.getFullYear()) ||
-    (activePeriod === 'monthly' &&
-      refDate.getFullYear() * 12 + refDate.getMonth() >= nowDate.getFullYear() * 12 + nowDate.getMonth());
-
-  const shiftRef = (delta: number) => {
-    if (activePeriod === 'today') {
-      return;
-    }
-    if (delta > 0 && forwardBlocked) {
-      return;
-    }
-    const next = new Date(refDate);
-    if (activePeriod === 'monthly') {
-      next.setMonth(next.getMonth() + delta);
-    } else {
-      next.setFullYear(next.getFullYear() + delta);
-    }
-    setRefDate(next);
-  };
-
-  const title = activePeriod === 'today'
-    ? "Today's Earnings"
-    : activePeriod === 'monthly'
-      ? `${MONTHS[refDate.getMonth()]} ${refDate.getFullYear()}'s Earnings`
-      : `${refDate.getFullYear()}'s Earnings`;
+  }, [navigation, reload]);
 
   return (
     <View style={styles.root}>
@@ -195,27 +66,27 @@ export default function PassbookScreen() {
       </View>
 
       <PassbookSummary
-        period={activePeriod}
-        onSelectPeriod={selectPeriod}
-        title={title}
-        fields={fields}
-        loading={loading}
-        onPrev={() => shiftRef(-1)}
-        onNext={() => shiftRef(1)}
-        prevDisabled={activePeriod === 'today'}
-        nextDisabled={activePeriod === 'today' || forwardBlocked}
+        period={period}
+        onSelectPeriod={passbook.selectPeriod}
+        title={passbook.title}
+        fields={passbook.fields}
+        loading={passbook.loading}
+        onPrev={() => passbook.shift(-1)}
+        onNext={() => passbook.shift(1)}
+        prevDisabled={period === 'today'}
+        nextDisabled={period === 'today' || passbook.forwardBlocked}
       />
 
       {/* Java: Util/MonthYearPickerDialog (Monthly: current year and one before; Yearly: current and two before) */}
       <MonthYearPickerDialog
-        visible={pickerFor !== null}
-        yearOnly={pickerFor === 'yearly'}
-        minYear={new Date().getFullYear() - (pickerFor === 'yearly' ? 2 : 1)}
-        maxYear={new Date().getFullYear()}
-        activatedMonth={new Date().getMonth()}
-        activatedYear={new Date().getFullYear()}
-        onCancel={() => setPickerFor(null)}
-        onConfirm={confirmPeriodPicker}
+        visible={passbook.pickerFor !== null}
+        yearOnly={passbook.pickerFor === 'yearly'}
+        minYear={now.getFullYear() - (passbook.pickerFor === 'yearly' ? 2 : 1)}
+        maxYear={now.getFullYear()}
+        activatedMonth={now.getMonth()}
+        activatedYear={now.getFullYear()}
+        onCancel={passbook.cancelPicker}
+        onConfirm={passbook.confirmPicker}
       />
     </View>
   );
@@ -246,5 +117,4 @@ const styles = StyleSheet.create({
   activeTabText:   { fontSize: sp(15), fontWeight: '600', color: COLORS.primary },
   inactiveTab:     { flex: 1, height: ms(44), alignItems: 'center', justifyContent: 'center' },
   inactiveTabText: { fontSize: sp(15), fontWeight: '400', color: COLORS.textQuaternary },
-
 });
