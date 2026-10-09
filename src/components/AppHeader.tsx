@@ -41,11 +41,14 @@ export const HEADER_CONTENT_HEIGHT = HEADER_BAR_HEIGHT;
 type AppHeaderProps = {
   title: string;
   navigation: NavigationProp<ParamListBase>;
+  // Java's admin toolbar has no location icon and no unread badge on the bell.
+  isAdmin?: boolean;
 };
 
 const AppHeader: React.FC<AppHeaderProps> = ({
   title,
   navigation,
+  isAdmin = false,
 }) => {
 
   const insets = useSafeAreaInsets();
@@ -108,9 +111,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 
         {/* RIGHT */}
         <View style={styles.headerIcons}>
-          <Pressable hitSlop={10} style={styles.iconBtn}>
-            <Ionicons name="location-outline" size={ms(22)} color="#fff" />
-          </Pressable>
+          {isAdmin ? null : (
+            <Pressable hitSlop={10} style={styles.iconBtn}>
+              <Ionicons name="location-outline" size={ms(22)} color="#fff" />
+            </Pressable>
+          )}
 
           <Pressable
             onPress={() => navigation.navigate('help')}
@@ -130,7 +135,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               size={ms(22)}
               color="#fff"
             />
-            {unread > 0 ? (
+            {!isAdmin && unread > 0 ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText} allowFontScaling={false}>
                   {unread > 99 ? '99+' : unread}

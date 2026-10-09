@@ -163,7 +163,10 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
 
   const toolbarTitle = useMemo(
     () =>
-      selectedDrawerLabel !== 'Dashboard' ? selectedDrawerLabel : 'FieldWeb',
+      // Java leaves the toolbar on "FieldWeb" while Passbook is open.
+      selectedDrawerLabel !== 'Dashboard' && selectedDrawerLabel !== 'Passbook'
+        ? selectedDrawerLabel
+        : 'FieldWeb',
     [selectedDrawerLabel],
   );
 
@@ -589,8 +592,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: THEME_PRIMARY,
     paddingHorizontal: ms(16),
-    paddingTop: Platform.OS === 'ios' ? ms(10) : ms(14),
-    paddingBottom: ms(12),
+    paddingTop: ms(2),
+    paddingBottom: ms(2),
   },
   headerTopRow: {
     flexDirection: 'row',
@@ -700,7 +703,6 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flexGrow: 1,
-    padding: ms(16),
     paddingBottom: ms(100),
   },
   taskContentContainer: {

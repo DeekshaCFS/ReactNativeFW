@@ -28,6 +28,7 @@ import BankDetailsTaxScreen from '../screens/admin/BankDetailsTaxScreen';
 import AMCDetailsScreen from '../screens/admin/AMCDetailsScreen';
 import BookDemoScreen from '../screens/admin/BookDemoScreen';
 import AdminNotificationScreen from '../screens/admin/AdminNotificationScreen';
+import HelpChatScreen from '../screens/technician/main/HelpChatScreen';
 import AIScreen from '../screens/technician/drawer/AIScreen';
 import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL, FEEDBACK_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
 import RefundPolicyScreen from '../screens/technician/drawer/RefundPolicy';
@@ -108,7 +109,13 @@ const STATIC_PUSHED_SCREENS: PushedScreen[] = [
   { name: 'FieldWeb AI', component: unmountOnBlur(AIScreen), title: 'FieldWeb AI' },
   { name: 'Book App Demo', component: unmountOnBlur(BookDemoScreen), title: 'Book App Demo' },
   { name: 'AMCDetails', component: unmountOnBlur(AMCDetailsScreen), title: 'AMC' },
+  // Java ChatFragment (tawk.to) opens under the normal toolbar, bottom bar visible.
+  { name: 'help', component: unmountOnBlur(() => <HelpChatScreen underAppHeader />), title: 'Help & Support' },
 ];
+
+// Screens that keep HomeActivityNew's own toolbar (hamburger + title + headset/bell)
+// instead of the back-arrow push header.
+const MAIN_HEADER_SCREENS = ['notification', 'help'];
 
 // Task, CRM and Employee all need the owner's id, which none of these
 // screens can look up on their own — they take it as a prop. `component=`
@@ -333,15 +340,19 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
             currentRoute.name === 'Home'
               ? homeParams?.currentSectionTitle ?? 'FieldWeb'
               : currentRoute.name === 'Employee' &&
-                  (employeeParams?.attendanceEntry || employeeParams?.activeEmployeeTab === 'leave')
+                  employeeParams?.attendanceEntry
                 ? 'Attendance'
-                : getAdminTabTitle(currentRoute.name as keyof AdminTabParamList);
+                : currentRoute.name === 'notification'
+                  ? 'Notification'
+                  : currentRoute.name === 'help'
+                    ? 'Help & Support'
+                    : getAdminTabTitle(currentRoute.name as keyof AdminTabParamList);
 
           return (
             <>
               {/* Pushed-style screens show their own back-arrow header. */}
-              {MAIN_TABS.includes(currentRoute.name) && (
-                <AppHeader title={title} navigation={props.navigation as any} />
+              {(MAIN_TABS.includes(currentRoute.name) || MAIN_HEADER_SCREENS.includes(currentRoute.name)) && (
+                <AppHeader title={title} navigation={props.navigation as any} isAdmin />
               )}
               <BottomTabBar
                 {...props}
@@ -378,7 +389,10 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
             name={name}
             component={component}
             initialParams={initialParams}
-            options={({ navigation }: any) => pushedScreenOptions(title, navigation)}
+            options={({ navigation }: any) =>
+              MAIN_HEADER_SCREENS.includes(name)
+                ? { headerShown: false }
+                : pushedScreenOptions(title, navigation)}
           />
         ))}
       </Tab.Navigator>

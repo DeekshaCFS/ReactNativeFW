@@ -3,6 +3,19 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image, Alert, PermissionsAndroid, Platform } from 'react-native';
 import Modal from '../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {
+  ItemInventoryDrawerIcon,
+  PassbookDrawerIcon,
+  AmcDrawerIcon,
+  ServicesDrawerIcon,
+  AccountsDrawerIcon,
+  LeadsDrawerIcon,
+  FieldwebAiDrawerIcon,
+  SettingsDrawerIcon,
+  RoutineServiceDrawerIcon,
+  CheckOutDrawerIcon,
+} from '../components/DrawerIcons';
+import { PencilEditIcon } from '../components/DialogIcons';
 import { DrawerContentComponentProps } from '@react-navigation/drawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/theme';
@@ -139,7 +152,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
     }
   };
 
-  const AVATAR_SIZE = ms(68);
+  const AVATAR_SIZE = ms(60);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + ms(16) }]}>
@@ -150,7 +163,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
               source={
                 profile?.Photo && !photoLoadFailed
                 ? { uri: profile.Photo }
-                : require('../../assets/images/image.png')
+                : require('../../assets/images/profile_icon.png')
               }
               onError={() => setPhotoLoadFailed(true)}
               style={{ width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 }}
@@ -163,7 +176,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
             }}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
-            <Ionicons name="create-outline" size={scale(14)} color="#fff" />
+            <PencilEditIcon size={ms(16)} />
           </Pressable>
         </View>
 
@@ -171,10 +184,6 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
           <Text style={styles.name} numberOfLines={1}>
             {profile?.FirstName} {profile?.LastName}
           </Text>
-          <View style={styles.ratingRow}>
-            <Ionicons name="star" size={scale(16)} color={COLORS.primary} />
-            <Text style={styles.ratingText}>4.5</Text>
-          </View>
           <Text style={styles.phone} numberOfLines={1}>
             {profile?.CountryCode ? `${profile.CountryCode} ` : '+91 '}
             {profile?.ContactNo ?? phone}
@@ -189,7 +198,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
           }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="log-out-outline" size={scale(28)} color="#000000" />
+          <Image source={require('../../assets/images/drawer_logout.png')} style={styles.logoutIcon} resizeMode="contain" />
         </Pressable>
       </View>
 
@@ -200,24 +209,24 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
             // sections (not their own stack screens), so they're opened via
             // a `drawerSection` param on the Home tab. `screen` items are
             // AdminStack routes.
-            { icon: 'cube-outline',                   label: 'Item Inventory',   section: 'Item Inventory' },
-            { icon: 'wallet-outline',                 label: 'Passbook',         section: 'Passbook' },
-            { icon: 'construct-outline',              label: 'AMC',              section: 'AMC' },
-            { icon: 'reader-outline',                 label: 'Services',         section: 'Services' },
-            { icon: 'person-circle-outline',          label: 'Accounts',         section: 'Accounts' },
-            { icon: 'people-outline',                 label: 'Leads',            section: 'Leads' },
-            { icon: 'bar-chart-outline',              label: 'Brand Management', section: 'Brand Management' },
-            { icon: 'chatbox-ellipses-outline',       label: 'FieldWeb AI',      screen: 'FieldWeb AI' },
-            { icon: 'phone-portrait-outline',         label: 'Book App Demo',    screen: 'Book App Demo' },
-            { icon: 'settings-outline',               label: 'Settings',         screen: 'Settings' },
+            { icon: 'ItemInventory',                   label: 'Item Inventory',   section: 'Item Inventory' },
+            { icon: 'Passbook',                 label: 'Passbook',         section: 'Passbook' },
+            { icon: 'Amc',              label: 'AMC',              section: 'AMC' },
+            { icon: 'Services',                 label: 'Services',         section: 'Services' },
+            { icon: 'Accounts',          label: 'Accounts',         section: 'Accounts' },
+            { icon: 'Leads',                 label: 'Leads',            section: 'Leads' },
+            { icon: 'BrandPng',              label: 'Brand Management', section: 'Brand Management' },
+            { icon: 'FieldwebAi',       label: 'FieldWeb AI',      screen: 'FieldWeb AI' },
+            { icon: 'DemoPng',         label: 'Book App Demo',    screen: 'Book App Demo' },
+            { icon: 'Settings',               label: 'Settings',         screen: 'Settings' },
           ]
         : [
-            { icon: 'cube-outline',                   label: 'Item Inventory',  screen: 'Issued Items' },
-            { icon: 'cash-outline',                   label: 'Expenditure',     screen: 'Expenditure' },
-            { icon: 'list-outline',                   label: 'Routine Service', screen: 'Routine Service' },
-            { icon: 'chatbox-ellipses-outline',       label: 'FieldWeb AI',     screen: 'FieldWeb AI' },
-            { icon: 'settings-outline',               label: 'Settings',        screen: 'Settings' },
-            { icon: 'arrow-forward-circle-outline',   label: 'Check-Out',       screen: null },
+            { icon: 'ItemInventory',                   label: 'Item Inventory',  screen: 'Issued Items' },
+            { icon: 'Passbook',                   label: 'Expenditure',     screen: 'Expenditure' },
+            { icon: 'RoutineService',                   label: 'Routine Service', screen: 'Routine Service' },
+            { icon: 'FieldwebAi',       label: 'FieldWeb AI',     screen: 'FieldWeb AI' },
+            { icon: 'Settings',               label: 'Settings',        screen: 'Settings' },
+            { icon: 'CheckOut',   label: 'Check-Out',       screen: null },
           ]
       ).map(({ icon, label, screen, section }: any) => (
         <DrawerItem
@@ -294,10 +303,32 @@ interface DrawerItemProps {
   onPress: () => void;
 }
 
+const DRAWER_SVG_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
+  ItemInventory: ItemInventoryDrawerIcon,
+  Passbook: PassbookDrawerIcon,
+  Amc: AmcDrawerIcon,
+  Services: ServicesDrawerIcon,
+  Accounts: AccountsDrawerIcon,
+  Leads: LeadsDrawerIcon,
+  FieldwebAi: FieldwebAiDrawerIcon,
+  Settings: SettingsDrawerIcon,
+  RoutineService: RoutineServiceDrawerIcon,
+  CheckOut: CheckOutDrawerIcon,
+};
+const DRAWER_PNG_ICONS: Record<string, any> = {
+  BrandPng: require('../../assets/images/drawer_brand.png'),
+  DemoPng: require('../../assets/images/drawer_appdemo.png'),
+};
+
 function DrawerItem({ icon, label, onPress }: DrawerItemProps) {
+  const SvgIcon = DRAWER_SVG_ICONS[icon];
   return (
     <Pressable style={styles.item} onPress={onPress}>
-      <Ionicons name={icon} size={scale(22)} color={COLORS.icon} />
+      {SvgIcon ? (
+        <SvgIcon size={ms(24)} color={COLORS.textBlack} />
+      ) : (
+        <Image source={DRAWER_PNG_ICONS[icon]} style={styles.itemIcon} resizeMode="contain" />
+      )}
       <Text style={styles.label}>{label}</Text>
     </Pressable>
   );
@@ -306,13 +337,13 @@ function DrawerItem({ icon, label, onPress }: DrawerItemProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: ms(24),
+    paddingHorizontal: ms(16),
     paddingBottom: ms(24),
   },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: ms(24),
+    marginBottom: ms(18),
   },
   profileWrapper: {
     marginRight: ms(14),
@@ -327,22 +358,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: ms(22),
-    height: ms(22),
-    borderRadius: ms(11),
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
   },
   infoContainer: {
     flex: 1,
   },
   name: {
-    fontSize: sp(18),
-    fontWeight: '600',
+    fontSize: sp(16),
     marginBottom: ms(2),
-    color: COLORS.textPrimary,
+    color: COLORS.ink,
   },
   ratingRow: {
     flexDirection: 'row',
@@ -355,7 +378,7 @@ const styles = StyleSheet.create({
     fontSize: sp(14),
   },
   phone: {
-    color: '#007BFF',
+    color: COLORS.tagBlue,
     fontSize: sp(14),
   },
   logoutButton: {
@@ -369,13 +392,22 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: ms(12),
-    gap: ms(16),
+    height: ms(48),
+    paddingLeft: ms(19),
+    gap: ms(32),
+  },
+  itemIcon: {
+    width: ms(24),
+    height: ms(24),
+  },
+  logoutIcon: {
+    width: ms(24),
+    height: ms(24),
   },
   label: {
-    fontSize: sp(16),
+    fontSize: sp(14),
     fontWeight: '500',
-    color: COLORS.textPrimary,
+    color: COLORS.textBlack,
   },
   modalOverlay: {
     flex: 1,

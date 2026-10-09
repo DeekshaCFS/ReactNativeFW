@@ -37,6 +37,7 @@ import EmployeeAttendanceModal from './EmployeeAttendanceModal';
 import TechnicianLiveMapScreen from './TechnicianLiveMapScreen';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../theme/theme';
+import TabStrip from '../../components/TabStrip';
 
 type EmployeeManagementScreenProps = {
   ownerId: number;
@@ -65,7 +66,7 @@ type LeaveFilterKind = 'leaveStatus' | 'leaveMonth';
 
 const PAGE_START = 1;
 const THEME_PRIMARY = '#c3002f';
-const DEFAULT_PROFILE_ICON = require('../../../assets/images/image.png');
+const DEFAULT_PROFILE_ICON = require('../../../assets/images/profile_icon.png');
 const MONTH_LABELS = [
   'Jan',
   'Feb',
@@ -124,6 +125,18 @@ const getEmployeeName = (item: EmployeeListItem) =>
 const getFieldOrNA = (value: string | null | undefined) => {
   const trimmed = String(value ?? '').trim();
   return trimmed || 'NA';
+};
+
+// Java: Picasso placeholder + onError both fall back to R.drawable.profile_icon.
+const EmployeeAvatar = ({uri}: {uri?: string | null}) => {
+  const [failed, setFailed] = useState(false);
+  return (
+    <Image
+      source={uri && !failed ? {uri} : DEFAULT_PROFILE_ICON}
+      style={styles.avatar}
+      onError={() => setFailed(true)}
+    />
+  );
 };
 
 const getBatteryLabel = (value: number | null | undefined) => {
@@ -662,24 +675,39 @@ const EmployeeManagementScreen = ({
     const attendance = String(item.AttendenceTypeName ?? 'Absent').trim();
     const attendanceLower = attendance.toLowerCase();
     const isPresent = attendanceLower === 'present';
-    const role = String(item.UserGroupName ?? 'Employee').trim();
-    const designation = String(item.DesignationName ?? 'NA').trim();
-    const zone = String(item.ZoneName ?? 'NA').trim();
+    // Java hides each of these when the value is NA or missing.
+    const clean = (v: unknown) => {
+      const t = String(v ?? '').trim();
+      return t && t !== 'NA' ? t : '';
+    };
+    const role = clean(item.UserGroupName);
+    const designation = clean(item.DesignationName);
+    const zone = clean(item.ZoneName);
+    const batteryValue = Number(battery ?? 0);
+    const batteryColor =
+      batteryValue >= 51
+        ? COLORS.success
+        : batteryValue >= 21
+        ? COLORS.statusOngoing
+        : COLORS.primary;
+    const pillColor = isPresent
+      ? COLORS.success
+      : attendanceLower === 'absent'
+      ? COLORS.statusRejected
+      : attendanceLower === 'idle'
+      ? COLORS.statusOngoing
+      : attendanceLower === 'on leave' || attendanceLower === 'onleave'
+      ? COLORS.attLeave
+      : COLORS.darkGray;
 
     return (
       <Pressable
         style={styles.employeeCard}
         onPress={() => setSelectedEmployee(item)}>
         <View style={styles.avatarColumn}>
-          <Image
-            source={item.ProfileImage ? {uri: item.ProfileImage} : DEFAULT_PROFILE_ICON}
-            style={styles.avatar}
-          />
+          <EmployeeAvatar uri={item.ProfileImage} />
           <View
-            style={[
-              styles.attendancePill,
-              isPresent ? styles.attendancePresent : null,
-            ]}>
+            style={[styles.attendancePill, {backgroundColor: pillColor}]}>
             <Text style={styles.attendanceText}>{attendance}</Text>
           </View>
         </View>
@@ -693,31 +721,39 @@ const EmployeeManagementScreen = ({
             <Text
               style={[
                 styles.metricValue,
-                Number(battery ?? 0) <= 0 ? styles.metricValueDanger : null,
+                {color: batteryColor},
               ]}>
               {getBatteryLabel(battery)}
             </Text>
           </View>
           <View style={styles.metricRow}>
             <Text style={styles.metricLabel}>GPS</Text>
-            <Text style={[styles.metricValue, gpsOn ? null : styles.metricValueDanger]}>
+            <Text style={[styles.metricValue, {color: gpsOn ? COLORS.success : COLORS.primary}]}>
               {gpsOn ? 'On' : 'Off'}
             </Text>
           </View>
         </View>
 
         <View style={styles.employeeSide}>
-          <View style={styles.roleRibbon}>
-            <Text numberOfLines={1} style={styles.roleRibbonText}>
-              {role.toUpperCase()}
+          {role ? (
+            <View style={styles.roleRibbon}>
+              <Text numberOfLines={1} style={styles.roleRibbonText}>
+                {role.toUpperCase()}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.roleRibbonSpacer} />
+          )}
+          {designation ? (
+            <Text numberOfLines={1} style={styles.sideText}>
+              {designation}
             </Text>
-          </View>
-          <Text numberOfLines={1} style={styles.sideText}>
-            {designation}
-          </Text>
-          <Text numberOfLines={1} style={styles.sideText}>
-            {zone}
-          </Text>
+          ) : null}
+          {zone ? (
+            <Text numberOfLines={1} style={styles.sideText}>
+              {zone}
+            </Text>
+          ) : null}
           <View style={styles.trackRow}>
             <Pressable
               hitSlop={8}
@@ -867,14 +903,14 @@ const EmployeeManagementScreen = ({
       <View style={styles.actionArea}>
         <View style={styles.searchRow}>
           <View style={styles.searchBox}>
-            <Text style={styles.searchIcon}>⌕</Text>
+            <Ionicons name="search" style={styles.searchIcon} />
             <TextInput
               value={searchText}
               onChangeText={setSearchText}
               onSubmitEditing={submitSearch}
               returnKeyType="search"
               placeholder="Search"
-              placeholderTextColor="#A3A3A3"
+              placeholderTextColor={COLORS.lightGray}
               style={styles.searchInput}
             />
             {searchText ? (
@@ -884,7 +920,7 @@ const EmployeeManagementScreen = ({
                   setSearchText('');
                   setSubmittedSearch('');
                 }}>
-                <Text style={styles.clearText}>×</Text>
+                <Ionicons name="close" style={styles.clearText} />
               </Pressable>
             ) : null}
           </View>
@@ -898,7 +934,7 @@ const EmployeeManagementScreen = ({
 
         <View style={styles.filterRow}>
           <Pressable
-            style={styles.filterButton}
+            style={[styles.filterButton, {flex: 1.3}]}
             onPress={() => setFilterModal('type')}>
             <Text numberOfLines={1} style={styles.filterText}>
               {selectedType.label}
@@ -906,7 +942,7 @@ const EmployeeManagementScreen = ({
             <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
           <Pressable
-            style={styles.filterButton}
+            style={[styles.filterButton, {flex: 1}]}
             onPress={() => setFilterModal('zone')}>
             <Text numberOfLines={1} style={styles.filterText}>
               {selectedZone.label}
@@ -914,7 +950,7 @@ const EmployeeManagementScreen = ({
             <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
           <Pressable
-            style={styles.filterButton}
+            style={[styles.filterButton, {flex: 0.7}]}
             onPress={() => setFilterModal('status')}>
             <Text numberOfLines={1} style={styles.filterText}>
               {selectedStatus.label}
@@ -972,14 +1008,14 @@ const EmployeeManagementScreen = ({
     <>
       <View style={styles.leaveToolbar}>
         <View style={styles.leaveSearchBox}>
-          <Text style={styles.searchIcon}>⌕</Text>
+          <Ionicons name="search" style={styles.searchIcon} />
           <TextInput
             value={leaveSearchText}
             onChangeText={setLeaveSearchText}
             onSubmitEditing={submitLeaveSearch}
             returnKeyType="search"
             placeholder="Search"
-            placeholderTextColor="#A3A3A3"
+            placeholderTextColor={COLORS.lightGray}
             style={styles.searchInput}
           />
           {leaveSearchText ? (
@@ -989,7 +1025,7 @@ const EmployeeManagementScreen = ({
                 setLeaveSearchText('');
                 setSubmittedLeaveSearch('');
               }}>
-              <Text style={styles.clearText}>×</Text>
+              <Ionicons name="close" style={styles.clearText} />
             </Pressable>
           ) : null}
         </View>
@@ -1063,29 +1099,15 @@ const EmployeeManagementScreen = ({
 
   return (
     <View style={styles.shell}>
-      <View style={[styles.tabRow, { marginTop: contentTopOffset }]}>
-        <Pressable
-          style={[styles.tabButton, activeTab === 'employee' ? styles.tabActive : null]}
-          onPress={() => setActiveTab('employee')}>
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'employee' ? styles.tabTextActive : null,
-            ]}>
-            EMPLOYEE LIST
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tabButton, activeTab === 'leave' ? styles.tabActive : null]}
-          onPress={() => setActiveTab('leave')}>
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'leave' ? styles.tabTextActive : null,
-            ]}>
-            LEAVE REQUEST
-          </Text>
-        </Pressable>
+      <View style={{ marginTop: contentTopOffset }}>
+        <TabStrip
+          tabs={[
+            { key: 'employee', label: 'EMPLOYEE LIST' },
+            { key: 'leave', label: 'LEAVE REQUEST' },
+          ]}
+          active={activeTab}
+          onChange={setActiveTab}
+        />
       </View>
 
       {activeTab === 'employee' ? renderEmployeeTab() : renderLeaveRequestTab()}
@@ -1396,11 +1418,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  tabRow: {
-    height: ms(60),
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-  },
   tabButton: {
     flex: 1,
     alignItems: 'center',
@@ -1439,35 +1456,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   searchIcon: {
-    color: '#B0B0B0',
-    fontSize: sp(30),
+    color: COLORS.lightGray,
+    fontSize: ms(20),
     marginRight: ms(8),
   },
   searchInput: {
     flex: 1,
-    color: '#1F2937',
-    fontSize: sp(20),
+    color: COLORS.textBlack,
+    fontSize: sp(14),
     paddingVertical: 0,
   },
   clearText: {
-    color: '#B0B0B0',
-    fontSize: sp(40),
-    lineHeight: sp(42),
+    color: COLORS.textBlack,
+    fontSize: ms(20),
   },
   addButton: {
-    height: ms(35),
-    minWidth: ms(70),
-    borderRadius: ms(18),
-    backgroundColor: '#070707',
+    height: ms(30),
+    width: ms(60),
+    borderRadius: ms(15),
+    backgroundColor: COLORS.textBlack,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: ms(14),
     elevation: 5,
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: sp(15),
-    fontWeight: '800',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   filterRow: {
     marginTop: ms(10),
@@ -1485,8 +1500,8 @@ const styles = StyleSheet.create({
   },
   filterText: {
     flex: 1,
-    color: '#111111',
-    fontSize: sp(13),
+    color: COLORS.textBlack,
+    fontSize: sp(14),
     fontWeight: '400',
   },
   filterChevron: {
@@ -1507,18 +1522,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   listContent: {
-    paddingHorizontal: ms(18),
+    paddingHorizontal: ms(2),
     paddingTop: ms(10),
     paddingBottom: ms(5),
   },
   employeeCard: {
-    minHeight: ms(40),
-    borderRadius: ms(24),
+    height: ms(105),
+    borderRadius: ms(20),
     backgroundColor: '#FFFFFF',
-    borderWidth: ms(1),
-    borderColor: '#EFEFEF',
     flexDirection: 'row',
-    marginBottom: ms(10),
+    margin: ms(8),
     overflow: 'hidden',
     elevation: 2,
     shadowColor: '#000000',
@@ -1533,28 +1546,21 @@ const styles = StyleSheet.create({
     paddingVertical: ms(10),
   },
   avatar: {
-    width: ms(50),
-    height: ms(50),
-    borderRadius: ms(25),
-    backgroundColor: '#EEE6F8',
+    width: ms(60),
+    height: ms(60),
+    borderRadius: ms(30),
   },
   attendancePill: {
-    marginTop: ms(14),
-    minWidth: ms(30),
+    marginTop: ms(5),
+    width: ms(60),
     height: ms(20),
-    borderRadius: ms(15),
-    backgroundColor: '#D1003E',
+    borderRadius: ms(20),
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: ms(15),
-  },
-  attendancePresent: {
-    backgroundColor: '#08A864',
   },
   attendanceText: {
     color: '#FFFFFF',
-    fontSize: sp(12),
-    fontWeight: '500',
+    fontSize: sp(14),
   },
   employeeInfo: {
     flex: 1,
@@ -1564,8 +1570,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   employeeName: {
-    color: '#1F2937',
-    fontSize: sp(13),
+    color: COLORS.ink,
+    fontSize: sp(14),
     fontWeight: '700',
   },
   metricRow: {
@@ -1574,29 +1580,31 @@ const styles = StyleSheet.create({
     gap: ms(10),
   },
   metricLabel: {
-    color: '#777777',
-    fontSize: sp(13),
-    fontWeight: '600',
+    color: COLORS.authText,
+    fontSize: sp(10),
     minWidth: ms(52),
   },
   metricValue: {
-    color: '#00C970',
-    fontSize: sp(13),
-    fontWeight: '600',
+    color: COLORS.success,
+    fontSize: sp(10),
+    fontWeight: '700',
   },
   metricValueDanger: {
     color: THEME_PRIMARY,
   },
   employeeSide: {
-    width: ms(136),
+    width: ms(120),
     alignItems: 'flex-end',
     paddingBottom: ms(10),
+  },
+  roleRibbonSpacer: {
+    height: ms(20),
   },
   roleRibbon: {
     alignSelf: 'stretch',
     height: ms(20),
-    borderBottomLeftRadius: ms(20),
-    backgroundColor: '#2E7BFF',
+    borderBottomLeftRadius: ms(10),
+    backgroundColor: COLORS.tagBlue,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: ms(14),
@@ -1608,9 +1616,9 @@ const styles = StyleSheet.create({
   },
   sideText: {
     maxWidth: ms(80),
-    marginTop: ms(10),
+    marginTop: ms(8),
     marginRight: ms(14),
-    color: THEME_PRIMARY,
+    color: COLORS.primary,
     fontSize: sp(10),
     fontWeight: '700',
   },
@@ -1628,18 +1636,16 @@ const styles = StyleSheet.create({
     lineHeight: sp(20),
   },
   trackButton: {
-    minWidth: ms(50),
-    height: ms(25),
-    borderRadius: ms(16),
-    backgroundColor: '#5A5A5A',
+    width: ms(60),
+    height: ms(20),
+    borderRadius: ms(20),
+    backgroundColor: COLORS.darkGray,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: ms(16),
   },
   trackButtonText: {
     color: '#FFFFFF',
     fontSize: sp(14),
-    fontWeight: '600',
   },
   listFooter: {
     paddingVertical: ms(8),
@@ -1648,11 +1654,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: ms(24),
-    paddingVertical: ms(48),
+    paddingTop: ms(110),
+    paddingBottom: ms(48),
   },
   emptyImage: {
-    width: ms(220),
-    height: ms(220),
+    width: ms(200),
+    height: ms(200),
   },
   emptyIcon: {
     width: ms(42),
@@ -1679,38 +1686,31 @@ const styles = StyleSheet.create({
     lineHeight: sp(20),
   },
   leaveToolbar: {
-    paddingHorizontal: ms(28),
-    paddingTop: ms(2),
+    paddingHorizontal: ms(15),
+    paddingTop: ms(10),
     paddingBottom: ms(5),
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: ms(12),
+    gap: ms(10),
   },
   leaveSearchBox: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 110,
+    flex: 1.8,
     height: ms(40),
-    borderBottomWidth: ms(1),
-    borderBottomColor: '#BDBDBD',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.darkGray,
     flexDirection: 'row',
     alignItems: 'center',
     minWidth: 0,
   },
   leaveStatusButton: {
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: 96,
+    flex: 0.8,
     height: ms(40),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   leaveMonthButton: {
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: 118,
+    flex: 0.8,
     height: ms(40),
     flexDirection: 'row',
     alignItems: 'center',
@@ -1718,9 +1718,8 @@ const styles = StyleSheet.create({
   },
   leaveFilterText: {
     flex: 1,
-    color: '#111111',
+    color: COLORS.textBlack,
     fontSize: sp(14),
-    fontWeight: '500',
   },
   leaveFilterChevron: {
     color: THEME_PRIMARY,

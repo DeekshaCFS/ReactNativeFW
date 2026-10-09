@@ -53,6 +53,8 @@ export const COLORS = {
   green500:        '#4CAF50', // @color/green_500 (leave Approved / Full Day)
   darkGray:        '#535353', // @color/dark_gray
   tabSelector:     '#FFF3F5', // @color/tabselector (selected tab background)
+  blue500:         '#2196F3', // @color/blue_500 (AMC Renewal)
+  dividerGray:     '#E4E4E4', // @color/agenda_list_header_divider
 
   // Attendance / leave status palette (Java gradient_* / curve_card_* drawables)
   attAbsent:       '#F37777', // gradient_absent, curve_card_absent

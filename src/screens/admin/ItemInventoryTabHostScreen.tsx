@@ -32,6 +32,14 @@ import { formatAmount } from '../../utils/decimal';
 import AddItemModal from './AddItemModal';
 import AssignItemModal from './AssignItemModal';
 import FOCScreen from './FOCScreen';
+import TabStrip from '../../components/TabStrip';
+import {COLORS} from '../../theme/theme';
+import {
+  EditSquareIcon,
+  ItemOptionIcon as JavaItemOptionIcon,
+  DeleteAccIcon,
+  DefaultItemIcon as JavaDefaultItemIcon,
+} from '../../components/JavaIcons';
 
 type ItemInventoryTabHostScreenProps = {
   ownerId: number;
@@ -506,6 +514,7 @@ const ItemInventoryTabHostScreen = ({
   // on an assigned row (ItemInventoryAdapter -> ItemDialog.updateReturnItem).
   const [editingItem, setEditingItem] = useState<ItemInventoryListItem | null>(null);
   const [assigningItem, setAssigningItem] = useState<ItemInventoryListItem | null>(null);
+  const [isAddingItem, setIsAddingItem] = useState(false);
   const [returningRow, setReturningRow] = useState<AssignedItemListItem | null>(null);
   const [returnQuantity, setReturnQuantity] = useState('0');
   const [returnNotes, setReturnNotes] = useState('');
@@ -921,7 +930,7 @@ const ItemInventoryTabHostScreen = ({
           {imageUri ? (
             <Image source={{uri: imageUri}} style={styles.itemImage} />
           ) : (
-            <DefaultItemIcon />
+            <JavaDefaultItemIcon size={ms(48)} />
           )}
         </View>
 
@@ -954,19 +963,19 @@ const ItemInventoryTabHostScreen = ({
             hitSlop={10}
             style={styles.actionButton}
             onPress={() => handleItemActionPress('Update item', item)}>
-            <EditIcon />
+            <EditSquareIcon size={ms(20)} color={COLORS.textBlack} />
           </Pressable>
           <Pressable
             hitSlop={10}
             style={styles.actionButton}
             onPress={() => handleItemActionPress('Item options', item)}>
-            <ItemOptionIcon />
+            <JavaItemOptionIcon size={ms(20)} color={COLORS.textBlack} />
           </Pressable>
           <Pressable
             hitSlop={10}
             style={styles.actionButton}
             onPress={() => handleItemActionPress('Delete item', item)}>
-            <DeleteIcon />
+            <DeleteAccIcon size={ms(20)} color={COLORS.statusRejected} />
           </Pressable>
         </View>
       </TouchableOpacity>
@@ -977,7 +986,7 @@ const ItemInventoryTabHostScreen = ({
     <View style={styles.card}>
       <View style={styles.searchRow}>
         <View style={styles.searchBox}>
-          <Text style={styles.searchIcon}>Search</Text>
+          <Ionicons name="search" style={styles.searchIcon} />
           <TextInput
             value={itemSearchText}
             onChangeText={value => {
@@ -988,17 +997,20 @@ const ItemInventoryTabHostScreen = ({
               }
             }}
             onSubmitEditing={submitItemSearch}
-            placeholder="Search by item name..."
-            placeholderTextColor="#8C8C8C"
+            placeholder="Search Item"
+            placeholderTextColor={COLORS.lightGray}
             style={styles.searchInput}
             returnKeyType="search"
           />
           {itemSearchText ? (
             <Pressable hitSlop={10} onPress={clearItemSearch}>
-              <Text style={styles.clearText}>x</Text>
+              <Ionicons name="close" style={styles.clearText} />
             </Pressable>
           ) : null}
         </View>
+        <Pressable style={styles.addItemButton} onPress={() => setIsAddingItem(true)}>
+          <Text style={styles.addItemButtonText}>+ Item</Text>
+        </Pressable>
       </View>
 
       {isItemInitialLoading ? (
@@ -1417,29 +1429,11 @@ const ItemInventoryTabHostScreen = ({
         renderItemDetail()
       ) : (
         <>
-          <View style={styles.tabBar}>
-            {tabs.map(tab => {
-              const selected = tab.key === activeTab;
-              return (
-                <Pressable
-                  key={tab.key}
-                  onPress={() => setActiveTab(tab.key)}
-                  style={[
-                    styles.tabButton,
-                    selected ? styles.tabButtonActive : null,
-                  ]}>
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.tabText,
-                      selected ? styles.tabTextActive : null,
-                    ]}>
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <TabStrip
+            tabs={tabs.map(tab => ({key: tab.key, label: tab.label.toUpperCase()}))}
+            active={activeTab}
+            onChange={setActiveTab}
+          />
 
           {activeTab === 'requested'
             ? <FOCScreen ownerId={ownerId} isFieldWorker={isFieldWorker} />
@@ -1448,6 +1442,14 @@ const ItemInventoryTabHostScreen = ({
               : renderItemListTab()}
         </>
       )}
+      <AddItemModal
+        visible={isAddingItem}
+        ownerId={ownerId}
+        item={null}
+        onClose={() => setIsAddingItem(false)}
+        onSaved={() => loadFirstItemPage(true)}
+      />
+
       <AddItemModal
         visible={editingItem !== null}
         ownerId={ownerId}
@@ -1906,37 +1908,48 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   searchRow: {
-    paddingHorizontal: ms(14),
-    paddingTop: ms(14),
-    paddingBottom: ms(8),
-  },
-  searchBox: {
-    minHeight: ms(44),
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: ms(1),
-    borderColor: '#E2E2E2',
-    borderRadius: ms(8),
-    paddingHorizontal: ms(10),
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: ms(15),
+    paddingTop: ms(15),
+    paddingBottom: ms(8),
+    gap: ms(10),
+  },
+  searchBox: {
+    flex: 1,
+    height: ms(40),
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.darkGray,
+    paddingHorizontal: ms(8),
   },
   searchIcon: {
-    color: '#777777',
-    fontSize: sp(12),
-    fontWeight: '700',
+    color: COLORS.lightGray,
+    fontSize: ms(20),
     marginRight: ms(8),
   },
   searchInput: {
     flex: 1,
-    minHeight: ms(42),
     paddingVertical: 0,
-    color: '#1F2937',
-    fontSize: sp(15),
+    color: COLORS.textBlack,
+    fontSize: sp(14),
   },
   clearText: {
-    color: '#777777',
-    fontSize: sp(20),
-    fontWeight: '700',
+    color: COLORS.textBlack,
+    fontSize: ms(20),
+  },
+  addItemButton: {
+    width: ms(60),
+    height: ms(30),
+    borderRadius: ms(15),
+    backgroundColor: COLORS.textBlack,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addItemButtonText: {
+    color: '#FFFFFF',
+    fontSize: sp(12),
   },
   loadingOverlay: {
     paddingVertical: ms(18),
@@ -1975,7 +1988,9 @@ const styles = StyleSheet.create({
     left: 0,
     minWidth: ms(55),
     maxWidth: ms(86),
-    backgroundColor: THEME_PRIMARY,
+    backgroundColor: COLORS.textBlack,
+    borderTopLeftRadius: ms(10),
+    borderBottomRightRadius: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: ms(10),
@@ -1985,7 +2000,7 @@ const styles = StyleSheet.create({
   unitText: {
     color: '#FFFFFF',
     fontSize: sp(10),
-    fontWeight: '800',
+    fontWeight: '700',
   },
   itemImageWrap: {
     position: 'absolute',
@@ -1994,7 +2009,7 @@ const styles = StyleSheet.create({
     width: ms(60),
     height: ms(60),
     borderRadius: ms(30),
-    backgroundColor: '#F2F4F7',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -2050,20 +2065,20 @@ const styles = StyleSheet.create({
   itemName: {
     flexShrink: 1,
     maxWidth: ms(170),
-    color: '#3B3B3B',
+    color: COLORS.ink,
     fontSize: sp(16),
-    fontWeight: '800',
+    fontWeight: '700',
   },
   itemIdText: {
     marginLeft: ms(5),
-    color: THEME_PRIMARY,
+    color: COLORS.linkBlue,
     fontSize: sp(12),
-    fontWeight: '800',
+    fontWeight: '700',
   },
   itemDescription: {
     marginTop: ms(20),
     maxWidth: ms(250),
-    color: '#9CA3AF',
+    color: COLORS.lightGray,
     fontSize: sp(14),
   },
   quantityRow: {
@@ -2074,14 +2089,13 @@ const styles = StyleSheet.create({
   },
   quantityLabel: {
     marginLeft: ms(10),
-    color: '#3B3B3B',
-    fontSize: sp(13),
+    color: COLORS.ink,
+    fontSize: sp(14),
   },
   quantityValue: {
     marginLeft: ms(3),
-    color: THEME_PRIMARY,
-    fontSize: sp(13),
-    fontWeight: '800',
+    color: COLORS.statusRejected,
+    fontSize: sp(14),
   },
   actionColumn: {
     position: 'absolute',

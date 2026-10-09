@@ -12,11 +12,8 @@ import AdminTabs, { AdminTabParamList } from './AdminTabs';
 
 import type {TasksListResultData} from '../api/task/task.types';
 
-// Header destinations (headset icon on the shared AppHeader). Admin reuses
-// the technician stack's help screens under the same route names; the
-// notification route has its own admin screen (AdminNotificationScreen).
-import HelpScreen from '../screens/technician/main/HelpScreen';
-import HelpMessagesScreen from '../screens/technician/main/HelpMsgScreen';
+// Header destinations (headset / bell on the shared AppHeader) live in AdminTabs:
+// help reuses the technician HelpChatScreen, notification has AdminNotificationScreen.
 
 // Settings destinations (Privacy/Refund/About rows) -- same reuse pattern
 // as the header destinations above; these screens are role-agnostic.
@@ -300,18 +297,6 @@ export default function AdminStack() {
         >
           {renderAdminTabs}
         </Stack.Screen>
-
-        {/* Help screens: pushed from the AppHeader headset icon, no tab bar */}
-        <Stack.Screen
-          name="help"
-          component={HelpScreen}
-          options={{ title: 'Help & Support' }}
-        />
-        <Stack.Screen
-          name="helpMessages"
-          component={HelpMessagesScreen}
-          options={{ title: 'Help & Support' }}
-        />
       </Stack.Navigator>
 
       {/* Disclaimer */}

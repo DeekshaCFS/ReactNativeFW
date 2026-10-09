@@ -13,8 +13,11 @@ import {
 import {getDashboardData} from '../../api/dashboard/dashboardService';
 import {getPassbookForDashboard} from '../../api/passbook/passbookService';
 import {getAmcDashboardCountDetails} from '../../api/amc/amcService';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {ms, sp} from '../../utils/responsive';
+import {COLORS} from '../../theme/theme';
 import {formatAmount} from '../../utils/decimal';
+import {getCurrentCurrencySymbol} from '../../state/session';
 
 export type DayFilter = 'Today' | 'Week' | 'Month' | 'Year';
 
@@ -282,19 +285,36 @@ const OwnerDashboardScreen = ({
     });
   }, [taskChartItems, totalTasks]);
 
+  // Java's MaterialRatingBar: stepSize 0.5, primary tint, outline for the rest.
   const ratingStars = useMemo(
-    () => Array.from({length: 5}, (_, index) => index < Math.round(avgRating)),
+    () =>
+      Array.from({length: 5}, (_, index) => {
+        const diff = avgRating - index;
+        if (diff >= 0.75) {
+          return 'star';
+        }
+        return diff >= 0.25 ? 'star-half' : 'star-outline';
+      }),
     [avgRating],
+  );
+
+  // Java shows ₹ for India; the API symbol comes back as 'Rs.'.
+  const apiSymbol = getCurrentCurrencySymbol();
+  const currency = !apiSymbol || /^(rs.?|inr)$/i.test(apiSymbol) ? '₹' : apiSymbol;
+
+  const renderInfo = () => (
+    <Ionicons name="information-circle-outline" size={ms(20)} color={COLORS.lightGray} />
   );
 
   return (
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Java home_gradient: red hero showing behind the top of the first card */}
+      <View style={styles.hero} />
       <View style={styles.card}>
-        <View style={styles.rowBetween}>
-          <View style={styles.showingDataRow}>
-            <Text style={styles.muted}>Showing Data for :</Text>
-            <Text style={styles.valueStrong}> {filter}</Text>
-          </View>
+        <View style={styles.showingRow}>
+          <Text style={styles.muted}>Showing Data for :</Text>
+          <Text style={styles.valueStrong}> {filter}</Text>
+          <View style={styles.flex1} />
           <Pressable style={styles.ctaButton} onPress={onCreateTask}>
             <Text style={styles.ctaButtonText}>Create Task</Text>
           </Pressable>
@@ -323,8 +343,10 @@ const OwnerDashboardScreen = ({
             </View>
           </View>
           <View style={styles.taskChartLegend}>
-            {taskChartItems.map(item => (
-              <View key={item.key} style={styles.taskLegendItem}>
+            {taskChartItems.map((item, index) => (
+              <View
+                key={item.key}
+                style={[styles.taskLegendItem, index > 0 ? styles.legendGap : null]}>
                 <Text style={[styles.taskLegendValue, {color: item.color}]}>
                   {String(item.value).padStart(2, '0')}
                 </Text>
@@ -335,29 +357,39 @@ const OwnerDashboardScreen = ({
         </View>
 
         <View style={styles.metricsRow}>
-          <Pressable style={styles.metricBlock} onPress={onEarningsPress}>
+          <Pressable style={styles.earningsBlock} onPress={onEarningsPress}>
             <View style={styles.metricLabelRow}>
               <Text style={styles.metricLabel}>Earnings</Text>
-              <Text style={styles.infoIcon}>ⓘ</Text>
+              <View style={styles.infoGap}>{renderInfo()}</View>
             </View>
-            <Text style={styles.metricValueGreen}>Rs. {formatAmount(earningAmount)}</Text>
+            <Text style={styles.metricValueGreen}>
+              {currency} {formatAmount(earningAmount)}
+            </Text>
           </Pressable>
-          <Pressable style={styles.metricBlock} onPress={onAmcStatusPress}>
-            <View style={[styles.metricLabelRow, styles.metricLabelRowCenter]}>
-              <Text style={styles.metricLabelCenter}>AMC Status</Text>
-              <Text style={styles.infoIcon}>ⓘ</Text>
+          <Pressable style={styles.amcBlock} onPress={onAmcStatusPress}>
+            <View style={styles.metricLabelRow}>
+              <Text style={styles.metricLabel}>AMC Status</Text>
+              <View style={styles.infoGap}>{renderInfo()}</View>
             </View>
-            <View style={styles.metricInline}>
-              <Text style={styles.metricValueOrange}>{amcStatus.upcoming}</Text>
-              <Text style={styles.metricHintOrange}> Upcoming</Text>
+            <View style={styles.amcRow}>
+              <View style={styles.amcCell}>
+                <Text style={[styles.amcValue, {color: COLORS.statusOngoing}]}>
+                  {amcStatus.upcoming}
+                </Text>
+                <Text style={[styles.amcHint, {color: COLORS.statusOngoing}]}>Upcoming</Text>
+              </View>
+              <View style={styles.amcCell}>
+                <Text style={[styles.amcValue, {color: COLORS.blue500}]}>{amcStatus.renewal}</Text>
+                <Text style={[styles.amcHint, {color: COLORS.blue500}]}>Renewal</Text>
+              </View>
             </View>
-            <View style={styles.metricInline}>
-              <Text style={styles.metricValueBlue}>{amcStatus.renewal}</Text>
-              <Text style={styles.metricHintBlue}> Renewal</Text>
-            </View>
-            <View style={styles.metricInline}>
-              <Text style={styles.metricValuePrimary}>{amcStatus.expired}</Text>
-              <Text style={styles.metricHintPrimary}> Expired</Text>
+            <View style={styles.amcRow}>
+              <View style={styles.amcCell}>
+                <Text style={[styles.amcValue, {color: COLORS.statusRejected}]}>
+                  {amcStatus.expired}
+                </Text>
+                <Text style={[styles.amcHint, {color: COLORS.statusRejected}]}>Expired</Text>
+              </View>
             </View>
           </Pressable>
         </View>
@@ -372,15 +404,10 @@ const OwnerDashboardScreen = ({
           <View style={styles.summaryBlock}>
             <Text style={styles.summaryTitle}>Avg. Customer Rating</Text>
             <View style={styles.ratingRow}>
-              <Text style={styles.ratingValue}>{avgRating.toFixed(1)}</Text>
+              <Text style={styles.ratingValue}>{avgRating.toFixed(2)}</Text>
               <View style={styles.starsRow}>
-                {ratingStars.map((filled, index) => (
-                  <Text
-                    key={index}
-                    style={filled ? styles.starFilled : styles.starEmpty}
-                  >
-                    ★
-                  </Text>
+                {ratingStars.map((name, index) => (
+                  <Ionicons key={index} name={name} size={ms(16)} color={COLORS.primary} />
                 ))}
               </View>
             </View>
@@ -388,33 +415,30 @@ const OwnerDashboardScreen = ({
         </View>
       </View>
 
-      <Pressable style={styles.card} onPress={onAttendancePress}>
-        <View style={styles.rowBetween}>
+      <Pressable style={[styles.card, styles.attendanceCard]} onPress={onAttendancePress}>
+        <View style={styles.attendanceHeader}>
           <Text style={styles.sectionTitle}>Today's Attendance</Text>
-          <Text style={styles.infoIcon}>ⓘ</Text>
+          <View style={styles.infoGap}>{renderInfo()}</View>
         </View>
         <View style={styles.attendanceRow}>
-          <View style={[styles.attendanceBox, styles.presentBg]}>
-            <Text style={styles.attendanceCount}>{attendance.present}</Text>
-            <Text style={styles.attendanceLabel}>Present</Text>
-          </View>
-          <View style={[styles.attendanceBox, styles.absentBg]}>
-            <Text style={styles.attendanceCount}>{attendance.absent}</Text>
-            <Text style={styles.attendanceLabel}>Absent</Text>
-          </View>
-          <View style={[styles.attendanceBox, styles.idleBg]}>
-            <Text style={styles.attendanceCount}>{attendance.idle}</Text>
-            <Text style={styles.attendanceLabel}>Idle</Text>
-          </View>
-          <View style={[styles.attendanceBox, styles.leaveBg]}>
-            <Text style={styles.attendanceCount}>{attendance.onLeave}</Text>
-            <Text style={styles.attendanceLabel}>On Leave</Text>
-          </View>
+          {[
+            {label: 'Present', value: attendance.present, bg: COLORS.success, fg: COLORS.success},
+            {label: 'Absent', value: attendance.absent, bg: COLORS.attAbsent, fg: COLORS.alertRed},
+            {label: 'Idle', value: attendance.idle, bg: COLORS.statusOngoing, fg: COLORS.statusOngoing},
+            {label: 'On Leave', value: attendance.onLeave, bg: COLORS.attLeave, fg: COLORS.textBlack},
+          ].map(item => (
+            <View key={item.label} style={styles.attendanceCell}>
+              <View style={[styles.attendanceBox, {backgroundColor: item.bg}]}>
+                <Text style={styles.attendanceCount}>{item.value}</Text>
+              </View>
+              <Text style={[styles.attendanceLabel, {color: item.fg}]}>{item.label}</Text>
+            </View>
+          ))}
         </View>
       </Pressable>
       {isLoading ? (
         <View style={styles.loaderRow}>
-          <ActivityIndicator color="#c3002f" />
+          <ActivityIndicator color={COLORS.primary} />
           <Text style={styles.loaderText}>Refreshing dashboard...</Text>
         </View>
       ) : null}
@@ -422,131 +446,71 @@ const OwnerDashboardScreen = ({
   );
 };
 
+const cardShadow = {
+  elevation: 8,
+  shadowColor: '#000',
+  shadowOpacity: 0.15,
+  shadowRadius: ms(6),
+  shadowOffset: {width: 0, height: ms(3)},
+};
+
 const styles = StyleSheet.create({
   container: {
-    padding: ms(2),
-    paddingBottom: ms(2),
+    paddingHorizontal: ms(10),
+    paddingTop: ms(10),
+    paddingBottom: ms(10),
   },
+  hero: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: ms(330),
+    backgroundColor: COLORS.primary,
+  },
+  flex1: {flex: 1},
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: ms(20),
-    padding: ms(14),
+    borderRadius: ms(30),
     marginBottom: ms(10),
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    paddingTop: ms(20),
+    ...cardShadow,
   },
-  rowBetween: {
+  showingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: ms(8),
-  },
-  sectionTitle: {
-    color: '#111827',
-    fontSize: sp(15),
-    fontWeight: '700',
+    marginHorizontal: ms(20),
   },
   muted: {
-    color: '#6B7280',
-    fontSize: sp(13),
+    color: COLORS.authText,
+    fontSize: sp(14),
   },
   valueStrong: {
-    color: '#111827',
+    color: COLORS.textBlack,
     fontWeight: '700',
-    fontSize: sp(13),
-  },
-  showingDataRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    fontSize: sp(14),
   },
   ctaButton: {
-    backgroundColor: '#c3002f',
-    borderRadius: ms(24),
-    paddingHorizontal: ms(18),
-    paddingVertical: ms(10),
+    width: ms(100),
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    paddingVertical: ms(5),
+    alignItems: 'center',
   },
   ctaButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: sp(13),
-  },
-  infoIcon: {
-    color: '#9CA3AF',
-    fontSize: sp(13),
-    marginLeft: ms(4),
-  },
-  metricsRow: {
-    marginTop: ms(16),
-    flexDirection: 'row',
-    gap: ms(12),
-  },
-  metricBlock: {
-    flex: 1,
-  },
-  metricLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  metricLabelRowCenter: {
-    justifyContent: 'center',
-  },
-  metricLabel: {
-    color: '#9CA3AF',
-    fontWeight: '700',
-  },
-  metricLabelCenter: {
-    color: '#9CA3AF',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  metricValueGreen: {
-    color: '#10B981',
-    fontWeight: '700',
-    fontSize: sp(22),
-    marginTop: ms(6),
-  },
-  metricInline: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: ms(6),
-  },
-  metricValueOrange: {
-    color: '#F59E0B',
-    fontWeight: '700',
-  },
-  metricHintOrange: {
-    color: '#F59E0B',
-    fontWeight: '600',
-  },
-  metricValueBlue: {
-    color: '#2563EB',
-    fontWeight: '700',
-  },
-  metricHintBlue: {
-    color: '#2563EB',
-    fontWeight: '600',
-  },
-  metricValuePrimary: {
-    color: '#c3002f',
-    fontWeight: '700',
-  },
-  metricHintPrimary: {
-    color: '#c3002f',
-    fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: ms(12),
+    fontSize: sp(14),
   },
   taskChartRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: ms(10),
-    marginTop: ms(18),
+    marginHorizontal: ms(20),
+    marginTop: ms(10),
   },
   taskChartLeft: {
-    flex: 0.56,
+    flex: 0.6,
+    padding: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -567,29 +531,25 @@ const styles = StyleSheet.create({
     borderRadius: RING_THICKNESS / 2,
   },
   taskChartTotal: {
-    fontSize: sp(30),
-    fontWeight: '800',
-    color: '#111827',
-    lineHeight: sp(34),
+    fontSize: sp(32),
+    fontWeight: '700',
+    color: COLORS.textBlack,
   },
   taskChartTotalLabel: {
-    fontSize: sp(14),
-    color: '#4B5563',
-    marginTop: ms(2),
-    fontWeight: '600',
+    fontSize: sp(15),
+    color: COLORS.textBlack,
   },
   taskChartLegend: {
-    flex: 0.44,
+    flex: 0.4,
     justifyContent: 'center',
-    paddingVertical: ms(2),
+    paddingLeft: ms(15),
   },
   taskLegendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: ms(10),
   },
+  legendGap: {marginTop: ms(20)},
   taskLegendValue: {
-    minWidth: ms(24),
     fontSize: sp(15),
     fontWeight: '700',
   },
@@ -598,71 +558,117 @@ const styles = StyleSheet.create({
     fontSize: sp(13),
     fontWeight: '700',
   },
+  metricsRow: {
+    flexDirection: 'row',
+    marginHorizontal: ms(20),
+    marginTop: ms(15),
+  },
+  earningsBlock: {flex: 0.4},
+  amcBlock: {flex: 0.6},
+  metricLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  infoGap: {marginLeft: ms(10)},
+  metricLabel: {
+    color: COLORS.lightGray,
+    fontSize: sp(15),
+    fontWeight: '700',
+  },
+  metricValueGreen: {
+    color: COLORS.success,
+    fontWeight: '700',
+    fontSize: sp(22),
+    margin: ms(2),
+  },
+  amcRow: {
+    flexDirection: 'row',
+    marginTop: ms(10),
+  },
+  amcCell: {
+    flex: 0.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  amcValue: {
+    fontSize: sp(15),
+    fontWeight: '700',
+  },
+  amcHint: {
+    marginLeft: ms(5),
+    fontSize: sp(13),
+    fontWeight: '700',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.dividerGray,
+    marginHorizontal: ms(20),
+    marginTop: ms(10),
+  },
   summaryRow: {
     flexDirection: 'row',
-    gap: ms(12),
+    padding: ms(15),
+    marginBottom: ms(10),
   },
   summaryBlock: {
     flex: 1,
     alignItems: 'center',
   },
   summaryTitle: {
-    color: '#6B7280',
-    fontSize: sp(13),
+    color: COLORS.lightGray,
+    fontSize: sp(14),
     textAlign: 'center',
     fontWeight: '700',
   },
   summaryValue: {
-    marginTop: ms(8),
-    color: '#111827',
+    marginTop: ms(10),
+    color: COLORS.textBlack,
     fontSize: sp(14),
   },
   ratingRow: {
-    marginTop: ms(8),
+    marginTop: ms(10),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: ms(6),
   },
   ratingValue: {
-    color: '#111827',
+    color: COLORS.primary,
     fontSize: sp(14),
+    marginRight: ms(10),
   },
   starsRow: {
     flexDirection: 'row',
   },
-  starFilled: {
-    color: '#c3002f',
-    fontSize: sp(14),
-    marginHorizontal: ms(1),
+  attendanceCard: {
+    height: ms(150),
+    marginBottom: ms(5),
+    paddingTop: 0,
   },
-  starEmpty: {
-    color: '#F3D0D6',
-    fontSize: sp(14),
-    marginHorizontal: ms(1),
+  attendanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: ms(20),
+    marginTop: ms(10),
+  },
+  sectionTitle: {
+    color: COLORS.lightGray,
+    fontSize: sp(15),
+    fontWeight: '700',
   },
   attendanceRow: {
     flexDirection: 'row',
-    marginTop: ms(14),
-    gap: ms(8),
+    marginHorizontal: ms(10),
+    marginTop: ms(15),
+  },
+  attendanceCell: {
+    flex: 1,
+    alignItems: 'center',
   },
   attendanceBox: {
-    flex: 1,
-    borderRadius: ms(12),
-    minHeight: ms(78),
+    width: '80%',
+    height: ms(55),
+    borderRadius: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  presentBg: {
-    backgroundColor: '#16A34A',
-  },
-  absentBg: {
-    backgroundColor: '#E2726A',
-  },
-  idleBg: {
-    backgroundColor: '#F59E0B',
-  },
-  leaveBg: {
-    backgroundColor: '#111827',
   },
   attendanceCount: {
     color: '#FFFFFF',
@@ -670,10 +676,9 @@ const styles = StyleSheet.create({
     fontSize: sp(20),
   },
   attendanceLabel: {
-    color: '#FFFFFF',
+    marginTop: ms(8),
     fontSize: sp(12),
     fontWeight: '700',
-    marginTop: ms(4),
   },
   loaderRow: {
     flexDirection: 'row',
@@ -684,7 +689,7 @@ const styles = StyleSheet.create({
   },
   loaderText: {
     marginLeft: ms(8),
-    color: '#4B5563',
+    color: COLORS.slate,
     fontSize: sp(12),
   },
 });

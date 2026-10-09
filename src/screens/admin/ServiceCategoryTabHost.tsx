@@ -15,15 +15,16 @@ import {
   Alert,
   FlatList,
   Image,
+  type ImageStyle,
+  type StyleProp,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {COLORS} from '../../theme/theme';
-import {ms, scale, sp, vs} from '../../utils/responsive';
+import {ms, sp, vs} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {formatAmount} from '../../utils/decimal';
 import {
@@ -42,6 +43,8 @@ import AddEditServiceGroupModal, {
   type ServiceGroupKind,
 } from './AddEditServiceGroupModal';
 import AddEditServiceModal from './AddEditServiceModal';
+import UnderlineSearch from '../../components/UnderlineSearch';
+import {DeleteAccIcon, EditProfileIcon, RightArrowIcon} from '../../components/JavaIcons';
 
 type Props = {
   ownerId: number;
@@ -55,6 +58,18 @@ type ViewState =
       category: ServiceCategoryListDTOResultData;
       subcategory: ServiceCategoryListDTOLstServiceTypeSubcategories;
     };
+
+// Java: Picasso placeholder + error both use R.drawable.servicelist_default.
+const ServiceThumb = ({uri, style}: {uri?: string | null; style: StyleProp<ImageStyle>}) => {
+  const [failed, setFailed] = useState(false);
+  return (
+    <Image
+      source={uri && !failed ? {uri} : require('../../../assets/images/servicelist_default.jpg')}
+      style={style}
+      onError={() => setFailed(true)}
+    />
+  );
+};
 
 const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
   const [tree, setTree] = useState<ServiceCategoryListDTOResultData[]>([]);
@@ -193,51 +208,73 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
     ]);
   };
 
-  const renderHeader = () => {
-    const title =
-      view.level === 'category'
-        ? 'Services'
-        : view.level === 'subcategory'
-        ? view.category.ServiceTypeCategoryName ?? 'Category'
-        : view.subcategory.ServiceTypeSubCategoryName ?? 'Sub-Category';
+  const q = search.trim().toLowerCase();
 
-    const onAddPress = () => {
-      if (view.level === 'category') {
-        setGroupModal({kind: 'category', editing: null});
-      } else if (view.level === 'subcategory') {
-        setGroupModal({kind: 'subcategory', editing: null});
-      } else {
-        setServiceModal({editing: null});
-      }
-    };
-
-    return (
-      <View style={styles.headerRow}>
-        {view.level !== 'category' ? (
-          <Pressable hitSlop={10} onPress={goBack} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={sp(22)} color={COLORS.primary} />
-          </Pressable>
-        ) : (
-          <View style={styles.backButtonPlaceholder} />
-        )}
-        <Text numberOfLines={1} style={styles.headerTitle}>
-          {title}
-        </Text>
-        <Pressable hitSlop={10} onPress={onAddPress} style={styles.addButton}>
-          <Ionicons name="add" size={sp(22)} color={COLORS.white} />
-        </Pressable>
+  // Java servicecategory_list_row / servicecategory_first_list_row / servicetype_list_row:
+  // 100dp card, 70dp circular default image, bold name + blue [id], edit / delete / arrow.
+  const renderRow = ({
+    imageUri,
+    title,
+    id,
+    subtitle,
+    onPress,
+    onEdit,
+    onDelete,
+    showArrow,
+    large,
+  }: {
+    imageUri?: string | null;
+    title: string;
+    id?: number | string | null;
+    subtitle?: string;
+    onPress?: () => void;
+    onEdit?: () => void;
+    onDelete?: () => void;
+    showArrow?: boolean;
+    large?: boolean;
+  }) => (
+    <Pressable style={[styles.rowCard, large ? styles.rowCardLarge : null]} onPress={onPress}>
+      <ServiceThumb uri={imageUri} style={[styles.rowImage, large ? styles.rowImageLarge : null]} />
+      <View style={styles.rowBody}>
+        <View style={styles.rowTitleLine}>
+          <Text style={styles.rowTitle} numberOfLines={2}>
+            {title}
+          </Text>
+          {id != null && id !== '' && Number(id) !== 0 ? <Text style={styles.rowId}>[{id}]</Text> : null}
+        </View>
+        {subtitle ? (
+          <Text style={styles.rowSubtitle} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
-    );
-  };
+      {onEdit ? (
+        <Pressable hitSlop={8} onPress={onEdit} style={styles.rowIcon}>
+          <EditProfileIcon size={ms(20)} color={COLORS.textBlack} />
+        </Pressable>
+      ) : null}
+      {onDelete ? (
+        <Pressable hitSlop={8} onPress={onDelete} style={styles.rowIcon}>
+          <DeleteAccIcon size={ms(20)} color={COLORS.statusRejected} />
+        </Pressable>
+      ) : null}
+      {showArrow ? (
+        <View style={styles.rowIcon}>
+          <RightArrowIcon size={ms(25)} color={COLORS.textBlack} />
+        </View>
+      ) : null}
+    </Pressable>
+  );
 
-  const renderSearch = () => (
-    <TextInput
-      style={styles.searchInput}
-      placeholder="Search"
-      placeholderTextColor={COLORS.textMuted}
-      value={search}
-      onChangeText={setSearch}
-    />
+  const renderTitleBar = (title: string, addLabel: string, onAdd: () => void) => (
+    <View style={styles.titleBar}>
+      <Text style={styles.titleText} numberOfLines={1}>
+        {title}
+      </Text>
+      <Pressable style={[styles.addPill, {width: ms(addLabel.length > 10 ? 100 : 80)}]} onPress={onAdd}>
+        <Text style={styles.addPillText}>{addLabel}</Text>
+      </Pressable>
+    </View>
   );
 
   if (loading) {
@@ -249,51 +286,42 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
   }
 
   if (view.level === 'category') {
-    const filtered = tree.filter(c =>
-      String(c.ServiceTypeCategoryName ?? '').toLowerCase().includes(search.trim().toLowerCase()),
-    );
+    const filtered = tree.filter(c => String(c.ServiceTypeCategoryName ?? '').toLowerCase().includes(q));
     return (
       <View style={styles.root}>
-        {renderHeader()}
-        {renderSearch()}
-        <FlatList
-          data={filtered}
-          keyExtractor={(item, index) => `${item.ServiceTypeCategoryId ?? index}`}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<Text style={styles.emptyText}>No service categories yet.</Text>}
-          renderItem={({item}) => (
-            <Pressable style={styles.card} onPress={() => setView({level: 'subcategory', category: item})}>
-              {item.ServiceTypeCategoryImage ? (
-                <Image source={{uri: item.ServiceTypeCategoryImage}} style={styles.thumb} />
-              ) : (
-                <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                  <Ionicons name="reader-outline" size={sp(20)} color={COLORS.primary} />
-                </View>
-              )}
-              <View style={styles.cardBody}>
-                <Text numberOfLines={1} style={styles.cardTitle}>
-                  {item.ServiceTypeCategoryName}
-                </Text>
-                <Text numberOfLines={1} style={styles.cardSubtitle}>
-                  {item.lstServiceTypeSubcategories?.length ?? 0} sub-categories
-                </Text>
-              </View>
-              <Pressable
-                hitSlop={8}
-                onPress={() => setGroupModal({kind: 'category', editing: {
-                  id: item.ServiceTypeCategoryId ?? 0,
-                  name: item.ServiceTypeCategoryName ?? '',
-                  description: item.ServiceTypeCategoryDescription ?? '',
-                  image: item.ServiceTypeCategoryImage,
-                }})}>
-                <Text style={styles.iconText}>✎</Text>
-              </Pressable>
-              <Pressable hitSlop={8} onPress={() => handleDeleteCategory(item)}>
-                <Text style={styles.iconText}>🗑</Text>
-              </Pressable>
-            </Pressable>
-          )}
-        />
+        <View style={styles.sheet}>
+          {renderTitleBar('Service Category', '+ Category', () => setGroupModal({kind: 'category', editing: null}))}
+          <FlatList
+            data={filtered}
+            keyExtractor={(item, index) => `${item.ServiceTypeCategoryId ?? index}`}
+            contentContainerStyle={styles.listContent}
+            ListEmptyComponent={<Text style={styles.emptyText}>No service categories yet.</Text>}
+            renderItem={({item, index}) =>
+              renderRow({
+                imageUri: item.ServiceTypeCategoryImage,
+                title: item.ServiceTypeCategoryName ?? '',
+                id: item.ServiceTypeCategoryId,
+                showArrow: true,
+                // Java's first row (Other Category) is the arrow-only layout.
+                onEdit:
+                  index === 0 && !q
+                    ? undefined
+                    : () =>
+                        setGroupModal({
+                          kind: 'category',
+                          editing: {
+                            id: item.ServiceTypeCategoryId ?? 0,
+                            name: item.ServiceTypeCategoryName ?? '',
+                            description: item.ServiceTypeCategoryDescription ?? '',
+                            image: item.ServiceTypeCategoryImage,
+                          },
+                        }),
+                onDelete: index === 0 && !q ? undefined : () => handleDeleteCategory(item),
+                onPress: () => setView({level: 'subcategory', category: item}),
+              })
+            }
+          />
+        </View>
 
         <AddEditServiceGroupModal
           visible={groupModal?.kind === 'category'}
@@ -313,52 +341,50 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
   if (view.level === 'subcategory') {
     const subcategories = view.category.lstServiceTypeSubcategories ?? [];
     const filtered = subcategories.filter(s =>
-      String(s.ServiceTypeSubCategoryName ?? '').toLowerCase().includes(search.trim().toLowerCase()),
+      String(s.ServiceTypeSubCategoryName ?? '').toLowerCase().includes(q),
     );
     return (
       <View style={styles.root}>
-        {renderHeader()}
-        {renderSearch()}
-        <FlatList
-          data={filtered}
-          keyExtractor={(item, index) => `${item.ServiceTypeSubCategoryId ?? index}`}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<Text style={styles.emptyText}>No sub-categories yet.</Text>}
-          renderItem={({item}) => (
-            <Pressable
-              style={styles.card}
-              onPress={() => setView({level: 'service', category: view.category, subcategory: item})}>
-              {item.ServiceTypeSubCategoryImage ? (
-                <Image source={{uri: item.ServiceTypeSubCategoryImage}} style={styles.thumb} />
-              ) : (
-                <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                  <Ionicons name="albums-outline" size={sp(20)} color={COLORS.primary} />
-                </View>
-              )}
-              <View style={styles.cardBody}>
-                <Text numberOfLines={1} style={styles.cardTitle}>
-                  {item.ServiceTypeSubCategoryName}
-                </Text>
-                <Text numberOfLines={1} style={styles.cardSubtitle}>
-                  {item.lstServiceType?.length ?? 0} services
-                </Text>
-              </View>
-              <Pressable
-                hitSlop={8}
-                onPress={() => setGroupModal({kind: 'subcategory', editing: {
-                  id: item.ServiceTypeSubCategoryId ?? 0,
-                  name: item.ServiceTypeSubCategoryName ?? '',
-                  description: item.ServiceTypeSubCategoryDescription ?? '',
-                  image: item.ServiceTypeSubCategoryImage,
-                }})}>
-                <Text style={styles.iconText}>✎</Text>
-              </Pressable>
-              <Pressable hitSlop={8} onPress={() => handleDeleteSubCategory(view.category, item)}>
-                <Text style={styles.iconText}>🗑</Text>
-              </Pressable>
-            </Pressable>
+        <View style={styles.sheet}>
+          <Pressable hitSlop={10} onPress={goBack} style={styles.categoryNameRow}>
+            <Ionicons name="chevron-back" size={sp(20)} color={COLORS.primary} />
+            <Text style={styles.categoryName} numberOfLines={1}>
+              {view.category.ServiceTypeCategoryName ?? 'Category'}
+            </Text>
+          </Pressable>
+          {renderTitleBar('Service Sub Category', '+ Sub Category', () =>
+            setGroupModal({kind: 'subcategory', editing: null}),
           )}
-        />
+          <FlatList
+            data={filtered}
+            keyExtractor={(item, index) => `${item.ServiceTypeSubCategoryId ?? index}`}
+            contentContainerStyle={styles.listContent}
+            ListEmptyComponent={<Text style={styles.emptyText}>No sub-categories yet.</Text>}
+            renderItem={({item, index}) =>
+              renderRow({
+                imageUri: item.ServiceTypeSubCategoryImage,
+                title: item.ServiceTypeSubCategoryName ?? '',
+                id: item.ServiceTypeSubCategoryId,
+                showArrow: true,
+                onEdit:
+                  index === 0 && !q
+                    ? undefined
+                    : () =>
+                        setGroupModal({
+                          kind: 'subcategory',
+                          editing: {
+                            id: item.ServiceTypeSubCategoryId ?? 0,
+                            name: item.ServiceTypeSubCategoryName ?? '',
+                            description: item.ServiceTypeSubCategoryDescription ?? '',
+                            image: item.ServiceTypeSubCategoryImage,
+                          },
+                        }),
+                onDelete: index === 0 && !q ? undefined : () => handleDeleteSubCategory(view.category, item),
+                onPress: () => setView({level: 'service', category: view.category, subcategory: item}),
+              })
+            }
+          />
+        </View>
 
         <AddEditServiceGroupModal
           visible={groupModal?.kind === 'subcategory'}
@@ -377,45 +403,41 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
   }
 
   const services = view.subcategory.lstServiceType ?? [];
-  const filteredServices = services.filter(s =>
-    String(s.ServiceName ?? '').toLowerCase().includes(search.trim().toLowerCase()),
-  );
+  const filteredServices = services.filter(s => String(s.ServiceName ?? '').toLowerCase().includes(q));
 
   return (
     <View style={styles.root}>
-      {renderHeader()}
-      {renderSearch()}
-      <FlatList
-        data={filteredServices}
-        keyExtractor={(item, index) => `${item.Id ?? index}`}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Text style={styles.emptyText}>No services yet.</Text>}
-        renderItem={({item}) => (
-          <View style={styles.card}>
-            {item.ImageFileName ? (
-              <Image source={{uri: item.PhotoPath ?? undefined}} style={styles.thumb} />
-            ) : (
-              <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                <Ionicons name="pricetag-outline" size={sp(20)} color={COLORS.primary} />
-              </View>
-            )}
-            <View style={styles.cardBody}>
-              <Text numberOfLines={1} style={styles.cardTitle}>
-                {item.ServiceName}
-              </Text>
-              <Text numberOfLines={1} style={styles.cardSubtitle}>
-                {'₹'} {formatAmount(item.Price)}
-              </Text>
-            </View>
-            <Pressable hitSlop={8} onPress={() => setServiceModal({editing: item})}>
-              <Text style={styles.iconText}>✎</Text>
-            </Pressable>
-            <Pressable hitSlop={8} onPress={() => handleDeleteService(item)}>
-              <Text style={styles.iconText}>🗑</Text>
-            </Pressable>
-          </View>
-        )}
-      />
+      <View style={styles.sheet}>
+        <Pressable hitSlop={10} onPress={goBack} style={styles.categoryNameRow}>
+          <Ionicons name="chevron-back" size={sp(20)} color={COLORS.primary} />
+          <Text style={styles.categoryName} numberOfLines={1}>
+            {view.subcategory.ServiceTypeSubCategoryName ?? 'Sub-Category'}
+          </Text>
+        </Pressable>
+        <View style={styles.searchRow}>
+          <UnderlineSearch value={search} onChangeText={setSearch} placeholder="Search" style={styles.searchFlex} />
+          <Pressable style={styles.addPill} onPress={() => setServiceModal({editing: null})}>
+            <Text style={styles.addPillText}>+ Service</Text>
+          </Pressable>
+        </View>
+        <FlatList
+          data={filteredServices}
+          keyExtractor={(item, index) => `${item.Id ?? index}`}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={<Text style={styles.emptyText}>No services yet.</Text>}
+          renderItem={({item}) =>
+            renderRow({
+              imageUri: item.ImageFileName ? item.PhotoPath : null,
+              title: item.ServiceName ?? '',
+              id: item.Id,
+              subtitle: `₹ ${formatAmount(item.Price)}`,
+              large: true,
+              onEdit: () => setServiceModal({editing: item}),
+              onDelete: () => handleDeleteService(item),
+            })
+          }
+        />
+      </View>
 
       <AddEditServiceModal
         visible={!!serviceModal}
@@ -435,56 +457,67 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    backgroundColor: COLORS.primary,
+  },
+  sheet: {
+    flex: 1,
     backgroundColor: COLORS.white,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    padding: ms(10),
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: COLORS.white,
   },
-  headerRow: {
+  titleBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: ms(14),
-    paddingVertical: vs(10),
+    marginVertical: ms(5),
+    paddingLeft: ms(10),
+    paddingRight: ms(10),
   },
-  backButton: {
-    width: ms(32),
-    height: ms(32),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backButtonPlaceholder: {
-    width: ms(32),
-  },
-  headerTitle: {
+  titleText: {
     flex: 1,
-    fontSize: sp(17),
+    fontSize: sp(18),
     fontWeight: '700',
-    color: '#111827',
-    marginHorizontal: ms(6),
+    color: COLORS.textBlack,
   },
-  addButton: {
-    width: ms(32),
-    height: ms(32),
-    borderRadius: ms(16),
-    backgroundColor: COLORS.primary,
+  categoryNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: ms(10),
+    marginBottom: ms(6),
+  },
+  categoryName: {
+    flex: 1,
+    marginLeft: ms(4),
+    fontSize: sp(16),
+    fontWeight: '700',
+    color: COLORS.textBlack,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: ms(5),
+    gap: ms(10),
+  },
+  searchFlex: {flex: 1},
+  addPill: {
+    width: ms(80),
+    height: ms(30),
+    borderRadius: ms(15),
+    backgroundColor: COLORS.textBlack,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  searchInput: {
-    marginHorizontal: ms(14),
-    marginBottom: vs(8),
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: scale(10),
-    paddingHorizontal: scale(14),
-    paddingVertical: vs(8),
-    fontSize: sp(14),
-    color: '#111827',
+  addPillText: {
+    color: COLORS.white,
+    fontSize: sp(12),
   },
   listContent: {
-    paddingHorizontal: ms(14),
     paddingBottom: vs(24),
   },
   emptyText: {
@@ -493,47 +526,62 @@ const styles = StyleSheet.create({
     marginTop: vs(40),
     fontSize: sp(14),
   },
-  card: {
+  rowCard: {
+    height: ms(100),
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    borderRadius: scale(12),
-    padding: scale(10),
-    marginBottom: vs(10),
+    borderRadius: ms(10),
+    margin: ms(5),
+    paddingRight: ms(10),
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.12,
     shadowRadius: 3,
-    gap: scale(10),
   },
-  thumb: {
-    width: ms(44),
-    height: ms(44),
-    borderRadius: ms(10),
+  rowCardLarge: {
+    height: ms(120),
   },
-  thumbPlaceholder: {
-    backgroundColor: '#fdecec',
-    alignItems: 'center',
-    justifyContent: 'center',
+  rowImage: {
+    width: ms(70),
+    height: ms(70),
+    borderRadius: ms(35),
+    marginHorizontal: ms(10),
   },
-  cardBody: {
+  rowImageLarge: {
+    width: ms(80),
+    height: ms(80),
+    borderRadius: ms(40),
+  },
+  rowBody: {
     flex: 1,
   },
-  cardTitle: {
+  rowTitleLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rowTitle: {
+    flexShrink: 1,
     fontSize: sp(15),
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.ink,
+    marginRight: ms(5),
   },
-  cardSubtitle: {
+  rowId: {
     fontSize: sp(12),
-    color: COLORS.textMuted,
-    marginTop: vs(2),
+    fontWeight: '700',
+    color: COLORS.linkBlue,
+    marginLeft: 'auto',
+    marginRight: ms(8),
   },
-  iconText: {
-    color: COLORS.primary,
-    fontSize: sp(16),
-    paddingHorizontal: scale(4),
+  rowSubtitle: {
+    marginTop: ms(5),
+    fontSize: sp(14),
+    color: COLORS.lightGray,
+  },
+  rowIcon: {
+    marginLeft: ms(14),
   },
 });
 

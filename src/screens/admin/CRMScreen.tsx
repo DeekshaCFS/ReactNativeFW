@@ -3,6 +3,7 @@
 import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
+import {COLORS} from '../../theme/theme';
 import {ensureSuccess} from '../../utils/apiResponse';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {getCustomerTagList} from '../../api/customerList/customerListService';
@@ -216,6 +217,7 @@ import {
   normalizeTaskTag,
   styles,
 } from './crmShared';
+import TabStrip from '../../components/TabStrip';
 
 type CRMScreenProps = {
   ownerId: number;
@@ -1330,40 +1332,27 @@ const CRMScreen = ({
           </Text>
         </View>
         <View style={styles.cardBody}>
-          <View style={styles.cardMainCol}>
+          <View style={styles.cardTitleRow}>
             <Text style={styles.cardTitle} numberOfLines={1}>
               {name}
             </Text>
-            {addressText ? (
-              <Text style={styles.cardSubtitle} numberOfLines={2}>
-                {addressText}
-              </Text>
-            ) : null}
+            {dateText ? <Text style={styles.cardDateText}>{dateText}</Text> : null}
           </View>
-          <View style={styles.cardActionsCol}>
-            <View style={styles.cardActionsRow}>
-              <TouchableOpacity
-                style={styles.cardIconButton}
-                onPress={() => openEditEnquiryModal(item)}
-              >
-                <Text style={styles.cardIconText}>✎</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cardIconButton}
-                onPress={() => openSms(phoneValue)}
-              >
-                <Text style={styles.cardIconText}>💬</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cardIconButton}
-                onPress={() => openCall(phoneValue)}
-              >
-                <Text style={styles.cardIconText}>📞</Text>
-              </TouchableOpacity>
-            </View>
-            {dateText ? (
-              <Text style={styles.cardDateText}>{dateText}</Text>
-            ) : null}
+          <View style={styles.cardAddressRow}>
+            <Text style={styles.cardSubtitle} numberOfLines={2}>
+              {addressText}
+            </Text>
+            <TouchableOpacity
+              style={styles.cardIconButton}
+              onPress={() => openEditEnquiryModal(item)}>
+              <Ionicons name="create-outline" style={styles.cardIconText} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cardIconButton} onPress={() => openSms(phoneValue)}>
+              <Ionicons name="logo-whatsapp" style={styles.cardIconText} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cardIconButton} onPress={() => openCall(phoneValue)}>
+              <Ionicons name="call-outline" style={styles.cardIconText} />
+            </TouchableOpacity>
           </View>
         </View>
       </TouchableOpacity>
@@ -1402,13 +1391,13 @@ const CRMScreen = ({
                 style={styles.cardIconButton}
                 onPress={() => openSms(phoneValue)}
               >
-                <Text style={styles.cardIconText}>💬</Text>
+                <Ionicons name="logo-whatsapp" style={styles.cardIconText} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.cardIconButton}
                 onPress={() => openCall(phoneValue)}
               >
-                <Text style={styles.cardIconText}>📞</Text>
+                <Ionicons name="call-outline" style={styles.cardIconText} />
               </TouchableOpacity>
             </View>
           </View>
@@ -1541,44 +1530,20 @@ const CRMScreen = ({
           now the shared AppHeader rendered once by AdminTabs above the tab
           bar. The tabs row below is offset by the header's height so it
           doesn't render underneath it. */}
-      <View style={[styles.tabsRow, { marginTop: insets.top + HEADER_CONTENT_HEIGHT }]}>
-        <TouchableOpacity
-          style={styles.tabButton}
-          onPress={() => setActiveTab('enquiries')}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              activeTab === 'enquiries' ? styles.tabButtonTextActive : null,
-            ]}
-          >
-            ENQUIRIES
-          </Text>
-          {activeTab === 'enquiries' ? (
-            <View style={styles.tabButtonUnderline} />
-          ) : null}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tabButton}
-          onPress={() => setActiveTab('customers')}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              activeTab === 'customers' ? styles.tabButtonTextActive : null,
-            ]}
-          >
-            CUSTOMERS
-          </Text>
-          {activeTab === 'customers' ? (
-            <View style={styles.tabButtonUnderline} />
-          ) : null}
-        </TouchableOpacity>
+      <View style={{ marginTop: insets.top + HEADER_CONTENT_HEIGHT }}>
+        <TabStrip
+          tabs={[
+            { key: 'enquiries', label: 'ENQUIRIES' },
+            { key: 'customers', label: 'CUSTOMERS' },
+          ]}
+          active={activeTab}
+          onChange={setActiveTab}
+        />
       </View>
 
       <View style={styles.searchRow}>
         <View style={styles.searchInputWrap}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Ionicons name="search" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder={
@@ -1586,13 +1551,13 @@ const CRMScreen = ({
                 ? 'Search by Enq no., Customer name...'
                 : 'Search by Customer name...'
             }
-            placeholderTextColor="#9aa0a6"
+            placeholderTextColor={COLORS.lightGray}
             value={searchText}
             onChangeText={setSearchText}
           />
           {searchText ? (
             <TouchableOpacity onPress={() => setSearchText('')}>
-              <Text style={styles.searchClearIcon}>✕</Text>
+              <Ionicons name="close" style={styles.searchClearIcon} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -1608,7 +1573,7 @@ const CRMScreen = ({
               style={styles.linkIconButton}
               onPress={openShareEnquiryModal}
             >
-              <Text style={styles.linkIconText}>🔗</Text>
+              <Ionicons name="link" style={styles.linkIconText} />
             </TouchableOpacity>
           </>
         ) : (

@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import {ms, sp} from '../../utils/responsive';
+import {COLORS} from '../../theme/theme';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {sanitizeDecimalInput} from '../../utils/decimal';
 import {
@@ -653,7 +654,7 @@ const formatTimeLabel = (rawTime: string) => {
   if (bareTimeMatch) {
     const hours = Number(bareTimeMatch[1]);
     const minutes = bareTimeMatch[2];
-    const period = hours >= 12 ? 'pm' : 'am';
+    const period = hours >= 12 ? 'PM' : 'AM';
     const hour12 = hours % 12 || 12;
     return `${hour12}:${minutes} ${period}`;
   }
@@ -666,7 +667,7 @@ const formatTimeLabel = (rawTime: string) => {
         minute: '2-digit',
         hour12: true,
       })
-      .toLowerCase();
+      .toUpperCase();
   }
 
   return rawTime;
@@ -1287,13 +1288,12 @@ const AMCDashboardScreen = ({
 
     return (
       <Pressable style={styles.card} onPress={handleAMCPress}>
-        <View style={styles.timeColumn}>
-          <Text style={styles.timeText}>
-            {formatTimeLabel(getAMCTime(item))}
-          </Text>
-          <View style={[styles.timeline, {backgroundColor: getAMCStatusColor(item)}]} />
-        </View>
+        <Text style={styles.timeText}>
+          {formatTimeLabel(getAMCTime(item))}
+        </Text>
 
+        <View style={styles.cardSurface}>
+        <View style={[styles.timeline, {backgroundColor: getAMCStatusColor(item)}]} />
         <View style={styles.cardBody}>
           <View style={styles.cardTopRow}>
             <View style={styles.titleBlock}>
@@ -1340,6 +1340,7 @@ const AMCDashboardScreen = ({
               ) : null}
             </View>
           ) : null}
+        </View>
         </View>
       </Pressable>
     );
@@ -2106,26 +2107,29 @@ const AMCDashboardScreen = ({
         </View>
       </View>
 
+      <View style={styles.sheet}>
       <View style={styles.searchRow}>
+        <View style={styles.searchBox}>
         <Ionicons name="search" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search AMC"
-          placeholderTextColor="#8a8a8a"
+          placeholderTextColor={COLORS.lightGray}
           value={search}
           onChangeText={setSearch}
           returnKeyType="search"
         />
         {search ? (
           <Pressable onPress={() => setSearch('')} style={styles.clearButton}>
-            <Text style={styles.clearText}>x</Text>
+            <Ionicons name="close" style={styles.clearText} />
           </Pressable>
         ) : null}
+        </View>
         <Pressable
           style={styles.addButton}
           onPress={() => setAddModalVisible(true)}
         >
-          <Text style={styles.addButtonText}>+AMC</Text>
+          <Text style={styles.addButtonText}>+ AMC</Text>
         </Pressable>
       </View>
 
@@ -2159,6 +2163,7 @@ const AMCDashboardScreen = ({
           }
         />
       )}
+      </View>
 
       {renderPickerModal(
         typeModalVisible,
@@ -2233,7 +2238,15 @@ const AMCDashboardScreen = ({
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: THEME_PRIMARY },
+  sheet: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    paddingTop: ms(10),
+    overflow: 'hidden',
+  },
   header: {
     backgroundColor: THEME_PRIMARY,
     paddingTop: ms(6),
@@ -2270,10 +2283,8 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     alignItems: 'center',
-    borderTopColor: 'rgba(0, 0, 0, 0.06)',
-    borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    height: ms(36),
+    height: ms(44),
     justifyContent: 'space-between',
     paddingHorizontal: ms(16),
   },
@@ -2284,36 +2295,41 @@ const styles = StyleSheet.create({
   },
   headerFilterText: {
     color: '#FFFFFF',
-    fontSize: sp(12),
-    marginRight: ms(8),
+    fontSize: sp(16),
+    marginRight: ms(10),
   },
   headerArrow: {
     color: '#FFFFFF',
-    fontSize: sp(12),
-    fontWeight: '700',
+    fontSize: ms(22),
   },
   searchRow: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderBottomColor: '#E7E7E7',
-    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    height: ms(42),
-    paddingLeft: ms(18),
-    paddingRight: ms(8),
+    paddingHorizontal: ms(15),
+    paddingBottom: ms(5),
+    gap: ms(10),
+  },
+  searchBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.darkGray,
+    paddingHorizontal: ms(8),
   },
   searchIcon: {
-    color: '#878787',
-    fontSize: sp(18),
-    marginRight: ms(6),
+    color: COLORS.lightGray,
+    fontSize: ms(20),
+    marginRight: ms(8),
   },
   searchInput: {
-    color: '#222222',
+    color: COLORS.textBlack,
     flex: 1,
     fontSize: sp(14),
-    height: ms(40),
     paddingHorizontal: 0,
     paddingVertical: 0,
+    height: ms(40),
   },
   clearButton: {
     alignItems: 'center',
@@ -2322,24 +2338,23 @@ const styles = StyleSheet.create({
     width: ms(28),
   },
   clearText: {
-    color: '#4E4E4E',
-    fontSize: sp(16),
+    color: COLORS.textBlack,
+    fontSize: ms(20),
   },
   addButton: {
     alignItems: 'center',
-    backgroundColor: '#050505',
-    borderRadius: ms(8),
-    height: ms(28),
+    backgroundColor: COLORS.textBlack,
+    borderRadius: ms(15),
+    height: ms(30),
     justifyContent: 'center',
-    marginLeft: ms(8),
-    paddingHorizontal: ms(10),
+    width: ms(60),
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: sp(11),
-    fontWeight: '700',
+    fontSize: sp(12),
   },
   listContent: {
+    paddingHorizontal: ms(2),
     paddingBottom: ms(18),
   },
   emptyListContent: {
@@ -2347,35 +2362,41 @@ const styles = StyleSheet.create({
   },
   card: {
     flexDirection: 'row',
-    minHeight: ms(78),
+    alignItems: 'flex-start',
   },
-  timeColumn: {
-    alignItems: 'center',
-    width: ms(82),
+  cardSurface: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: ms(10),
+    margin: ms(8),
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: {width: 0, height: 1},
   },
   timeText: {
-    alignSelf: 'flex-start',
-    color: '#101010',
-    fontSize: sp(11),
+    color: COLORS.ink,
+    fontSize: sp(14),
     fontWeight: '700',
-    marginLeft: ms(16),
-    marginTop: ms(13),
+    marginLeft: ms(5),
+    marginTop: ms(16),
+    paddingRight: ms(5),
   },
   timeline: {
     backgroundColor: '#8D99A6',
-    borderBottomRightRadius: ms(5),
-    borderTopRightRadius: ms(5),
-    flex: 1,
-    marginTop: ms(4),
-    width: ms(6),
+    borderBottomRightRadius: ms(10),
+    borderTopRightRadius: ms(10),
+    marginVertical: ms(15),
+    width: ms(5),
   },
   cardBody: {
-    borderBottomColor: '#EEEEEE',
-    borderBottomWidth: ms(1),
     flex: 1,
     justifyContent: 'center',
-    paddingRight: ms(12),
-    paddingVertical: ms(9),
+    paddingRight: ms(10),
+    paddingVertical: ms(10),
+    paddingLeft: ms(5),
   },
   cardTopRow: {
     flexDirection: 'row',
@@ -2385,14 +2406,14 @@ const styles = StyleSheet.create({
     paddingRight: ms(10),
   },
   typeText: {
-    color: '#5B5B5B',
-    fontSize: sp(11),
-    marginBottom: ms(4),
+    color: COLORS.ink,
+    fontSize: sp(14),
+    marginBottom: ms(5),
   },
   customerText: {
-    color: '#111111',
-    fontSize: sp(12),
-    fontWeight: '800',
+    color: COLORS.ink,
+    fontSize: sp(15),
+    fontWeight: '700',
     marginBottom: ms(5),
   },
   serviceRow: {
@@ -2400,37 +2421,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   serviceLabel: {
-    color: '#111111',
-    fontSize: sp(11),
-    fontWeight: '800',
+    color: COLORS.textBlack,
+    fontSize: sp(12),
+    fontWeight: '700',
   },
   serviceValue: {
-    color: '#6F6F6F',
-    fontSize: sp(11),
+    color: COLORS.authText,
+    fontSize: sp(12),
   },
   countBlock: {
     alignItems: 'flex-end',
     minWidth: ms(58),
   },
   dateText: {
-    color: '#B5B5B5',
+    color: COLORS.lightGray,
     fontSize: sp(12),
-    marginBottom: ms(8),
+    fontStyle: 'italic',
+    marginBottom: ms(4),
   },
   countText: {
-    color: '#0C1733',
-    fontSize: sp(17),
-    fontWeight: '500',
+    color: COLORS.ink,
+    fontSize: sp(24),
+    fontWeight: '700',
   },
   countSlash: {
-    color: '#0C1733',
-    fontSize: sp(13),
-    fontWeight: '600',
+    color: COLORS.ink,
+    fontSize: sp(15),
+    fontWeight: '700',
   },
   countTotal: {
-    color: THEME_PRIMARY,
-    fontSize: sp(13),
-    fontWeight: '800',
+    color: COLORS.primary,
+    fontSize: sp(15),
+    fontWeight: '700',
   },
   metaRow: {
     alignItems: 'center',
@@ -2438,26 +2460,26 @@ const styles = StyleSheet.create({
     marginTop: ms(8),
   },
   metaLabel: {
-    color: '#111111',
-    fontSize: sp(11),
-    fontWeight: '800',
+    color: COLORS.ink,
+    fontSize: sp(12),
+    fontWeight: '700',
     marginRight: ms(4),
   },
   metaValue: {
-    color: '#6F6F6F',
+    color: COLORS.authText,
     flex: 1,
-    fontSize: sp(11),
+    fontSize: sp(12),
     marginRight: ms(8),
   },
   taskLabel: {
-    color: '#111111',
-    fontSize: sp(11),
-    fontWeight: '800',
+    color: COLORS.textBlack,
+    fontSize: sp(12),
+    fontWeight: '700',
     marginRight: ms(4),
   },
   taskValue: {
-    color: '#6F6F6F',
-    fontSize: sp(11),
+    color: COLORS.authText,
+    fontSize: sp(12),
     minWidth: ms(48),
   },
   loadingRow: {

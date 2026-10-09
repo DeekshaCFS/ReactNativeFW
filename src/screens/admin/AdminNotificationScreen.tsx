@@ -7,17 +7,9 @@
 //   - Task Rejected: "Re-Assign" + "View Details"
 //   - AMC reminder:  due date + service n/total, "View Details" (marks read)
 //   - UserInfo:      "Assign Task" (only for registered fieldworkers)
+// The card/sheet visuals are shared with the technician screen (NotificationCard).
 import React, {useCallback, useEffect, useState} from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import {ActivityIndicator, Alert, FlatList, RefreshControl, Text} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {
@@ -29,8 +21,17 @@ import {countUnread, setUnreadCount} from '../../state/notificationBadge';
 import {getTaskById} from '../../api/task/taskService';
 import type {AdminStackParamList} from '../../navigation/AdminStack';
 import AddTaskModal, {buildTaskFormValues, type AddTaskInitialValues} from './AddTaskModal';
-import {formatAmount} from '../../utils/decimal';
-import {ms, sp, vs} from '../../utils/responsive';
+import {COLORS} from '../../theme/theme';
+import {AddTechIcon} from '../../components/JavaIcons';
+import {ms} from '../../utils/responsive';
+import type {NotificationIconName} from '../../components/NotificationIcons';
+import {
+  NotificationCard,
+  NotificationSheet,
+  notificationListStyles as styles,
+  type NotificationCardAction,
+  type NotificationSegment as Segment,
+} from '../../components/NotificationCard';
 
 type Props = {ownerId: number};
 
@@ -40,10 +41,11 @@ const STATE = {NOT_STARTED: 0, STARTED_NOT_ENDED: 1, ENDED_NO_PAYMENT: 2, PAYMEN
 const PAYMENT_AMC = 1;
 const PAYMENT_RATE = 2;
 
-type Segment = {text: string; bold?: boolean};
 type RowModel = {
   title: string;
   color: string;
+  icon?: NotificationIconName;
+  addTechIcon?: boolean;
   subtitle: Segment[];
   action?: 'reassign' | 'assign';
   viewDetails?: boolean;
@@ -51,6 +53,29 @@ type RowModel = {
 
 const b = (text: string): Segment => ({text, bold: true});
 const t = (text: string): Segment => ({text});
+
+// Java renders TaskName with Html.fromHtml for Requested Items: <b> -> bold, <br> -> newline.
+const htmlToSegments = (html: string): Segment[] => {
+  const out: Segment[] = [];
+  let bold = false;
+  html.split(/(<[^>]+>)/g).forEach(part => {
+    if (!part) {
+      return;
+    }
+    const tag = /^<\s*(\/?)\s*([a-z0-9]+)[^>]*>$/i.exec(part);
+    if (!tag) {
+      out.push({text: part, bold});
+      return;
+    }
+    const name = tag[2].toLowerCase();
+    if (name === 'b' || name === 'strong') {
+      bold = !tag[1];
+    } else if (name === 'br' || (name === 'p' && tag[1])) {
+      out.push({text: '\n'});
+    }
+  });
+  return out;
+};
 
 const buildRow = (n: NotificationResultData): RowModel | null => {
   const task = String(n.TaskName ?? '');
@@ -61,7 +86,8 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
         case STATUS.REJECTED:
           return {
             title: 'Rejected',
-            color: '#D32F2F',
+            color: COLORS.alertRed,
+            icon: 'reject',
             subtitle: [t('Task '), b(task), t(' has rejected by '), b(who), t('.')],
             action: 'reassign',
             viewDetails: true,
@@ -83,26 +109,30 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
           }
           return {
             title: 'Ongoing',
-            color: '#F57C00',
+            color: COLORS.statusOngoing,
+            icon: 'ongoing',
             subtitle: tail.length ? [t('Task '), b(task), ...tail] : [],
           };
         }
         case STATUS.COMPLETED:
           return {
             title: 'Completed',
-            color: '#2E7D32',
+            color: COLORS.statusCompleted,
+            icon: 'completed',
             subtitle: [t('Task '), b(task), t(' is completed by '), b(who), t('.')],
           };
         case STATUS.IN_ACTIVE:
           return {
             title: 'InActive',
-            color: '#1565C0',
+            color: COLORS.tagBlue,
+            icon: 'inactive',
             subtitle: [t('Task '), b(task), t(' is assign to you.')],
           };
         case STATUS.ONHOLD:
           return {
             title: 'OnHold',
-            color: '#000000',
+            color: COLORS.textBlack,
+            icon: 'ongoing',
             subtitle: [t('Task '), b(task), t(' is put on hold by '), b(who), t('.')],
           };
         default:
@@ -111,19 +141,22 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
     case 'UserInfo':
       return {
         title: 'Info',
-        color: '#2E7D32',
+        color: COLORS.statusCompleted,
+        addTechIcon: true,
         subtitle: [t('New technician '), b(who), t(' is added into your technician list.')],
         action: 'assign',
       };
     case 'Earning':
       return {
         title: 'Earnings',
-        color: '#2E7D32',
+        color: COLORS.statusCompleted,
+        icon: 'earnings',
         subtitle: [
           t('Technician '),
           b(who),
           t(' earned '),
-          b(`Rs ${formatAmount(n.EarningAmount)}`),
+          // Java prints the raw EarningAmount ("Rs 1000.65"), not the 3-decimal money format.
+          b(`Rs ${n.EarningAmount ?? 0}`),
           t(' for the task '),
           b(task),
           t('.'),
@@ -133,7 +166,8 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
       const amc = n.AMCServiceDetailDtoObj;
       return {
         title: 'AMC Reminder',
-        color: '#D32F2F',
+        color: COLORS.alertRed,
+        icon: 'amc',
         subtitle: [
           t(`You have a ${amc?.AMCTypeName ?? ''} ${amc?.ServiceOccuranceType ?? ''} `),
           b(String(amc?.AMCName ?? '')),
@@ -144,7 +178,7 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
       };
     }
     case 'FOC':
-      return {title: 'Requested Items', color: '#1565C0', subtitle: [t(task)]};
+      return {title: 'Requested Items', color: COLORS.tagBlue, icon: 'requestedItems', subtitle: htmlToSegments(task)};
     default:
       return null;
   }
@@ -258,61 +292,49 @@ const AdminNotificationScreen: React.FC<Props> = ({ownerId}) => {
       return null;
     }
     const amc = item.NotificationType === 'AMC' ? item.AMCServiceDetailDtoObj : undefined;
+    const actions: NotificationCardAction[] = [];
+    if (row.action) {
+      actions.push({
+        label: row.action === 'reassign' ? 'Re-Assign' : 'Assign Task',
+        onPress: () => (row.action === 'reassign' ? openReassign(item) : openAssign(item)),
+      });
+    }
+    if (row.viewDetails) {
+      actions.push({label: 'View Details', onPress: () => openDetails(item)});
+    }
     return (
-      <View style={styles.card}>
-        <View style={styles.titleRow}>
-          <Text style={[styles.title, {color: row.color}]}>{row.title}</Text>
-          {item.IsRead ? null : <Text style={styles.newFlag}>New</Text>}
-        </View>
-        {row.subtitle.length ? (
-          <Text style={styles.subtitle}>
-            {row.subtitle.map((seg, i) => (
-              <Text key={i} style={seg.bold ? styles.bold : null}>
-                {seg.text}
-              </Text>
-            ))}
-          </Text>
-        ) : null}
-        {amc ? (
-          <View style={styles.amcRow}>
-            <Text style={styles.amcText}>Due Date: {String(amc.AMCServiceDate ?? '').split('T')[0]}</Text>
-            <Text style={styles.amcText}>
-              Service: {amc.ServiceNo ?? 0}/{amc.TotalServices ?? 0}
-            </Text>
-          </View>
-        ) : null}
-        <View style={styles.footerRow}>
-          <Text style={styles.time}>{formatWhen(item)}</Text>
-          <View style={styles.actions}>
-            {row.action ? (
-              <Pressable
-                onPress={() => (row.action === 'reassign' ? openReassign(item) : openAssign(item))}>
-                <Text style={styles.actionText}>
-                  {row.action === 'reassign' ? 'Re-Assign' : 'Assign Task'}
-                </Text>
-              </Pressable>
-            ) : null}
-            {row.viewDetails ? (
-              <Pressable onPress={() => openDetails(item)}>
-                <Text style={styles.actionText}>View Details</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-      </View>
+      <NotificationCard
+        icon={row.icon}
+        iconNode={row.addTechIcon ? <AddTechIcon size={ms(24)} color={COLORS.textBlack} /> : undefined}
+        title={row.title}
+        color={row.color}
+        isNew={!item.IsRead}
+        when={formatWhen(item)}
+        subtitle={row.subtitle}
+        amc={
+          amc
+            ? {
+                dueDate: String(amc.AMCServiceDate ?? '').split('T')[0],
+                service: `${amc.ServiceNo ?? 0}/${amc.TotalServices ?? 0}`,
+              }
+            : undefined
+        }
+        actions={actions}
+      />
     );
   };
 
   return (
-    <View style={styles.screen}>
+    <NotificationSheet underAppHeader>
       {loading ? (
-        <ActivityIndicator style={styles.loader} color="#c3002f" size="large" />
+        <ActivityIndicator style={styles.loader} color={COLORS.primary} size="large" />
       ) : (
         <FlatList
           data={items}
           keyExtractor={(item, index) => `${item.Id ?? index}-${index}`}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
           ListEmptyComponent={<Text style={styles.empty}>No notifications found.</Text>}
         />
@@ -324,27 +346,8 @@ const AdminNotificationScreen: React.FC<Props> = ({ownerId}) => {
         onClose={() => setTaskFormValues(null)}
         onSaved={() => load(true)}
       />
-    </View>
+    </NotificationSheet>
   );
 };
-
-const styles = StyleSheet.create({
-  screen: {flex: 1, backgroundColor: '#f5f6f8'},
-  loader: {marginTop: vs(40)},
-  list: {padding: ms(12), gap: vs(10)},
-  card: {backgroundColor: '#fff', borderRadius: ms(10), padding: ms(12)},
-  titleRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
-  title: {fontSize: sp(15), fontWeight: '700'},
-  newFlag: {fontSize: sp(11), color: '#fff', backgroundColor: '#c3002f', paddingHorizontal: ms(6), borderRadius: ms(8)},
-  subtitle: {fontSize: sp(13), color: '#3c4043', marginTop: vs(4)},
-  bold: {fontWeight: '700'},
-  amcRow: {flexDirection: 'row', justifyContent: 'space-between', marginTop: vs(6)},
-  amcText: {fontSize: sp(12), color: '#5f6368'},
-  footerRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: vs(8)},
-  time: {fontSize: sp(11), color: '#80868b'},
-  actions: {flexDirection: 'row', gap: ms(14)},
-  actionText: {fontSize: sp(13), color: '#c3002f', fontWeight: '700'},
-  empty: {textAlign: 'center', color: '#80868b', marginTop: vs(40), fontSize: sp(13)},
-});
 
 export default AdminNotificationScreen;

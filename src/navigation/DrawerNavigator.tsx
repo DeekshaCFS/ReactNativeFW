@@ -1,6 +1,7 @@
 // src/navigation/DrawerNavigator.tsx
 
 import React from 'react';
+import { useWindowDimensions } from 'react-native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import TechnicianStack from './TechStack';
 import CustomDrawerContent from './CustomDrawerContent';
@@ -16,9 +17,12 @@ export default function DrawerNavigator({ role }: { role: string | null }) {
     role?.toLowerCase() === 'admin' ||
     role?.toLowerCase() === 'owner';
 
+  // Java NavigationView: 280dp wide (never wider than 80% of a narrow screen).
+  const { width } = useWindowDimensions();
+
   return (
     <Drawer.Navigator
-      screenOptions={{ headerShown: false }}
+      screenOptions={{ headerShown: false, drawerStyle: { width: Math.min(280, width * 0.8) } }}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
     >
       {isAdmin ? (

@@ -1,3 +1,6 @@
+import TabStrip from '../../components/TabStrip';
+import PassbookSummary from '../../components/PassbookSummary';
+import MonthYearPickerDialog from '../../components/MonthYearPickerDialog';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import {formatAmount} from '../../utils/decimal';
@@ -241,7 +244,8 @@ const valuesFromYearly = (data: MonthlyPassbookData | null): PassbookValues => (
   remaining: getSummaryNumber(data, ['totalOpening', 'TotalOpening']),
 });
 
-const formatMoney = (value: number) => `Rs. ${formatAmount(value)}`;
+
+const formatMoney = (value: number) => `₹ ${formatAmount(value)}`;
 
 const getExpenseString = (
   item: ExpenseTechnicianItem,
@@ -564,23 +568,6 @@ const PassbookExpenditureTabHostScreen = ({
     openPicker(nextPeriod);
   };
 
-  const applyPicker = () => {
-    const nextMonthYear = {
-      month: pendingMonth,
-      year: pendingYear,
-    };
-    setSelectedMonthYear(nextMonthYear);
-    setIsPickerOpen(false);
-
-    if (pickerMode === 'monthly') {
-      setPeriod('monthly');
-      loadMonthlyPassbook(nextMonthYear.month, nextMonthYear.year);
-    } else {
-      setPeriod('yearly');
-      loadYearlyPassbook(nextMonthYear.year);
-    }
-  };
-
   const filteredTechnicians = useMemo(() => {
     const query = expenseSearch.trim().toLowerCase();
     if (!query) {
@@ -592,123 +579,32 @@ const PassbookExpenditureTabHostScreen = ({
     );
   }, [expenseSearch, technicians]);
 
-  const progressPercent = Math.min(
-    100,
-    Math.max(
-      0,
-      passbookValues.estimated > 0
-        ? Math.round((passbookValues.earnings / passbookValues.estimated) * 100)
-        : 0,
-    ),
-  );
-
-  const renderTopTabs = () => (
-    <View style={styles.topTabBar}>
-      {(['passbook', 'expenditure'] as MainTab[]).map(tab => {
-        const selected = activeTab === tab;
-        return (
-          <Pressable
-            key={tab}
-            style={[styles.topTabButton, selected ? styles.topTabActive : null]}
-            onPress={() => setActiveTab(tab)}>
-            <Text style={[styles.topTabText, selected ? styles.topTabTextActive : null]}>
-              {tab === 'passbook' ? 'PASSBOOK' : 'EXPENDITURE'}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-
-  const renderPeriodButton = (buttonPeriod: PassbookPeriod, label: string) => {
-    const selected = period === buttonPeriod;
-    return (
-      <Pressable
-        style={[styles.periodButton, selected ? styles.periodButtonActive : null]}
-        onPress={() => handlePeriodPress(buttonPeriod)}>
-        <Text style={[styles.periodText, selected ? styles.periodTextActive : null]}>
-          {label}
-        </Text>
-      </Pressable>
-    );
-  };
-
   const renderPassbook = () => (
-    <ScrollView contentContainerStyle={styles.passbookScroll}>
-      <View style={styles.periodRow}>
-        {renderPeriodButton('today', 'Today')}
-        {renderPeriodButton('monthly', 'Monthly')}
-        {renderPeriodButton('yearly', 'Yearly')}
-      </View>
-
-      <View style={styles.earningsPanel}>
-        <View style={styles.earningHeaderRow}>
-          <Pressable
-            hitSlop={12}
-            onPress={() => openPicker(period === 'yearly' ? 'yearly' : 'monthly')}>
-            <Ionicons name="caret-back" size={ms(30)} color='#000' />
-          </Pressable>
-          <View style={styles.earningTitleBlock}>
-            <Text style={styles.earningTitle}>{passbookTitle}</Text>
-            <Text style={styles.earningAmount}>{formatMoney(passbookValues.earnings)}</Text>
-          </View>
-          <Pressable
-            hitSlop={12}
-            onPress={() => openPicker(period === 'yearly' ? 'yearly' : 'monthly')}>
-            <Ionicons name="caret-forward" size={ms(30)} color='#000' />
-          </Pressable>
-        </View>
-
-        {isPassbookLoading ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={THEME_PRIMARY} />
-            <Text style={styles.loadingText}>Loading passbook...</Text>
-          </View>
-        ) : null}
-
-        {passbookError ? (
-          <Text style={styles.errorText}>{passbookError}</Text>
-        ) : null}
-
-        <View style={styles.summaryCard}>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, {width: `${progressPercent}%`}]} />
-          </View>
-          <View style={styles.estimatedRow}>
-            <Text style={styles.estimatedText}>
-              Estimated Earnings{' '}
-              <Text style={styles.estimatedAmount}>
-                {formatMoney(passbookValues.estimated)}
-              </Text>
-            </Text>
-            <Text style={styles.progressText}>{progressPercent}%</Text>
-          </View>
-
-          <View style={styles.summaryPrimaryRow}>
-            <Text style={styles.summaryPrimaryLabel}>Credit Given</Text>
-            <Text style={styles.summaryPrimaryValue}>
-              {formatMoney(passbookValues.credit)}
-            </Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Expenses</Text>
-            <Text style={styles.summaryValue}>{formatMoney(passbookValues.expenses)}</Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Received</Text>
-            <Text style={styles.summaryValue}>{formatMoney(passbookValues.received)}</Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Remaining Amount</Text>
-            <Text style={styles.summaryValue}>{formatMoney(passbookValues.remaining)}</Text>
-          </View>
-        </View>
-      </View>
-    </ScrollView>
+    <PassbookSummary
+      period={period}
+      onSelectPeriod={handlePeriodPress}
+      title={passbookTitle}
+      fields={passbookValues}
+      loading={isPassbookLoading}
+      onPrev={() => openPicker(period === 'yearly' ? 'yearly' : 'monthly')}
+      onNext={() => openPicker(period === 'yearly' ? 'yearly' : 'monthly')}
+      prevDisabled={period === 'today'}
+      nextDisabled={period === 'today'}
+    />
   );
+
+  const confirmPicker = (month: number, year: number) => {
+    const nextMonthYear = {month: month + 1, year};
+    setSelectedMonthYear(nextMonthYear);
+    setIsPickerOpen(false);
+    if (pickerMode === 'monthly') {
+      setPeriod('monthly');
+      loadMonthlyPassbook(nextMonthYear.month, nextMonthYear.year);
+    } else {
+      setPeriod('yearly');
+      loadYearlyPassbook(nextMonthYear.year);
+    }
+  };
 
   const renderTechnician = ({item}: {item: ExpenseTechnicianItem}) => {
     const photo = getTechnicianPhoto(item);
@@ -818,90 +714,27 @@ const PassbookExpenditureTabHostScreen = ({
 
   return (
     <View style={styles.shell}>
-      {renderTopTabs()}
+      <TabStrip
+        tabs={[
+          {key: 'passbook', label: 'PASSBOOK'},
+          {key: 'expenditure', label: 'EXPENDITURE'},
+        ]}
+        active={activeTab}
+        onChange={setActiveTab}
+      />
       {activeTab === 'passbook' ? renderPassbook() : renderExpenditure()}
 
-      <Modal
-        transparent
-        animationType="fade"
+      {/* Java: Util/MonthYearPickerDialog (Monthly: current year and one before; Yearly: current and two before) */}
+      <MonthYearPickerDialog
         visible={isPickerOpen}
-        onRequestClose={() => setIsPickerOpen(false)}>
-        <Pressable style={styles.pickerBackdrop} onPress={() => setIsPickerOpen(false)}>
-          <Pressable style={styles.pickerPanel}>
-            <Text style={styles.pickerTitle}>
-              {pickerMode === 'monthly' ? 'Select Month & Year' : 'Select Year'}
-            </Text>
-
-            <View style={styles.pickerBody}>
-              {pickerMode === 'monthly' ? (
-                <View style={styles.pickerColumn}>
-                  <Text style={styles.pickerColumnTitle}>Month</Text>
-                  <ScrollView style={styles.pickerList}>
-                    {MONTH_LABELS.map((label, index) => {
-                      const month = index + 1;
-                      const selected = pendingMonth === month;
-                      return (
-                        <Pressable
-                          key={label}
-                          style={[
-                            styles.pickerItem,
-                            selected ? styles.pickerItemSelected : null,
-                          ]}
-                          onPress={() => setPendingMonth(month)}>
-                          <Text
-                            style={[
-                              styles.pickerItemText,
-                              selected ? styles.pickerItemTextSelected : null,
-                            ]}>
-                            {label}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              ) : null}
-
-              <View style={styles.pickerColumn}>
-                <Text style={styles.pickerColumnTitle}>Year</Text>
-                <ScrollView style={styles.pickerList}>
-                  {yearOptions.map(year => {
-                    const selected = pendingYear === year;
-                    return (
-                      <Pressable
-                        key={String(year)}
-                        style={[
-                          styles.pickerItem,
-                          selected ? styles.pickerItemSelected : null,
-                        ]}
-                        onPress={() => setPendingYear(year)}>
-                        <Text
-                          style={[
-                            styles.pickerItemText,
-                            selected ? styles.pickerItemTextSelected : null,
-                          ]}>
-                          {year}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            </View>
-
-            <View style={styles.pickerFooter}>
-              <Pressable
-                style={styles.pickerCancelButton}
-                onPress={() => setIsPickerOpen(false)}>
-                <Text style={styles.pickerCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.pickerOkButton} onPress={applyPicker}>
-                <Text style={styles.pickerOkText}>OK</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        yearOnly={pickerMode === 'yearly'}
+        minYear={new Date().getFullYear() - (pickerMode === 'yearly' ? 2 : 1)}
+        maxYear={new Date().getFullYear()}
+        activatedMonth={selectedMonthYear.month - 1}
+        activatedYear={selectedMonthYear.year}
+        onCancel={() => setIsPickerOpen(false)}
+        onConfirm={confirmPicker}
+      />
 
       <TechnicianExpenseDetailsModal
         technician={expenseTechnician}

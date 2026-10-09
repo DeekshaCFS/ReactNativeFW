@@ -1,6 +1,7 @@
 // src/screens/admin/AccountsScreen.tsx
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import TabStrip from '../../components/TabStrip';
 import {
   ActivityIndicator,
   FlatList,
@@ -372,21 +373,14 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
       {/* The menu/title/notification row used to be drawn here; it's now
           the shared AppHeader rendered once by AdminTabs, above
           AdminHomeScreen (which this screen is embedded in). */}
-      <View style={styles.tabsRow}>
-        <TouchableOpacity style={styles.tabButton} onPress={() => setActiveTab('quotation')}>
-          <Text
-            style={[styles.tabButtonText, activeTab === 'quotation' ? styles.tabButtonTextActive : null]}>
-            QUOTATION
-          </Text>
-          {activeTab === 'quotation' ? <View style={styles.tabButtonUnderline} /> : null}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabButton} onPress={() => setActiveTab('invoice')}>
-          <Text style={[styles.tabButtonText, activeTab === 'invoice' ? styles.tabButtonTextActive : null]}>
-            INVOICE
-          </Text>
-          {activeTab === 'invoice' ? <View style={styles.tabButtonUnderline} /> : null}
-        </TouchableOpacity>
-      </View>
+      <TabStrip
+        tabs={[
+          { key: 'quotation', label: 'QUOTATION' },
+          { key: 'invoice', label: 'INVOICE' },
+        ]}
+        active={activeTab}
+        onChange={setActiveTab}
+      />
 
       <View style={styles.searchRow}>
         <View style={styles.searchInputWrap}>
