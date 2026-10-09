@@ -98,7 +98,8 @@ function StarsReadOnly({ value }: { value: number }) {
 }
 
 export default function TaskSummaryScreen({ navigation, route }: any) {
-  const { task, elapsedSeconds = 0, payload, preview } = route.params as {
+  const { task, elapsedSeconds = 0, payload, preview, returnTo } = route.params as {
+    returnTo?: { name: string; params?: any };
     task: Task;
     elapsedSeconds?: number;
     payload: TaskClosurePayload;
@@ -355,8 +356,18 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
             </View>
           </View>
 
+          {returnTo && (
+            <Pressable
+              style={[styles.editBtn, submitting && { opacity: 0.6 }]}
+              onPress={() => navigation.navigate(returnTo.name, returnTo.params)}
+              disabled={submitting}
+            >
+              <Text style={styles.editBtnText}>EDIT DETAILS</Text>
+            </Pressable>
+          )}
+
           <Pressable
-            style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
+            style={[styles.submitBtn,submitting && { opacity: 0.6 }]}
             onPress={handleSubmit}
             disabled={submitting}
           >
@@ -424,13 +435,23 @@ const styles = StyleSheet.create({
   signatureEmpty: { height: vs(60), alignItems: 'center', justifyContent: 'center' },
   signatureEmptyText: { color: '#9CA3AF', fontSize: sp(12) },
 
+  editBtn: {
+    height: vs(50),
+    borderRadius: scale(26),
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: vs(24),
+  },
+  editBtnText: { color: COLORS.primary, fontSize: sp(18), fontWeight: '500' },
   submitBtn: {
     height: vs(50),
     borderRadius: scale(26),
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: vs(24),
+    marginTop: vs(12),
   },
   submitBtnText: { color: '#fff', fontSize: sp(18), fontWeight: '500' },
 });

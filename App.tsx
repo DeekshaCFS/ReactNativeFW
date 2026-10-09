@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { AppState, Keyboard, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import RootNavigator from './src/navigation/RootNavigator';
 import AppContainer from './src/components/AppContainer';
@@ -17,6 +17,15 @@ export default function App() {
     };
     // @ts-ignore
     global.onunhandledrejection = handler;
+  }, []);
+
+  // Camera, gallery and file pickers move the app out of the foreground; drop the
+  // keyboard then so it doesn't come back (or stay open) when the user returns.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state !== 'active') Keyboard.dismiss();
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {

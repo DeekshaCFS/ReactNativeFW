@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ToastAndroid,
+  Keyboard,
   ActivityIndicator,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
@@ -257,7 +258,10 @@ export default function TaskInputScreen({ navigation, route }: any) {
               <Pressable
                 key={v}
                 style={styles.radioRow}
-                onPress={() => setFieldValue(id, v)}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setFieldValue(id, v);
+                }}
                 hitSlop={6}
               >
                 <View style={[styles.radioOuter, isBooleanValue(id, v) && styles.radioOuterActive]}>

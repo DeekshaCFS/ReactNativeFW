@@ -71,7 +71,7 @@ const PUSHED_SCREENS: {
   { name: 'TaskRouteMap', component: unmountOnBlur(TaskRouteMapScreen), title: 'Route' },
   { name: 'TaskExecution', component: unmountOnBlur(TaskExecutionScreen), title: 'Task' },
   { name: 'TaskTracking', component: unmountOnBlur(TaskTrackingScreen), title: 'Tasks' },
-  { name: 'TaskClosure', component: unmountOnBlur(TaskClosureScreen), title: 'Task Details' },
+  { name: 'TaskClosure', component: unmountOnBlur(TaskClosureScreen, ['TaskInput', 'ItemRequest', 'QRScanHistory', 'TaskSummary']), title: 'Task Details' },
   { name: 'TaskSummary', component: unmountOnBlur(TaskSummaryScreen), title: 'Summary Details' },
   { name: 'PaymentReceived', component: unmountOnBlur(PaymentReceivedScreen), title: 'Task' },
   { name: 'ItemRequest', component: unmountOnBlur(ItemRequestScreen), title: 'Task Details' },
@@ -251,10 +251,10 @@ export default function TechnicianTabs() {
             name={name}
             component={component}
             initialParams={initialParams}
-            options={({ navigation }: any) =>
+            options={({ navigation, route }: any) =>
               name === 'Leave' || name === 'Expenditure' || name === 'Leads' || name === 'Profile' || SHEET_SCREENS.includes(name)
                 ? { headerShown: false }
-                : pushedScreenOptions(title, navigation)}
+                : pushedScreenOptions(title, navigation, route)}
           />
         ))}
       </Tab.Navigator>

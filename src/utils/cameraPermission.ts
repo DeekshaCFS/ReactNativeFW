@@ -1,4 +1,4 @@
-import { Alert, PermissionsAndroid, Platform } from 'react-native';
+import { Alert, Keyboard, PermissionsAndroid, Platform } from 'react-native';
 import {
   launchCamera,
   type CameraOptions,
@@ -11,6 +11,7 @@ import {
 export async function launchCameraWithPermission(
   options: CameraOptions,
 ): Promise<ImagePickerResponse> {
+  Keyboard.dismiss();
   if (Platform.OS === 'android') {
     const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
     if (granted !== PermissionsAndroid.RESULTS.GRANTED) {

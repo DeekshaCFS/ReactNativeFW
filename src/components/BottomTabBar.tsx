@@ -1,7 +1,7 @@
 // src/components/BottomTabBar.tsx
 
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Platform, Keyboard } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/theme';
@@ -41,7 +41,22 @@ type Props = BottomTabBarProps & {
 
 const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activeAlias }: Props) => {
   const [fabOpen, setFabOpen] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const insets = useSafeAreaInsets();
+
+  // The activity uses adjustResize, so the window shrinks above the keyboard and
+  // would drag this bar up with it. While the keyboard is open, take the bar out
+  // of the layout and pin it to the physical screen bottom (under the keyboard).
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', e =>
+      setKeyboardHeight(e.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const rawCurrent = state.routes[state.index]?.name;
   const current = activeAlias?.[rawCurrent] ?? rawCurrent;
 
@@ -149,7 +164,13 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
       )}
 
       {/* Tab Bar */}
-      <View style={[styles.container, { paddingBottom: bottomPad }]}>
+      <View
+        style={[
+          styles.container,
+          { paddingBottom: bottomPad },
+          keyboardHeight > 0 && { position: 'absolute', left: 0, right: 0, bottom: -keyboardHeight },
+        ]}
+      >
         {firstHalf.map(route => tab(route))}
 
         {hasFab && (

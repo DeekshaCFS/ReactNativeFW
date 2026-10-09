@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   PanResponder,
+  Keyboard,
   GestureResponderEvent,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
@@ -704,6 +705,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
   const openPhotoPicker = (pending: PendingPhoto) => {
     pendingPhotoRef.current = pending;
+    Keyboard.dismiss();
     setShowPhotoSourceModal(true);
   };
 
@@ -961,6 +963,7 @@ export default function TaskClosure({ navigation, route }: any) {
       };
 
       navigation.navigate('TaskSummary', {
+        returnTo: { name: 'TaskClosure', params: route.params },
         task: routeTask,
         elapsedSeconds,
         payload,
@@ -1064,7 +1067,10 @@ export default function TaskClosure({ navigation, route }: any) {
               <Pressable
                 key={`work-mode-${mode.Id}`}
                 style={styles.radioItem}
-                onPress={() => setSelectedWorkMode(mode)}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setSelectedWorkMode(mode);
+                }}
               >
                 <View
                   style={[
@@ -1363,7 +1369,7 @@ export default function TaskClosure({ navigation, route }: any) {
           </Pressable>
           <Pressable
             style={styles.tile}
-            onPress={() => navigation.navigate('QRScanHistory', { task: routeTask })}
+            onPress={() => navigation.navigate('QRScanHistory', { task: routeTask, returnTo: { name: 'TaskClosure', params: route.params } })}
           >
             <Text style={styles.tileTitle}>Scan QR</Text>
             <Text style={styles.tileSub}>Click Here to Scan QR</Text>
