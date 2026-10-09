@@ -20,7 +20,7 @@
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
       <!-- Required by react-native-maps on Android (Apple Maps is used on iOS
-           by default, no key needed there). Key is read from android/local.properties (GOOGLE_MAPS_API_KEY, git-ignored) -- see
+           by default, no key needed there). Key is read from android/local.properties (GOOGLE_MAPS_API_KEY, git-ignored), see
            app/build.gradle. Must be a Google Maps
            SDK for Android API key before the map will render tiles. -->
       <meta-data

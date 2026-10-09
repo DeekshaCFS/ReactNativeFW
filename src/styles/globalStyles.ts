@@ -1,21 +1,22 @@
 // src/styles/globalStyles.ts
+//
+// Auth screens (Login / Signup / OTP / Company Details) -- sizes, colours and
+// spacing follow the Java layouts (activity_login_touchless.xml,
+// touchless_signup_activity.xml, activity_mobile_no_verification_touchless.xml,
+// welcome_activity.xml); dp values go through dp(), sp values through sp().
 import { StyleSheet } from 'react-native';
 import { COLORS } from '../theme/theme';
-import { ms, sp } from '../utils/responsive';
+import { ms, dp, sp } from '../utils/responsive';
 
 export const GlobalStyles = StyleSheet.create({
   /* ===== Layout ===== */
   container: {
     flex: 1,
-    paddingHorizontal: ms(24),
   },
 
-  // Use this as contentContainerStyle for the ScrollView inside auth screens
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: ms(0),
-    paddingTop: ms(30),
-    paddingBottom: ms(32),
+    paddingBottom: dp(20),
   },
 
   center: {
@@ -23,145 +24,129 @@ export const GlobalStyles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  /* ===== Header / logo (70dp tall, 50dp top, 30dp bottom) ===== */
+  header: {
+    alignItems: 'center',
+    marginTop: dp(39), // Java 50dp minus the logo PNG's 11dp top padding
+    marginBottom: dp(20), // Java 30dp minus the PNG's 10dp bottom padding
+  },
+
+  logo: {
+    width: dp(275), // logo.png art is 77% of its height; 91dp box = 70dp art like Java
+    height: dp(91),
+  },
+
   /* ===== Text ===== */
   title: {
-    fontSize: sp(28),
-    fontWeight: '400',
-    color: COLORS.textPrimary,
+    fontSize: sp(24),
+    color: COLORS.textBlack,
     textAlign: 'center',
-    marginBottom: ms(10),
   },
 
   subtitle: {
-    fontSize: sp(17),
-    color: COLORS.textTertiary,
+    fontSize: sp(16),
+    color: COLORS.lightGray,
     textAlign: 'center',
-    marginBottom: ms(24),
-    lineHeight: sp(24),
+    marginTop: dp(14),
   },
 
   label: {
     fontSize: sp(13),
-    marginBottom: ms(6),
-    color: COLORS.textTertiary,
-  },
-
-  footerText: {
-    marginTop: ms(20),
-    textAlign: 'center',
-    color: COLORS.textTertiary,
-    fontSize: sp(16),
-  },
-
-  link: {
-    color: COLORS.primary,
-    fontWeight: '600',
-    fontSize: sp(16),
+    marginBottom: dp(6),
+    color: COLORS.lightGray,
   },
 
   errorText: {
     color: COLORS.primary,
     fontSize: sp(12),
-    marginTop: -ms(10),
-    marginBottom: ms(14),
-    paddingHorizontal: ms(4),
+    marginHorizontal: dp(14),
+    marginBottom: dp(4),
   },
 
-  /* ===== Inputs ===== */
+  /* ===== Form column (30dp side padding, children carry a 10dp margin) ===== */
+  form: {
+    marginTop: dp(20),
+    paddingHorizontal: dp(30),
+  },
+
+  /* rounded_border.xml: 1dp light_gray stroke, 20dp corners; 10dp padding */
   input: {
     borderWidth: 1,
-    borderColor: '#505050',
-    borderRadius: ms(26),
-    paddingHorizontal: ms(16),
-    width: '100%',
-    height: ms(48),
-    marginBottom: ms(14),
+    borderColor: COLORS.lightGray,
+    borderRadius: dp(20),
+    padding: dp(10),
+    margin: dp(10),
     fontSize: sp(16),
-    color: COLORS.textPrimary,
+    includeFontPadding: false,
+    color: COLORS.ink,
   },
 
   inputError: {
     borderColor: COLORS.primary,
   },
 
-  /* ===== Dropdown / Selector ===== */
+  /* bg_spinner.xml: white, 1dp light_gray stroke, 34dp corners, 40dp tall */
   dropdownWrapper: {
+    height: dp(40),
+    margin: dp(10),
+    paddingHorizontal: dp(12),
     borderWidth: 1,
-    borderColor: '#505050',
-    borderRadius: ms(26),
-    height: ms(48),
-    justifyContent: 'center',
-    paddingHorizontal: ms(16),
-    width: '100%',
-    marginBottom: ms(16),
+    borderColor: COLORS.lightGray,
+    borderRadius: dp(34),
+    backgroundColor: COLORS.white,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 
   dropdownText: {
-    fontSize: sp(15),
-    color: COLORS.textPrimary,
+    fontSize: sp(16),
+    color: COLORS.textBlack,
   },
 
-  /* ===== Modal ===== */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+  /* ===== Bottom links ===== */
+  footerRow: {
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    margin: dp(20),
   },
 
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    width: '100%',
-    maxWidth: ms(360),
-    maxHeight: '60%',
-    borderRadius: ms(12),
-    paddingVertical: ms(8),
-  },
-
-  modalItem: {
-    paddingVertical: ms(14),
-    paddingHorizontal: ms(16),
-  },
-
-  modalItemText: {
-    fontSize: sp(15),
-    color: COLORS.textPrimary,
-  },
-
-  /* ===== Header ===== */
-  header: {
-    alignItems: 'center',
-    marginBottom: ms(16),
-  },
-
-  logo: {
-    width: ms(220),
-    height: ms(160),
-  },
-
-  /* ===== Help / Support Buttons ===== */
-  helpText: {
-    marginTop: ms(14),
-    textAlign: 'center',
-    color: COLORS.textPrimary,
+  footerText: {
+    padding: dp(5),
     fontSize: sp(16),
-    paddingVertical: ms(8),
+    color: COLORS.lightGray,
+  },
+
+  link: {
+    marginLeft: dp(10),
+    padding: dp(5),
+    fontSize: sp(16),
+    color: COLORS.primary,
+  },
+
+  /* ===== Help ("trouble logging in") ===== */
+  helpText: {
+    textAlign: 'center',
+    fontSize: sp(16),
+    color: COLORS.darkGray,
+    marginBottom: dp(10),
   },
 
   helpButtonsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: ms(12),
-    marginTop: ms(16),
+    gap: dp(12),
+    marginBottom: dp(10),
   },
 
+  // WhatsApp / Video pills (the original RN design, kept instead of Java's 100dp images).
   helpButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: ms(10),
-    paddingHorizontal: ms(18),
-    borderRadius: ms(24),
-    minHeight: ms(44),
+    paddingVertical: dp(10),
+    paddingHorizontal: dp(18),
+    borderRadius: dp(24),
+    minHeight: dp(44),
   },
 
   whatsappButton: { backgroundColor: '#25D366' },
@@ -171,23 +156,49 @@ export const GlobalStyles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: sp(14),
     fontWeight: '600',
-    marginLeft: ms(6),
+    marginLeft: dp(6),
   },
 
-  /* ===== Language Row ===== */
+  /* ===== Language row (24dp icon, 15dp gap, bold black 14sp) ===== */
   languageRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: ms(14),
-    paddingVertical: ms(8),
+    marginTop: dp(20),
   },
 
   languageText: {
-    marginLeft: ms(6),
-    fontSize: sp(16),
+    marginLeft: dp(15),
+    fontSize: sp(14),
     fontWeight: 'bold',
-    color: COLORS.textPrimary,
+    color: COLORS.textBlack,
+  },
+
+  /* ===== Country modal (country_dialog.xml: 30dp card, 20dp margin) ===== */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: dp(20),
+  },
+
+  modalContent: {
+    backgroundColor: COLORS.white,
+    maxHeight: '70%',
+    borderRadius: dp(30),
+    padding: dp(10),
+    overflow: 'hidden',
+  },
+
+  modalItem: {
+    margin: 1,
+  },
+
+  modalItemText: {
+    margin: dp(8),
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: COLORS.textBlack,
   },
 
   /* ===== Home Screen helpers ===== */

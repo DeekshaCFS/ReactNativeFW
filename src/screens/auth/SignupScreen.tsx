@@ -1,18 +1,20 @@
 // src/screens/auth/SignupScreen.tsx
+// Java: TouchLessSignupActivity / touchless_signup_activity.xml
 import {
   View, TextInput, Text, Image, Pressable,
   ImageBackground, FlatList, Alert, StyleSheet,
   KeyboardAvoidingView, ScrollView, Platform, StatusBar,
 } from 'react-native';
 import Modal from '../../components/AppModal';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AppButton from '../../components/AppButton';
+import { AuthHelp } from '../../components/AuthExtras';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { GlobalStyles } from '../../styles/globalStyles';
 import { COLORS } from '../../theme/theme';
-import { ms, sp, scale } from '../../utils/responsive';
+import { sp, dp } from '../../utils/responsive';
 import { getCountryList } from '../../api/countryDetails/countryDetailsService';
 import { getOtpRegister } from '../../api/signUp/signUpService';
 import type { GetCountryListResultData } from '../../api/countryDetails/countryDetails.types';
@@ -34,19 +36,23 @@ type AuthStackParamList = {
   };
 };
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Java wraps these in a ConstraintLayout that centres the content vertically.
+const CENTER_CONTENT = { justifyContent: 'center' as const };
+
 export default function SignupScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const [countries, setCountries] = useState<GetCountryListResultData[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<GetCountryListResultData | null>(null);
   const [mobile, setMobile] = useState('');
+  const [email, setEmail] = useState('');
+  const [useEmail, setUseEmail] = useState(false);
+  const [error, setError] = useState('');
   const [countryModalVisible, setCountryModalVisible] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [countriesLoading, setCountriesLoading] = useState(true);
-
-  const isValidMobile = useMemo(() => {
-    const cleaned = mobile.replace(/\D/g, '');
-    return cleaned.length >= 7 && cleaned.length <= 15;
-  }, [mobile]);
 
   const SHOW_QA_OTP = true;
 
@@ -65,19 +71,39 @@ export default function SignupScreen() {
     })();
   }, []);
 
+  const filteredCountries = useMemo(() => {
+    const q = countrySearch.trim().toLowerCase();
+    return q ? countries.filter(c => (c.CountryName ?? '').toLowerCase().includes(q)) : countries;
+  }, [countries, countrySearch]);
+
+  // Java validateMobileNumber() / validateEmailId()
+  const validate = (): string | null => {
+    if (useEmail) {
+      const value = email.trim();
+      if (!value) return 'Enter Your Email Id';
+      return EMAIL_REGEX.test(value) ? null : 'Please enter valid Email Id';
+    }
+    const digits = mobile.replace(/\D/g, '');
+    if (!digits) return 'Enter Your Mobile Number';
+    return digits.length >= 7 && digits.length <= 15 ? null : 'Please enter valid Mobile Number';
+  };
+
   const signup = async () => {
     if (loading) return; // guard against double-fire from keyboard submit + button tap
-    if (!isValidMobile || !selectedCountry) {
-      Alert.alert('Invalid Mobile Number', 'Please enter a valid mobile number (7–15 digits).');
+    const problem = validate();
+    setError(problem ?? '');
+    if (problem) return;
+    if (!selectedCountry) {
+      Alert.alert('Select Country', 'Please select your country.');
       return;
     }
+    const contact = useEmail ? email.trim() : mobile;
     try {
       setLoading(true);
-      console.log('[signup] payload', { EmailId: '', ContactNo: mobile, CountryDetailsId: selectedCountry.CountryDetailsId });
       // legacy sends RAW mobile number + CountryDetailsId separately — no dial-code concatenation
       const response = await getOtpRegister({
-        EmailId: '',
-        ContactNo: mobile,
+        EmailId: useEmail ? contact : '',
+        ContactNo: useEmail ? '' : contact,
         CountryDetailsId: selectedCountry.CountryDetailsId ?? 0,
       });
       if (response.Code === '404') {
@@ -96,7 +122,7 @@ export default function SignupScreen() {
       if (SHOW_QA_OTP) Alert.alert('QA OTP', `OTP IS: ${result.OTP}`);
 
       navigation.navigate('Otp', {
-        mobile,
+        mobile: contact,
         countryCode: selectedCountry.CountryCode ?? '',
         countryDetailsId: selectedCountry.CountryDetailsId,
         touchlessSignupId: result.TouchlessSignupId,
@@ -117,18 +143,17 @@ export default function SignupScreen() {
       style={GlobalStyles.container}
       resizeMode="cover"
     >
-      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
+      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : ms(20)}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={GlobalStyles.scrollContent}
+          contentContainerStyle={[GlobalStyles.scrollContent, CENTER_CONTENT]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={GlobalStyles.header}>
+          <View style={[GlobalStyles.header, { marginTop: dp(24) }]}>
             <Image
               source={require('../../../assets/images/logo.png')}
               style={GlobalStyles.logo}
@@ -136,107 +161,140 @@ export default function SignupScreen() {
             />
           </View>
 
-          <Text style={GlobalStyles.title}>Sign Up</Text>
+          <Text style={GlobalStyles.title}>Signup</Text>
           <Text style={GlobalStyles.subtitle}>
             Please enter your details{'\n'}to signup
           </Text>
 
-          <Pressable
-            style={[GlobalStyles.dropdownWrapper, styles.dropdownRow]}
-            onPress={() => !countriesLoading && setCountryModalVisible(true)}
-          >
-            {selectedCountry ? (
-              <>
-                {!!selectedCountry.CountryFlag && (
-                  <Image source={{ uri: selectedCountry.CountryFlag }} style={styles.flagIcon} />
-                )}
-                <Text style={GlobalStyles.dropdownText}>{selectedCountry.CountryName}    [+{selectedCountry.CountryCode}]          </Text>
-                <Ionicons name="chevron-down" size={20} color="#3a3a3a" />
-              </>
-            ) : (
-              <Text style={GlobalStyles.dropdownText}>
-                {countriesLoading ? 'Loading countries...' : 'Select country'}
-              </Text>
-            )}
-          </Pressable>
-
-          <Modal transparent animationType="fade" visible={countryModalVisible}>
+          <View style={[GlobalStyles.form, { marginTop: dp(10) }]}>
             <Pressable
-              style={GlobalStyles.modalOverlay}
-              onPress={() => setCountryModalVisible(false)}
+              style={GlobalStyles.dropdownWrapper}
+              onPress={() => !countriesLoading && setCountryModalVisible(true)}
             >
-              <View style={GlobalStyles.modalContent}>
-                <FlatList
-                  data={countries}
-                  keyExtractor={(item) => String(item.CountryDetailsId)}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      style={[GlobalStyles.modalItem, styles.dropdownRow]}
-                      onPress={() => { setSelectedCountry(item); setCountryModalVisible(false); }}
-                    >
-                      {!!item.CountryFlag && (
-                        <Image source={{ uri: item.CountryFlag }} style={styles.flagIconSmall} />
-                      )}
-                      <Text style={GlobalStyles.modalItemText}>
-                        {item.CountryName} (+{item.CountryCode})
-                      </Text>
-                    </Pressable>
+              {selectedCountry ? (
+                <>
+                  {!!selectedCountry.CountryFlag && (
+                    <Image source={{ uri: selectedCountry.CountryFlag }} style={styles.flagIcon} />
                   )}
-                />
-              </View>
+                  <Text style={[GlobalStyles.dropdownText, { paddingRight: dp(8) }]}>
+                    {selectedCountry.CountryName}
+                  </Text>
+                  <Text style={[GlobalStyles.dropdownText, { paddingLeft: dp(8), flex: 1 }]}>
+                    [+{selectedCountry.CountryCode}]
+                  </Text>
+                  <Ionicons name="chevron-down" size={dp(18)} color={COLORS.lightGray} />
+                </>
+              ) : (
+                <Text style={GlobalStyles.dropdownText}>
+                  {countriesLoading ? 'Loading countries...' : 'Select country'}
+                </Text>
+              )}
             </Pressable>
-          </Modal>
 
-          <TextInput
-            keyboardType="phone-pad"
-            placeholder="Enter Your Mobile Number"
-            style={[
-              GlobalStyles.input,
-              !isValidMobile && mobile.length > 0 && GlobalStyles.inputError,
-            ]}
-            onChangeText={setMobile}
-            value={mobile}
-            maxLength={15}
-            cursorColor={COLORS.primary}
-            returnKeyType="done"
-            onSubmitEditing={signup}
-          />
+            {useEmail ? (
+              <TextInput
+                placeholder="Enter Email Id"
+                placeholderTextColor={COLORS.authText}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={50}
+                style={[GlobalStyles.input, !!error && GlobalStyles.inputError]}
+                onChangeText={t => { setEmail(t); if (error) setError(''); }}
+                value={email}
+                cursorColor={COLORS.primary}
+                returnKeyType="done"
+                onSubmitEditing={signup}
+              />
+            ) : (
+              <TextInput
+                placeholder="Enter Your Mobile Number"
+                placeholderTextColor={COLORS.authText}
+                keyboardType="number-pad"
+                maxLength={15}
+                style={[GlobalStyles.input, !!error && GlobalStyles.inputError]}
+                onChangeText={t => { setMobile(t); if (error) setError(''); }}
+                value={mobile}
+                cursorColor={COLORS.primary}
+                returnKeyType="done"
+                onSubmitEditing={signup}
+              />
+            )}
+            {!!error && <Text style={GlobalStyles.errorText}>{error}</Text>}
 
-          {!isValidMobile && mobile.length > 0 && (
-            <Text style={GlobalStyles.errorText}>Please enter a valid mobile number</Text>
-          )}
-
-          <Text style={{ textAlign: 'center', marginVertical: ms(8), fontSize: sp(14), color: COLORS.textTertiary }}>
-            Login with Email (coming soon)
-          </Text>
-
-          <AppButton title="GET OTP" onPress={signup} loading={loading} />
-
-          <Text style={GlobalStyles.footerText}>
-            Already Registered?{'     '}
-            <Text style={GlobalStyles.link} onPress={() => navigation.navigate('Login')}>Login</Text>
-          </Text>
-
-          <Text style={GlobalStyles.helpText}>If you are having trouble signing up</Text>
-
-          <View style={GlobalStyles.helpButtonsRow}>
-            <Pressable style={[GlobalStyles.helpButton, GlobalStyles.whatsappButton]}>
-              <Ionicons name="logo-whatsapp" size={scale(22)} color="#FFFFFF" />
-              <Text style={GlobalStyles.helpButtonText}>WhatsApp</Text>
+            <Pressable
+              style={styles.toggle}
+              onPress={() => { setUseEmail(v => !v); setError(''); }}
+            >
+              <Text style={styles.toggleText}>
+                {useEmail ? 'Login with Mobile' : 'Login with Email'}
+              </Text>
             </Pressable>
-            <Pressable style={[GlobalStyles.helpButton, GlobalStyles.videoButton]}>
-              <Ionicons name="play-circle" size={scale(22)} color="#C22032" />
-              <Text style={GlobalStyles.helpButtonText}>Video</Text>
-            </Pressable>
+
+            <AppButton title="GET OTP" onPress={signup} loading={loading} />
           </View>
+
+          <View style={GlobalStyles.footerRow}>
+            <Text style={GlobalStyles.footerText}>Already Registered?</Text>
+            <Text style={GlobalStyles.link} onPress={() => navigation.navigate('Login')}>Login</Text>
+          </View>
+
+          <AuthHelp topic="signing up" />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        transparent
+        animationType="fade"
+        visible={countryModalVisible}
+        onRequestClose={() => setCountryModalVisible(false)}
+      >
+        <Pressable
+          style={GlobalStyles.modalOverlay}
+          onPress={() => setCountryModalVisible(false)}
+        >
+          <Pressable style={GlobalStyles.modalContent} onPress={() => {}}>
+            <TextInput
+              placeholder="Search Country.."
+              value={countrySearch}
+              onChangeText={setCountrySearch}
+              style={styles.searchInput}
+              cursorColor={COLORS.primary}
+              underlineColorAndroid={COLORS.primary}
+            />
+            <FlatList
+              data={filteredCountries}
+              keyboardShouldPersistTaps="handled"
+              keyExtractor={(item) => String(item.CountryDetailsId)}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[GlobalStyles.modalItem, styles.countryRow]}
+                  onPress={() => {
+                    setSelectedCountry(item);
+                    setCountryModalVisible(false);
+                    setCountrySearch('');
+                  }}
+                >
+                  {!!item.CountryFlag && (
+                    <Image source={{ uri: item.CountryFlag }} style={styles.flagIconSmall} />
+                  )}
+                  <Text style={GlobalStyles.modalItemText}>{item.CountryName}</Text>
+                  <Text style={GlobalStyles.modalItemText}>[+{item.CountryCode}]</Text>
+                </Pressable>
+              )}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  dropdownRow:    { flexDirection: 'row', alignItems: 'center', gap: ms(8) },
-  flagIcon:       { width: ms(24), height: ms(16), borderRadius: 2 },
-  flagIconSmall:  { width: ms(20), height: ms(14), borderRadius: 2 },
+  flagIcon:      { width: dp(30), height: dp(30), margin: dp(10), marginLeft: 0, resizeMode: 'contain' },
+  flagIconSmall: { width: dp(25), height: dp(25), margin: dp(8), resizeMode: 'contain' },
+  countryRow:    { flexDirection: 'row', alignItems: 'center' },
+  searchInput:   { margin: dp(5), fontSize: sp(16), color: COLORS.textBlack },
+  toggle:        { alignSelf: 'center', padding: dp(8) },
+  toggleText:    { color: '#0040FF', fontSize: sp(15), fontWeight: 'bold' },
 });

@@ -46,6 +46,7 @@ export const COLORS = {
   ink:             '#1D2536', // @color/background_gray (task name / customer text)
   lightGray:       '#9A9FAA', // @color/light_gray (address / subtitle text)
   textBlack:       '#0E0E0E', // @color/black    (Java "black" is not pure #000)
+  authText:        '#757575', // Java default (theme) text/hint colour on the auth screens
   redIcon:         '#C22033', // @color/red_icon
   lighterGray:      '#EDEDED', // @color/lighter_gray (progress track, list separator)
   alertRed:        '#FF4A4A', // @color/red (notification Rejected / AMC titles)
@@ -63,7 +64,7 @@ export const COLORS = {
   // Passbook (Java passbook_gradient / curve_card / bg_curve_border_selected)
   passbookPink:    '#FCB6BE',
   passbookBackdrop:'#F2F2F2',
-  passbookBorder:  '#E3E3E3',
+  passbookBorder:  '#E3E3E3',
   dialogDim:       'rgba(19,20,22,0.72)', // @color/dialog_bg #B7131416
   pickerCancel:    '#E0E0E0', // @color/material_grey_300 (month/year dialog Cancel)
 } as const;

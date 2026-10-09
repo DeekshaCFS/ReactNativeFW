@@ -1,7 +1,10 @@
 // src/components/AppButton.tsx
+//
+// Auth-screen button: Java rounded_button.xml (34dp pill, colorPrimaryDark fill),
+// 18sp white label, 10dp margin, 48dp minimum height.
 import { Pressable, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { COLORS } from '../theme/theme';
-import { sp, ms } from '../utils/responsive';
+import { sp, dp } from '../utils/responsive';
 
 type Props = {
   title: string;
@@ -33,13 +36,12 @@ export default function AppButton({ title, onPress, disabled, loading }: Props) 
 const styles = StyleSheet.create({
   button: {
     backgroundColor: COLORS.primary,
-    paddingVertical: ms(14),
-    borderRadius: ms(30),
+    borderRadius: dp(34),
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: ms(6),
-    width: '100%',
-    minHeight: ms(48),   // accessible tap target
+    margin: dp(10),
+    minHeight: dp(48),
+    elevation: 3,
   },
   pressed: {
     backgroundColor: COLORS.primaryDark,
@@ -49,8 +51,6 @@ const styles = StyleSheet.create({
   },
   text: {
     color: COLORS.textOnPrimary,
-    fontSize: sp(16),
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontSize: sp(18),
   },
 });

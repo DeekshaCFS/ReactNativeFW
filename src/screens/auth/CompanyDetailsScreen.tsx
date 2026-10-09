@@ -14,7 +14,8 @@ import { GlobalStyles } from '../../styles/globalStyles';
 import { getRegister } from '../../api/signUp/signUpService';
 import { authEvents, AUTH_CHANGED } from '../../utils/authEvents';
 import { getAndroidId } from '../../utils/deviceId';
-import { ms, sp, scale } from '../../utils/responsive';
+import { sp, dp } from '../../utils/responsive';
+import { AuthBackButton } from '../../components/AuthExtras';
 
 type AuthStackParamList = {
   CompanyDetails: {
@@ -27,6 +28,9 @@ type AuthStackParamList = {
 const MIN_WORKERS = 1;
 const MAX_WORKERS = 100;
 
+// Java wraps these in a ConstraintLayout that centres the content vertically.
+const CENTER_CONTENT = { justifyContent: 'center' as const };
+
 export default function CompanyDetailsScreen() {
   const route = useRoute<RouteProp<AuthStackParamList, 'CompanyDetails'>>();
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
@@ -35,7 +39,10 @@ export default function CompanyDetailsScreen() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [noOfFieldWorkers, setNoOfFieldWorkers] = useState('');
+  const [noOfFieldWorkers, setNoOfFieldWorkers] = useState('1');
+  // The slider keeps its own value: feeding the text back into it on every drag tick
+  // (text -> value -> text) made the thumb jitter. Dragging only updates the text.
+  const [sliderValue, setSliderValue] = useState(1);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -44,6 +51,7 @@ export default function CompanyDetailsScreen() {
   const handleWorkersTextChange = (val: string) => {
     const cleaned = val.replace(/\D/g, '');
     setNoOfFieldWorkers(cleaned);
+    setSliderValue(Math.min(Number(cleaned) || 0, MAX_WORKERS));
   };
 
   const handleSliderChange = (val: number) => {
@@ -119,120 +127,146 @@ export default function CompanyDetailsScreen() {
       style={GlobalStyles.container}
       resizeMode="cover"
     >
-      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
+      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : ms(20)}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={GlobalStyles.scrollContent}
+          contentContainerStyle={[GlobalStyles.scrollContent, CENTER_CONTENT]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={GlobalStyles.header}>
+          <View style={[GlobalStyles.header, { marginTop: dp(89) }]}>
             <Image source={require('../../../assets/images/logo.png')} style={GlobalStyles.logo} resizeMode="contain" />
           </View>
 
-          <Text style={GlobalStyles.title}>Glad To Meet You!</Text>
-          <Text style={GlobalStyles.subtitle}>Please Enter Your Details</Text>
+          <Text style={GlobalStyles.title}>Glad to Meet You!</Text>
+          <Text style={styles.subtitle}>Please Enter Your Details</Text>
 
-          <TextInput
-            placeholder="First Name"
-            style={GlobalStyles.input}
-            value={firstName}
-            onChangeText={setFirstName}
-            cursorColor={COLORS.primary}
-            returnKeyType="next"
-          />
-          {errors.firstName && <Text style={GlobalStyles.errorText}>{errors.firstName}</Text>}
-
-          <TextInput
-            placeholder="Last Name"
-            style={GlobalStyles.input}
-            value={lastName}
-            onChangeText={setLastName}
-            cursorColor={COLORS.primary}
-            returnKeyType="next"
-          />
-          {errors.lastName && <Text style={GlobalStyles.errorText}>{errors.lastName}</Text>}
-
-          <TextInput
-            placeholder="Company Name"
-            style={GlobalStyles.input}
-            value={companyName}
-            onChangeText={setCompanyName}
-            cursorColor={COLORS.primary}
-            returnKeyType="next"
-          />
-          {errors.companyName && <Text style={GlobalStyles.errorText}>{errors.companyName}</Text>}
-
-          {/* Slider now lives as a sibling inside this box, not nested inside
-              the TextInput (TextInput can't render child views). */}
-          <View style={styles.workersBox}>
-            <Text style={styles.workersLabel}>Select No. of Field Workers (1-100)</Text>
-
-            <Slider
-              style={styles.slider}
-              minimumValue={0}
-              maximumValue={MAX_WORKERS}
-              step={1}
-              value={Number(noOfFieldWorkers) || 0}
-              onValueChange={handleSliderChange}
-              minimumTrackTintColor={COLORS.primary}
-              maximumTrackTintColor="#d0d0d0"
+          <View style={[GlobalStyles.form, { marginTop: dp(10) }]}>
+            <TextInput
+              placeholder="First Name"
+              placeholderTextColor={COLORS.authText}
+              style={[styles.input, !!errors.firstName && GlobalStyles.inputError]}
+              value={firstName}
+              onChangeText={t => setFirstName(t.replace(/[^A-Za-z]/g, ''))}
+              maxLength={20}
+              autoCapitalize="words"
+              cursorColor={COLORS.primary}
+              returnKeyType="next"
             />
+            {!!errors.firstName && <Text style={GlobalStyles.errorText}>{errors.firstName}</Text>}
 
             <TextInput
-              placeholder="1"
-              keyboardType="number-pad"
-              style={styles.workersValueInput}
-              value={noOfFieldWorkers}
-              onChangeText={handleWorkersTextChange}
-              maxLength={3}
+              placeholder="Last Name"
+              placeholderTextColor={COLORS.authText}
+              style={[styles.input, !!errors.lastName && GlobalStyles.inputError]}
+              value={lastName}
+              onChangeText={t => setLastName(t.replace(/[^A-Za-z]/g, ''))}
+              maxLength={20}
+              autoCapitalize="words"
               cursorColor={COLORS.primary}
-              textAlign="center"
-              returnKeyType="done"
-              onSubmitEditing={registerOwner}
+              returnKeyType="next"
             />
-          </View>
-          {errors.noOfFieldWorkers && <Text style={GlobalStyles.errorText}>{errors.noOfFieldWorkers}</Text>}
+            {!!errors.lastName && <Text style={GlobalStyles.errorText}>{errors.lastName}</Text>}
 
-          <AppButton title="PROCEED" onPress={registerOwner} loading={loading} />
+            <TextInput
+              placeholder="Company Name"
+              placeholderTextColor={COLORS.authText}
+              style={[styles.input, !!errors.companyName && GlobalStyles.inputError]}
+              value={companyName}
+              onChangeText={setCompanyName}
+              maxLength={40}
+              autoCapitalize="words"
+              cursorColor={COLORS.primary}
+              returnKeyType="next"
+            />
+            {!!errors.companyName && <Text style={GlobalStyles.errorText}>{errors.companyName}</Text>}
+
+            <View style={styles.workersBox}>
+              <Text style={styles.workersLabel}>Select No. of Field Workers (1-100)</Text>
+
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={MAX_WORKERS}
+                step={1}
+                value={sliderValue}
+                onValueChange={handleSliderChange}
+                onSlidingComplete={setSliderValue}
+                minimumTrackTintColor={COLORS.primary}
+                maximumTrackTintColor="#d0d0d0"
+                thumbTintColor={COLORS.primary}
+              />
+
+              <TextInput
+                placeholder="1"
+                keyboardType="number-pad"
+                style={styles.workersValueInput}
+                value={noOfFieldWorkers}
+                onChangeText={handleWorkersTextChange}
+                maxLength={3}
+                cursorColor={COLORS.primary}
+                textAlign="center"
+                returnKeyType="done"
+                onSubmitEditing={registerOwner}
+              />
+            </View>
+            {!!errors.noOfFieldWorkers && <Text style={GlobalStyles.errorText}>{errors.noOfFieldWorkers}</Text>}
+
+            <AppButton title="PROCEED" onPress={registerOwner} loading={loading} />
+          </View>
+
+          <View style={{ margin: dp(20) }}>
+            <AuthBackButton onPress={() => navigation.goBack()} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </ImageBackground>
   );
 }
 
+// welcome_activity.xml: inputs/boxes carry a 5dp margin (the shared input style uses 10dp).
 const styles = StyleSheet.create({
+  subtitle: {
+    fontSize: sp(16),
+    color: COLORS.authText,
+    textAlign: 'center',
+    margin: dp(5),
+  },
+  input: {
+    ...GlobalStyles.input,
+    margin: dp(5),
+  },
   workersBox: {
-    marginTop: ms(8),
-    marginBottom: ms(4),
-    padding: ms(16),
+    margin: dp(5),
+    paddingLeft: dp(5),
     borderWidth: 1,
-    borderColor: '#3e3e3e',
-    borderRadius: ms(20),
-    alignItems: 'center',
+    borderColor: COLORS.lightGray,
+    borderRadius: dp(20),
   },
   workersLabel: {
-    fontSize: sp(18),
-    color: COLORS.textTertiary,
-    alignSelf: 'flex-start',
-    marginBottom: ms(4),
+    marginTop: dp(5),
+    paddingLeft: dp(10),
+    fontSize: sp(16),
+    color: COLORS.authText,
   },
   slider: {
-    width: '100%',
-    height: ms(40),
+    marginTop: dp(8),
+    marginBottom: dp(12),
+    height: dp(24),
   },
   workersValueInput: {
-    width: scale(90),
-    height: ms(44),
+    width: dp(100),
+    height: dp(30),
+    alignSelf: 'center',
+    margin: dp(10),
+    padding: 0,
     borderWidth: 1,
-    borderColor: '#3e3e3e',
-    borderRadius: ms(22),
-    marginTop: ms(8),
+    borderColor: COLORS.lightGray,
+    borderRadius: dp(20),
     fontSize: sp(16),
-    color: COLORS.textPrimary,
+    color: COLORS.ink,
   },
 });

@@ -8,14 +8,15 @@ import { useState, useRef, useEffect } from 'react';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { RouteProp } from '@react-navigation/native';
 import { COLORS } from '../../theme/theme';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { GlobalStyles } from '../../styles/globalStyles';
+import { AuthBackButton } from '../../components/AuthExtras';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authEvents, AUTH_CHANGED } from '../../utils/authEvents';
 import { getProfileDetails } from '../../api/users/usersService';
 import { urlLogin } from '../../api/auth/loginService';
 import { getOtpRegister } from '../../api/signUp/signUpService';
 import { getAndroidId } from '../../utils/deviceId';
-import { ms, sp, scale, wps } from '../../utils/responsive';
+import { sp, dp } from '../../utils/responsive';
 import { setCurrentUserId, persistLoggedInUserId, } from '../../state/session';
 
 type AuthStackParamList = {
@@ -132,8 +133,8 @@ export default function OtpScreen() {
       let newOtp: number | undefined;
       if (flow === 'signup') {
         const response = await getOtpRegister({
-          EmailId: '',
-          ContactNo: mobile,
+          EmailId: mobile.includes('@') ? mobile : '',
+          ContactNo: mobile.includes('@') ? '' : mobile,
           CountryDetailsId: countryDetailsId ?? 0,
         });
         newOtp = response?.ResultData?.OTP;
@@ -179,15 +180,13 @@ export default function OtpScreen() {
     }
   };
 
-  const OTP_BOX = ms(52);
-
   return (
     <ImageBackground
       source={require('../../../assets/images/ic_splash_background.png')}
       style={styles.bg}
       resizeMode="cover"
     >
-      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
+      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -197,15 +196,17 @@ export default function OtpScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Image
-            source={require('../../../assets/images/logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+          <View style={GlobalStyles.header}>
+            <Image
+              source={require('../../../assets/images/logo.png')}
+              style={GlobalStyles.logo}
+              resizeMode="contain"
+            />
+          </View>
 
-          <Text style={styles.title}>Verify</Text>
-          <Text style={styles.subtitle}>
-            You will receive a {OTP_LENGTH} digit OTP for verification
+          <Text style={GlobalStyles.title}>Verify</Text>
+          <Text style={GlobalStyles.subtitle}>
+            You will receive a {OTP_LENGTH} digit OTP{'\n'}for verification
           </Text>
 
           <View style={styles.otpRow}>
@@ -219,63 +220,73 @@ export default function OtpScreen() {
                 onChangeText={(val) => handleOtpChange(val, index)}
                 onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key ?? '', index)}
                 onFocus={() => setFocusedIndex(index)}
-                style={[
-                  styles.otpInput,
-                  { width: OTP_BOX, height: OTP_BOX },
-                  focusedIndex === index && styles.otpInputFocused,
-                ]}
+                style={styles.otpInput}
                 cursorColor={COLORS.black}
               />
             ))}
           </View>
 
-          {otpExpired
-            ? <Text style={styles.expiredText}>OTP expired. Please resend OTP.</Text>
-            : <Text style={styles.timerText}>OTP expires in {formatTime(expiryTimer)}</Text>
-          }
+          {otpExpired && (
+            <Text style={styles.expiredText}>OTP expired. Please resend OTP.</Text>
+          )}
 
-          <TouchableOpacity
+          <Pressable
             style={[styles.verifyButton, { opacity: isOtpComplete && !otpExpired && !loading ? 1 : 0.6 }]}
             onPress={verifyOtp}
             disabled={!isOtpComplete || otpExpired || loading}
-            activeOpacity={0.8}
           >
             <Text style={styles.verifyText}>{loading ? 'Verifying...' : 'VERIFY'}</Text>
-          </TouchableOpacity>
+          </Pressable>
 
           <View style={styles.resendRow}>
-            <Text style={styles.resendText}>Did not get the code? </Text>
-            <Pressable onPress={resendOtp} disabled={resendTimer > 0} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={[styles.resendLink, { color: resendTimer > 0 ? 'gray' : COLORS.primary }]}>
+            {!otpExpired && <Text style={styles.timerText}>{formatTime(expiryTimer)}</Text>}
+            <Text style={styles.resendText}>Did not get the code?</Text>
+            <Pressable onPress={resendOtp} disabled={resendTimer > 0} hitSlop={8}>
+              <Text style={[styles.resendLink, resendTimer > 0 && { color: 'gray' }]}>
                 {resendTimer > 0 ? `Resend in ${formatTime(resendTimer)}` : 'Resend'}
               </Text>
             </Pressable>
           </View>
 
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back-circle-outline" size={scale(50)} color="#A0A0A0" />
-          </TouchableOpacity>
+          <View>
+            <AuthBackButton onPress={() => navigation.goBack()} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </ImageBackground>
   );
 }
 
+// activity_mobile_no_verification_touchless.xml: 4 line-style cells (48dp wide, 2dp
+// light_gray underline, 10dp apart), 25dp-margin Verify button, 20dp-margin resend row.
 const styles = StyleSheet.create({
   bg:           { flex: 1 },
-  container:    { flexGrow: 1, alignItems: 'center', paddingHorizontal: ms(30), paddingTop: ms(60), paddingBottom: ms(40) },
-  logo:         { width: Math.min(wps(70), scale(280)), height: ms(160), marginBottom: ms(10) },
-  title:        { fontSize: sp(28), fontWeight: '400', marginBottom: ms(16), color: '#000' },
-  subtitle:     { fontSize: sp(16), color: '#8E8E8E', textAlign: 'center', marginBottom: ms(36) },
-  otpRow:       { flexDirection: 'row', justifyContent: 'center', gap: ms(16), marginBottom: ms(24), width: '100%' },
-  otpInput:     { textAlign: 'center', fontSize: sp(20), borderBottomWidth: 2.5, borderBottomColor: '#d0d0d0' },
-  otpInputFocused: { borderBottomColor: '#6b6b6b' },
-  timerText:    { color: '#8E8E8E', marginBottom: ms(10), fontSize: sp(14) },
-  expiredText:  { color: 'red', marginBottom: ms(10), fontSize: sp(14) },
-  verifyButton: { width: '100%', backgroundColor: COLORS.primary, paddingVertical: ms(16), borderRadius: ms(30), alignItems: 'center', elevation: 4, marginBottom: ms(20) },
-  verifyText:   { color: '#fff', fontSize: sp(18), fontWeight: '600' },
-  resendRow:    { flexDirection: 'row', alignItems: 'center', paddingTop: ms(16) },
-  resendText:   { color: '#8E8E8E', fontSize: sp(16) },
-  resendLink:   { fontWeight: '600', fontSize: sp(16) },
-  backButton:   { marginTop: ms(48), alignItems: 'center', padding: ms(8) },
+  container:    { flexGrow: 1, justifyContent: 'center', paddingBottom: dp(20) },
+  otpRow:       { flexDirection: 'row', justifyContent: 'center', marginVertical: dp(20), marginTop: dp(25) },
+  otpInput:     {
+    width: dp(48),
+    height: dp(48),
+    marginHorizontal: dp(5),
+    textAlign: 'center',
+    fontSize: sp(18),
+    color: '#000',
+    padding: 0,
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.lightGray,
+  },
+  expiredText:  { color: COLORS.primary, textAlign: 'center', margin: dp(5), fontSize: sp(14) },
+  verifyButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: dp(34),
+    minHeight: dp(48),
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: dp(25),
+    marginHorizontal: dp(55),
+  },
+  verifyText:   { color: '#fff', fontSize: sp(18) },
+  resendRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: dp(20) },
+  timerText:    { color: COLORS.textBlack, fontSize: sp(16), margin: dp(10) },
+  resendText:   { color: COLORS.textBlack, fontSize: sp(14), margin: dp(5) },
+  resendLink:   { color: COLORS.primary, fontWeight: 'bold', fontSize: sp(16), margin: dp(5) },
 });

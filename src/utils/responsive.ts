@@ -86,3 +86,6 @@ export const HEADER_BAR_HEIGHT = ms(56);
  *  includes the status bar even while the window already starts below it. */
 export const useAppHeaderHeight = (): number =>
   useSafeAreaInsets().top + HEADER_BAR_HEIGHT;
+/** Exact dp, no device scaling. Auth screens use it so spacing matches the Java
+ *  layouts 1:1 (scale() inflates sizes ~5-7% on a 411dp-wide phone). */
+export const dp = (size: number): number => size;
