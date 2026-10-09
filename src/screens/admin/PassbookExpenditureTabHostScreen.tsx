@@ -1,6 +1,9 @@
 import TabStrip from '../../components/TabStrip';
 import PassbookSummary from '../../components/PassbookSummary';
 import {usePassbook} from '../../hooks/usePassbook';
+import UnderlineSearch from '../../components/UnderlineSearch';
+import {AddBalIcon, DecBalIcon} from '../../components/JavaIcons';
+import {COLORS} from '../../theme/theme';
 import MonthYearPickerDialog from '../../components/MonthYearPickerDialog';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
@@ -27,7 +30,7 @@ import {
 } from './adminLegacyApiTypes';
 import { getExpenseUserList } from '../../api/expenditure/expenditureService';
 import ManageBalanceModal from './ManageBalanceModal';
-import TechnicianExpenseDetailsModal from './TechnicianExpenseDetailsModal';
+import TechnicianExpenseDetails from './TechnicianExpenseDetailsModal';
 
 type PassbookExpenditureTabHostScreenProps = {
   userId: number;
@@ -37,7 +40,19 @@ type MainTab = 'passbook' | 'expenditure';
 
 const THEME_PRIMARY = '#c3002f';
 const LIGHT_PRIMARY = '#ffc3cf';
-const DEFAULT_PROFILE_ICON = require('../../../assets/images/image.png');
+const DEFAULT_PROFILE_ICON = require('../../../assets/images/profile_icon.png');
+
+// Java: Picasso placeholder + error both use R.drawable.profile_icon.
+const TechnicianAvatar = ({uri}: {uri?: string}) => {
+  const [failed, setFailed] = useState(false);
+  return (
+    <Image
+      source={uri && !failed ? {uri} : DEFAULT_PROFILE_ICON}
+      style={styles.technicianAvatar}
+      onError={() => setFailed(true)}
+    />
+  );
+};
 
 const getCode = (response: {code?: string; Code?: string}) =>
   String(response.code ?? response.Code ?? '');
@@ -243,30 +258,27 @@ const PassbookExpenditureTabHostScreen = ({
           // ExpenseTechnicianListFragment.onClick -> ExpenseDetailsFragment.
           setExpenseTechnician({id: getTechnicianId(item), name: getTechnicianName(item)})
         }>
-        <Image
-          source={photo ? {uri: photo} : DEFAULT_PROFILE_ICON}
-          style={styles.technicianAvatar}
-        />
+        <TechnicianAvatar uri={photo} />
         <View style={styles.technicianInfo}>
-          <Text numberOfLines={1} style={styles.technicianName}>
-            {getTechnicianName(item)}
-          </Text>
-          <Text numberOfLines={1} style={styles.technicianRole}>
+          <Text style={styles.technicianName}>{getTechnicianName(item)}</Text>
+          <Text style={styles.technicianRole} numberOfLines={1}>
             {getTechnicianRole(item)}
           </Text>
         </View>
         <Pressable
-          style={styles.minusButton}
+          hitSlop={8}
+          style={styles.balanceIcon}
           onPress={() => openBalanceModal('deduct', getTechnicianId(item))}>
-          <Text style={styles.minusText}>-</Text>
+          <DecBalIcon size={ms(30)} color={COLORS.statusRejected} />
         </Pressable>
-        <Text numberOfLines={1} style={styles.balanceText}>
+        <Text numberOfLines={1} adjustsFontSizeToFit style={styles.balanceText}>
           {formatMoney(getTechnicianBalance(item))}
         </Text>
         <Pressable
-          style={styles.plusButton}
+          hitSlop={8}
+          style={styles.balanceIcon}
           onPress={() => openBalanceModal('add', getTechnicianId(item))}>
-          <Text style={styles.plusText}>+</Text>
+          <AddBalIcon size={ms(30)} color={COLORS.green500} />
         </Pressable>
       </TouchableOpacity>
     );
@@ -275,21 +287,12 @@ const PassbookExpenditureTabHostScreen = ({
   const renderExpenditure = () => (
     <View style={styles.expenditurePane}>
       <View style={styles.expenseSearchRow}>
-        <View style={styles.expenseSearchBox}>
-          <Text style={styles.searchIcon}>Search</Text>
-          <TextInput
-            value={expenseSearch}
-            onChangeText={setExpenseSearch}
-            placeholder="Search"
-            placeholderTextColor="#9CA3AF"
-            style={styles.expenseSearchInput}
-          />
-          {expenseSearch ? (
-            <Pressable hitSlop={10} onPress={() => setExpenseSearch('')}>
-              <Text style={styles.searchClear}>x</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <UnderlineSearch
+          value={expenseSearch}
+          onChangeText={setExpenseSearch}
+          placeholder="Search"
+          style={styles.expenseSearchBox}
+        />
         <Pressable
           style={styles.balanceButton}
           onPress={() => openBalanceModal('add')}>
@@ -339,6 +342,18 @@ const PassbookExpenditureTabHostScreen = ({
     </View>
   );
 
+  // Java ExpenseDetailsFragment replaces the list in place (toolbar + bottom bar stay).
+  if (expenseTechnician) {
+    return (
+      <View style={styles.shell}>
+        <TechnicianExpenseDetails
+          technician={expenseTechnician}
+          onClose={() => setExpenseTechnician(null)}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.shell}>
       <TabStrip
@@ -363,10 +378,6 @@ const PassbookExpenditureTabHostScreen = ({
         onConfirm={passbook.confirmPicker}
       />
 
-      <TechnicianExpenseDetailsModal
-        technician={expenseTechnician}
-        onClose={() => setExpenseTechnician(null)}
-      />
       <ManageBalanceModal
         visible={isBalanceModalOpen}
         userId={userId}
@@ -578,19 +589,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   expenseSearchRow: {
-    minHeight: ms(74),
-    paddingHorizontal: ms(20),
-    paddingTop: ms(22),
+    paddingHorizontal: ms(10),
+    paddingTop: ms(15),
+    paddingBottom: ms(5),
     flexDirection: 'row',
     alignItems: 'center',
   },
   expenseSearchBox: {
     flex: 1,
-    minHeight: ms(42),
-    borderBottomWidth: ms(1),
-    borderBottomColor: '#BBBBBB',
-    flexDirection: 'row',
-    alignItems: 'center',
+    marginRight: ms(10),
   },
   searchIcon: {
     color: '#B9B9B9',
@@ -611,98 +618,69 @@ const styles = StyleSheet.create({
     lineHeight: sp(34),
   },
   balanceButton: {
-    height: ms(38),
-    minWidth: ms(82),
-    marginLeft: ms(10),
-    borderRadius: ms(9),
-    backgroundColor: '#111111',
+    height: ms(30),
+    width: ms(70),
+    borderRadius: ms(15),
+    backgroundColor: COLORS.textBlack,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: ms(8),
   },
   balanceButtonText: {
     color: '#FFFFFF',
-    fontSize: sp(13),
-    fontWeight: '900',
+    fontSize: sp(12),
   },
   technicianList: {
     flexGrow: 1,
-    paddingHorizontal: ms(18),
-    paddingTop: ms(8),
+    paddingHorizontal: ms(5),
+    paddingTop: ms(5),
     paddingBottom: ms(24),
   },
   technicianCard: {
-    minHeight: ms(96),
-    marginBottom: ms(14),
+    margin: ms(5),
     borderRadius: ms(10),
-    borderWidth: ms(1),
-    borderColor: '#EFEFEF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: ms(18),
+    paddingVertical: ms(10),
+    paddingRight: ms(10),
     elevation: 2,
     shadowColor: '#000000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: {width: 0, height: 1},
   },
   technicianAvatar: {
-    width: ms(58),
-    height: ms(58),
-    borderRadius: ms(29),
-    backgroundColor: '#E8EAF5',
+    width: ms(60),
+    height: ms(60),
+    borderRadius: ms(30),
+    margin: ms(5),
   },
   technicianInfo: {
     flex: 1,
     minWidth: 0,
-    marginLeft: ms(24),
+    marginLeft: ms(5),
   },
   technicianName: {
-    color: '#555555',
-    fontSize: sp(15),
+    color: COLORS.darkGray,
+    fontSize: sp(16),
     fontWeight: '700',
+    paddingLeft: ms(5),
   },
   technicianRole: {
-    marginTop: ms(3),
-    color: '#777777',
-    fontSize: sp(11),
+    marginTop: ms(2),
+    color: COLORS.authText,
+    fontSize: sp(12),
+    paddingLeft: ms(5),
   },
-  minusButton: {
-    width: ms(25),
-    height: ms(20),
-    borderRadius: ms(7),
-    borderWidth: ms(2),
-    borderColor: THEME_PRIMARY,
-    alignItems: 'center',
+  balanceIcon: {
     justifyContent: 'center',
-  },
-  minusText: {
-    color: THEME_PRIMARY,
-    fontSize: sp(18),
-    lineHeight: sp(15),
-    fontWeight: '900',
+    alignItems: 'center',
   },
   balanceText: {
     width: ms(100),
     textAlign: 'center',
-    color: '#666666',
-    fontSize: sp(12),
-  },
-  plusButton: {
-    width: ms(25),
-    height: ms(20),
-    borderRadius: ms(7),
-    borderWidth: ms(2),
-    borderColor: '#4CAF50',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  plusText: {
-    color: '#4CAF50',
-    fontSize: sp(18),
-    lineHeight: sp(15),
-    fontWeight: '900',
+    color: COLORS.darkGray,
+    fontSize: sp(14),
   },
   emptyState: {
     flex: 1,

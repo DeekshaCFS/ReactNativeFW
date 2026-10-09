@@ -2,28 +2,25 @@
 //
 // Port of Java's ExpenseDetailsFragment (layout expense_details_old), opened
 // from the owner's Expenditure technician list (ExpenseTechnicianListFragment
-// row tap). Loads Expenditure/GetTechnicianExpenditure?UserId=&ExpsDate=
-// for one day (Java's date strip; here prev/next day arrows) and shows the
-// summary rows + "Expense List" in XML order. The add-expense icon is
-// technician-only in Java, so the owner view is read-only.
+// row tap). Rendered inline under the shared toolbar/bottom bar (like Java's
+// fragment) instead of a full-screen modal: red backdrop with the date picker,
+// white 30dp sheet with the technician name, then the shared summary card and
+// expense list. The add-expense icon is technician-only in Java.
 import React, {useEffect, useState} from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import Modal from '../../components/AppModal';
+import {BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  type DateTimePickerChangeEvent,
+} from '@react-native-community/datetimepicker';
 import {getExpenditureDetails} from '../../api/expenditure/expenditureService';
-import type {
-  ExpenseDetailsExpenseList,
-  ExpenseDetailsResultData,
-} from '../../api/expenditure/expenditure.types';
-import {formatAmount} from '../../utils/decimal';
+import type {ExpenseDetailsResultData} from '../../api/expenditure/expenditure.types';
+import ExpenseDetailsBody, {
+  minExpenseDate,
+  toExpenseApiDate,
+  toExpenseLabel,
+} from '../../components/ExpenseDetailsBody';
+import {COLORS} from '../../theme/theme';
 import {ms, sp, vs} from '../../utils/responsive';
 
 type Props = {
@@ -31,17 +28,11 @@ type Props = {
   onClose: () => void;
 };
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-// Java: mDate = year + "-" + (month + 1) + "-" + day (no zero padding).
-const toApiDate = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-const toLabel = (d: Date) => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-
-const TechnicianExpenseDetailsModal: React.FC<Props> = ({technician, onClose}) => {
+const TechnicianExpenseDetails: React.FC<Props> = ({technician, onClose}) => {
   const [date, setDate] = useState(() => new Date());
+  const [iosPicker, setIosPicker] = useState(false);
   const [details, setDetails] = useState<ExpenseDetailsResultData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [fullScreenPhoto, setFullScreenPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     if (technician) {
@@ -53,9 +44,20 @@ const TechnicianExpenseDetailsModal: React.FC<Props> = ({technician, onClose}) =
     if (!technician) {
       return;
     }
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [technician, onClose]);
+
+  useEffect(() => {
+    if (!technician) {
+      return;
+    }
     let active = true;
     setLoading(true);
-    getExpenditureDetails({UserId: technician.id, ExpsDate: toApiDate(date)})
+    getExpenditureDetails({UserId: technician.id, ExpsDate: toExpenseApiDate(date)})
       .then(response => active && setDetails(response?.ResultData ?? null))
       .catch(() => active && setDetails(null))
       .finally(() => active && setLoading(false));
@@ -68,128 +70,80 @@ const TechnicianExpenseDetailsModal: React.FC<Props> = ({technician, onClose}) =
     return null;
   }
 
-  const shiftDay = (delta: number) =>
-    setDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + delta));
-  const money = (v?: number) => (details ? `Rs. ${formatAmount(v)}` : '0');
-  const rows: [string, string][] = [
-    ['Credited Amount :', money(details?.CreditedAmonut)],
-    ['Opening Amount :', money(details?.OpeningBalance)],
-    ['Earned Amount :', money(details?.EarnedAmount)],
-    ['Total Expense :', money(details?.Expenses)],
-    ['Return :', money(details?.ReturnAmount)],
-    ['Remaining Amount :', money(details?.RemainingBalance)],
-  ];
-  const expenses: ExpenseDetailsExpenseList[] = Array.isArray(details?.ExpenseList)
-    ? (details?.ExpenseList as ExpenseDetailsExpenseList[])
-    : [];
+  // Java: DatePickerDialog, min = today - 2 months, max = today.
+  const openDatePicker = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: date,
+        mode: 'date',
+        display: 'spinner',
+        maximumDate: new Date(),
+        minimumDate: minExpenseDate(),
+        onValueChange: (_e: DateTimePickerChangeEvent, selected: Date) => setDate(selected),
+      });
+      return;
+    }
+    setIosPicker(true);
+  };
 
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={styles.screen}>
-        <View style={styles.header}>
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Ionicons name="arrow-back" size={sp(22)} color="#fff" />
-          </Pressable>
-          <Text style={styles.headerTitle} numberOfLines={1}>
+    <View style={styles.root}>
+      <Pressable style={styles.dateRow} onPress={openDatePicker}>
+        <Text style={styles.dateText}>{toExpenseLabel(date)}</Text>
+        <Ionicons name="chevron-down" size={ms(20)} color={COLORS.white} />
+      </Pressable>
+
+      <View style={styles.sheet}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          <Text style={styles.techName} numberOfLines={1}>
             {details?.FullName || technician.name}
           </Text>
-        </View>
-        <View style={styles.dateRow}>
-          <Pressable onPress={() => shiftDay(-1)} hitSlop={10}>
-            <Ionicons name="chevron-back" size={sp(20)} color="#c3002f" />
-          </Pressable>
-          <Text style={styles.dateText}>{toLabel(date)}</Text>
-          <Pressable onPress={() => shiftDay(1)} hitSlop={10}>
-            <Ionicons name="chevron-forward" size={sp(20)} color="#c3002f" />
-          </Pressable>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator style={styles.loader} color="#c3002f" size="large" />
-        ) : (
-          <FlatList
-            data={expenses}
-            keyExtractor={(_, i) => String(i)}
-            contentContainerStyle={styles.content}
-            ListHeaderComponent={
-              <View>
-                <View style={styles.summary}>
-                  {rows.map(([label, value]) => (
-                    <View key={label} style={styles.row}>
-                      <Text style={styles.label}>{label}</Text>
-                      <Text style={styles.value}>{value}</Text>
-                    </View>
-                  ))}
-                </View>
-                <Text style={styles.listTitle}>Expense List</Text>
-              </View>
-            }
-            renderItem={({item}) => (
-              <View style={styles.expenseRow}>
-                {item.ExpensePhoto ? (
-                  <Pressable onPress={() => setFullScreenPhoto(item.ExpensePhoto ?? null)}>
-                    <Image source={{uri: item.ExpensePhoto}} style={styles.expensePhoto} />
-                  </Pressable>
-                ) : (
-                  <View style={[styles.expensePhoto, styles.photoPlaceholder]}>
-                    <Ionicons name="image-outline" size={sp(20)} color="#9aa0a6" />
-                  </View>
-                )}
-                <Text style={styles.expenseName} numberOfLines={1}>
-                  {item.ExpenseName}
-                </Text>
-                <Text style={styles.expenseAmount}>Rs. {formatAmount(item.Amount)}</Text>
-              </View>
-            )}
-            ListEmptyComponent={<Text style={styles.empty}>NA</Text>}
-          />
-        )}
+          <ExpenseDetailsBody details={details} loading={loading} showCurrency />
+        </ScrollView>
       </View>
 
-      <Modal
-        visible={!!fullScreenPhoto}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setFullScreenPhoto(null)}>
-        <Pressable style={styles.fullScreenBackdrop} onPress={() => setFullScreenPhoto(null)}>
-          <Pressable style={styles.fullScreenClose} onPress={() => setFullScreenPhoto(null)} hitSlop={10}>
-            <Ionicons name="close" size={sp(28)} color="#fff" />
-          </Pressable>
-          {fullScreenPhoto ? (
-            <Image
-              source={{uri: fullScreenPhoto}}
-              style={styles.fullScreenImage}
-              resizeMode="contain"
-            />
-          ) : null}
-        </Pressable>
-      </Modal>
-    </Modal>
+      {Platform.OS === 'ios' && iosPicker ? (
+        <DateTimePicker
+          value={date}
+          mode="date"
+          display="spinner"
+          maximumDate={new Date()}
+          minimumDate={minExpenseDate()}
+          onValueChange={(_e: DateTimePickerChangeEvent, selected: Date) => setDate(selected)}
+          onDismiss={() => setIosPicker(false)}
+        />
+      ) : null}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  screen: {flex: 1, backgroundColor: '#f5f6f8'},
-  header: {flexDirection: 'row', alignItems: 'center', gap: ms(12), backgroundColor: '#c3002f', padding: ms(14)},
-  headerTitle: {flex: 1, color: '#fff', fontSize: sp(16), fontWeight: '700'},
-  dateRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: ms(12), backgroundColor: '#fff'},
-  dateText: {fontSize: sp(14), fontWeight: '700', color: '#20283A'},
-  loader: {marginTop: vs(40)},
-  content: {padding: ms(12)},
-  summary: {backgroundColor: '#fff', borderRadius: ms(10), padding: ms(12)},
-  row: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: vs(5)},
-  label: {fontSize: sp(13), color: '#5f6368'},
-  value: {fontSize: sp(13), color: '#20283A', fontWeight: '700'},
-  listTitle: {fontSize: sp(14), fontWeight: '700', color: '#20283A', marginTop: vs(16), marginBottom: vs(8)},
-  expenseRow: {flexDirection: 'row', alignItems: 'center', gap: ms(10), backgroundColor: '#fff', borderRadius: ms(10), padding: ms(10), marginBottom: vs(8)},
-  expensePhoto: {width: ms(44), height: ms(44), borderRadius: ms(8)},
-  photoPlaceholder: {backgroundColor: '#f1f3f4', alignItems: 'center', justifyContent: 'center'},
-  expenseName: {flex: 1, fontSize: sp(13), color: '#20283A'},
-  expenseAmount: {fontSize: sp(13), fontWeight: '700', color: '#20283A'},
-  empty: {textAlign: 'center', color: '#80868b', marginTop: vs(20)},
-  fullScreenBackdrop: {flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center'},
-  fullScreenClose: {position: 'absolute', top: vs(40), right: ms(20), zIndex: 1},
-  fullScreenImage: {width: '100%', height: '80%'},
+  root: {flex: 1, backgroundColor: COLORS.primary},
+  dateRow: {
+    flexDirection: 'row',
+    alignSelf: 'flex-end',
+    alignItems: 'center',
+    gap: ms(4),
+    paddingHorizontal: ms(20),
+    height: ms(50),
+  },
+  dateText: {fontSize: sp(16), fontWeight: '700', color: COLORS.white},
+  sheet: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    overflow: 'hidden',
+  },
+  scroll: {padding: ms(10), paddingBottom: ms(140)},
+  techName: {
+    textAlign: 'center',
+    margin: ms(15),
+    marginTop: vs(20),
+    fontSize: sp(15),
+    fontWeight: '700',
+    color: COLORS.ink,
+  },
 });
 
-export default TechnicianExpenseDetailsModal;
+export default TechnicianExpenseDetails;
