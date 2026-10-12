@@ -33,6 +33,19 @@
 		<false/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
+		<!-- The API (src/api/apiClient.ts BASE_URL) is plain HTTP on a fixed IP. Android allows it
+		     via usesCleartextTraffic; on iOS it needs a per-host exception or every request fails
+		     with "Network Error". Remove this once the API is served over HTTPS. -->
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>192.169.3.8</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+			</dict>
+		</dict>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app uses your location for field tracking.</string>
