@@ -115,7 +115,8 @@ const STATIC_PUSHED_SCREENS: PushedScreen[] = [
 
 // Screens that keep HomeActivityNew's own toolbar (hamburger + title + headset/bell)
 // instead of the back-arrow push header.
-const MAIN_HEADER_SCREENS = ['notification', 'help', 'TaskDetails'];
+// Profile reuses HomeActivityNew's own toolbar in Java (hamburger + "Profile" title), not a back-arrow header.
+const MAIN_HEADER_SCREENS = ['notification', 'help', 'TaskDetails', 'Profile'];
 
 // Task, CRM and Employee all need the owner's id, which none of these
 // screens can look up on their own — they take it as a prop. `component=`
@@ -345,6 +346,8 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
                 ? 'Attendance'
                 : currentRoute.name === 'notification'
                   ? 'Notification'
+                  : currentRoute.name === 'Profile'
+                    ? 'Profile'
                   : currentRoute.name === 'help'
                     ? 'Help & Support'
                     : currentRoute.name === 'TaskDetails'
