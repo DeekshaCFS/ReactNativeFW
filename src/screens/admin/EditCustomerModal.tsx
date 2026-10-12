@@ -14,6 +14,10 @@ import {
   View,
 } from 'react-native';
 import Modal from '../../components/AppModal';
+import OutlinedInput from '../../components/OutlinedInput';
+import {ContactBookIcon, EnquiryIcon} from '../../components/FabIcons';
+import {COLORS} from '../../theme/theme';
+import {taskStyles} from './AddTaskModal';
 import {
   type CityItem,
   type CityListResponse,
@@ -482,25 +486,26 @@ const EditCustomerModal = ({
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={false}
+      transparent
       onRequestClose={onClose}
     >
-      <View style={styles.screen}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>{modalTitle}</Text>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={styles.headerCloseIcon}>✕</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={styles.overlay}>
+        <View style={taskStyles.modalSheet}>
+          <View style={taskStyles.modalHeader}>
+            <Text style={taskStyles.modalHeaderTitle}>{modalTitle}</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" style={taskStyles.modalCloseIcon} />
+            </TouchableOpacity>
+          </View>
 
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
+          <KeyboardAvoidingView
+            style={styles.flex}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
+            <ScrollView
+              contentContainerStyle={taskStyles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
             <LabeledField
               label="Customer Name"
               required
@@ -677,8 +682,9 @@ const EditCustomerModal = ({
                   onChangeText={text => setField('emailId', text)}
                 />
               </View>
-              <TouchableOpacity
-                style={[styles.halfWrap, styles.dropdownField]}
+              <View style={styles.halfWrap}>
+                <TouchableOpacity
+                  style={styles.dropdownField}
                 onPress={() => {
                   loadCustomerTags();
                   setIsTagModalOpen(true);
@@ -696,6 +702,7 @@ const EditCustomerModal = ({
                 </Text>
                 <Ionicons name="chevron-down" style={styles.dropdownChevron} />
               </TouchableOpacity>
+</View>
             </View>
 
             <View style={styles.fieldRow}>
@@ -789,17 +796,20 @@ const EditCustomerModal = ({
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
-                  <Text style={styles.updateButtonIcon}>?</Text>
+                  <View style={styles.updateButtonIconWrap}>
+                    <EnquiryIcon size={ms(30)} color="#FFFFFF" />
+                  </View>
                   <Text style={styles.updateButtonText}>{isAddMode ? 'ADD' : 'UPDATE'}</Text>
                 </>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={onClose}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={taskStyles.cancelText}>Cancel</Text>
             </TouchableOpacity>
-          </ScrollView>
-        </KeyboardAvoidingView>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
       </View>
 
       <Modal
@@ -851,12 +861,13 @@ type LabeledFieldProps = {
   onFocus?: () => void;
 };
 
+// dialog_add_customer: Material outlined (34dp-radius) fields with the hint floating on the border.
 const LabeledField = ({
   label,
-  value,
-  onChangeText,
   required,
   half,
+  value,
+  onChangeText,
   icon,
   keyboardType,
   maxLength,
@@ -864,90 +875,49 @@ const LabeledField = ({
 }: LabeledFieldProps) => {
   const labelText = `${label}${required ? ' *' : ''}`;
   return (
-    <View style={half ? styles.fieldBoxHalf : styles.fieldBox}>
-      <Text style={[styles.fieldLabel, {opacity: value ? 1 : 0}]}>{labelText}</Text>
-      <View style={styles.fieldInputRow}>
-        <TextInput
-          style={styles.fieldInput}
-          placeholder={labelText}
-          placeholderTextColor="#9aa0a6"
-          value={value}
-          onChangeText={onChangeText}
-          keyboardType={keyboardType}
-          maxLength={maxLength}
-          onFocus={onFocus}
-        />
-        {icon ? <Text style={styles.fieldInputIcon}>{icon}</Text> : null}
-      </View>
+    <View style={half ? undefined : styles.fieldFull}>
+      <OutlinedInput
+        style={[taskStyles.pillInput, {paddingHorizontal: ms(14)}, icon ? {paddingRight: ms(52)} : null]}
+        placeholder={labelText}
+        placeholderTextColor={COLORS.lightGray}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        maxLength={maxLength}
+        onFocus={onFocus}
+      />
+      {icon ? (
+        <View style={taskStyles.phonebookButton} pointerEvents="none">
+          <ContactBookIcon size={ms(25)} />
+        </View>
+      ) : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  screen: {
+  overlay: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.dialogDim,
+    justifyContent: 'flex-end',
   },
   flex: {
-    flex: 1,
+    flexShrink: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#3a3a3c',
-    paddingHorizontal: ms(16),
-    paddingVertical: ms(16),
-  },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: sp(17),
-    fontWeight: '700',
-  },
-  headerCloseIcon: {
-    color: '#FFFFFF',
-    fontSize: sp(20),
-  },
-  scrollContent: {
-    padding: ms(16),
-    paddingBottom: ms(32),
-    width: '100%',
-    maxWidth: ms(640),
-    alignSelf: 'center',
+  fieldFull: {
+    marginBottom: ms(26),
   },
   sectionLabel: {
-    fontSize: sp(13),
+    fontSize: sp(14),
     fontWeight: '700',
-    color: '#222',
-    marginTop: ms(6),
-    marginBottom: ms(12),
-  },
-  fieldBox: {
-    borderWidth: ms(1),
-    borderColor: '#d5d7db',
-    borderRadius: ms(24),
-    paddingHorizontal: ms(16),
-    paddingTop: ms(6),
-    paddingBottom: ms(6),
+    color: '#000000',
+    marginLeft: ms(12),
     marginBottom: ms(14),
-    justifyContent: 'center',
-    minHeight: ms(46),
-  },
-  fieldBoxHalf: {
-    flex: 1,
-    borderWidth: ms(1),
-    borderColor: '#d5d7db',
-    borderRadius: ms(24),
-    paddingHorizontal: ms(16),
-    paddingTop: ms(6),
-    paddingBottom: ms(6),
-    justifyContent: 'center',
-    minHeight: ms(46),
   },
   fieldRow: {
     flexDirection: 'row',
-    gap: ms(12),
-    marginBottom: ms(14),
+    gap: ms(10),
+    marginBottom: ms(26),
   },
   halfWrap: {
     flex: 1,
@@ -956,47 +926,33 @@ const styles = StyleSheet.create({
   stateZIndex: {
     zIndex: 2,
   },
-  fieldLabel: {
-    fontSize: sp(10),
-    color: '#8a8f98',
-    marginBottom: ms(2),
-  },
-  fieldInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  fieldInput: {
-    flex: 1,
-    fontSize: sp(13),
-    color: '#222',
-    padding: 0,
-    height: ms(20),
-  },
-  fieldInputIcon: {
-    fontSize: sp(16),
-    color: THEME_PRIMARY,
-    marginLeft: ms(8),
-  },
+  // bg_spinner: 40dp, 34dp radius, 1dp light_gray stroke, 12dp side padding.
   dropdownField: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: ms(46),
+    height: ms(40),
+    paddingHorizontal: ms(12),
+    borderWidth: ms(1),
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    minWidth: 0,
+    overflow: 'hidden',
   },
   dropdownValueText: {
-    fontSize: sp(13),
-    color: '#222',
+    fontSize: sp(14),
+    color: '#000000',
     flex: 1,
   },
   dropdownPlaceholderText: {
-    fontSize: sp(13),
-    color: '#9aa0a6',
+    fontSize: sp(14),
+    color: COLORS.darkGray,
     flex: 1,
   },
   dropdownChevron: {
-    fontSize: sp(16),
-    color: '#8a8f98',
-    marginLeft: ms(8),
+    fontSize: sp(20),
+    color: COLORS.ink,
+    marginLeft: ms(6),
   },
   suggestionBox: {
     position: 'absolute',
@@ -1029,33 +985,26 @@ const styles = StyleSheet.create({
     fontSize: sp(13),
     color: '#222',
   },
+  // button_add: rounded_button (red, 34dp radius), ic_enq_option on the left, 18sp label.
   updateButton: {
     flexDirection: 'row',
-    backgroundColor: THEME_PRIMARY,
-    borderRadius: ms(24),
-    height: ms(48),
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: ms(6),
-    marginBottom: ms(14),
-    gap: ms(8),
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    height: ms(48),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
   },
-  updateButtonIcon: {
-    color: '#FFFFFF',
-    fontSize: sp(14),
-    fontWeight: '700',
+  updateButtonIconWrap: {
+    position: 'absolute',
+    left: ms(17),
   },
   updateButtonText: {
     color: '#FFFFFF',
-    fontSize: sp(14),
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  cancelText: {
-    textAlign: 'center',
-    color: THEME_PRIMARY,
-    fontSize: sp(14),
-    fontWeight: '600',
+    fontSize: sp(18),
+    fontWeight: '500',
   },
   tagModalOverlay: {
     flex: 1,

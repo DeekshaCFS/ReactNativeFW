@@ -1,10 +1,18 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import BackBar from '../../components/BackBar';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
+import {DeleteIcon} from '../../components/FabIcons';
+import {COLORS} from '../../theme/theme';
+import {getCurrentCurrencySymbol} from '../../state/session';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
+  Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -34,9 +42,11 @@ import {
   CUSTOMER_PHONE_KEYS,
   formatPhoneWithCountryCode,
   getEnquiryAddress,
+  getEnquiryCustomerName,
   getEnquiryDate,
   getEnquiryDisplayNo,
   getEnquiryId,
+  styles as crmStyles,
   getNumberField,
   getStringField,
 } from './crmShared';
@@ -48,6 +58,11 @@ type CustomerDetailsScreenProps = {
   onBack: () => void;
   onEdit?: (customer: Record<string, unknown>) => void;
   onDelete?: (customer: Record<string, unknown>) => void;
+  /** Enquiry card actions (Java reuses the CRM enquiry adapter here). */
+  onEnquiryPress?: (enquiry: EnquiryListItem) => void;
+  onEnquiryEdit?: (enquiry: EnquiryListItem) => void;
+  onEnquiryCall?: (enquiry: EnquiryListItem) => void;
+  onEnquiryWhatsapp?: (enquiry: EnquiryListItem) => void;
 };
 
 type CustomerTabKey = 'task' | 'amc' | 'quotation' | 'invoice' | 'enquiry';
@@ -187,10 +202,53 @@ const getAMCDate = (item: AMCListItem) =>
     'amcDate', 'AMCDate', 'date', 'Date', 'amcServiceDate', 'AMCServiceDate',
   ]);
 
+// crm_amc_list_new / quotation_list / invoice_list adapters.
+const toRecord = (item: unknown) => item as Record<string, unknown>;
+
+// yyyy-MM-dd[THH:mm:ss] -> dd-MM-yyyy (DateUtils.convertDateFormat in the Java adapters).
+const toListDate = (raw: string) => {
+  const day = raw.split('T')[0];
+  const match = day.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : raw;
+};
+
+// Java: "Rs." -> rupee sign, otherwise the country's own symbol, always 3 decimals.
+const listMoney = (value: number, alwaysRupee = false) => {
+  const symbol = getCurrentCurrencySymbol();
+  const prefix = alwaysRupee || !symbol || symbol === 'Rs.' ? '₹' : symbol;
+  return `${prefix} ${value.toFixed(3)}`;
+};
+
+const getListStatusName = (item: unknown) => {
+  const record = toRecord(item);
+  const nested = (record.status ?? record.Status) as Record<string, unknown> | undefined;
+  return (
+    (nested && getStringField(nested, ['statusName', 'StatusName'])) ||
+    getStringField(record, ['statusName', 'StatusName'])
+  );
+};
+
+const QUOTE_STATUS: Record<string, {label: string; color: string}> = {
+  Assigned: {label: 'Assigned', color: '#FBC02D'},
+  'Not Assigned': {label: 'Not Assigned', color: '#6E41BF'},
+  Lost: {label: 'Lost', color: '#C3002F'},
+  'Task Completed': {label: 'Task Completed', color: '#03DE73'},
+};
+
+const INVOICE_STATUS: Record<string, {label: string; color: string}> = {
+  Paid: {label: 'Paid', color: '#03DE73'},
+  UnPaid: {label: 'UnPaid', color: '#C3002F'},
+  'Partial Paid': {label: 'Partial Paid', color: '#FF9B00'},
+};
+
 const CustomerDetailsScreen = ({
   ownerId,
   customer,
   onBack,
+  onEnquiryPress,
+  onEnquiryEdit,
+  onEnquiryCall,
+  onEnquiryWhatsapp,
   onEdit,
   onDelete,
 }: CustomerDetailsScreenProps) => {
@@ -399,43 +457,236 @@ const CustomerDetailsScreen = ({
   };
 
   const renderAmcCard = ({item}: {item: AMCListItem}) => {
-    const serviceType = getAMCServiceType(item);
-    const date = getAMCDate(item);
+    const record = toRecord(item);
+    const activation = getStringField(record, ['activationDate', 'ActivationDate']);
+    const isActive = record.isActive ?? record.IsActive;
+    const active = isActive === true || isActive === 'true' || isActive === 1;
     return (
-      <View style={styles.card}>
-        <Text style={styles.taskTitle} numberOfLines={1}>
-          {getAMCName(item)}
-        </Text>
-        {serviceType ? (
-          <Text style={styles.cardSubtitle}>{serviceType}</Text>
-        ) : null}
-        {date ? <Text style={styles.cardSubtitle}>{date}</Text> : null}
+      <View style={styles.listCard}>
+        <View style={styles.amcInner}>
+          <View style={styles.amcRow}>
+            <Text style={styles.amcName} numberOfLines={1}>
+              {getAMCName(item)}
+            </Text>
+            <Text style={[styles.amcStatus, {color: active ? '#03DE73' : COLORS.darkGray}]}>
+              {active ? 'Active' : 'DeActive'}
+            </Text>
+          </View>
+          <View style={styles.amcRow}>
+            <Text style={[styles.amcText, {flex: 1.5}]}>Acti. Date</Text>
+            <Text style={[styles.amcText, {flex: 1.2}]}>{activation ? toListDate(activation) : ''}</Text>
+            <View style={{flex: 0.5}} />
+            <Text style={[styles.amcText, {flex: 1.5}]}>No. of Services</Text>
+            <Text style={[styles.amcText, {flex: 0.5, textAlign: 'right'}]}>
+              {getStringField(record, ['totalServices', 'TotalServices'])}
+            </Text>
+          </View>
+          <View style={styles.amcRow}>
+            <Text style={[styles.amcText, {flex: 1.5}]}>Occurrence</Text>
+            <Text style={[styles.amcText, {flex: 1.2}]}>
+              {getStringField(record, ['serviceOccuranceType', 'ServiceOccuranceType'])}
+            </Text>
+            <View style={{flex: 0.5}} />
+            <Text style={[styles.amcText, {flex: 1.5}]}>Service left</Text>
+            <Text style={[styles.amcText, {flex: 0.5, textAlign: 'right'}]}>
+              {getStringField(record, ['amcServicesLeftCount', 'AMCServicesLeftCount'])}
+            </Text>
+          </View>
+        </View>
       </View>
     );
   };
 
+  const renderQuotationCard = ({item}: {item: Record<string, unknown>}) => {
+    const status = QUOTE_STATUS[getListStatusName(item)];
+    const created = getStringField(item, ['createdDate', 'CreatedDate']);
+    const customerObj = (item.customer ?? item.Customer) as Record<string, unknown> | undefined;
+    const customerName =
+      (customerObj && getStringField(customerObj, ['customerName', 'CustomerName'])) ||
+      getStringField(item, ['customerName', 'CustomerName']);
+    const id = getNumberField(item, ['id', 'Id']);
+    return (
+      <TouchableOpacity
+        style={styles.listCard}
+        activeOpacity={0.8}
+        onPress={() => setSelectedQuotation(item)}
+      >
+        <View>
+          {status ? (
+            <View style={[styles.docRibbon, {backgroundColor: status.color}]}>
+              <Text style={styles.docRibbonText}>{status.label}</Text>
+            </View>
+          ) : (
+            <View style={styles.docRibbonSpacer} />
+          )}
+          <Text style={[styles.docId, {fontSize: sp(11)}]}>[QUO{id}]</Text>
+          <Text style={[styles.docDate, {fontSize: sp(12)}]}>{created ? toListDate(created) : ''}</Text>
+        </View>
+        <View style={styles.docBody}>
+          <View style={{flex: 0.65}}>
+            <Text style={styles.docName} numberOfLines={2}>
+              {getStringField(item, ['quoteName', 'QuoteName'])}
+            </Text>
+            <View style={styles.docLine}>
+              <Text style={styles.docLabel}>Customer :</Text>
+              <Text style={[styles.docValue, {color: COLORS.primary}]}>{customerName}</Text>
+            </View>
+          </View>
+          <View style={styles.docRight}>
+            <Text style={styles.docLabel}>Amount : </Text>
+            <Text style={[styles.docValue, styles.docBold, {color: '#4CAF50'}]}>
+              {listMoney(getNumberField(item, ['grandTotalAmount', 'GrandTotalAmount']))}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderInvoiceCard = ({item}: {item: Record<string, unknown>}) => {
+    const statusName = getListStatusName(item);
+    const status = INVOICE_STATUS[statusName];
+    const created = getStringField(item, ['createdDate', 'CreatedDate']);
+    const id = getNumberField(item, ['id', 'Id']);
+    const total = getNumberField(item, ['invoiceAmount', 'InvoiceAmount']);
+    const pending = getNumberField(item, ['remainingAmount', 'RemainingAmount']);
+    const isPaid = statusName === 'Paid';
+    const isUnpaid = statusName === 'UnPaid';
+    const isPartial = statusName === 'Partial Paid';
+    const totalLabel = isPaid ? 'Paid Amount :' : isUnpaid ? 'Pending Amount :' : 'Total Amount :';
+    return (
+      <TouchableOpacity
+        style={styles.listCard}
+        activeOpacity={0.8}
+        onPress={() => setSelectedInvoice(item)}
+      >
+        <View>
+          {status ? (
+            <View style={[styles.docRibbon, {backgroundColor: status.color}]}>
+              <Text style={styles.docRibbonText}>{status.label}</Text>
+            </View>
+          ) : (
+            <View style={styles.docRibbonSpacer} />
+          )}
+          <Text style={[styles.docId, {fontSize: sp(12)}]}>[INV{id}]</Text>
+          <Text style={[styles.docDate, {fontSize: sp(11)}]}>{created ? toListDate(created) : ''}</Text>
+        </View>
+        <View style={styles.docBody}>
+          <View style={{flex: 0.6}}>
+            <Text style={styles.docName} numberOfLines={2}>
+              {getStringField(item, ['quoteTaskName', 'QuoteTaskName'])}
+            </Text>
+            <View style={styles.docLine}>
+              <Text style={styles.docLabel}>Cust. Name :</Text>
+              <Text style={[styles.docValue, {color: COLORS.primary}]}>
+                {getStringField(item, ['customerName', 'CustomerName'])}
+              </Text>
+            </View>
+            <View style={styles.docLine}>
+              <Text style={[styles.docLabel, isUnpaid ? {color: '#FF4A4A'} : null]}>{totalLabel}</Text>
+              <Text
+                style={[
+                  styles.docValue,
+                  styles.docBold,
+                  {color: isUnpaid ? COLORS.primary : '#4CAF50'},
+                ]}
+              >
+                {listMoney(total, true)}
+              </Text>
+            </View>
+          </View>
+          {isPartial ? (
+            <View style={[styles.docRight, {flex: 0.4, justifyContent: 'flex-start'}]}>
+              <Text style={[styles.docLabel, {color: '#FF9B00'}]}>Pending Amt : </Text>
+              <Text style={[styles.docValue, styles.docBold, {color: COLORS.primary}]}>
+                {listMoney(pending)}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Same card as the CRM Enquiries tab (enquirylists_custom_new): blue ribbon, name + date, then
+  // the address with edit / WhatsApp / call glyphs.
   const renderEnquiryCard = ({item}: {item: EnquiryListItem}) => {
     const displayNo = getEnquiryDisplayNo(item);
+    const name = getEnquiryCustomerName(item);
     const address = getEnquiryAddress(item);
     const date = getEnquiryDate(item);
     return (
-      <View style={styles.card}>
-        <Text style={styles.taskTitle} numberOfLines={1}>
-          {displayNo ? `ENQUIRY #${displayNo}` : 'ENQUIRY'}
-        </Text>
-        {address ? (
-          <Text style={styles.cardSubtitle} numberOfLines={2}>
-            {address}
+      <TouchableOpacity
+        style={crmStyles.card}
+        activeOpacity={0.8}
+        onPress={() => onEnquiryPress?.(item)}
+      >
+        <View style={crmStyles.cardRibbon}>
+          <Text style={crmStyles.cardRibbonText}>
+            {displayNo ? `ENQUIRY #${displayNo}` : 'ENQUIRY'}
           </Text>
-        ) : null}
-        {date ? <Text style={styles.cardSubtitle}>{date}</Text> : null}
-      </View>
+        </View>
+        <View style={crmStyles.cardBody}>
+          <View style={crmStyles.cardTitleRow}>
+            <Text style={crmStyles.cardTitle} numberOfLines={1}>
+              {name}
+            </Text>
+            {date ? <Text style={crmStyles.cardDateText}>{date}</Text> : null}
+          </View>
+          <View style={crmStyles.cardAddressRow}>
+            <Text style={crmStyles.cardSubtitle} numberOfLines={2}>
+              {address}
+            </Text>
+            <TouchableOpacity
+              style={crmStyles.cardIconButton}
+              onPress={() => onEnquiryEdit?.(item)}
+            >
+              <Ionicons name="create-outline" style={crmStyles.cardIconText} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={crmStyles.cardIconButton}
+              onPress={() => onEnquiryWhatsapp?.(item)}
+            >
+              <Ionicons name="logo-whatsapp" style={crmStyles.cardIconText} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={crmStyles.cardIconButton}
+              onPress={() => onEnquiryCall?.(item)}
+            >
+              <Ionicons name="call-outline" style={crmStyles.cardIconText} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
+  const insets = useSafeAreaInsets();
+  // Java has no on-screen back control here (hardware back returns to the list). Android does
+  // the same; iOS has no hardware back so it keeps a back bar.
+  useEffect(() => {
+    if (Platform.OS !== 'android' || selectedQuotation || selectedInvoice || selectedTask) {
+      return undefined;
+    }
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [onBack, selectedQuotation, selectedInvoice, selectedTask]);
+
+  // Java's empty lists show the "NO RESULT FOUND !" illustration; real errors stay as text.
   const renderEmpty = (message: string) => (
     <View style={styles.emptyBox}>
-      <Text style={styles.emptyText}>{message}</Text>
+      {message.startsWith('No ') ? (
+        <Image
+          source={require('../../../assets/images/noresultfound.png')}
+          style={styles.emptyImage}
+          resizeMode="contain"
+        />
+      ) : (
+        <Text style={styles.emptyText}>{message}</Text>
+      )}
     </View>
   );
 
@@ -487,63 +738,56 @@ const CustomerDetailsScreen = ({
 
   return (
     <View style={styles.screen}>
-      <BackBar onBack={onBack} underAppHeader />
+      {Platform.OS === 'ios' ? (
+        <BackBar onBack={onBack} underAppHeader />
+      ) : (
+        <View style={{height: insets.top + HEADER_CONTENT_HEIGHT}} />
+      )}
 
-      <View style={styles.infoCard}>
-        <View style={styles.infoRows}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Cust Name</Text>
-            <Text style={styles.infoValue} numberOfLines={2}>
-              {customerName}
-            </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Mobile No.</Text>
-            <Text style={styles.infoValue}>{formatPhoneWithCountryCode(customerPhone) || 'NA'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Cust Address</Text>
-            <Text style={styles.infoValue} numberOfLines={3}>
-              {customerAddress}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.infoActionsCol}>
-          <TouchableOpacity
-            style={styles.infoIconButton}
-            onPress={() => onEdit?.(customer)}
-          >
-            <Text style={styles.infoIconText}>✎</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.infoIconButton}
-            onPress={() => onDelete?.(customer)}
-          >
-            <Text style={styles.infoIconText}>🗑</Text>
-          </TouchableOpacity>
-        </View>
+      {/* fragment_crm_task_amc_tabhost: three weighted rows (label .4 / value .6 / action .4) */}
+      <View style={styles.infoRow}>
+        <Text style={styles.infoLabel}>Cust Name</Text>
+        <Text style={styles.infoValue}>{customerName}</Text>
+        <TouchableOpacity style={styles.infoAction} onPress={() => onEdit?.(customer)}>
+          <Ionicons name="create-outline" size={ms(20)} color={THEME_PRIMARY} />
+        </TouchableOpacity>
       </View>
+      <View style={styles.infoRow}>
+        <Text style={styles.infoLabel}>Mobile No.</Text>
+        <Text style={styles.infoValue}>{formatPhoneWithCountryCode(customerPhone) || 'NA'}</Text>
+        <TouchableOpacity style={styles.infoAction} onPress={() => onDelete?.(customer)}>
+          <DeleteIcon size={ms(20)} color={THEME_PRIMARY} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.infoRow}>
+        <Text style={styles.infoLabel}>Cust Address</Text>
+        <Text style={styles.infoValue}>{customerAddress}</Text>
+        <View style={styles.infoAction} />
+      </View>
+      <View style={styles.infoDivider} />
 
-      <View style={styles.tabsRow}>
-        {TABS.map(tab => (
-          <TouchableOpacity
-            key={tab.key}
-            style={styles.tabButton}
-            onPress={() => setActiveTab(tab.key)}
-          >
-            <Text
-              style={[
-                styles.tabButtonText,
-                activeTab === tab.key ? styles.tabButtonTextActive : null,
-              ]}
-            >
-              {tab.label}
-            </Text>
-            {activeTab === tab.key ? (
-              <View style={styles.tabButtonUnderline} />
-            ) : null}
-          </TouchableOpacity>
-        ))}
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.tabsScroll}
+          contentContainerStyle={styles.tabsRow}
+        >
+          {TABS.map(tab => {
+            const selected = activeTab === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                style={[styles.tabButton, selected ? styles.tabButtonActive : null]}
+                onPress={() => setActiveTab(tab.key)}
+              >
+                <Text style={[styles.tabButtonText, selected ? styles.tabButtonTextActive : null]}>
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {activeTab === 'task' ? (
@@ -593,7 +837,7 @@ const CustomerDetailsScreen = ({
             data={amcItems}
             keyExtractor={(item, index) => getAMCId(item, index)}
             renderItem={renderAmcCard}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={styles.docListContent}
             ListEmptyComponent={() => renderEmpty('No AMC records found.')}
           />
         )
@@ -609,7 +853,7 @@ const CustomerDetailsScreen = ({
             data={enquiries}
             keyExtractor={(item, index) => String(getEnquiryId(item) || index)}
             renderItem={renderEnquiryCard}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={styles.enquiryListContent}
             ListEmptyComponent={() => renderEmpty('No enquiries found.')}
           />
         )
@@ -623,43 +867,16 @@ const CustomerDetailsScreen = ({
         <FlatList
           data={quotations}
           keyExtractor={(item, index) => String(getNumberField(item, ['id', 'Id']) || index)}
-          renderItem={({item}) => (
-            <TouchableOpacity style={styles.docCard} onPress={() => setSelectedQuotation(item)}>
-              <Text style={styles.docTitle} numberOfLines={1}>
-                {getStringField(item, ['quoteName', 'QuoteName'])}{' '}
-                <Text style={styles.docId}>[QUO{getNumberField(item, ['id', 'Id'])}]</Text>
-              </Text>
-              <Text style={styles.docSub} numberOfLines={1}>
-                {getStringField(item, ['customerName', 'CustomerName'])}
-              </Text>
-              <Text style={styles.docAmount}>
-                Rs. {formatAmount(getNumberField(item, ['grandTotalAmount', 'GrandTotalAmount']))}
-              </Text>
-            </TouchableOpacity>
-          )}
-          contentContainerStyle={styles.listContent}
+          renderItem={renderQuotationCard}
+          contentContainerStyle={styles.docListContent}
           ListEmptyComponent={() => renderEmpty('No quotations found.')}
         />
       ) : (
         <FlatList
           data={invoices}
           keyExtractor={(item, index) => String(getNumberField(item, ['id', 'Id']) || index)}
-          renderItem={({item}) => (
-            <TouchableOpacity style={styles.docCard} onPress={() => setSelectedInvoice(item)}>
-              <Text style={styles.docTitle} numberOfLines={1}>
-                {getStringField(item, ['quoteTaskName', 'QuoteTaskName'])}{' '}
-                <Text style={styles.docId}>[INV{getNumberField(item, ['id', 'Id'])}]</Text>
-              </Text>
-              <Text style={styles.docSub} numberOfLines={1}>
-                {getStringField(item, ['customerName', 'CustomerName'])}
-              </Text>
-              <Text style={styles.docAmount}>
-                Total: Rs. {formatAmount(getNumberField(item, ['invoiceAmount', 'InvoiceAmount']))}
-                {'   '}Pending: Rs. {formatAmount(getNumberField(item, ['remainingAmount', 'RemainingAmount']))}
-              </Text>
-            </TouchableOpacity>
-          )}
-          contentContainerStyle={styles.listContent}
+          renderItem={renderInvoiceCard}
+          contentContainerStyle={styles.docListContent}
           ListEmptyComponent={() => renderEmpty('No invoices found.')}
         />
       )}
@@ -730,16 +947,112 @@ const CustomerDetailsScreen = ({
 };
 
 const styles = StyleSheet.create({
-  docCard: {
+  // Shared card chrome of crm_amc_list_new / quotation_list / invoice_list.
+  docListContent: {
+    paddingHorizontal: ms(8),
+    paddingTop: ms(8),
+    paddingBottom: ms(24),
+  },
+  listCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: ms(10),
-    padding: ms(12),
-    marginBottom: ms(10),
+    margin: ms(8),
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: {width: 0, height: 1},
   },
-  docTitle: {fontSize: sp(14), fontWeight: '700', color: '#20283A'},
-  docId: {fontSize: sp(12), fontWeight: '400', color: '#5f6368'},
-  docSub: {fontSize: sp(12), color: '#5f6368', marginTop: ms(2)},
-  docAmount: {fontSize: sp(13), color: '#20283A', marginTop: ms(4)},
+  amcInner: {
+    marginHorizontal: ms(10),
+  },
+  amcRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: ms(8),
+  },
+  amcName: {
+    flex: 1,
+    fontSize: sp(12),
+    fontWeight: '700',
+    color: COLORS.ink,
+  },
+  amcStatus: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: sp(12),
+    fontWeight: '700',
+  },
+  amcText: {
+    fontSize: sp(12),
+    color: COLORS.ink,
+  },
+  docRibbon: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: ms(15),
+    paddingVertical: ms(3),
+    borderRadius: ms(10),
+  },
+  docRibbonText: {
+    color: '#FFFFFF',
+    fontSize: sp(9),
+  },
+  docRibbonSpacer: {
+    height: ms(18),
+  },
+  docId: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: ms(5),
+    textAlign: 'center',
+    fontWeight: '700',
+    color: '#1976D2',
+  },
+  docDate: {
+    position: 'absolute',
+    right: ms(8),
+    top: ms(5),
+    fontWeight: '700',
+    color: '#000000',
+  },
+  docBody: {
+    flexDirection: 'row',
+    marginHorizontal: ms(10),
+    marginTop: ms(5),
+    marginBottom: ms(14),
+  },
+  docName: {
+    fontSize: sp(16),
+    fontWeight: '700',
+    color: COLORS.ink,
+    paddingLeft: ms(5),
+    marginBottom: ms(1),
+  },
+  docLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: ms(5),
+  },
+  docLabel: {
+    fontSize: sp(12),
+    color: COLORS.ink,
+    paddingLeft: ms(5),
+  },
+  docValue: {
+    fontSize: sp(12),
+    paddingLeft: ms(10),
+  },
+  docBold: {
+    fontWeight: '700',
+  },
+  docRight: {
+    flex: 0.35,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
+  },
   screen: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -763,90 +1076,89 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: ms(16),
   },
-  infoCard: {
-    flexDirection: 'row',
-    paddingHorizontal: ms(16),
-    paddingVertical: ms(12),
-    borderBottomWidth: ms(2),
-    borderBottomColor: THEME_PRIMARY,
-  },
-  infoRows: {
-    flex: 1,
-  },
+  // Java: TableRow margin 5dp, 15sp text, primary labels / light_gray values, red 1dp divider.
   infoRow: {
     flexDirection: 'row',
-    marginVertical: ms(4),
+    alignItems: 'flex-start',
+    margin: ms(5),
   },
   infoLabel: {
-    fontSize: sp(13),
-    fontWeight: '700',
-    color: THEME_PRIMARY,
-    width: ms(100),
+    flex: 0.4,
+    fontSize: sp(15),
+    color: COLORS.primary,
   },
   infoValue: {
-    fontSize: sp(13),
-    color: '#3c3c3c',
-    flex: 1,
+    flex: 0.6,
+    fontSize: sp(15),
+    color: COLORS.lightGray,
   },
-  infoActionsCol: {
-    justifyContent: 'space-between',
+  infoAction: {
+    flex: 0.4,
     alignItems: 'center',
-    paddingLeft: ms(8),
+    justifyContent: 'center',
+    minHeight: ms(20),
   },
-  infoIconButton: {
-    borderWidth: ms(1),
-    borderColor: THEME_PRIMARY,
-    borderRadius: ms(4),
-    padding: ms(4),
-    marginVertical: ms(4),
+  infoDivider: {
+    height: ms(1),
+    margin: ms(5),
+    backgroundColor: COLORS.primary,
   },
-  infoIconText: {
-    color: THEME_PRIMARY,
-    fontSize: sp(14),
+  // TabLayout (auto mode): white bar, selected tab tinted with a 4dp primary indicator.
+  tabsScroll: {
+    flexGrow: 0,
+    backgroundColor: '#FFFFFF',
   },
   tabsRow: {
-    flexDirection: 'row',
-    borderBottomWidth: ms(1),
-    borderBottomColor: '#E5E7EB',
+    flexGrow: 1,
   },
   tabButton: {
-    flex: 1,
+    flexGrow: 1,
+    paddingHorizontal: ms(10),
+    height: ms(48),
     alignItems: 'center',
-    paddingVertical: ms(10),
+    justifyContent: 'center',
+    borderBottomWidth: ms(4),
+    borderBottomColor: 'transparent',
+  },
+  tabButtonActive: {
+    backgroundColor: COLORS.tabSelector,
+    borderBottomColor: COLORS.primary,
   },
   tabButtonText: {
-    fontSize: sp(11),
-    fontWeight: '600',
-    color: '#8a8a8a',
+    fontSize: sp(14),
+    fontWeight: '500',
+    color: COLORS.darkGray,
   },
   tabButtonTextActive: {
-    color: THEME_PRIMARY,
-  },
-  tabButtonUnderline: {
-    marginTop: ms(6),
-    height: ms(2),
-    width: '80%',
-    backgroundColor: THEME_PRIMARY,
+    color: COLORS.primary,
   },
   filterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: ms(16),
-    paddingVertical: ms(10),
+    paddingVertical: ms(12),
+    borderBottomWidth: ms(1),
+    borderBottomColor: '#EEEEEE',
   },
   filterControl: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: ms(4),
+    gap: ms(10),
   },
   filterLabel: {
-    fontSize: sp(13),
+    fontSize: sp(16),
     color: THEME_PRIMARY,
-    fontWeight: '600',
   },
   filterChevron: {
-    fontSize: sp(13),
+    fontSize: sp(20),
     color: THEME_PRIMARY,
+  },
+  // Java: the enquiry cards carry their own 8dp margin, no extra list padding.
+  enquiryListContent: {
+    paddingHorizontal: ms(8),
+    paddingTop: ms(8),
+    paddingBottom: ms(24),
   },
   listContent: {
     paddingHorizontal: ms(16),
@@ -907,9 +1219,14 @@ const styles = StyleSheet.create({
     paddingVertical: ms(40),
   },
   emptyBox: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: ms(40),
+    paddingBottom: ms(30),
+  },
+  emptyImage: {
+    width: ms(200),
+    height: ms(200),
   },
   emptyText: {
     fontSize: sp(13),

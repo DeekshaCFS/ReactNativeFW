@@ -1062,7 +1062,7 @@ export const styles = StyleSheet.create({
     gap: ms(10),
   },
   cardIconButton: {
-    width: ms(32),
+    width: ms(49),
     height: ms(28),
     alignItems: 'center',
     justifyContent: 'center',

@@ -129,7 +129,7 @@ type AdvanceServiceItem = ServiceTypeListDTOResultData & {
 
 import AddTaskModal, {type AddTaskInitialValues, taskStyles} from './AddTaskModal';
 import OutlinedInput from '../../components/OutlinedInput';
-import {ContactBookIcon, EnquiryIcon, WhatsappIcon} from '../../components/FabIcons';
+import {ContactBookIcon, EnquiryIcon, InvoiceIcon, WhatsappIcon} from '../../components/FabIcons';
 import CustomerDetailsScreen from './CustomerDetailsScreen';
 import EditCustomerModal from './EditCustomerModal';
 import {
@@ -295,6 +295,91 @@ const enquiryDetailStyles = {
     color: '#FFFFFF',
     fontSize: sp(18),
     fontWeight: '500' as const,
+  },
+};
+
+// customer_list_fragment / customerlist_custom_new.
+const customerListStyles = {
+  addCustButton: {
+    width: ms(70),
+    paddingHorizontal: 0,
+    borderRadius: ms(10),
+  },
+  filterRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    paddingTop: ms(10),
+    paddingHorizontal: ms(16),
+    height: ms(40),
+    backgroundColor: '#FFFFFF',
+  },
+  tagSpinner: {
+    flex: 0.5,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+  },
+  tagSpinnerText: {
+    flexShrink: 1,
+    color: '#000000',
+    fontSize: sp(14),
+  },
+  tagSpinnerChevron: {
+    color: COLORS.primary,
+    fontSize: sp(20),
+    marginLeft: ms(6),
+  },
+  refreshButton: {
+    flex: 0.5,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'flex-end' as const,
+  },
+  refreshText: {
+    color: COLORS.primary,
+    fontSize: sp(13),
+    fontWeight: '700' as const,
+    marginRight: ms(5),
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: ms(10),
+    margin: ms(8),
+    paddingLeft: ms(20),
+    paddingRight: ms(12),
+    paddingTop: ms(10),
+    paddingBottom: ms(12),
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: {width: 0, height: 1},
+  },
+  name: {
+    color: COLORS.ink,
+    fontSize: sp(15),
+    fontWeight: '700' as const,
+  },
+  addressRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginTop: ms(16),
+  },
+  address: {
+    flex: 1,
+    color: COLORS.lightGray,
+    fontSize: sp(12),
+  },
+  iconButton: {
+    width: ms(44),
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  phoneIcon: {
+    width: ms(20),
+    height: ms(20),
+    tintColor: '#000000',
   },
 };
 
@@ -1487,6 +1572,26 @@ const CRMScreen = ({
     );
   };
 
+  // customerlist_custom_new: 10dp-radius card (8dp margin), 15sp bold name, then a row with the
+  // 12sp two-line address and the add-task / WhatsApp / call glyphs (20dp, black).
+  const openAddTaskForCustomer = (item: CustomerLookupItem) => {
+    const record = item as Record<string, unknown>;
+    setAddTaskInitialValues({
+      title: '',
+      address: getStringField(record, CUSTOMER_ADDRESS_KEYS),
+      state: getStringField(record, CUSTOMER_STATE_KEYS),
+      city: getStringField(record, CUSTOMER_CITY_KEYS),
+      pinCode: getStringField(record, CUSTOMER_PINCODE_KEYS),
+      landmark: getStringField(record, CUSTOMER_LANDMARK_KEYS) || 'NA',
+      customerName: getStringField(record, CUSTOMER_NAME_KEYS),
+      customerNumber: getStringField(record, CUSTOMER_PHONE_KEYS),
+      customerId: getNumberField(record, CUSTOMER_ID_KEYS) || undefined,
+      taskTagId: 0,
+      taskTagName: '',
+    });
+    setIsAddTaskModalOpen(true);
+  };
+
   const renderCustomerCard = ({item}: {item: CustomerLookupItem}) => {
     const record = item as Record<string, unknown>;
     const name = getStringField(record, CUSTOMER_NAME_KEYS) || 'Customer';
@@ -1495,40 +1600,38 @@ const CRMScreen = ({
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={customerListStyles.card}
         activeOpacity={0.8}
         onPress={() => setSelectedCustomer(item)}
       >
-        <View style={styles.cardBody}>
-          <View style={styles.cardMainCol}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {name}
-            </Text>
-            {addressText ? (
-              <Text style={styles.cardSubtitle} numberOfLines={2}>
-                {addressText}
-              </Text>
-            ) : null}
-            {phoneValue ? (
-              <Text style={styles.cardSubtitle}>{phoneValue}</Text>
-            ) : null}
-          </View>
-          <View style={styles.cardActionsCol}>
-            <View style={styles.cardActionsRow}>
-              <TouchableOpacity
-                style={styles.cardIconButton}
-                onPress={() => openSms(phoneValue)}
-              >
-                <Ionicons name="logo-whatsapp" style={styles.cardIconText} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cardIconButton}
-                onPress={() => openCall(phoneValue)}
-              >
-                <Ionicons name="call-outline" style={styles.cardIconText} />
-              </TouchableOpacity>
-            </View>
-          </View>
+        <Text style={customerListStyles.name} numberOfLines={1}>
+          {name}
+        </Text>
+        <View style={customerListStyles.addressRow}>
+          <Text style={customerListStyles.address} numberOfLines={2}>
+            {addressText}
+          </Text>
+          <TouchableOpacity
+            style={customerListStyles.iconButton}
+            onPress={() => openAddTaskForCustomer(item)}
+          >
+            <InvoiceIcon size={ms(20)} color="#000000" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={customerListStyles.iconButton}
+            onPress={() => openSms(phoneValue)}
+          >
+            <WhatsappIcon size={ms(20)} color="#000000" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={customerListStyles.iconButton}
+            onPress={() => openCall(phoneValue)}
+          >
+            <Image
+              source={require('../../../assets/images/ic_phone.png')}
+              style={customerListStyles.phoneIcon}
+            />
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
@@ -1595,61 +1698,55 @@ const CRMScreen = ({
       )
     : taskTags;
 
-  if (selectedCustomer) {
-    return (
-      <>
-        <CustomerDetailsScreen
-          ownerId={ownerId}
-          customer={selectedCustomer as Record<string, unknown>}
-          onBack={() => setSelectedCustomer(null)}
-          onEdit={record => {
-            setCustomerBeingEdited(record);
-            setIsEditCustomerModalOpen(true);
-          }}
-          onDelete={record => {
-            // CRMTaskAmcTabHostFragment.deleteCustomer (delete_customer_dialog).
-            Alert.alert(
-              '',
-              'Do you want to delete this Customer ? It will delete all customer history.',
-              [
-                {text: 'NO', style: 'cancel'},
-                {
-                  text: 'Yes',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      const response = await deleteCustomerDetails({
-                        UserId: ownerId,
-                        CustomerId: getNumberField(record, ['customerDetailsid', 'CustomerDetailsid']),
-                      });
-                      Alert.alert('', response?.Message ?? 'Customer deleted.');
-                      if (response?.Code === '200') {
-                        setSelectedCustomer(null);
-                        fetchCustomers(true);
+  // Customer details render as an overlay (not an early return) so the enquiry detail / edit
+  // modals below stay mounted and the cards in the Enquiry tab can open them, like Java.
+  const customerDetailsOverlay = selectedCustomer ? (
+    <View style={StyleSheet.absoluteFill}>
+          <CustomerDetailsScreen
+            ownerId={ownerId}
+            customer={selectedCustomer as Record<string, unknown>}
+            onBack={() => setSelectedCustomer(null)}
+            onEnquiryPress={openEnquiryDetailModal}
+            onEnquiryEdit={openEditEnquiryModal}
+            onEnquiryCall={item => openCall(getEnquiryPhone(item))}
+            onEnquiryWhatsapp={item => openSms(getEnquiryPhone(item))}
+            onEdit={record => {
+              setCustomerBeingEdited(record);
+              setIsEditCustomerModalOpen(true);
+            }}
+            onDelete={record => {
+              // CRMTaskAmcTabHostFragment.deleteCustomer (delete_customer_dialog).
+              Alert.alert(
+                '',
+                'Do you want to delete this Customer ? It will delete all customer history.',
+                [
+                  {text: 'NO', style: 'cancel'},
+                  {
+                    text: 'Yes',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        const response = await deleteCustomerDetails({
+                          UserId: ownerId,
+                          CustomerId: getNumberField(record, ['customerDetailsid', 'CustomerDetailsid']),
+                        });
+                        Alert.alert('', response?.Message ?? 'Customer deleted.');
+                        if (response?.Code === '200') {
+                          setSelectedCustomer(null);
+                          fetchCustomers(true);
+                        }
+                      } catch (error) {
+                        Alert.alert('', error instanceof Error ? error.message : 'Unable to delete customer.');
                       }
-                    } catch (error) {
-                      Alert.alert('', error instanceof Error ? error.message : 'Unable to delete customer.');
-                    }
+                    },
                   },
-                },
-              ],
-            );
-          }}
-        />
-        <EditCustomerModal
-          visible={isEditCustomerModalOpen}
-          ownerId={ownerId}
-          customer={customerBeingEdited}
-          onClose={() => setIsEditCustomerModalOpen(false)}
-          onUpdated={updatedCustomer => {
-            setIsEditCustomerModalOpen(false);
-            setSelectedCustomer(updatedCustomer as CustomerLookupItem);
-            fetchCustomers(true);
-          }}
-        />
-      </>
-    );
-  }
+                ],
+              );
+            }}
+          />
+    </View>
+  ) : null;
+
 
   return (
     <View style={styles.screen}>
@@ -1682,11 +1779,9 @@ const CRMScreen = ({
             value={searchText}
             onChangeText={setSearchText}
           />
-          {searchText ? (
-            <TouchableOpacity onPress={() => setSearchText('')}>
-              <Ionicons name="close" style={styles.searchClearIcon} />
-            </TouchableOpacity>
-          ) : null}
+          <TouchableOpacity onPress={() => setSearchText('')}>
+            <Ionicons name="close" style={styles.searchClearIcon} />
+          </TouchableOpacity>
         </View>
         {activeTab === 'enquiries' ? (
           <>
@@ -1705,25 +1800,36 @@ const CRMScreen = ({
           </>
         ) : (
           <TouchableOpacity
-            style={styles.addEnquiryButton}
+            style={[styles.addEnquiryButton, customerListStyles.addCustButton]}
             onPress={() => setIsAddCustomerModalOpen(true)}
           >
-            <Text style={styles.addEnquiryButtonText}>+ Customer</Text>
+            <Text style={styles.addEnquiryButtonText}>+ CUST</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {activeTab === 'customers' ? (
-        <TouchableOpacity style={styles.customerTagFilterPill} onPress={openCustomerTagPicker}>
-          <Text
-            style={
-              customerTagFilter ? styles.dropdownPillTextValue : styles.dropdownPillTextPlaceholder
-            }
-            numberOfLines={1}>
-            {customerTagFilter ? customerTagFilter.label : 'Select Customer Tag'}
-          </Text>
-          <Ionicons name="chevron-down" style={styles.dropdownChevron} />
-        </TouchableOpacity>
+        <View style={customerListStyles.filterRow}>
+          <TouchableOpacity style={customerListStyles.tagSpinner} onPress={openCustomerTagPicker}>
+            <Text style={customerListStyles.tagSpinnerText} numberOfLines={1}>
+              {customerTagFilter ? customerTagFilter.label : 'Select Customer Tag'}
+            </Text>
+            <Ionicons name="chevron-down" style={customerListStyles.tagSpinnerChevron} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={customerListStyles.refreshButton}
+            onPress={() => {
+              if (customerTagFilter) {
+                setCustomerTagFilter(null);
+              } else {
+                fetchCustomers(true);
+              }
+            }}
+          >
+            <Text style={customerListStyles.refreshText}>Refresh List</Text>
+            <Ionicons name="sync" size={ms(22)} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
       ) : null}
 
       {activeTab === 'enquiries' ? (
@@ -1774,6 +1880,7 @@ const CRMScreen = ({
             return String(id || index);
           }}
           renderItem={renderCustomerCard}
+          style={{backgroundColor: '#FFFFFF'}}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
@@ -2457,12 +2564,25 @@ const CRMScreen = ({
         </Pressable>
       </Modal>
 
+      <EditCustomerModal
+        visible={isEditCustomerModalOpen}
+        ownerId={ownerId}
+        customer={customerBeingEdited}
+        onClose={() => setIsEditCustomerModalOpen(false)}
+        onUpdated={updatedCustomer => {
+          setIsEditCustomerModalOpen(false);
+          setSelectedCustomer(updatedCustomer as CustomerLookupItem);
+          fetchCustomers(true);
+        }}
+      />
+
       <AddTaskModal
         visible={isAddTaskModalOpen}
         onClose={() => setIsAddTaskModalOpen(false)}
         ownerId={ownerId}
         initialValues={addTaskInitialValues}
       />
+      {customerDetailsOverlay}
     </View>
   );
 };
