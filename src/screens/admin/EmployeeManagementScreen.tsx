@@ -27,7 +27,8 @@ import {
   type LeaveListResponse,
 } from './adminLegacyApiTypes';
 import { getAllDesignation } from '../../api/umDesignations/umDesignationsService';
-import { getAllEmpList } from '../../api/umEmployeeList/umEmployeeListService';
+import { getAllEmpList, getEmpDetailsForEdit } from '../../api/umEmployeeList/umEmployeeListService';
+import { WhatsappIcon, DeleteIcon } from '../../components/FabIcons';
 import { getAllEmployeeLeaveList } from '../../api/leaveManagement/leaveManagementService';
 import LeaveApprovalModal from './LeaveApprovalModal';
 import { deleteEmpAccount, downloadTechList } from '../../api/users/usersService';
@@ -124,7 +125,8 @@ const getEmployeeName = (item: EmployeeListItem) =>
 
 const getFieldOrNA = (value: string | null | undefined) => {
   const trimmed = String(value ?? '').trim();
-  return trimmed || 'NA';
+  // Java also treats the literal string "null" as missing.
+  return trimmed && trimmed.toLowerCase() !== 'null' ? trimmed : 'NA';
 };
 
 // Java: Picasso placeholder + onError both fall back to R.drawable.profile_icon.
@@ -272,6 +274,12 @@ const EmployeeManagementScreen = ({
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeListItem | null>(
     null,
   );
+  // Java fetches the employee (GetEmpDetailsForEdit) before showing the details dialog; the
+  // mobile number and address come from that response, not from the list row.
+  const [selectedEmployeeExtra, setSelectedEmployeeExtra] = useState<{
+    contact: string;
+    address: string;
+  } | null>(null);
   const [attendanceEmployee, setAttendanceEmployee] = useState<EmployeeListItem | null>(
     null,
   );
@@ -589,6 +597,33 @@ const EmployeeManagementScreen = ({
     setLeaveMonthYear({month: pendingLeaveMonth, year: pendingLeaveYear});
     setLeaveFilterModal(null);
   };
+
+  useEffect(() => {
+    setSelectedEmployeeExtra(null);
+    const employeeId = selectedEmployee?.EmployeeNumber;
+    if (!employeeId) {
+      return;
+    }
+    let active = true;
+    getEmpDetailsForEdit({UserId: ownerId, EmployeeId: employeeId})
+      .then(response => {
+        if (!active) {
+          return;
+        }
+        const resultData = (response as {ResultData?: unknown} | null)?.ResultData;
+        const data = (Array.isArray(resultData) ? resultData[0] : resultData) as
+          | Record<string, unknown>
+          | undefined;
+        setSelectedEmployeeExtra({
+          contact: String(data?.ContactNo ?? ''),
+          address: String(data?.EmpAddress ?? ''),
+        });
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [selectedEmployee, ownerId]);
 
   const handleCallEmployee = (item: EmployeeListItem) => {
     const mobile = String(item.ContactM ?? '').trim();
@@ -1274,12 +1309,12 @@ const EmployeeManagementScreen = ({
         transparent
         animationType="slide"
         onRequestClose={() => setSelectedEmployee(null)}>
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setSelectedEmployee(null)}>
-          <Pressable style={styles.detailsSheet}>
+        {/* dialog_employee_details.xml: Java sets setCancelable(false), so tapping outside
+            the sheet does not dismiss it -- only Cancel / the action icons do. */}
+        <View style={styles.modalBackdrop}>
+          <View style={styles.detailsSheet}>
             {selectedEmployee ? (
-              <>
+              <ScrollView contentContainerStyle={styles.detailsContent}>
                 <View style={styles.detailsHeaderRow}>
                   <Text style={styles.detailsTitle}>Employee Details</Text>
                   <View style={styles.detailsHeaderIcons}>
@@ -1287,70 +1322,67 @@ const EmployeeManagementScreen = ({
                       hitSlop={10}
                       onPress={() => handleEditEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Ionicons name="create-outline" style={styles.detailsIconText} />
+                      <Image
+                        source={require('../../../assets/images/fw_edit_task_icon.png')}
+                        style={styles.detailsIconImage}
+                      />
                     </Pressable>
                     <Pressable
                       hitSlop={10}
                       onPress={() => handleCallEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Ionicons name="call-outline" style={styles.detailsIconText} />
+                      <Image
+                        source={require('../../../assets/images/ic_phone.png')}
+                        style={[styles.detailsIconImage, {tintColor: THEME_PRIMARY}]}
+                      />
                     </Pressable>
                     <Pressable
                       hitSlop={10}
                       onPress={() => handleWhatsAppEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Ionicons name="logo-whatsapp" style={styles.detailsIconText} />
+                      <WhatsappIcon size={ms(20)} color={THEME_PRIMARY} />
                     </Pressable>
                     <Pressable
                       hitSlop={10}
                       onPress={() => handleDeleteEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Ionicons name="trash-outline" style={styles.detailsIconText} />
+                      <DeleteIcon size={ms(20)} color={THEME_PRIMARY} />
                     </Pressable>
                   </View>
                 </View>
 
                 <View style={styles.detailsFieldRow}>
                   <Text style={styles.detailsLabel}>Employee Name</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    {getEmployeeName(selectedEmployee)}
-                  </Text>
+                  <Text style={styles.detailsValue}>{getEmployeeName(selectedEmployee)}</Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
                   <Text style={styles.detailsLabel}>Mobile Number</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    {getFieldOrNA(selectedEmployee.ContactM)}
+                  <Text style={styles.detailsValue}>
+                    {getFieldOrNA(selectedEmployeeExtra?.contact || selectedEmployee.ContactM)}
                   </Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
                   <Text style={styles.detailsLabel}>Employee Type</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    {getFieldOrNA(selectedEmployee.UserGroupName)}
-                  </Text>
+                  <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployee.UserGroupName)}</Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
                   <Text style={styles.detailsLabel}>Designation</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    {getFieldOrNA(selectedEmployee.DesignationName)}
-                  </Text>
+                  <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployee.DesignationName)}</Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
                   <Text style={styles.detailsLabel}>Zone</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    {getFieldOrNA(selectedEmployee.ZoneName)}
-                  </Text>
+                  <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployee.ZoneName)}</Text>
                 </View>
+                {/* Java gives the e-mail row a 1 : 2 weight split with the value centred. */}
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Email ID</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
+                  <Text style={[styles.detailsLabel, styles.detailsLabelThird]}>Email ID</Text>
+                  <Text style={[styles.detailsValue, styles.detailsValueEmail]}>
                     {getFieldOrNA(selectedEmployee.EmailId)}
                   </Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
                   <Text style={styles.detailsLabel}>Address</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    NA
-                  </Text>
+                  <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployeeExtra?.address)}</Text>
                 </View>
 
                 <Pressable
@@ -1358,10 +1390,10 @@ const EmployeeManagementScreen = ({
                   onPress={() => setSelectedEmployee(null)}>
                   <Text style={styles.detailsCancelText}>Cancel</Text>
                 </Pressable>
-              </>
+              </ScrollView>
             ) : null}
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
       <EmployeeAttendanceModal
         visible={attendanceEmployee !== null}
@@ -1949,72 +1981,83 @@ const styles = StyleSheet.create({
   monthPickerButtonTextPrimary: {
     color: '#FFFFFF',
   },
+  // dialog_employee_details.xml: 30dp-radius bottom card, 20dp padding.
   detailsSheet: {
     position: 'absolute',
     bottom: 0,
     width: '100%',
     maxWidth: ms(560),
+    maxHeight: '94%',
     alignSelf: 'center',
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: ms(16),
-    borderTopRightRadius: ms(16),
-    paddingHorizontal: ms(22),
-    paddingTop: ms(20),
-    paddingBottom: ms(28),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    overflow: 'hidden',
+    elevation: 24,
   },
+  detailsContent: {
+    padding: ms(20),
+    paddingBottom: ms(40),
+  },
+  // Title weight 0.55, then four equal 0.1125 icon cells (0.45 total).
   detailsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: ms(18),
+    marginVertical: ms(20),
   },
   detailsTitle: {
-    color: '#111827',
-    fontSize: sp(20),
-    fontWeight: '800',
+    flex: 0.55,
+    color: '#0e0e0e',
+    fontSize: sp(22),
   },
   detailsHeaderIcons: {
+    flex: 0.45,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: ms(16),
   },
   detailsIconButton: {
-    width: ms(30),
-    height: ms(30),
+    flex: 1,
+    height: ms(20),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  detailsIconText: {
-    color: THEME_PRIMARY,
-    fontSize: sp(12),
+  detailsIconImage: {
+    width: ms(20),
+    height: ms(20),
+    resizeMode: 'contain',
   },
   detailsFieldRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: ms(10),
+    alignItems: 'flex-start',
+    marginBottom: ms(16),
   },
   detailsLabel: {
-    color: '#111827',
-    fontSize: sp(12),
-    fontWeight: '500',
-    flex: 1,
+    flex: 0.5,
+    color: '#1d2536',
+    fontSize: sp(16),
   },
   detailsValue: {
-    color: '#7A7A7A',
-    fontSize: sp(12),
-    flex: 1,
-    textAlign: 'right',
+    flex: 0.5,
+    paddingLeft: ms(3),
+    color: '#9a9faa',
+    fontSize: sp(16),
+    textAlign: 'left',
+  },
+  detailsLabelThird: {
+    flex: 1 / 3,
+  },
+  detailsValueEmail: {
+    flex: 2 / 3,
+    textAlign: 'center',
   },
   detailsCancelButton: {
-    marginTop: ms(18),
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignSelf: 'center',
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(10),
   },
   detailsCancelText: {
     color: THEME_PRIMARY,
-    fontSize: sp(12),
-    fontWeight: '500',
+    fontSize: sp(18),
   },
 });
 
