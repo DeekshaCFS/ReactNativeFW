@@ -26,6 +26,7 @@ import {
   View,
 } from 'react-native';
 import Modal from '../../components/AppModal';
+import SearchPickerModal from '../../components/SearchPickerModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -756,7 +757,6 @@ const AMCDashboardScreen = ({
     useState<AddAMCDropdownOption | null>(null);
   const [activeAddDropdown, setActiveAddDropdown] =
     useState<AddAMCDropdownKind | null>(null);
-  const [addDropdownSearch, setAddDropdownSearch] = useState('');
   const [amcName, setAmcName] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerNumber, setCustomerNumber] = useState('');
@@ -1441,7 +1441,6 @@ const AMCDashboardScreen = ({
 
   const openAddDropdown = (kind: AddAMCDropdownKind) => {
     setActiveAddDropdown(kind);
-    setAddDropdownSearch('');
   };
 
   const getActiveAddDropdownConfig = () => {
@@ -1534,74 +1533,29 @@ const AMCDashboardScreen = ({
     );
   };
 
+  // Java AMCDialog: dialog_searchable_spinner_occurence / _reminder -- the shared dialog.
   const renderAddDropdownModal = () => {
     if (!activeAddDropdown) {
       return null;
     }
 
     const config = getActiveAddDropdownConfig();
-    const filteredOptions = config.options.filter(option =>
-      option.name
-        .toLowerCase()
-        .includes(addDropdownSearch.trim().toLowerCase()),
-    );
 
     return (
-      <Modal
-        transparent
-        animationType="fade"
+      <SearchPickerModal
         visible
-        onRequestClose={() => setActiveAddDropdown(null)}
-      >
-        <Pressable
-          style={styles.searchDropdownBackdrop}
-          onPress={() => setActiveAddDropdown(null)}
-        >
-          <Pressable style={styles.searchDropdownPanel} onPress={() => {}}>
-            <Text style={styles.searchDropdownTitle}>{config.title}</Text>
-            <TextInput
-              style={styles.searchDropdownInput}
-              placeholder="Search..."
-              placeholderTextColor="#777777"
-              value={addDropdownSearch}
-              onChangeText={setAddDropdownSearch}
-              autoFocus
-            />
-            <ScrollView
-              style={styles.searchDropdownList}
-              keyboardShouldPersistTaps="handled"
-            >
-              {filteredOptions.map(option => {
-                const selected = option.id === config.selected?.id;
-                return (
-                  <Pressable
-                    key={`${option.id}-${option.name}`}
-                    style={[
-                      styles.searchDropdownOption,
-                      selected ? styles.searchDropdownOptionSelected : null,
-                    ]}
-                    onPress={() => handleAddDropdownSelect(option)}
-                  >
-                    <Text
-                      style={[
-                        styles.searchDropdownOptionText,
-                        selected
-                          ? styles.searchDropdownOptionTextSelected
-                          : null,
-                      ]}
-                    >
-                      {option.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-              {filteredOptions.length === 0 ? (
-                <Text style={styles.searchDropdownEmpty}>No results found</Text>
-              ) : null}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title={config.title}
+        options={config.options.map(option => ({id: option.id, label: option.name}))}
+        onSelect={picked => {
+          const option = config.options.find(
+            o => o.id === picked.id && o.name === picked.label,
+          );
+          if (option) {
+            handleAddDropdownSelect(option);
+          }
+        }}
+        onClose={() => setActiveAddDropdown(null)}
+      />
     );
   };
 

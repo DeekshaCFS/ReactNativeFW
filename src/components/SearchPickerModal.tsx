@@ -83,8 +83,15 @@ const SearchPickerModal: React.FC<Props> = ({
     if (onSearch) {
       return options;
     }
+    // Java filters these lists with ArrayAdapter's default filter: the value, or any word in
+    // it, must START with the typed text (not merely contain it).
     const q = query.trim().toLowerCase();
-    return q ? options.filter(o => o.label.toLowerCase().includes(q)) : options;
+    return q
+      ? options.filter(o => {
+          const v = o.label.toLowerCase();
+          return v.startsWith(q) || v.split(' ').some(w => w.startsWith(q));
+        })
+      : options;
   }, [onSearch, options, query]);
 
   const dismiss = () => {

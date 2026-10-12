@@ -10,6 +10,7 @@ import {
   ActivityIndicator, Alert, Linking, FlatList,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
+import SearchPickerModal from '../../../components/SearchPickerModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import { ms, sp, scale } from '../../../utils/responsive';
@@ -264,28 +265,20 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
         </View>
       </View>
 
-      {/* FSR picker */}
-      <Modal visible={fsrPickerOpen} transparent animationType="fade" onRequestClose={() => setFsrPickerOpen(false)}>
-        <Pressable style={styles.overlay} onPress={() => setFsrPickerOpen(false)} />
-        <View style={styles.fsrModal}>
-          <Text style={styles.sectionLabel}>Select FSR</Text>
-          <FlatList
-            data={fsrList}
-            keyExtractor={(item, idx) => String(item.FSRId ?? idx)}
-            ListHeaderComponent={
-              <Pressable style={styles.fsrItem} onPress={() => { setSelectedFsr(null); setFsrPickerOpen(false); }}>
-                <Text style={styles.fsrItemText}>Select FSR</Text>
-              </Pressable>
-            }
-            renderItem={({ item }) => (
-              <Pressable style={styles.fsrItem} onPress={() => { setSelectedFsr(item); setFsrPickerOpen(false); }}>
-                <Text style={styles.fsrItemText}>{item.FSRName}</Text>
-              </Pressable>
-            )}
-            style={{ maxHeight: ms(260) }}
-          />
-        </View>
-      </Modal>
+      {/* FSR picker -- Java dialog_searchable_spinner ("Select FSR"), the shared dialog. */}
+      <SearchPickerModal
+        visible={fsrPickerOpen}
+        title="Select FSR"
+        options={fsrList.map((item, idx) => ({ id: Number(item.FSRId) || idx + 1, label: String(item.FSRName ?? '') }))}
+        onSelect={option => {
+          const item = fsrList.find((it, idx) => (Number(it.FSRId) || idx + 1) === option.id && String(it.FSRName ?? '') === option.label);
+          if (item) {
+            setSelectedFsr(item);
+          }
+          setFsrPickerOpen(false);
+        }}
+        onClose={() => setFsrPickerOpen(false)}
+      />
     </Modal>
   );
 }

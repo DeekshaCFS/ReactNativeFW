@@ -39,6 +39,7 @@ import TechnicianLiveMapScreen from './TechnicianLiveMapScreen';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../theme/theme';
 import TabStrip from '../../components/TabStrip';
+import SearchPickerModal from '../../components/SearchPickerModal';
 
 type EmployeeManagementScreenProps = {
   ownerId: number;
@@ -292,8 +293,8 @@ const EmployeeManagementScreen = ({
   const modalConfig = useMemo(() => {
     if (filterModal === 'type') {
       return {
-        title: 'Select Emp Type',
-        options: [{id: 0, label: 'Select Emp Type'}, ...employeeTypes],
+        title: 'Select Employee Type',
+        options: employeeTypes,
         selectedId: selectedType.id,
       };
     }
@@ -301,14 +302,14 @@ const EmployeeManagementScreen = ({
     if (filterModal === 'zone') {
       return {
         title: 'Select Zone',
-        options: [{id: 0, label: 'Select Zone'}, ...zones],
+        options: zones,
         selectedId: selectedZone.id,
       };
     }
 
     return {
       title: 'Status',
-      options: [{id: 0, label: 'Status'}, ...statuses],
+      options: statuses,
       selectedId: selectedStatus.id,
     };
   }, [
@@ -1157,43 +1158,25 @@ const EmployeeManagementScreen = ({
         }}
       />
 
-      <Modal
+      {/* Java: dialog_searchable_emp_type / _zone / _status -- the shared searchable dialog. */}
+      <SearchPickerModal
         visible={filterModal !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setFilterModal(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setFilterModal(null)}>
-          <Pressable
-            style={[
-              styles.modalPanel,
-              leaveFilterModal === 'leaveMonth' ? styles.monthModalPanel : null,
-            ]}>
-            <Text style={styles.modalTitle}>{modalConfig.title}</Text>
-            {modalConfig.options.map(option => (
-              <TouchableOpacity
-                key={`${filterModal}-${option.id}`}
-                style={[
-                  styles.modalItem,
-                  option.id === modalConfig.selectedId ? styles.modalItemActive : null,
-                ]}
-                onPress={() => selectFilter(option)}>
-                <Text
-                  style={[
-                    styles.modalItemText,
-                    option.id === modalConfig.selectedId
-                      ? styles.modalItemTextActive
-                      : null,
-                  ]}>
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title={modalConfig.title}
+        options={modalConfig.options}
+        onSelect={selectFilter}
+        onClose={() => setFilterModal(null)}
+      />
+
+      <SearchPickerModal
+        visible={leaveFilterModal === 'leaveStatus'}
+        title="Status"
+        options={LEAVE_STATUS_OPTIONS}
+        onSelect={selectLeaveStatus}
+        onClose={() => setLeaveFilterModal(null)}
+      />
 
       <Modal
-        visible={leaveFilterModal !== null}
+        visible={leaveFilterModal === 'leaveMonth'}
         transparent
         animationType="fade"
         onRequestClose={() => setLeaveFilterModal(null)}>
@@ -1201,34 +1184,6 @@ const EmployeeManagementScreen = ({
           style={styles.modalBackdrop}
           onPress={() => setLeaveFilterModal(null)}>
           <Pressable style={styles.modalPanel}>
-            {leaveFilterModal === 'leaveStatus' ? (
-              <>
-                <Text style={styles.modalTitle}>Select Status</Text>
-                {LEAVE_STATUS_OPTIONS.map((option, index) => (
-                  <TouchableOpacity
-                    key={`${option.id}-${option.label}-${index}`}
-                    style={[
-                      styles.modalItem,
-                      option.id === selectedLeaveStatus.id &&
-                      option.label === selectedLeaveStatus.label
-                        ? styles.modalItemActive
-                        : null,
-                    ]}
-                    onPress={() => selectLeaveStatus(option)}>
-                    <Text
-                      style={[
-                        styles.modalItemText,
-                        option.id === selectedLeaveStatus.id &&
-                        option.label === selectedLeaveStatus.label
-                          ? styles.modalItemTextActive
-                          : null,
-                      ]}>
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </>
-            ) : (
               <>
                 <Text style={styles.modalTitle}>Select month</Text>
                 <View style={styles.monthPickerBody}>
@@ -1299,7 +1254,6 @@ const EmployeeManagementScreen = ({
                   </Pressable>
                 </View>
               </>
-            )}
           </Pressable>
         </Pressable>
       </Modal>

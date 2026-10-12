@@ -24,6 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, ms } from '../../../utils/responsive';
 import ImageSourceDialog from '../../../components/ImageSourceDialog';
+import SearchPickerModal from '../../../components/SearchPickerModal';
 import { sanitizeDecimalInput } from '../../../utils/decimal';
 import {
   GetAllTaskListDTOResultData as Task,
@@ -504,7 +505,6 @@ export default function TaskClosure({ navigation, route }: any) {
 
   // Searchable item picker modal
   const [showItemPicker, setShowItemPicker] = useState(false);
-  const [itemPickerSearch, setItemPickerSearch] = useState('');
   const pendingSlotIndexRef = useRef<number>(-1);
 
   // ─── FSR Checkpoints ────
@@ -1751,7 +1751,6 @@ export default function TaskClosure({ navigation, route }: any) {
                             style={usedItemStyles.itemPickerBtn}
                             onPress={() => {
                               pendingSlotIndexRef.current = idx;
-                              setItemPickerSearch('');
                               setShowItemPicker(true);
                             }}
                           >
@@ -1942,64 +1941,32 @@ export default function TaskClosure({ navigation, route }: any) {
         </Pressable>
       </Modal>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          SEARCHABLE ITEM PICKER 
-      ══════════════════════════════════════════════════════════════════ */}
-      <Modal
+      {/* Java UpdateUsedItems_FW: dialog_searchable_spinner_item -- the shared dialog. */}
+      <SearchPickerModal
         visible={showItemPicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowItemPicker(false)}
-      >
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setShowItemPicker(false)}
-        >
-          <Pressable>
-            <View style={usedItemStyles.pickerSheet}>
-              <TextInput
-                value={itemPickerSearch}
-                onChangeText={setItemPickerSearch}
-                placeholder="Search item..."
-                placeholderTextColor="#ABABAB"
-                style={usedItemStyles.pickerSearch}
-                autoFocus
-              />
-              <ScrollView style={{ maxHeight: vs(350) }} keyboardShouldPersistTaps="handled">
-                {issueList
-                  .filter(i =>
-                    i.Name.toLowerCase().includes(itemPickerSearch.toLowerCase())
-                  )
-                  .map(item => (
-                    <Pressable
-                      key={item.Id}
-                      style={usedItemStyles.pickerRow}
-                      onPress={() => {
-                        const idx = pendingSlotIndexRef.current;
-                        if (idx < 0) return;
-                        setAdHocSlots(prev => {
-                          const updated = [...prev];
-                          updated[idx] = {
-                            itemIssuedId: item.Id,       // Id from AllItemList
-                            itemId:       item.ItemId,
-                            itemName:     item.Name,
-                            salesPrice:   item.SalesPrice,
-                            avlQty:       item.Quantity, // UnAssignedQuantity mapped above
-                            usedQty:      updated[idx]?.usedQty ?? '',
-                          };
-                          return updated;
-                        });
-                        setShowItemPicker(false);
-                      }}
-                    >
-                      <Text style={usedItemStyles.pickerRowText}>{item.Name}</Text>
-                    </Pressable>
-                  ))}
-              </ScrollView>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select Item"
+        options={issueList.map(i => ({ id: i.Id, label: i.Name }))}
+        onSelect={option => {
+          const item = issueList.find(i => i.Id === option.id);
+          const idx = pendingSlotIndexRef.current;
+          if (item && idx >= 0) {
+            setAdHocSlots(prev => {
+              const updated = [...prev];
+              updated[idx] = {
+                itemIssuedId: item.Id,       // Id from AllItemList
+                itemId:       item.ItemId,
+                itemName:     item.Name,
+                salesPrice:   item.SalesPrice,
+                avlQty:       item.Quantity, // UnAssignedQuantity mapped above
+                usedQty:      updated[idx]?.usedQty ?? '',
+              };
+              return updated;
+            });
+          }
+          setShowItemPicker(false);
+        }}
+        onClose={() => setShowItemPicker(false)}
+      />
 
 
       {/* Off-screen signature replicas used only to produce PNGs (see SignatureSnapshot). */}

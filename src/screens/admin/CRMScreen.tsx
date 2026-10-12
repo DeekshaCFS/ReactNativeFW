@@ -566,7 +566,6 @@ const CRMScreen = ({
   const [taskTags, setTaskTags] = useState<TaskTagOption[]>([]);
   const [isTaskTagModalOpen, setIsTaskTagModalOpen] = useState(false);
   const [isTaskTagLoading, setIsTaskTagLoading] = useState(false);
-  const [taskTagSearch, setTaskTagSearch] = useState('');
   const [selectedTaskTag, setSelectedTaskTag] = useState<TaskTagOption | null>(
     null,
   );
@@ -1062,7 +1061,6 @@ const CRMScreen = ({
     setSelectedService(null);
     setSelectedTaskTag(null);
     setServiceTypeSearch('');
-    setTaskTagSearch('');
     setCustomerSuggestions([]);
     setShowCustomerSuggestions(false);
   };
@@ -1697,12 +1695,6 @@ const CRMScreen = ({
   };
 
   const displayedServiceTree = filterServiceTree(serviceTree, serviceTypeSearch);
-  const displayedTaskTags = taskTagSearch.trim()
-    ? taskTags.filter(tag =>
-        tag.label.toLowerCase().includes(taskTagSearch.trim().toLowerCase()),
-      )
-    : taskTags;
-
   // Customer details render as an overlay (not an early return) so the enquiry detail / edit
   // modals below stay mounted and the cards in the Enquiry tab can open them, like Java.
   const customerDetailsOverlay = selectedCustomer ? (
@@ -2532,57 +2524,22 @@ const CRMScreen = ({
         </Pressable>
       </Modal>
 
-      <Modal
+      {/* Java: dialog_searchable_spinner_tasktag -- the shared searchable dialog. */}
+      <SearchPickerModal
         visible={isTaskTagModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsTaskTagModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsTaskTagModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Task Tag</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
-                value={taskTagSearch}
-                onChangeText={setTaskTagSearch}
-              />
-              <Text style={styles.searchModalIcon}>🔍</Text>
-            </View>
-            {isTaskTagLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : (
-              <ScrollView style={styles.taskTagModalScroll}>
-                {displayedTaskTags.map(tag => (
-                  <TouchableOpacity
-                    key={tag.id}
-                    style={styles.taskTagItem}
-                    onPress={() => {
-                      setSelectedTaskTag(tag);
-                      setIsTaskTagModalOpen(false);
-                      setTaskTagSearch('');
-                    }}
-                  >
-                    <Text style={styles.taskTagItemText}>{tag.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                {displayedTaskTags.length === 0 ? (
-                  <Text style={styles.emptyText}>No task tags found.</Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select Task Tag"
+        options={taskTags}
+        loading={isTaskTagLoading}
+        emptyText="No task tags found."
+        onSelect={option => {
+          const tag = taskTags.find(t => t.id === option.id);
+          if (tag) {
+            setSelectedTaskTag(tag);
+          }
+          setIsTaskTagModalOpen(false);
+        }}
+        onClose={() => setIsTaskTagModalOpen(false)}
+      />
 
       <EditCustomerModal
         visible={isEditCustomerModalOpen}

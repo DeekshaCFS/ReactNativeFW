@@ -32,6 +32,7 @@ import type { KYC_List_DTOResultData } from '../../../api/umEmployeeList/umEmplo
 import { ms, sp, scale, vs, useAppHeaderHeight } from '../../../utils/responsive';
 import { PencilEditIcon, EditFieldIcon } from '../../../components/DialogIcons';
 import PlaceSearchModal from '../../../components/PlaceSearchModal';
+import SearchPickerModal from '../../../components/SearchPickerModal';
 
 // `UserResultData` / `KycDocType` are just local aliases for the api-layer
 // DTO shapes, kept so the rest of this screen reads the same as before.
@@ -174,7 +175,6 @@ export default function TechProfileScreen() {
   const [docTypeId, setDocTypeId] = useState<number>(0);
   const [docTypeName, setDocTypeName] = useState<string>('');
   const [showDocDropdown, setShowDocDropdown] = useState(false);
-  const [kycSearch, setKycSearch] = useState('');
 
   const [selectedFile, setSelectedFile] = useState<{
     name: string; type: string; base64: string;
@@ -328,7 +328,6 @@ export default function TechProfileScreen() {
     setDocTypeId(item.DocTypeId);
     setDocTypeName(item.DocTypeName);
     setShowDocDropdown(false);
-    setKycSearch('');
   };
 
   // Mirrors onDateSet(): updates DOB and closes the picker. On Android the
@@ -348,9 +347,6 @@ export default function TechProfileScreen() {
     setProfile(prev => prev ? { ...prev, DOB: dobDateOnly } : prev);
   };
 
-  const filteredKycList = kycList.filter(d =>
-    d.DocTypeName.toLowerCase().includes(kycSearch.toLowerCase()),
-  );
 
   // ─── Mobile / Email OTP verification (VerifyOTPDialog in Java) ─────────────
   const openOtpFlow = (from: 'MOBILE' | 'EMAIL') => {
@@ -636,30 +632,6 @@ export default function TechProfileScreen() {
             <Ionicons name="chevron-down" size={scale(18)} color={COLORS.textBlack} />
           </Pressable>
 
-          {showDocDropdown && (
-            <View style={styles.dropdownBox}>
-              <TextInput
-                style={styles.dropdownSearch}
-                placeholder="Search..."
-                value={kycSearch}
-                onChangeText={setKycSearch}
-              />
-              {(kycList.length > 0
-                ? filteredKycList
-                : (['Aadhar', 'PAN', 'Driving License'] as const).map((name) => ({
-                    DocTypeId: FALLBACK_DOC_TYPE_MAP[name], DocTypeName: name,
-                  }))
-              ).map((item) => (
-                <Pressable
-                  key={item.DocTypeId}
-                  style={({ pressed }) => [styles.dropdownItem, pressed && { backgroundColor: '#f5f5f5' }]}
-                  onPress={() => handleSelectDocType(item)}
-                >
-                  <Text style={{ fontSize: sp(15) }}>{item.DocTypeName}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
         </View>
 
         {/* File Attach */}
@@ -728,6 +700,20 @@ export default function TechProfileScreen() {
       </Modal>
 
       {/* Address search (Java's full-screen Places Autocomplete) */}
+      {/* Java ProfileFragmentNew: dialog_searchable_spinner_kyc -- the shared dialog. */}
+      <SearchPickerModal
+        visible={showDocDropdown}
+        title="Select Document"
+        options={(kycList.length > 0
+          ? kycList
+          : (['Aadhar', 'PAN', 'Driving License'] as const).map((name) => ({
+              DocTypeId: FALLBACK_DOC_TYPE_MAP[name], DocTypeName: name,
+            }))
+        ).map((d) => ({ id: d.DocTypeId, label: d.DocTypeName }))}
+        onSelect={(option) => handleSelectDocType({ DocTypeId: option.id, DocTypeName: option.label })}
+        onClose={() => setShowDocDropdown(false)}
+      />
+
       <PlaceSearchModal
         visible={showPlaceSearch}
         onClose={() => setShowPlaceSearch(false)}

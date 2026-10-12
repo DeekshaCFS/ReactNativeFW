@@ -713,12 +713,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     UsersListResultData[]
   >([]);
   const [isFieldworkerLoading, setIsFieldworkerLoading] = useState(false);
-  const [fieldworkerSearch, setFieldworkerSearch] = useState('');
 
   const [taskTags, setTaskTags] = useState<TaskTagOption[]>([]);
   const [isTaskTagLoading, setIsTaskTagLoading] = useState(false);
   const [isAddTaskTagModalOpen, setIsAddTaskTagModalOpen] = useState(false);
-  const [addTaskTagSearch, setAddTaskTagSearch] = useState('');
   const [selectedAddTaskTag, setSelectedAddTaskTag] =
     useState<TaskTagOption | null>(null);
 
@@ -806,14 +804,12 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   const [quoteList, setQuoteList] = useState<QuoteOption[]>([]);
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState('');
-  const [quoteSearch, setQuoteSearch] = useState('');
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<QuoteOption | null>(null);
 
   const [fsrList, setFsrList] = useState<FSROption[]>([]);
   const [isFsrLoading, setIsFsrLoading] = useState(false);
   const [fsrError, setFsrError] = useState('');
-  const [fsrSearch, setFsrSearch] = useState('');
   const [isFsrModalOpen, setIsFsrModalOpen] = useState(false);
   const [selectedFsr, setSelectedFsr] = useState<FSROption | null>(null);
 
@@ -842,13 +838,11 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         ? {id: initialValues.assignedFieldworkerId, name: initialValues.assignedFieldworkerName ?? 'Me'}
         : null,
     );
-    setFieldworkerSearch('');
     const tagId = initialValues?.taskTagId ?? 0;
     const tagName = initialValues?.taskTagName ?? '';
     setSelectedAddTaskTag(
       tagId || tagName ? {id: tagId, label: tagName || 'Task'} : null,
     );
-    setAddTaskTagSearch('');
     // PaymentModeId 2 = Rate (Out of Warranty), 1 = AMC (In Warranty).
     setWarrantyMode(initialValues?.paymentModeId === 2 ? 'out' : 'in');
     setAmcAmount(initialValues?.wagesPerHour ? String(initialValues.wagesPerHour) : '');
@@ -887,11 +881,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setSelectedTaskService(null);
     setTaskServiceTypeSearch('');
     setSelectedQuote(null);
-    setQuoteSearch('');
     setSelectedFsr(
       initialValues?.fsrId ? {id: initialValues.fsrId, label: initialValues.fsrName || 'FSR'} : null,
     );
-    setFsrSearch('');
     setTaskSpecialInstructions(initialValues?.description ?? '');
     setInstructionAudioPath('');
     setInstructionRecordSeconds(0);
@@ -963,23 +955,12 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       .finally(() => setIsFieldworkerLoading(false));
   }, [allFieldworkers.length, isFieldworkerLoading, ownerId]);
 
-  const displayedFieldworkers = useMemo(() => {
-    const query = fieldworkerSearch.trim().toLowerCase();
-    if (!query) {
-      return allFieldworkers;
-    }
-    return allFieldworkers.filter(item =>
-      getFieldworkerName(item).toLowerCase().includes(query),
-    );
-  }, [allFieldworkers, fieldworkerSearch]);
-
   const handleFieldworkerSelect = (item: UsersListResultData) => {
     setSelectedFieldworker({
       id: getFieldworkerId(item),
       name: getFieldworkerName(item),
     });
     setIsFieldworkerModalOpen(false);
-    setFieldworkerSearch('');
   };
 
   const loadTaskTags = useCallback(() => {
@@ -1056,16 +1037,6 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       .finally(() => setIsQuoteLoading(false));
   }, [isQuoteLoading, ownerId, quoteList.length]);
 
-  const displayedQuoteList = useMemo(() => {
-    const query = quoteSearch.trim().toLowerCase();
-    if (!query) {
-      return quoteList;
-    }
-    return quoteList.filter(option =>
-      option.label.toLowerCase().includes(query),
-    );
-  }, [quoteList, quoteSearch]);
-
   const loadFsrList = useCallback(() => {
     if (fsrList.length > 0 || isFsrLoading) {
       return;
@@ -1092,16 +1063,6 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       })
       .finally(() => setIsFsrLoading(false));
   }, [fsrList.length, isFsrLoading, ownerId]);
-
-  const displayedFsrList = useMemo(() => {
-    const query = fsrSearch.trim().toLowerCase();
-    if (!query) {
-      return fsrList;
-    }
-    return fsrList.filter(option =>
-      option.label.toLowerCase().includes(query),
-    );
-  }, [fsrList, fsrSearch]);
 
   const MAX_INSTRUCTION_RECORD_SECONDS = 30;
   const MAX_INSTRUCTION_CHARS = 4000;
@@ -1814,18 +1775,6 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   const displayedTaskServiceTree = useMemo(
     () => filterServiceTree(serviceTree, taskServiceTypeSearch),
     [serviceTree, taskServiceTypeSearch],
-  );
-
-  const displayedAddTaskTags = useMemo(
-    () =>
-      addTaskTagSearch.trim()
-        ? taskTags.filter(tag =>
-            tag.label
-              .toLowerCase()
-              .includes(addTaskTagSearch.trim().toLowerCase()),
-          )
-        : taskTags,
-    [addTaskTagSearch, taskTags],
   );
 
   const handleAddTaskSubmit = async () => {
@@ -2864,63 +2813,24 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         />
       ) : null}
 
-      <Modal
+      {/* Java TaskDialogNew: dialog_searchable_spinner_technician -- the shared dialog. */}
+      <SearchPickerModal
         visible={isFieldworkerModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsFieldworkerModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsFieldworkerModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Fieldworker</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
-                value={fieldworkerSearch}
-                onChangeText={setFieldworkerSearch}
-              />
-            </View>
-            {isFieldworkerLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : (
-              <ScrollView style={styles.taskTagModalScroll}>
-                {displayedFieldworkers.map(item => {
-                  const name = getFieldworkerName(item);
-                  const isSelected = selectedFieldworker?.id === getFieldworkerId(item);
-                  return (
-                    <TouchableOpacity
-                      key={getFieldworkerId(item) || name}
-                      style={styles.taskTagItem}
-                      onPress={() => handleFieldworkerSelect(item)}
-                    >
-                      <Text
-                        style={[
-                          styles.taskTagItemText,
-                          isSelected ? styles.serviceLeafTextSelected : null,
-                        ]}
-                      >
-                        {name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-                {displayedFieldworkers.length === 0 ? (
-                  <Text style={styles.emptyText}>No fieldworkers found.</Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select Fieldworkers"
+        options={allFieldworkers.map(item => ({
+          id: getFieldworkerId(item),
+          label: getFieldworkerName(item),
+        }))}
+        loading={isFieldworkerLoading}
+        emptyText="No fieldworkers found."
+        onSelect={picked => {
+          const item = allFieldworkers.find(i => getFieldworkerId(i) === picked.id);
+          if (item) {
+            handleFieldworkerSelect(item);
+          }
+        }}
+        onClose={() => setIsFieldworkerModalOpen(false)}
+      />
 
       <SearchPickerModal
         visible={productPicker !== null}
@@ -2945,111 +2855,39 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         }
       />
 
-      <Modal
+      <SearchPickerModal
         visible={isAddTaskTagModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsAddTaskTagModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsAddTaskTagModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Task Tag</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
-                value={addTaskTagSearch}
-                onChangeText={setAddTaskTagSearch}
-              />
-            </View>
-            {isTaskTagLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : (
-              <ScrollView style={styles.taskTagModalScroll}>
-                {displayedAddTaskTags.map(tag => (
-                  <TouchableOpacity
-                    key={tag.id}
-                    style={styles.taskTagItem}
-                    onPress={() => {
-                      setSelectedAddTaskTag(tag);
-                      setIsAddTaskTagModalOpen(false);
-                      setAddTaskTagSearch('');
-                    }}
-                  >
-                    <Text style={styles.taskTagItemText}>{tag.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                {displayedAddTaskTags.length === 0 ? (
-                  <Text style={styles.emptyText}>No task tags found.</Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select Task Tag"
+        options={taskTags}
+        loading={isTaskTagLoading}
+        emptyText="No task tags found."
+        onSelect={picked => {
+          const tag = taskTags.find(t => t.id === picked.id);
+          if (tag) {
+            setSelectedAddTaskTag(tag);
+          }
+          setIsAddTaskTagModalOpen(false);
+        }}
+        onClose={() => setIsAddTaskTagModalOpen(false)}
+      />
 
-      <Modal
+      <SearchPickerModal
         visible={isItemSearchModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsItemSearchModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsItemSearchModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Item</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Pls Enter Min 3 Characters."
-                placeholderTextColor="#9aa0a6"
-                value={itemSearchQuery}
-                onChangeText={setItemSearchQuery}
-                autoFocus
-              />
-            </View>
-            {isItemSearchLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : itemSearchQuery.trim().length < 3 ? (
-              <Text style={styles.itemSearchHintText}>
-                Pls Enter Min 3 Characters.
-              </Text>
-            ) : (
-              <ScrollView
-                style={styles.taskTagModalScroll}
-                keyboardShouldPersistTaps="handled"
-              >
-                {itemSearchResults.map(option => (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={styles.taskTagItem}
-                    onPress={() => handleItemOptionSelect(option)}
-                  >
-                    <Text style={styles.taskTagItemText}>{option.name}</Text>
-                  </TouchableOpacity>
-                ))}
-                {itemSearchResults.length === 0 ? (
-                  <Text style={styles.emptyText}>No items found.</Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select Item"
+        options={itemSearchResults.map(option => ({id: option.id, label: option.name}))}
+        loading={isItemSearchLoading}
+        searchHint="Pls Enter Min 3 Characters."
+        minChars={3}
+        emptyText="No items found."
+        onSearch={setItemSearchQuery}
+        onSelect={picked => {
+          const option = itemSearchResults.find(o => o.id === picked.id);
+          if (option) {
+            handleItemOptionSelect(option);
+          }
+        }}
+        onClose={() => setIsItemSearchModalOpen(false)}
+      />
 
       <Modal
         visible={isTaskServiceModalOpen}
@@ -3094,111 +2932,37 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         </Pressable>
       </Modal>
 
-      <Modal
+      <SearchPickerModal
         visible={isQuoteModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsQuoteModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsQuoteModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Quote</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
-                value={quoteSearch}
-                onChangeText={setQuoteSearch}
-              />
-            </View>
-            {isQuoteLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : (
-              <ScrollView style={styles.taskTagModalScroll}>
-                {displayedQuoteList.map(option => (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={styles.taskTagItem}
-                    onPress={() => {
-                      setSelectedQuote(option);
-                      setIsQuoteModalOpen(false);
-                      setQuoteSearch('');
-                    }}
-                  >
-                    <Text style={styles.taskTagItemText}>{option.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                {displayedQuoteList.length === 0 ? (
-                  <Text style={styles.emptyText}>
-                    {quoteError || 'No quotes found.'}
-                  </Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select Quote"
+        options={quoteList}
+        loading={isQuoteLoading}
+        emptyText={quoteError || 'No quotes found.'}
+        onSelect={picked => {
+          const option = quoteList.find(o => o.id === picked.id);
+          if (option) {
+            setSelectedQuote(option);
+          }
+          setIsQuoteModalOpen(false);
+        }}
+        onClose={() => setIsQuoteModalOpen(false)}
+      />
 
-      <Modal
+      <SearchPickerModal
         visible={isFsrModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsFsrModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsFsrModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select FSR</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
-                value={fsrSearch}
-                onChangeText={setFsrSearch}
-              />
-            </View>
-            {isFsrLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : (
-              <ScrollView style={styles.taskTagModalScroll}>
-                {displayedFsrList.map(option => (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={styles.taskTagItem}
-                    onPress={() => {
-                      setSelectedFsr(option);
-                      setIsFsrModalOpen(false);
-                      setFsrSearch('');
-                    }}
-                  >
-                    <Text style={styles.taskTagItemText}>{option.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                {displayedFsrList.length === 0 ? (
-                  <Text style={styles.emptyText}>
-                    {fsrError || 'No FSR found.'}
-                  </Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select FSR"
+        options={fsrList}
+        loading={isFsrLoading}
+        emptyText={fsrError || 'No FSR found.'}
+        onSelect={picked => {
+          const option = fsrList.find(o => o.id === picked.id);
+          if (option) {
+            setSelectedFsr(option);
+          }
+          setIsFsrModalOpen(false);
+        }}
+        onClose={() => setIsFsrModalOpen(false)}
+      />
     </>
   );
 };

@@ -13,64 +13,13 @@ import { getFocList, getFocStatusTagList, getDeleteFocRequestItem } from '../../
 import type { GetFOCListResultData, GetFOCStatusTagListResultData } from '../../../api/focItemRequest/focItemRequest.types';
 import { getCurrentUserId } from '../../../state/session';
 import DeleteFocDialog from '../../../components/DeleteFocDialog';
+import SearchPickerModal from '../../../components/SearchPickerModal';
 import { FocRequestCard, FocFilterRow, formatFocDate } from '../../../components/FocRequestCard';
 
 const ISSUE_OPTIONS = [
   { id: 1, label: 'Yes' },
   { id: 2, label: 'No' },
 ];
-
-// Java: Dialog with dialog_searchable_* layout, window 800x1000px, ArrayAdapter filter.
-function SearchablePicker({ visible, title, options, onSelect, onClose }: {
-  visible: boolean;
-  title: string;
-  options: string[];
-  onSelect: (label: string) => void;
-  onClose: () => void;
-}) {
-  const [query, setQuery] = useState('');
-  useEffect(() => { if (visible) setQuery(''); }, [visible]);
-
-  // ArrayAdapter's default filter: prefix of the whole value or of any word in it.
-  const q = query.trim().toLowerCase();
-  const data = q
-    ? options.filter(o => {
-        const v = o.toLowerCase();
-        return v.startsWith(q) || v.split(' ').some(w => w.startsWith(q));
-      })
-    : options;
-
-  const { width, height } = Dimensions.get('window');
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose} />
-      <View pointerEvents="box-none" style={[styles.dialogWrap, { height: height * (1000 / 2400) }]}>
-        <View style={[styles.dialog, { width: width * (800 / 1080) }]}>
-          <Text style={styles.dialogTitle}>{title}</Text>
-          <TextInput
-            style={styles.dialogSearch}
-            placeholder="Search..."
-            placeholderTextColor="#757575"
-            value={query}
-            onChangeText={setQuery}
-            numberOfLines={1}
-          />
-          <FlatList
-            style={{ flexGrow: 0 }}
-            data={data}
-            keyExtractor={(item, i) => item + i}
-            keyboardShouldPersistTaps="handled"
-            renderItem={({ item }) => (
-              <Pressable style={styles.dialogItem} android_ripple={{ color: '#ddd' }} onPress={() => onSelect(item)}>
-                <Text style={styles.dialogItemText}>{item}</Text>
-              </Pressable>
-            )}
-          />
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
 export default function RequestedItems() {
   const navigation = useNavigation<any>();
@@ -259,25 +208,25 @@ export default function RequestedItems() {
         onCancel={() => setPendingDeleteId(null)}
       />
 
-      <SearchablePicker
+      <SearchPickerModal
         visible={activeDropdown === 'STATUS'}
         title="Select Status Tag"
-        options={statusTagList.map(t => t.FocStatusName ?? '')}
+        options={statusTagList.map((t, i) => ({ id: i + 1, label: t.FocStatusName ?? '' }))}
         onClose={() => setActiveDropdown(null)}
-        onSelect={label => {
-          const tag = statusTagList.find(t => t.FocStatusName === label) ?? null;
+        onSelect={option => {
+          const tag = statusTagList.find(t => (t.FocStatusName ?? '') === option.label) ?? null;
           setSelectedStatusTag(tag);
           setActiveDropdown(null);
         }}
       />
 
-      <SearchablePicker
+      <SearchPickerModal
         visible={activeDropdown === 'ISSUE'}
         title="Select Issue"
-        options={ISSUE_OPTIONS.map(o => o.label)}
+        options={ISSUE_OPTIONS}
         onClose={() => setActiveDropdown(null)}
-        onSelect={label => {
-          setSelectedIssueType(ISSUE_OPTIONS.find(o => o.label === label) ?? null);
+        onSelect={option => {
+          setSelectedIssueType(ISSUE_OPTIONS.find(o => o.id === option.id) ?? null);
           setActiveDropdown(null);
         }}
       />
@@ -352,48 +301,5 @@ const styles = StyleSheet.create({
   emptyImage: {
     width: scale(180),
     height: scale(180),
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  dialogWrap: {
-    // Java: Dialog window is 800x1000px; the layout wraps its content at the top of it
-    alignSelf: 'center',
-    marginTop: 'auto',
-    marginBottom: 'auto',
-    top: -ms(15.5),
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  dialog: {
-    backgroundColor: '#fff',
-    padding: ms(16),
-  },
-  dialogTitle: {
-    fontSize: sp(20),
-    fontWeight: 'bold',
-    color: '#666',
-  },
-  dialogSearch: {
-    marginTop: ms(8),
-    marginBottom: ms(8),
-    paddingVertical: ms(9.5),
-    paddingHorizontal: ms(12),
-    borderWidth: 1,
-    borderColor: '#ff4a4a',
-    borderRadius: ms(10),
-    fontSize: sp(17),
-    color: '#000',
-  },
-  dialogItem: {
-    minHeight: ms(48),
-    justifyContent: 'center',
-    paddingHorizontal: ms(16),
-  },
-  dialogItemText: {
-    fontSize: sp(15),
-    color: '#000',
   },
 });

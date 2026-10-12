@@ -22,6 +22,7 @@ import { downloadReport } from '../../../api/report/reportService';
 import type { TasksListResultData as Task, TagListResultData as TaskTag } from '../../../api/task/task.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DrumPicker from '../../../components/DrumPicker';
+import SearchPickerModal from '../../../components/SearchPickerModal';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTaskStatus } from '../../../hooks/useTaskStatus';
 import { useOpenTask } from '../../../hooks/useOpenTask';
@@ -40,8 +41,6 @@ export default function TaskScreen({ navigation, route }: any) {
   const [selectedStatus, setSelectedStatus] = useState<any>(null);
 
   const [search, setSearch] = useState('');
-  const [tagSearch, setTagSearch] = useState('');
-  const [statusSearch, setStatusSearch] = useState('');
 
   // Paging bookkeeping lives in refs so a fetch loop and onEndReached always see current values.
   const pageRef = React.useRef(1);
@@ -516,78 +515,31 @@ export default function TaskScreen({ navigation, route }: any) {
         onDownload={handleDownloadFile}
       />
 
-      {/* TAG MODAL */}
-      <Modal visible={activeDropdown === 'TAG'} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setActiveDropdown(null)} />
-        <View style={styles.centerModal}>
-          <Text style={styles.modalTitle}>Select Task Tag</Text>
-          <View style={styles.modalSearchBox}>
-            <TextInput
-              value={tagSearch}
-              onChangeText={setTagSearch}
-              placeholder="Search..."
-              placeholderTextColor="#9CA3AF"
-              style={styles.modalSearchInput}
-              cursorColor={COLORS.primary}
-            />
-          </View>
-          <FlatList
-            data={tagList.filter(tag =>
-              tag.TaskTagName.toLowerCase().includes(tagSearch.toLowerCase())
-            )}
-            keyExtractor={(item, index) =>
-              item?.TaskTagId ? item.TaskTagId.toString() : index.toString()
-            }
-            renderItem={({ item }) => (
-              <Pressable style={styles.modalItem} onPress={() => {
-                setSelectedTag(item); setTagSearch(''); setActiveDropdown(null);
-              }}>
-                <Text style={styles.itemText}>{item.TaskTagName}</Text>
-              </Pressable>
-            )}
-            style={{ maxHeight: vs(220) }}
-            showsVerticalScrollIndicator
-            bounces={false}
-          />
-        </View>
-      </Modal>
+      {/* Java: dialog_searchable_spinner_tasktag / _status -- the shared searchable dialog. */}
+      <SearchPickerModal
+        visible={activeDropdown === 'TAG'}
+        title="Select Task Tag"
+        options={tagList.map(tag => ({ id: Number(tag.TaskTagId) || 0, label: tag.TaskTagName }))}
+        onSelect={option => {
+          const tag = tagList.find(t => (Number(t.TaskTagId) || 0) === option.id && t.TaskTagName === option.label);
+          if (tag) {
+            setSelectedTag(tag);
+          }
+          setActiveDropdown(null);
+        }}
+        onClose={() => setActiveDropdown(null)}
+      />
 
-      {/* STATUS MODAL */}
-      <Modal visible={activeDropdown === 'STATUS'} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setActiveDropdown(null)} />
-        <View style={styles.centerModal}>
-          <Text style={styles.modalTitle}>Select Status</Text>
-          <View style={styles.modalSearchBox}>
-            <TextInput
-              value={statusSearch}
-              onChangeText={setStatusSearch}
-              placeholder="Search..."
-              placeholderTextColor="#9CA3AF"
-              style={styles.modalSearchInput}
-              cursorColor={COLORS.primary}
-            />
-          </View>
-          <FlatList
-            data={statusList.filter(item =>
-              item.Name.toLowerCase().includes(statusSearch.toLowerCase())
-            )}
-            keyExtractor={(item, index) =>
-              item?.Id !== undefined ? item.Id.toString() : index.toString()
-            }
-            renderItem={({ item }) => (
-              <Pressable style={styles.modalItem} onPress={() => {
-                setSelectedStatus({ Id: item.Id, Name: item.Name });
-                setStatusSearch(''); setActiveDropdown(null);
-              }}>
-                <Text style={styles.itemText}>{item.Name}</Text>
-              </Pressable>
-            )}
-            style={{ maxHeight: vs(220) }}
-            showsVerticalScrollIndicator
-            bounces={false}
-          />
-        </View>
-      </Modal>
+      <SearchPickerModal
+        visible={activeDropdown === 'STATUS'}
+        title="Status"
+        options={statusList.map(item => ({ id: Number(item.Id) || 0, label: String(item.Name ?? '') }))}
+        onSelect={option => {
+          setSelectedStatus({ Id: option.id, Name: option.label });
+          setActiveDropdown(null);
+        }}
+        onClose={() => setActiveDropdown(null)}
+      />
 
       {/* MONTH PICKER MODAL */}
       <Modal visible={showMonthPicker} transparent animationType="fade">

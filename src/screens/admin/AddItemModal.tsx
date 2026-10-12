@@ -20,6 +20,7 @@ import {
   View,
 } from 'react-native';
 import Modal from '../../components/AppModal';
+import SearchPickerModal from '../../components/SearchPickerModal';
 import {
   launchImageLibrary,
   type Asset,
@@ -123,7 +124,6 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
   const [isItemGroupLoading, setIsItemGroupLoading] = useState(false);
   const [itemGroupError, setItemGroupError] = useState('');
   const [isItemGroupModalOpen, setIsItemGroupModalOpen] = useState(false);
-  const [itemGroupSearch, setItemGroupSearch] = useState('');
   const [selectedItemGroup, setSelectedItemGroup] =
     useState<LookupOption | null>(null);
 
@@ -133,7 +133,6 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
   const [isItemUnitLoading, setIsItemUnitLoading] = useState(false);
   const [itemUnitError, setItemUnitError] = useState('');
   const [isItemUnitModalOpen, setIsItemUnitModalOpen] = useState(false);
-  const [itemUnitSearch, setItemUnitSearch] = useState('');
   const [selectedItemUnit, setSelectedItemUnit] =
     useState<LookupOption | null>(null);
 
@@ -189,10 +188,8 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
     setSerialNo('');
     setHsnCode('');
     setSelectedItemGroup(null);
-    setItemGroupSearch('');
     setQuantity('0');
     setSelectedItemUnit(null);
-    setItemUnitSearch('');
     setPurchasePrice('');
     setSalesPrice('');
     setDescription('');
@@ -264,29 +261,6 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
       .finally(() => setIsItemUnitLoading(false));
   }, [isItemUnitLoading, itemUnits.length, ownerId]);
 
-  const displayedItemGroups = useMemo(
-    () =>
-      itemGroupSearch.trim()
-        ? itemGroups.filter(option =>
-            option.name
-              .toLowerCase()
-              .includes(itemGroupSearch.trim().toLowerCase()),
-          )
-        : itemGroups,
-    [itemGroupSearch, itemGroups],
-  );
-
-  const displayedItemUnits = useMemo(
-    () =>
-      itemUnitSearch.trim()
-        ? itemUnits.filter(option =>
-            option.name
-              .toLowerCase()
-              .includes(itemUnitSearch.trim().toLowerCase()),
-          )
-        : itemUnits,
-    [itemUnitSearch, itemUnits],
-  );
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
@@ -680,121 +654,38 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
         </View>
       </Modal>
 
-      <Modal
+      {/* Java ItemDialog: dialog_searchable_itemgroup / _spinner_unit -- the shared dialog. */}
+      <SearchPickerModal
         visible={isItemGroupModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsItemGroupModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsItemGroupModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Item Group</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
-                value={itemGroupSearch}
-                onChangeText={setItemGroupSearch}
-                autoFocus
-              />
-              <Text style={styles.searchModalIcon}>🔍</Text>
-            </View>
-            {isItemGroupLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : (
-              <ScrollView
-                style={styles.taskTagModalScroll}
-                keyboardShouldPersistTaps="handled"
-              >
-                {displayedItemGroups.map(option => (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={styles.taskTagItem}
-                    onPress={() => {
-                      setSelectedItemGroup(option);
-                      setIsItemGroupModalOpen(false);
-                      setItemGroupSearch('');
-                    }}
-                  >
-                    <Text style={styles.taskTagItemText}>{option.name}</Text>
-                  </TouchableOpacity>
-                ))}
-                {displayedItemGroups.length === 0 ? (
-                  <Text style={styles.emptyText}>
-                    {itemGroupError || 'No item groups found.'}
-                  </Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select Item Group"
+        options={itemGroups.map(option => ({id: option.id, label: option.name}))}
+        loading={isItemGroupLoading}
+        emptyText={itemGroupError || 'No item groups found.'}
+        onSelect={picked => {
+          const option = itemGroups.find(o => o.id === picked.id);
+          if (option) {
+            setSelectedItemGroup(option);
+          }
+          setIsItemGroupModalOpen(false);
+        }}
+        onClose={() => setIsItemGroupModalOpen(false)}
+      />
 
-      <Modal
+      <SearchPickerModal
         visible={isItemUnitModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsItemUnitModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsItemUnitModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Unit</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
-                value={itemUnitSearch}
-                onChangeText={setItemUnitSearch}
-                autoFocus
-              />
-              <Text style={styles.searchModalIcon}>🔍</Text>
-            </View>
-            {isItemUnitLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : (
-              <ScrollView
-                style={styles.taskTagModalScroll}
-                keyboardShouldPersistTaps="handled"
-              >
-                {displayedItemUnits.map(option => (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={styles.taskTagItem}
-                    onPress={() => {
-                      setSelectedItemUnit(option);
-                      setIsItemUnitModalOpen(false);
-                      setItemUnitSearch('');
-                    }}
-                  >
-                    <Text style={styles.taskTagItemText}>{option.name}</Text>
-                  </TouchableOpacity>
-                ))}
-                {displayedItemUnits.length === 0 ? (
-                  <Text style={styles.emptyText}>
-                    {itemUnitError || 'No units found.'}
-                  </Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select Unit"
+        options={itemUnits.map(option => ({id: option.id, label: option.name}))}
+        loading={isItemUnitLoading}
+        emptyText={itemUnitError || 'No units found.'}
+        onSelect={picked => {
+          const option = itemUnits.find(o => o.id === picked.id);
+          if (option) {
+            setSelectedItemUnit(option);
+          }
+          setIsItemUnitModalOpen(false);
+        }}
+        onClose={() => setIsItemUnitModalOpen(false)}
+      />
     </>
   );
 };

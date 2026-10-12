@@ -31,6 +31,7 @@ import {
 } from './crmShared';
 import {isFieldworkerRecord, taskStyles} from './AddTaskModal';
 import {AssignItemIcon} from '../../components/FabIcons';
+import SearchPickerModal from '../../components/SearchPickerModal';
 import {COLORS} from '../../theme/theme';
 
 // Same Java dialog sheet / header / spinner metrics as the Add Task form.
@@ -106,7 +107,6 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
     UsersListResultData[]
   >([]);
   const [isFieldworkerLoading, setIsFieldworkerLoading] = useState(false);
-  const [fieldworkerSearch, setFieldworkerSearch] = useState('');
 
   const [quantity, setQuantity] = useState('0');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -116,7 +116,6 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
     setItemSearchQuery('');
     setItemOptions([]);
     setSelectedFieldworker(null);
-    setFieldworkerSearch('');
     setQuantity('0');
   }, []);
 
@@ -198,23 +197,12 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
       .finally(() => setIsFieldworkerLoading(false));
   }, [allFieldworkers.length, isFieldworkerLoading, ownerId]);
 
-  const displayedFieldworkers = useMemo(() => {
-    const query = fieldworkerSearch.trim().toLowerCase();
-    if (!query) {
-      return allFieldworkers;
-    }
-    return allFieldworkers.filter(item =>
-      getFieldworkerName(item).toLowerCase().includes(query),
-    );
-  }, [allFieldworkers, fieldworkerSearch]);
-
   const handleFieldworkerSelect = (item: UsersListResultData) => {
     setSelectedFieldworker({
       id: getFieldworkerId(item),
       name: getFieldworkerName(item),
     });
     setIsFieldworkerModalOpen(false);
-    setFieldworkerSearch('');
   };
 
   const handleQuantityIncrement = () => {
@@ -386,119 +374,42 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
         </View>
       </Modal>
 
-      <Modal
+      {/* Java ItemDialog: dialog_searchable_spinner_item / _technician -- the shared dialog. */}
+      <SearchPickerModal
         visible={isItemModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsItemModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsItemModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Item</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Pls Enter Min 3 Characters."
-                placeholderTextColor="#9aa0a6"
-                value={itemSearchQuery}
-                onChangeText={setItemSearchQuery}
-                autoFocus
-              />
-            </View>
-            {isItemLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : itemSearchQuery.trim().length < 3 ? (
-              <Text style={styles.itemSearchHintText}>
-                Pls Enter Min 3 Characters.
-              </Text>
-            ) : (
-              <ScrollView
-                style={styles.taskTagModalScroll}
-                keyboardShouldPersistTaps="handled"
-              >
-                {itemOptions.map(option => (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={styles.taskTagItem}
-                    onPress={() => handleItemSelect(option)}
-                  >
-                    <Text style={styles.taskTagItemText}>{option.name}</Text>
-                  </TouchableOpacity>
-                ))}
-                {itemOptions.length === 0 ? (
-                  <Text style={styles.emptyText}>No items found.</Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select Item"
+        options={itemOptions.map(option => ({id: option.id, label: option.name}))}
+        loading={isItemLoading}
+        searchHint="Pls Enter Min 3 Characters."
+        minChars={3}
+        emptyText="No items found."
+        onSearch={setItemSearchQuery}
+        onSelect={picked => {
+          const option = itemOptions.find(o => o.id === picked.id);
+          if (option) {
+            handleItemSelect(option);
+          }
+        }}
+        onClose={() => setIsItemModalOpen(false)}
+      />
 
-      <Modal
+      <SearchPickerModal
         visible={isFieldworkerModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsFieldworkerModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsFieldworkerModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Fieldworkers</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
-                value={fieldworkerSearch}
-                onChangeText={setFieldworkerSearch}
-              />
-            </View>
-            {isFieldworkerLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : (
-              <ScrollView style={styles.taskTagModalScroll}>
-                {displayedFieldworkers.map(item => {
-                  const name = getFieldworkerName(item);
-                  const isSelected =
-                    selectedFieldworker?.id === getFieldworkerId(item);
-                  return (
-                    <TouchableOpacity
-                      key={getFieldworkerId(item) || name}
-                      style={styles.taskTagItem}
-                      onPress={() => handleFieldworkerSelect(item)}
-                    >
-                      <Text
-                        style={[
-                          styles.taskTagItemText,
-                          isSelected ? styles.serviceLeafTextSelected : null,
-                        ]}
-                      >
-                        {name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-                {displayedFieldworkers.length === 0 ? (
-                  <Text style={styles.emptyText}>No fieldworkers found.</Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title="Select Fieldworkers"
+        options={allFieldworkers.map(item => ({
+          id: getFieldworkerId(item),
+          label: getFieldworkerName(item),
+        }))}
+        loading={isFieldworkerLoading}
+        emptyText="No fieldworkers found."
+        onSelect={picked => {
+          const item = allFieldworkers.find(i => getFieldworkerId(i) === picked.id);
+          if (item) {
+            handleFieldworkerSelect(item);
+          }
+        }}
+        onClose={() => setIsFieldworkerModalOpen(false)}
+      />
     </>
   );
 };
