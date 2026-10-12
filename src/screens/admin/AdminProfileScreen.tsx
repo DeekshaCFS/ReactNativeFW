@@ -22,7 +22,8 @@ import {
 import { getKycList } from '../../api/umEmployeeList/umEmployeeListService';
 import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
-import SearchPickerModal, { type PickerOption } from '../../components/SearchPickerModal';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
+import SearchPickerModal,{ type PickerOption } from '../../components/SearchPickerModal';
 import type { UserDetailsResultData, UpdateUserResultData } from '../../api/users/users.types';
 import { ms, sp, scale, vs } from '../../utils/responsive';
 
@@ -38,16 +39,25 @@ interface FieldProps {
   editable?: boolean;
   onChange?: (v: string) => void;
   onEditIconPress?: () => void;
+  /** Read-only tap target (Google Places address search), like TechProfileScreen's Address. */
+  onPress?: () => void;
   maxLength?: number;
 }
 
 const Field: React.FC<FieldProps> = ({
   label, value, keyboard = 'default', showEditIcon = false, editable = true,
-  onChange, onEditIconPress, maxLength,
+  onChange, onEditIconPress, onPress, maxLength,
 }) => (
   <View style={fieldStyles.wrapper}>
     <Text style={fieldStyles.floatingLabel}>{label}</Text>
     <View style={fieldStyles.inputBox}>
+      {onPress ? (
+        <Pressable style={{ flex: 1, justifyContent: 'center' }} onPress={onPress}>
+          <Text style={[fieldStyles.input, !value && { color: COLORS.lightGray }]} numberOfLines={1}>
+            {value || ''}
+          </Text>
+        </Pressable>
+      ) : (
       <TextInput
         style={fieldStyles.input}
         value={value ?? ''}
@@ -57,6 +67,7 @@ const Field: React.FC<FieldProps> = ({
         maxLength={maxLength}
         cursorColor={COLORS.primary}
       />
+      )}
       {showEditIcon && (
         <Pressable style={fieldStyles.editIcon} onPress={onEditIconPress}>
           <Ionicons name="create-outline" size={scale(20)} color={COLORS.primary} />
@@ -127,6 +138,8 @@ export default function AdminProfileScreen() {
 
   const [companyName, setCompanyName] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
+  // Which address field the Google Places search is currently filling.
+  const [placeSearchFor, setPlaceSearchFor] = useState<'address' | 'companyAddress' | null>(null);
   const [gstOrPan, setGstOrPan] = useState('');
   const [companyWebsite, setCompanyWebsite] = useState('');
   const [companyContactNo, setCompanyContactNo] = useState('');
@@ -510,7 +523,7 @@ export default function AdminProfileScreen() {
         />
 
         <Field label="Address" value={profile?.Address}
-          onChange={(v) => setProfile(prev => prev ? { ...prev, Address: v } : prev)} />
+          onPress={() => setPlaceSearchFor('address')} />
 
         {/* E-Mail — read-only once set, edit via OTP (imageView_editEmail) */}
         <Field
@@ -584,7 +597,8 @@ export default function AdminProfileScreen() {
 
         <Field label="Company Name" value={companyName} onChange={setCompanyName} />
         <Field label="Company Display Name" value={companyDisplayName} onChange={setCompanyDisplayName} />
-        <Field label="Company Address" value={companyAddress} onChange={setCompanyAddress} />
+        <Field label="Company Address" value={companyAddress}
+          onPress={() => setPlaceSearchFor('companyAddress')} />
         <Field label="GST / PAN No" value={gstOrPan} maxLength={15} onChange={(v) => setGstOrPan(v.toUpperCase())} />
         <Field label="Company Website" keyboard="url" value={companyWebsite} onChange={setCompanyWebsite} />
         <Field label="Company Contact No" keyboard="phone-pad" value={companyContactNo} onChange={setCompanyContactNo} />
@@ -692,7 +706,20 @@ export default function AdminProfileScreen() {
       </Modal>
 
       {/* Mobile / Email OTP verification (VerifyOTPDialog in Java) */}
-      <Modal visible={otpModal.visible} transparent animationType="fade" onRequestClose={closeOtpFlow}>
+      <PlaceSearchModal
+        visible={placeSearchFor !== null}
+        onClose={() => setPlaceSearchFor(null)}
+        onSelect={(place) => {
+          if (placeSearchFor === 'address') {
+            setProfile(prev => prev ? { ...prev, Address: place.address } : prev);
+          } else if (placeSearchFor === 'companyAddress') {
+            setCompanyAddress(place.address);
+          }
+          setPlaceSearchFor(null);
+        }}
+      />
+
+      <Modal visible={otpModal.visible}transparent animationType="fade" onRequestClose={closeOtpFlow}>
         <Pressable style={styles.modalBackdrop} onPress={closeOtpFlow}>
           <Pressable>
             <View style={styles.otpSheet}>

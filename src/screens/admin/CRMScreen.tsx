@@ -129,6 +129,7 @@ type AdvanceServiceItem = ServiceTypeListDTOResultData & {
 
 import AddTaskModal, {type AddTaskInitialValues, taskStyles} from './AddTaskModal';
 import OutlinedInput from '../../components/OutlinedInput';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
 import {ContactBookIcon, EnquiryIcon, InvoiceIcon, WhatsappIcon} from '../../components/FabIcons';
 import CustomerDetailsScreen from './CustomerDetailsScreen';
 import EditCustomerModal from './EditCustomerModal';
@@ -521,6 +522,8 @@ const CRMScreen = ({
   const [enquiryDate, setEnquiryDate] = useState(getTodayDateString);
   const [enquiryTime, setEnquiryTime] = useState(getTaskStartTimeString);
   const [address, setAddress] = useState('');
+  const [isPlaceSearchOpen, setIsPlaceSearchOpen] = useState(false);
+  const [placeCoords, setPlaceCoords] = useState<{latitude: string; longitude: string} | null>(null);
   const [state, setStateValue] = useState('');
   const [city, setCity] = useState('');
   const [pinCode, setPinCode] = useState('');
@@ -1041,6 +1044,7 @@ const CRMScreen = ({
     setEnquiryDate(getTodayDateString());
     setEnquiryTime(getTaskStartTimeString());
     setAddress('');
+    setPlaceCoords(null);
     setStateValue('');
     setStateId(0);
     setCity('');
@@ -1088,6 +1092,7 @@ const CRMScreen = ({
     setEnquiryDate(getEnquiryDate(item) || getTodayDateString());
     setEnquiryTime(getEnquiryTime(item) || getTaskStartTimeString());
     setAddress(getEnquiryAddress(item));
+    setPlaceCoords(null);
     setStateValue(getEnquiryState(item));
     setCity(getEnquiryCity(item));
     setPinCode(getEnquiryPinCode(item));
@@ -1245,7 +1250,7 @@ const CRMScreen = ({
           LocDescription: editingEnquiryExtra?.locDescription || 'NA',
           LocName: editingEnquiryExtra?.locName || '',
           LocationId: editingEnquiryExtra?.locationId || 0,
-          Longitude: editingEnquiryExtra?.longitude || '',
+          Longitude: placeCoords?.longitude || editingEnquiryExtra?.longitude || '',
           MobileNumber: phone.trim(),
           OwnerId: ownerId,
           PinCode: pinCode.trim(),
@@ -1299,8 +1304,8 @@ const CRMScreen = ({
           PinCode: pinCode.trim(),
           LocDescription: landmark.trim(),
           LocName: '',
-          Longitude: '',
-          latitude: '',
+          Longitude: placeCoords?.longitude || '',
+          latitude: placeCoords?.latitude || '',
           ServicesId: selectedService?.id || 0,
           TaskTagId: selectedTaskTag?.id || 0,
           TaskTagName: selectedTaskTag?.label || '',
@@ -2040,13 +2045,18 @@ const CRMScreen = ({
                 </View>
 
                 <View style={eq.fieldWrap}>
-                  <OutlinedInput
-                    style={eq.pillInput}
-                    placeholder="Customer Address *"
-                    placeholderTextColor={COLORS.lightGray}
-                    value={address}
-                    onChangeText={setAddress}
-                  />
+                  {/* Java: tapping the address opens the full-screen Google Places search. */}
+                  <Pressable onPress={() => setIsPlaceSearchOpen(true)}>
+                    <View pointerEvents="none">
+                      <OutlinedInput
+                        style={eq.pillInput}
+                        placeholder="Customer Address *"
+                        placeholderTextColor={COLORS.lightGray}
+                        value={address}
+                        editable={false}
+                      />
+                    </View>
+                  </Pressable>
                 </View>
 
                 <View style={[eq.fieldRow, eq.stateCityFieldRow]}>
@@ -2293,6 +2303,16 @@ const CRMScreen = ({
           </View>
         </View>
       </Modal>
+
+      <PlaceSearchModal
+        visible={isPlaceSearchOpen}
+        onClose={() => setIsPlaceSearchOpen(false)}
+        onSelect={place => {
+          setAddress(place.address);
+          setPlaceCoords({latitude: String(place.latitude), longitude: String(place.longitude)});
+          setIsPlaceSearchOpen(false);
+        }}
+      />
 
       <Modal
         visible={isEnquiryDetailModalOpen}

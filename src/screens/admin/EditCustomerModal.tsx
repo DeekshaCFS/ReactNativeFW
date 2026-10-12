@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import Modal from '../../components/AppModal';
 import OutlinedInput from '../../components/OutlinedInput';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
 import {ContactBookIcon, EnquiryIcon} from '../../components/FabIcons';
 import {COLORS} from '../../theme/theme';
 import {taskStyles} from './AddTaskModal';
@@ -198,6 +199,14 @@ const EditCustomerModal = ({
   const [customerTags, setCustomerTags] = useState<CustomerTagOption[]>([]);
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
   const [isTagLoading, setIsTagLoading] = useState(false);
+  // Which address field the Google Places search is currently filling.
+  const [placeSearchFor, setPlaceSearchFor] = useState<'address' | 'secondaryAddress' | null>(null);
+  const [pickedCoords, setPickedCoords] = useState<{latitude: string; longitude: string} | null>(null);
+
+  useEffect(() => {
+    setPickedCoords(null);
+    setPlaceSearchFor(null);
+  }, [visible]);
 
   useEffect(() => {
     if (visible && isAddMode) {
@@ -402,8 +411,8 @@ const EditCustomerModal = ({
         UpdatedBy: ownerId,
         // Java re-sends the stored coordinates on update; omitting them risks
         // clearing the customer's saved map location.
-        latitude: String(customer?.latitude ?? customer?.Latitude ?? ''),
-        Longitude: String(customer?.Longitude ?? customer?.longitude ?? ''),
+        latitude: pickedCoords?.latitude ?? String(customer?.latitude ?? customer?.Latitude ?? ''),
+        Longitude: pickedCoords?.longitude ?? String(customer?.Longitude ?? customer?.longitude ?? ''),
       };
 
       if (isAddMode) {
@@ -520,6 +529,7 @@ const EditCustomerModal = ({
               required
               value={form.address}
               onChangeText={text => setField('address', text)}
+              onPress={() => setPlaceSearchFor('address')}
             />
 
             <LabeledField
@@ -737,6 +747,7 @@ const EditCustomerModal = ({
               label="Secondary Address"
               value={form.secondaryAddress}
               onChangeText={text => setField('secondaryAddress', text)}
+              onPress={() => setPlaceSearchFor('secondaryAddress')}
             />
 
             <View style={styles.fieldRow}>
@@ -845,6 +856,21 @@ const EditCustomerModal = ({
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <PlaceSearchModal
+        visible={placeSearchFor !== null}
+        onClose={() => setPlaceSearchFor(null)}
+        onSelect={place => {
+          if (placeSearchFor) {
+            setField(placeSearchFor, place.address);
+          }
+          // Only the primary address carries the customer's map coordinates.
+          if (placeSearchFor === 'address') {
+            setPickedCoords({latitude: String(place.latitude), longitude: String(place.longitude)});
+          }
+          setPlaceSearchFor(null);
+        }}
+      />
     </Modal>
   );
 };
@@ -859,6 +885,8 @@ type LabeledFieldProps = {
   keyboardType?: 'default' | 'number-pad' | 'phone-pad' | 'email-address';
   maxLength?: number;
   onFocus?: () => void;
+  // When set the field is read-only and tapping it calls this (Google Places address search).
+  onPress?: () => void;
 };
 
 // dialog_add_customer: Material outlined (34dp-radius) fields with the hint floating on the border.
@@ -872,6 +900,7 @@ const LabeledField = ({
   keyboardType,
   maxLength,
   onFocus,
+  onPress,
 }: LabeledFieldProps) => {
   const labelText = `${label}${required ? ' *' : ''}`;
   return (
@@ -885,7 +914,11 @@ const LabeledField = ({
         keyboardType={keyboardType}
         maxLength={maxLength}
         onFocus={onFocus}
+        editable={onPress ? false : undefined}
       />
+      {onPress ? (
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onPress} />
+      ) : null}
       {icon ? (
         <View style={taskStyles.phonebookButton} pointerEvents="none">
           <ContactBookIcon size={ms(25)} />

@@ -21,6 +21,7 @@ import {
 import DateTimePicker, {type DateTimePickerChangeEvent} from '@react-native-community/datetimepicker';
 import Modal from '../../components/AppModal';
 import OutlinedInput from '../../components/OutlinedInput';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
 import {ContactBookIcon, InvoiceIcon} from '../../components/FabIcons';
 import {COLORS} from '../../theme/theme';
 import {ms, sp} from '../../utils/responsive';
@@ -747,6 +748,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   const [productPicker, setProductPicker] = useState<'brand' | 'model' | 'serial' | 'warranty' | null>(null);
   const [productPickerOptions, setProductPickerOptions] = useState<PickerOption[]>([]);
   const [isProductPickerLoading, setIsProductPickerLoading] = useState(false);
+  const [isPlaceSearchOpen, setIsPlaceSearchOpen] = useState(false);
   const [taskLatitude, setTaskLatitude] = useState('');
   const [taskLongitude, setTaskLongitude] = useState('');
 
@@ -2286,14 +2288,18 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 </View>
 
                 <View style={styles.fieldWrap}>
-                  <OutlinedInput
-                    style={styles.pillInput}
-                    placeholder="Customer Address *"
-                    placeholderTextColor={COLORS.lightGray}
-                    value={taskAddress}
-                    onChangeText={setTaskAddress}
-                    maxLength={100}
-                  />
+                  {/* Java: tapping the address opens the full-screen Google Places search. */}
+                  <Pressable onPress={() => setIsPlaceSearchOpen(true)}>
+                    <View pointerEvents="none">
+                      <OutlinedInput
+                        style={styles.pillInput}
+                        placeholder="Customer Address *"
+                        placeholderTextColor={COLORS.lightGray}
+                        value={taskAddress}
+                        editable={false}
+                      />
+                    </View>
+                  </Pressable>
                 </View>
 
                 <View style={[styles.fieldRow, styles.stateCityFieldRow]}>
@@ -2829,6 +2835,17 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
           </View>
         </View>
       </Modal>
+
+      <PlaceSearchModal
+        visible={isPlaceSearchOpen}
+        onClose={() => setIsPlaceSearchOpen(false)}
+        onSelect={place => {
+          setTaskAddress(place.address);
+          setTaskLatitude(String(place.latitude));
+          setTaskLongitude(String(place.longitude));
+          setIsPlaceSearchOpen(false);
+        }}
+      />
 
       {taskPicker ? (
         <DateTimePicker
