@@ -129,7 +129,7 @@ type AdvanceServiceItem = ServiceTypeListDTOResultData & {
 
 import AddTaskModal, {type AddTaskInitialValues, taskStyles} from './AddTaskModal';
 import OutlinedInput from '../../components/OutlinedInput';
-import {ContactBookIcon, EnquiryIcon} from '../../components/FabIcons';
+import {ContactBookIcon, EnquiryIcon, WhatsappIcon} from '../../components/FabIcons';
 import CustomerDetailsScreen from './CustomerDetailsScreen';
 import EditCustomerModal from './EditCustomerModal';
 import {
@@ -223,6 +223,80 @@ import TabStrip from '../../components/TabStrip';
 // Enquiry form: same Java dialog sheet / header / outlined-field metrics as the Add Task form
 // (dialog_enquiry_new), layered over the CRM-wide styles.
 const eq = {...styles, ...taskStyles};
+
+// dialog_enquiry_details: 30dp-corner sheet, 20dp padding (+10dp top), 20sp service-name title,
+// 22dp primary-tinted WhatsApp / call icons, 16sp label (background_gray) / value (light_gray)
+// rows 16dp apart, rounded_button "+ ADD TASK", transparent Cancel.
+const enquiryDetailStyles = {
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    width: '100%' as const,
+    maxWidth: ms(560),
+    alignSelf: 'center' as const,
+    maxHeight: '94%' as const,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    overflow: 'hidden' as const,
+  },
+  content: {
+    padding: ms(20),
+    paddingTop: ms(30),
+  },
+  header: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginBottom: ms(30),
+  },
+  title: {
+    flex: 0.7,
+    color: '#000000',
+    fontSize: sp(20),
+    marginBottom: ms(3),
+  },
+  headerActions: {
+    flex: 0.3,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-around' as const,
+  },
+  callIcon: {
+    width: ms(22),
+    height: ms(22),
+    tintColor: COLORS.primary,
+  },
+  row: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    marginBottom: ms(16),
+  },
+  label: {
+    flex: 0.4,
+    color: COLORS.ink,
+    fontSize: sp(16),
+  },
+  value: {
+    flex: 0.6,
+    paddingLeft: ms(3),
+    color: COLORS.lightGray,
+    fontSize: sp(16),
+    textAlign: 'right' as const,
+  },
+  addTaskButton: {
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    height: ms(48),
+    marginTop: ms(20),
+    marginBottom: ms(20),
+    elevation: 4,
+  },
+  addTaskText: {
+    color: '#FFFFFF',
+    fontSize: sp(18),
+    fontWeight: '500' as const,
+  },
+};
 
 const enquiryStyles = {
   howToRow: {
@@ -2120,85 +2194,84 @@ const CRMScreen = ({
         onRequestClose={closeEnquiryDetailModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.detailModalSheet}>
+          <View style={enquiryDetailStyles.sheet}>
             {selectedEnquiry ? (
-              <>
-                <View style={styles.detailModalHeader}>
-                  <Text style={styles.detailModalTitle}>
-                    {getEnquiryType(selectedEnquiry)}
+              <ScrollView contentContainerStyle={enquiryDetailStyles.content}>
+                <View style={enquiryDetailStyles.header}>
+                  <Text style={enquiryDetailStyles.title} numberOfLines={2}>
+                    {getEnquiryServiceTypeName(selectedEnquiry) || getEnquiryType(selectedEnquiry)}
                   </Text>
-                  <View style={styles.detailModalHeaderActions}>
+                  <View style={enquiryDetailStyles.headerActions}>
                     <TouchableOpacity
-                      onPress={() =>
-                        openWhatsapp(getEnquiryPhone(selectedEnquiry))
-                      }
+                      onPress={() => openWhatsapp(getEnquiryPhone(selectedEnquiry))}
                     >
-                      <Text style={styles.detailModalHeaderIcon}>💬</Text>
+                      <WhatsappIcon size={ms(22)} color={COLORS.primary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => openCall(getEnquiryPhone(selectedEnquiry))}
                     >
-                      <Text style={styles.detailModalHeaderIcon}>📞</Text>
+                      <Image
+                        source={require('../../../assets/images/ic_phone.png')}
+                        style={enquiryDetailStyles.callIcon}
+                      />
                     </TouchableOpacity>
                   </View>
                 </View>
 
-                <ScrollView contentContainerStyle={styles.detailModalContent}>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Enquiry No.</Text>
-                    <Text style={styles.detailValue}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>Enquiry No.</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       #{getEnquiryDisplayNo(selectedEnquiry) || '-'}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Pref. Date</Text>
-                    <Text style={styles.detailValue}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>Pref. Date</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       {getEnquiryDate(selectedEnquiry) || 'NA'}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Customer Name</Text>
-                    <Text style={styles.detailValue}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>Customer Name</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       {getEnquiryCustomerName(selectedEnquiry)}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Contact Number</Text>
-                    <Text style={styles.detailValue}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>Contact Number</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       {formatPhoneWithCountryCode(getEnquiryPhone(selectedEnquiry)) || 'NA'}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Address</Text>
-                    <Text style={[styles.detailValue, styles.detailValueWrap]}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>Address</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       {getEnquiryAddress(selectedEnquiry) || 'NA'}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Technical Problem</Text>
-                    <Text style={[styles.detailValue, styles.detailValueWrap]}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>Technical Problem</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       {getEnquiryTechnicalProblem(selectedEnquiry) || 'NA'}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Special Instructions</Text>
-                    <Text style={[styles.detailValue, styles.detailValueWrap]}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>Special Instructions</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       {getEnquirySpecialInstruction(selectedEnquiry) || 'NA'}
                     </Text>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.addTaskButton}
-                    onPress={openAddTaskModal}
-                  >
-                    <Text style={styles.addTaskButtonText}>+ ADD TASK</Text>
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  style={enquiryDetailStyles.addTaskButton}
+                  onPress={openAddTaskModal}
+                >
+                  <Text style={enquiryDetailStyles.addTaskText}>+ ADD TASK</Text>
+                </TouchableOpacity>
 
-                  <TouchableOpacity onPress={closeEnquiryDetailModal}>
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                </ScrollView>
-              </>
+                <TouchableOpacity onPress={closeEnquiryDetailModal}>
+                  <Text style={eq.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </ScrollView>
             ) : null}
           </View>
         </View>
