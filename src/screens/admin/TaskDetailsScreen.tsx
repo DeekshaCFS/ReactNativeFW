@@ -261,8 +261,12 @@ const TaskDetailsScreen = ({
   const record = (task ?? {}) as Record<string, unknown>;
 
   const status = task ? getTaskStatus(task) : '';
-  const newTaskId = task ? getNewTaskId(task) : '';
-  const displayTaskId = newTaskId || (taskId ? String(taskId) : '');
+  // Java shows only "[NewTaskId]" (never the numeric Id). The refetched task can come back
+  // without NewTaskId, so fall back to the row the list passed in rather than the raw Id.
+  const newTaskId =
+    (task ? getNewTaskId(task) : '') ||
+    (fallbackTask ? getNewTaskId(fallbackTask) : '');
+  const displayTaskId = newTaskId;
 
   const taskName = getStringField(record, ['name', 'Name']);
   const taskTag = getStringField(record, [
