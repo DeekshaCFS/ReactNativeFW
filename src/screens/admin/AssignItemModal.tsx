@@ -2,7 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {scale, sp, vs} from '../../utils/responsive';
+import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {
   ActivityIndicator,
@@ -17,19 +17,24 @@ import {
 import Modal from '../../components/AppModal';
 import {getAllItemAssignedUnassigned, issueItem} from '../../api/item/itemService';
 import type {IssueItemResultData, ItemsListResultData} from '../../api/item/item.types';
-import {getExpenseUserList} from '../../api/expenditure/expenditureService';
-import type {ExpenseTechListResultData} from '../../api/expenditure/expenditure.types';
+import {getAllUsersList} from '../../api/users/usersService';
+import type {UsersListResultData} from '../../api/users/users.types';
 
 type AssignItemRequest = IssueItemResultData;
-type ExpenseTechnicianItem = ExpenseTechListResultData;
 type ItemInventoryListItem = ItemsListResultData;
 import {
   THEME_PRIMARY,
   extractArray,
   getNumberField,
   getStringField,
-  styles,
+  styles as sharedStyles,
 } from './crmShared';
+import {isFieldworkerRecord, taskStyles} from './AddTaskModal';
+import {AssignItemIcon} from '../../components/FabIcons';
+import {COLORS} from '../../theme/theme';
+
+// Same Java dialog sheet / header / spinner metrics as the Add Task form.
+const styles = {...sharedStyles, ...taskStyles};
 
 type AssignItemModalProps = {
   visible: boolean;
@@ -55,29 +60,26 @@ const normalizeAssignItemOption = (
   };
 };
 
-const getFieldworkerName = (item: ExpenseTechnicianItem) => {
+const getFieldworkerName = (item: UsersListResultData) => {
   const record = item as Record<string, unknown>;
   const fullName = `${getStringField(record, [
     'firstName',
     'FirstName',
   ])} ${getStringField(record, ['lastName', 'LastName'])}`.trim();
 
+  // FirstName/LastName first -- UserName on this endpoint is the login (phone number).
   return (
-    getStringField(record, [
-      'employeeName',
-      'EmployeeName',
-      'userName',
-      'UserName',
-    ]) ||
-    getStringField(record, ['name', 'Name']) ||
     fullName ||
+    getStringField(record, ['employeeName', 'EmployeeName']) ||
+    getStringField(record, ['name', 'Name']) ||
+    getStringField(record, ['userName', 'UserName']) ||
     'Fieldworker'
   );
 };
 
-const getFieldworkerId = (item: ExpenseTechnicianItem) => {
+const getFieldworkerId = (item: UsersListResultData) => {
   const record = item as Record<string, unknown>;
-  const value = record.userId ?? record.UserId;
+  const value = record.userId ?? record.UserId ?? record.id ?? record.Id;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
@@ -101,7 +103,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
   } | null>(null);
   const [isFieldworkerModalOpen, setIsFieldworkerModalOpen] = useState(false);
   const [allFieldworkers, setAllFieldworkers] = useState<
-    ExpenseTechnicianItem[]
+    UsersListResultData[]
   >([]);
   const [isFieldworkerLoading, setIsFieldworkerLoading] = useState(false);
   const [fieldworkerSearch, setFieldworkerSearch] = useState('');
@@ -184,9 +186,13 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
       return;
     }
     setIsFieldworkerLoading(true);
-    getExpenseUserList({OwnerId: ownerId})
+    // Java: Users/AllUsersList (HomeActivityNew.getUserList) feeds this spinner -- fieldworkers
+    // only, not every employee.
+    getAllUsersList({OwnerId: ownerId, RoleId: 2, OnlyList: false})
       .then(response => {
-        setAllFieldworkers(extractArray<ExpenseTechnicianItem>(response));
+        setAllFieldworkers(
+          extractArray<UsersListResultData>(response).filter(isFieldworkerRecord),
+        );
       })
       .catch(() => setAllFieldworkers([]))
       .finally(() => setIsFieldworkerLoading(false));
@@ -202,7 +208,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
     );
   }, [allFieldworkers, fieldworkerSearch]);
 
-  const handleFieldworkerSelect = (item: ExpenseTechnicianItem) => {
+  const handleFieldworkerSelect = (item: UsersListResultData) => {
     setSelectedFieldworker({
       id: getFieldworkerId(item),
       name: getFieldworkerName(item),
@@ -278,23 +284,23 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
             <View style={styles.modalHeader}>
               <Text style={styles.modalHeaderTitle}>Assign Item</Text>
               <TouchableOpacity onPress={handleClose}>
-                <Text style={styles.modalCloseIcon}>✕</Text>
+                <Ionicons name="close" style={styles.modalCloseIcon} />
               </TouchableOpacity>
             </View>
 
             <ScrollView
-              contentContainerStyle={styles.modalScrollContent}
+              contentContainerStyle={assignStyles.scrollContent}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={styles.howToRow}>
-                <View style={styles.howToPlayIcon}>
-                  <Text style={styles.howToPlayIconText}>▶</Text>
+              <View style={assignStyles.howToRow}>
+                <View style={assignStyles.howToPlayIcon}>
+                  <Ionicons name="play" size={ms(11)} color="#FFFFFF" />
                 </View>
-                <Text style={styles.howToText}>How to assign item?</Text>
+                <Text style={assignStyles.howToText}>How to assign item ?</Text>
               </View>
 
               <TouchableOpacity
-                style={styles.dropdownPill}
+                style={[styles.dropdownPill, assignStyles.itemPill]}
                 onPress={openItemModal}
               >
                 <Text
@@ -311,7 +317,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.dropdownPill}
+                style={[styles.dropdownPill, assignStyles.fieldworkerPill]}
                 onPress={() => {
                   loadFieldworkers();
                   setIsFieldworkerModalOpen(true);
@@ -335,19 +341,20 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
               <Text style={assignStyles.quantityLabel}>Quantity</Text>
               <View style={assignStyles.quantityPill}>
                 <TouchableOpacity
-                  style={assignStyles.quantityMinusButton}
+                  style={assignStyles.quantityButton}
                   onPress={handleQuantityDecrement}
                 >
-                  <Text style={assignStyles.quantityButtonText}>−</Text>
+                  <Text style={assignStyles.quantityButtonText}>-</Text>
                 </TouchableOpacity>
                 <TextInput
                   style={assignStyles.quantityInput}
                   keyboardType="numeric"
                   value={quantity}
                   onChangeText={setQuantity}
+                  maxLength={5}
                 />
                 <TouchableOpacity
-                  style={assignStyles.quantityPlusButton}
+                  style={assignStyles.quantityButton}
                   onPress={handleQuantityIncrement}
                 >
                   <Text style={assignStyles.quantityButtonText}>+</Text>
@@ -363,10 +370,16 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
                   <>
-                    <Text style={styles.addButtonIcon}>📦</Text>
-                    <Text style={styles.addButtonText}>ASSIGN</Text>
+                    <View style={styles.addButtonIconWrap}>
+                      <AssignItemIcon size={ms(30)} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.darkAddButtonText}>ASSIGN</Text>
                   </>
                 )}
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleClose}>
+                <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -439,7 +452,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
           onPress={() => setIsFieldworkerModalOpen(false)}
         >
           <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Fieldworker</Text>
+            <Text style={styles.taskTagModalTitle}>Select Fieldworkers</Text>
             <View style={styles.searchModalInputWrap}>
               <TextInput
                 style={styles.searchModalInput}
@@ -490,60 +503,83 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
   );
 };
 
+// dialog_issue_item_new: 10dp side margins, 14sp spinners, rounded_border (20dp) quantity stepper
+// with plain "-" / "+" 30sp text, rounded_button (red, 34dp) ASSIGN with ic_item_option.
 const assignStyles = {
+  scrollContent: {
+    paddingHorizontal: ms(10),
+    paddingTop: ms(20),
+    paddingBottom: ms(10),
+  },
+  howToRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginBottom: ms(20),
+  },
+  howToPlayIcon: {
+    width: ms(20),
+    height: ms(20),
+    borderRadius: ms(10),
+    backgroundColor: COLORS.primary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginRight: ms(10),
+  },
+  howToText: {
+    color: COLORS.primary,
+    fontSize: sp(14),
+  },
+  itemPill: {
+    marginBottom: ms(3),
+  },
+  fieldworkerPill: {
+    marginTop: ms(20),
+    marginBottom: ms(3),
+  },
   quantityLabel: {
-    fontSize: sp(11),
-    color: '#8a8f98',
-    marginBottom: vs(4),
+    fontSize: sp(18),
+    color: '#000000',
+    marginLeft: ms(5),
+    marginTop: ms(10),
   },
   quantityPill: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: scale(24),
-    height: vs(46),
-    paddingHorizontal: scale(6),
-    marginBottom: vs(14),
+    borderWidth: ms(1),
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(20),
+    height: ms(40),
+    marginTop: ms(10),
+    marginBottom: ms(10),
   },
   quantityInput: {
-    flex: 1,
-    fontSize: sp(13),
-    color: '#222',
-    padding: scale(0),
+    flex: 0.7,
+    fontSize: sp(16),
+    color: COLORS.ink,
+    padding: 0,
     textAlign: 'center' as const,
   },
-  quantityPlusButton: {
-    width: scale(34),
-    height: vs(34),
-    borderRadius: scale(17),
-    backgroundColor: THEME_PRIMARY,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  quantityMinusButton: {
-    width: scale(34),
-    height: vs(34),
-    borderRadius: scale(17),
-    backgroundColor: THEME_PRIMARY,
+  quantityButton: {
+    flex: 0.15,
+    height: '100%' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   quantityButtonText: {
-    color: '#FFFFFF',
-    fontSize: sp(18),
-    fontWeight: '700' as const,
-    lineHeight: sp(20),
+    color: COLORS.ink,
+    fontSize: sp(30),
+    lineHeight: sp(36),
   },
   assignButton: {
     flexDirection: 'row' as const,
-    backgroundColor: THEME_PRIMARY,
-    borderRadius: scale(24),
-    height: vs(48),
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: vs(14),
-    gap: scale(8),
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    height: ms(48),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
   },
 };
 

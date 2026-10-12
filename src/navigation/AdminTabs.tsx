@@ -270,27 +270,27 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
 
   const quickActions: QuickAction[] = [
     {
-      icon: 'person-add-outline',
+      icon: 'fab-fieldworker',
       label: 'Add Fieldworker',
       onPress: () => setIsAddFieldworkerModalOpen(true),
     },
     {
-      icon: 'clipboard-outline',
+      icon: 'fab-invoice',
       label: 'Add Task',
       onPress: () => setIsAddTaskModalOpen(true),
     },
     {
-      icon: 'cube-outline',
+      icon: 'fab-quote',
       label: 'Add Item',
       onPress: () => setIsAddItemModalOpen(true),
     },
     {
-      icon: 'share-outline',
+      icon: 'fab-assign-item',
       label: 'Assign Item',
       onPress: () => setIsAssignItemModalOpen(true),
     },
     {
-      icon: 'help-circle-outline',
+      icon: 'fab-enquiry',
       label: 'Add Enquiry',
       onPress: () =>
         rootNavigation.navigate('AdminTabsRoot', {
@@ -299,7 +299,7 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
         }),
     },
     {
-      icon: 'construct-outline',
+      icon: 'fab-amc',
       label: 'Add AMC',
       // No hidden-mount trick from here: AMC's add-flow only exists inside
       // AdminHomeScreen's AMC section, so this jumps there directly (same
@@ -312,7 +312,7 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
         }),
     },
     {
-      icon: 'swap-horizontal-outline',
+      icon: 'fab-balance',
       label: 'Manage Balance',
       onPress: () => setIsManageBalanceModalOpen(true),
     },

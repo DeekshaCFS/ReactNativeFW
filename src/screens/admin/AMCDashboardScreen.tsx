@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import {ms, sp} from '../../utils/responsive';
 import {COLORS} from '../../theme/theme';
+import {AmcIcon, ContactBookIcon} from '../../components/FabIcons';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {sanitizeDecimalInput} from '../../utils/decimal';
 import {
@@ -1384,7 +1385,7 @@ const AMCDashboardScreen = ({
       <TextInput
         style={styles.formInput}
         placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor={COLORS.lightGray}
         value={options.value}
         onChangeText={options.onChangeText}
         onFocus={options.onFocus}
@@ -1884,7 +1885,7 @@ const AMCDashboardScreen = ({
               }}
               style={styles.addModalClose}
             >
-              <Text style={styles.addModalCloseText}>x</Text>
+              <Ionicons name="close" size={ms(26)} color="#FFFFFF" />
             </Pressable>
           </View>
 
@@ -1915,7 +1916,7 @@ const AMCDashboardScreen = ({
               value: customerNumber,
               onChangeText: setCustomerNumber,
               keyboardType: 'phone-pad',
-              trailing: <Text style={styles.contactIcon}>ID</Text>,
+              trailing: <ContactBookIcon size={ms(25)} />,
             })}
             {renderFormInput('Email ID', {
               value: customerEmail,
@@ -2057,9 +2058,10 @@ const AMCDashboardScreen = ({
               style={styles.submitAMCButton}
               onPress={handleSubmitAddAMC}
             >
-              <Text style={styles.submitAMCIcon}>+</Text>
+              <View style={styles.submitAMCIconWrap}>
+                <AmcIcon size={ms(30)} color="#FFFFFF" />
+              </View>
               <Text style={styles.submitAMCText}>ADD</Text>
-              <View style={styles.submitAMCRightSpace} />
             </Pressable>
 
             <Pressable
@@ -2547,7 +2549,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   addModalRoot: {
-    backgroundColor: 'rgba(0, 0, 0, 0.18)',
+    backgroundColor: COLORS.dialogDim,
     flex: 1,
     justifyContent: 'flex-end',
     alignItems: 'center',
@@ -2556,19 +2558,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     width: '100%',
     maxWidth: ms(560),
-    borderTopLeftRadius: ms(22),
-    borderTopRightRadius: ms(22),
-    maxHeight: '90%',
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
+    maxHeight: '94%',
     overflow: 'hidden',
   },
   addModalHeader: {
     alignItems: 'center',
-    backgroundColor: '#303530',
-    borderBottomLeftRadius: ms(18),
-    borderBottomRightRadius: ms(18),
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(20),
     flexDirection: 'row',
-    minHeight: ms(60),
-    paddingHorizontal: ms(16),
+    height: ms(60),
+    paddingHorizontal: ms(20),
   },
   addModalTitle: {
     color: '#FFFFFF',
@@ -2593,24 +2594,24 @@ const styles = StyleSheet.create({
   },
   addFormContent: {
     paddingBottom: ms(18),
-    paddingHorizontal: ms(16),
-    paddingTop: ms(16),
+    paddingHorizontal: ms(20),
+    paddingTop: ms(12),
   },
   formInputShell: {
     alignItems: 'center',
-    borderColor: '#999999',
-    borderRadius: ms(19),
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
     borderWidth: ms(1),
     flexDirection: 'row',
-    height: ms(39),
-    marginBottom: ms(18),
-    paddingHorizontal: ms(14),
+    height: ms(41),
+    marginBottom: ms(26),
+    paddingHorizontal: ms(18),
   },
   formInput: {
-    color: '#1F2937',
+    color: '#000000',
     flex: 1,
-    fontSize: sp(15),
-    height: ms(38),
+    fontSize: sp(16),
+    height: ms(40),
     paddingHorizontal: 0,
     paddingVertical: 0,
   },
@@ -2677,22 +2678,23 @@ const styles = StyleSheet.create({
   warrantyRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    marginBottom: ms(18),
-    minHeight: ms(38),
+    marginBottom: ms(26),
+    minHeight: ms(30),
   },
   warrantyLabel: {
-    color: '#777777',
+    color: COLORS.darkGray,
     flex: 1,
-    fontSize: sp(13),
+    fontSize: sp(14),
+    marginLeft: ms(4),
   },
   warrantyControl: {
-    borderColor: '#70798A',
-    borderRadius: ms(18),
+    borderColor: COLORS.ink,
+    borderRadius: ms(25),
     borderWidth: ms(1),
     flexDirection: 'row',
-    height: ms(38),
+    height: ms(30),
     overflow: 'hidden',
-    width: '50%',
+    width: '45%',
   },
   warrantyOption: {
     alignItems: 'center',
@@ -2700,12 +2702,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   warrantyOptionActive: {
-    backgroundColor: '#1E2738',
+    backgroundColor: COLORS.ink,
   },
   warrantyText: {
-    color: '#1E2738',
-    fontSize: sp(13),
-    fontWeight: '700',
+    color: COLORS.ink,
+    fontSize: sp(14),
+    fontWeight: '400',
   },
   warrantyTextActive: {
     color: '#FFFFFF',
@@ -2739,33 +2741,27 @@ const styles = StyleSheet.create({
   submitAMCButton: {
     alignItems: 'center',
     backgroundColor: THEME_PRIMARY,
-    borderRadius: ms(22),
+    borderRadius: ms(34),
     elevation: 4,
     flexDirection: 'row',
     height: ms(48),
-    justifyContent: 'space-between',
-    marginTop: ms(8),
-    paddingHorizontal: ms(24),
+    justifyContent: 'center',
+    marginTop: ms(10),
+    marginBottom: ms(10),
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3,
   },
-  submitAMCIcon: {
-    color: '#FFFFFF',
-    fontSize: sp(28),
-    fontWeight: '300',
-    width: ms(44),
+  submitAMCIconWrap: {
+    left: ms(17),
+    position: 'absolute',
   },
   submitAMCText: {
     color: '#FFFFFF',
-    flex: 1,
-    fontSize: sp(17),
-    fontWeight: '800',
+    fontSize: sp(18),
+    fontWeight: '500',
     textAlign: 'center',
-  },
-  submitAMCRightSpace: {
-    width: ms(44),
   },
   cancelAMCButton: {
     alignItems: 'center',
@@ -2774,8 +2770,8 @@ const styles = StyleSheet.create({
   },
   cancelAMCText: {
     color: THEME_PRIMARY,
-    fontSize: sp(17),
-    fontWeight: '800',
+    fontSize: sp(18),
+    fontWeight: '500',
   },
   pickerOverlay: {
     alignItems: 'center',

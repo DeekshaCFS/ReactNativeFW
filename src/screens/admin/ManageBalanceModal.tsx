@@ -8,17 +8,20 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import Modal from '../../components/AppModal';
+import OutlinedInput from '../../components/OutlinedInput';
+import {BalanceIcon} from '../../components/FabIcons';
+import {COLORS} from '../../theme/theme';
 import {
   type ExpenseTechnicianItem,
   type ExpenseTechnicianListResponse,
 } from './adminLegacyApiTypes';
 import { getExpenseUserList, updateAddCredit, updateDeductBalance } from '../../api/expenditure/expenditureService';
 
-const THEME_PRIMARY = '#c3002f';
+const GREEN_500 = '#4CAF50'; // @color/green_500
 
 const getCode = (response: {code?: string; Code?: string}) =>
   String(response.code ?? response.Code ?? '');
@@ -224,188 +227,233 @@ const ManageBalanceModal = ({
     <Modal transparent animationType="slide" visible={visible} onRequestClose={handleClose}>
       <Pressable style={styles.modalBackdrop} onPress={handleClose}>
         <Pressable style={styles.modalPanel}>
-          <Text style={styles.modalTitle}>How to add / deduct balance ?</Text>
-          <View style={styles.balanceToggleRow}>
-            <Pressable
-              style={[
-                styles.balanceToggleButton,
-                balanceMode === 'add' ? styles.balanceToggleSelected : null,
-              ]}
-              onPress={() => setBalanceMode('add')}>
-              <Text
-                style={[
-                  styles.balanceToggleText,
-                  balanceMode === 'add' ? styles.balanceToggleTextSelected : null,
-                ]}>
-                Add Balance
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.balanceToggleButton,
-                balanceMode === 'deduct' ? styles.balanceToggleSelected : null,
-              ]}
-              onPress={() => setBalanceMode('deduct')}>
-              <Text
-                style={[
-                  styles.balanceToggleText,
-                  balanceMode === 'deduct' ? styles.balanceToggleTextSelected : null,
-                ]}>
-                Deduct Balance
-              </Text>
-            </Pressable>
-          </View>
-
-          <Pressable
-            style={styles.dropdownField}
-            onPress={() => setIsTechnicianDropdownOpen(prev => !prev)}>
-            <Text style={styles.dropdownLabel}>Select Fieldworkers</Text>
-            <Text style={styles.dropdownValue}>
-              {isLoadingTechnicians
-                ? 'Loading...'
-                : selectedTechnician
-                ? getTechnicianName(selectedTechnician)
-                : 'Choose a fieldworker'}
-            </Text>
-          </Pressable>
-          {isTechnicianDropdownOpen ? (
-            <View style={styles.dropdownList}>
-              <ScrollView style={styles.dropdownScroll}>
-                {technicians.map(item => (
-                  <Pressable
-                    key={`${getTechnicianId(item)}`}
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setSelectedTechnicianId(getTechnicianId(item));
-                      setIsTechnicianDropdownOpen(false);
-                    }}>
-                    <Text style={styles.dropdownItemText}>{getTechnicianName(item)}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.panelContent}>
+            <View style={styles.howToRow}>
+              <View style={styles.howToPlayIcon}>
+                <Ionicons name="play" size={ms(11)} color="#FFFFFF" />
+              </View>
+              <Text style={styles.howToText}>How to add / deduct balance ?</Text>
             </View>
-          ) : null}
 
-          <View style={styles.currentBalanceRow}>
-            <Text style={styles.currentBalanceLabel}>Current Balance:</Text>
-            <Text style={styles.currentBalanceValue}>
-              {selectedTechnician
-                ? formatMoney(selectedTechnicianBalance ?? getTechnicianBalance(selectedTechnician))
-                : 'Rs. 0'}
-            </Text>
-          </View>
+            <View style={styles.segmentGroup}>
+              <Pressable
+                style={[
+                  styles.segmentButton,
+                  balanceMode === 'add' ? styles.segmentSelected : null,
+                ]}
+                onPress={() => setBalanceMode('add')}>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    balanceMode === 'add' ? styles.segmentTextSelected : null,
+                  ]}>
+                  Add Balance
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.segmentButton,
+                  balanceMode === 'deduct' ? styles.segmentSelected : null,
+                ]}
+                onPress={() => setBalanceMode('deduct')}>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    balanceMode === 'deduct' ? styles.segmentTextSelected : null,
+                  ]}>
+                  Deduct Balance
+                </Text>
+              </Pressable>
+            </View>
 
-          <TextInput
-            value={balanceAmount}
-            onChangeText={t => setBalanceAmount(sanitizeDecimalInput(t))}
-            placeholder="Enter Amount"
-            placeholderTextColor="#9E9E9E"
-            keyboardType="decimal-pad"
-            style={styles.balanceInput}
-          />
-          <TextInput
-            value={balanceDescription}
-            onChangeText={setBalanceDescription}
-            placeholder="Enter Description"
-            placeholderTextColor="#9E9E9E"
-            style={[styles.balanceInput, styles.descriptionInput]}
-            multiline
-          />
-
-          <View style={styles.modalFooter}>
-            <Pressable style={styles.modalCancelButton} onPress={handleClose}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
+            <Pressable
+              style={styles.spinnerPill}
+              onPress={() => setIsTechnicianDropdownOpen(prev => !prev)}>
+              <Text
+                style={selectedTechnician ? styles.spinnerValue : styles.spinnerPlaceholder}
+                numberOfLines={1}>
+                {isLoadingTechnicians
+                  ? 'Loading...'
+                  : selectedTechnician
+                  ? getTechnicianName(selectedTechnician)
+                  : 'Select Fieldworkers'}
+              </Text>
+              <Ionicons name="chevron-down" style={styles.spinnerChevron} />
             </Pressable>
-            <Pressable style={styles.modalOkButton} onPress={handleSubmit}>
-              <Text style={styles.modalOkText}>{balanceMode === 'deduct' ? 'DEDUCT' : 'ADD'}</Text>
+            {isTechnicianDropdownOpen ? (
+              <View style={styles.dropdownList}>
+                <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                  {technicians.map(item => (
+                    <Pressable
+                      key={`${getTechnicianId(item)}`}
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setSelectedTechnicianId(getTechnicianId(item));
+                        setIsTechnicianDropdownOpen(false);
+                      }}>
+                      <Text style={styles.dropdownItemText}>{getTechnicianName(item)}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            <View style={styles.currentBalanceRow}>
+              <Text style={styles.currentBalanceLabel}>Current Balance:</Text>
+              <Text style={styles.currentBalanceValue}>
+                {selectedTechnician
+                  ? formatMoney(selectedTechnicianBalance ?? getTechnicianBalance(selectedTechnician))
+                  : ''}
+              </Text>
+            </View>
+
+            <View style={styles.fieldWrap}>
+              <OutlinedInput
+                value={balanceAmount}
+                onChangeText={t => setBalanceAmount(sanitizeDecimalInput(t))}
+                placeholder="Enter Amount"
+                placeholderTextColor={COLORS.lightGray}
+                keyboardType="decimal-pad"
+                maxLength={10}
+                style={styles.pillInput}
+              />
+            </View>
+            <View style={styles.fieldWrap}>
+              <OutlinedInput
+                value={balanceDescription}
+                onChangeText={setBalanceDescription}
+                placeholder="Enter Description"
+                placeholderTextColor={COLORS.lightGray}
+                autoCapitalize="words"
+                maxLength={100}
+                style={styles.pillInput}
+              />
+            </View>
+
+            <Pressable style={styles.submitButton} onPress={handleSubmit}>
+              <View style={styles.submitIconWrap}>
+                <BalanceIcon size={ms(30)} color="#FFFFFF" />
+              </View>
+              <Text style={styles.submitText}>{balanceMode === 'deduct' ? 'DEDUCT' : 'ADD'}</Text>
             </Pressable>
-          </View>
+
+            <Pressable onPress={handleClose}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </Pressable>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
   );
 };
 
+// dialog_add_deduct_balance: 30dp-corner white card, 20dp padding, SegmentedGroup (40dp, 1dp
+// background_gray border, 25dp corners), bg_spinner (40dp, 34dp radius), outlined 34dp fields,
+// rounded_button ADD with ic_balance_option, transparent Cancel.
+const FIELD_BORDER = COLORS.lightGray;
+
 const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: COLORS.dialogDim,
     justifyContent: 'flex-end',
     alignItems: 'center',
   },
   modalPanel: {
     width: '100%',
     maxWidth: ms(560),
-    borderTopLeftRadius: ms(18),
-    borderTopRightRadius: ms(18),
+    maxHeight: '94%',
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: ms(24),
-    paddingTop: ms(24),
-    paddingBottom: ms(30),
     elevation: 10,
   },
-  modalTitle: {
-    fontSize: sp(18),
-    fontWeight: '900',
-    color: '#111111',
-    textAlign: 'center',
-    marginBottom: ms(18),
+  panelContent: {
+    padding: ms(20),
   },
-  balanceToggleRow: {
+  howToRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: ms(12),
-    marginBottom: ms(18),
+    alignItems: 'center',
+    marginBottom: ms(20),
+    marginLeft: ms(2),
   },
-  balanceToggleButton: {
-    flex: 1,
-    minHeight: ms(44),
-    borderRadius: ms(8),
-    borderWidth: ms(1),
-    borderColor: '#D1D5DB',
+  howToPlayIcon: {
+    width: ms(20),
+    height: ms(20),
+    borderRadius: ms(10),
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F9FAFB',
+    marginRight: ms(12),
   },
-  balanceToggleSelected: {
-    backgroundColor: THEME_PRIMARY,
-    borderColor: THEME_PRIMARY,
-  },
-  balanceToggleText: {
+  howToText: {
+    color: COLORS.primary,
     fontSize: sp(14),
-    fontWeight: '800',
-    color: '#374151',
   },
-  balanceToggleTextSelected: {
-    color: '#FFFFFF',
-  },
-  dropdownField: {
-    borderWidth: ms(1),
-    borderColor: '#D1D5DB',
-    borderRadius: ms(12),
-    paddingVertical: ms(14),
-    paddingHorizontal: ms(16),
-    marginBottom: ms(8),
+  segmentGroup: {
+    flexDirection: 'row',
+    height: ms(40),
+    marginTop: ms(5),
+    borderWidth: 1,
+    borderColor: COLORS.ink,
+    borderRadius: ms(25),
+    overflow: 'hidden',
     backgroundColor: '#FFFFFF',
   },
-  dropdownLabel: {
-    color: '#6B7280',
-    fontSize: sp(12),
-    fontWeight: '700',
-    marginBottom: ms(4),
+  segmentButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  dropdownValue: {
-    color: '#111111',
-    fontSize: sp(16),
-    fontWeight: '600',
+  segmentSelected: {
+    backgroundColor: COLORS.ink,
+  },
+  segmentText: {
+    fontSize: sp(14),
+    color: COLORS.ink,
+  },
+  segmentTextSelected: {
+    color: '#FFFFFF',
+  },
+  spinnerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: ms(40),
+    marginTop: ms(20),
+    marginBottom: ms(3),
+    paddingHorizontal: ms(12),
+    borderWidth: ms(1),
+    borderColor: FIELD_BORDER,
+    borderRadius: ms(34),
+    backgroundColor: '#FFFFFF',
+  },
+  spinnerPlaceholder: {
+    flex: 1,
+    fontSize: sp(14),
+    color: COLORS.darkGray,
+  },
+  spinnerValue: {
+    flex: 1,
+    fontSize: sp(14),
+    color: '#000000',
+  },
+  spinnerChevron: {
+    fontSize: sp(20),
+    color: COLORS.ink,
+    marginLeft: ms(6),
   },
   dropdownList: {
     maxHeight: ms(160),
     borderWidth: ms(1),
-    borderColor: '#E5E7EB',
-    borderRadius: ms(12),
+    borderColor: FIELD_BORDER,
+    borderRadius: ms(20),
     backgroundColor: '#FFFFFF',
-    marginBottom: ms(12),
+    marginTop: ms(4),
+    overflow: 'hidden',
   },
   dropdownScroll: {
     maxHeight: ms(160),
@@ -417,75 +465,66 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F3F4F6',
   },
   dropdownItemText: {
-    color: '#111111',
+    color: '#000000',
     fontSize: sp(14),
   },
   currentBalanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: ms(8),
-    marginBottom: ms(14),
+    marginLeft: ms(10),
+    marginBottom: ms(20),
   },
   currentBalanceLabel: {
-    color: '#16A34A',
+    color: GREEN_500,
     fontSize: sp(14),
-    fontWeight: '700',
   },
   currentBalanceValue: {
-    color: '#111111',
+    color: COLORS.ink,
     fontSize: sp(14),
-    fontWeight: '700',
+    paddingLeft: ms(2),
   },
-  balanceInput: {
-    width: '100%',
-    minHeight: ms(48),
+  fieldWrap: {
+    marginBottom: ms(26),
+  },
+  pillInput: {
     borderWidth: ms(1),
-    borderColor: '#D1D5DB',
-    borderRadius: ms(12),
-    paddingHorizontal: ms(16),
-    paddingVertical: ms(12),
+    borderColor: FIELD_BORDER,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    paddingVertical: 0,
+    height: ms(41),
     fontSize: sp(16),
-    color: '#111111',
-    backgroundColor: '#FFFFFF',
-    marginBottom: ms(12),
+    color: '#000000',
   },
-  descriptionInput: {
-    minHeight: ms(96),
-    textAlignVertical: 'top',
-  },
-  modalFooter: {
+  submitButton: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    height: ms(48),
     marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
   },
-  modalCancelButton: {
-    flex: 1,
-    height: ms(48),
-    marginRight: ms(8),
-    borderRadius: ms(10),
-    backgroundColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
+  submitIconWrap: {
+    position: 'absolute',
+    left: ms(17),
   },
-  modalCancelText: {
-    color: '#1F2937',
-    fontSize: sp(15),
-    fontWeight: '800',
-  },
-  modalOkButton: {
-    flex: 1,
-    height: ms(48),
-    marginLeft: ms(8),
-    borderRadius: ms(10),
-    backgroundColor: THEME_PRIMARY,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalOkText: {
+  submitText: {
     color: '#FFFFFF',
-    fontSize: sp(15),
-    fontWeight: '900',
+    fontSize: sp(18),
+    fontWeight: '500',
+  },
+  cancelText: {
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    color: COLORS.primary,
+    fontSize: sp(18),
+    fontWeight: '500',
+    height: ms(48),
+    lineHeight: ms(48),
+    marginBottom: ms(20),
   },
 });
 

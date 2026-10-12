@@ -31,9 +31,16 @@ import {
   THEME_PRIMARY,
   getNumberField,
   getStringField,
-  styles,
+  styles as sharedStyles,
 } from './crmShared';
+import {taskStyles} from './AddTaskModal';
+import OutlinedInput from '../../components/OutlinedInput';
+import {QuoteIcon} from '../../components/FabIcons';
+import {COLORS} from '../../theme/theme';
 import {requestLocationPermission} from '../../utils/locationPermision';
+
+// Same Java dialog sheet / header / outlined-field metrics as the Add Task form.
+const styles = {...sharedStyles, ...taskStyles};
 
 type AddItemModalProps = {
   visible: boolean;
@@ -456,7 +463,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
             <View style={styles.modalHeader}>
               <Text style={styles.modalHeaderTitle}>{modalTitle}</Text>
               <TouchableOpacity onPress={handleClose}>
-                <Text style={styles.modalCloseIcon}>✕</Text>
+                <Ionicons name="close" style={styles.modalCloseIcon} />
               </TouchableOpacity>
             </View>
 
@@ -470,30 +477,35 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
               >
                 {isEditMode ? null : (
                   <View style={styles.fieldWrap}>
-                    <TextInput
+                    <OutlinedInput
                       style={styles.pillInput}
                       placeholder="Item Name"
-                      placeholderTextColor="#9aa0a6"
+                      placeholderTextColor={COLORS.lightGray}
                       value={itemName}
                       onChangeText={setItemName}
+                      maxLength={20}
                     />
                   </View>
                 )}
 
                 <View style={styles.fieldRow}>
-                  <TextInput
+                  <OutlinedInput
                     style={[styles.pillInput, itemStyles.halfInput]}
                     placeholder="Item Code"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     value={itemCode}
                     onChangeText={setItemCode}
+                    autoCapitalize="characters"
+                    maxLength={30}
                   />
-                  <TextInput
+                  <OutlinedInput
                     style={[styles.pillInput, itemStyles.halfInput]}
                     placeholder="HSN Code"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     value={hsnCode}
                     onChangeText={setHsnCode}
+                    autoCapitalize="characters"
+                    maxLength={30}
                   />
                 </View>
 
@@ -519,85 +531,90 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
 
+                <View style={itemStyles.labelRow}>
+                  <Text style={itemStyles.blockLabel}>Quantity</Text>
+                  <Text style={itemStyles.blockLabel}>Unit</Text>
+                </View>
                 <View style={styles.fieldRow}>
-                  <View style={itemStyles.halfBlock}>
-                    <Text style={itemStyles.blockLabel}>Quantity</Text>
-                    <View style={itemStyles.quantityPill}>
-                      <TouchableOpacity
-                        style={itemStyles.quantityMinusButton}
-                        onPress={handleQuantityDecrement}
-                      >
-                        <Text style={itemStyles.quantityPlusText}>−</Text>
-                      </TouchableOpacity>
-                      <TextInput
-                        style={itemStyles.quantityInput}
-                        keyboardType="numeric"
-                        value={quantity}
-                        onChangeText={setQuantity}
-                      />
-                      <TouchableOpacity
-                        style={itemStyles.quantityPlusButton}
-                        onPress={handleQuantityIncrement}
-                      >
-                        <Text style={itemStyles.quantityPlusText}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  <View style={itemStyles.halfBlock}>
-                    <Text style={itemStyles.blockLabel}>Unit</Text>
+                  {/* dialog_add_item: rounded_border stepper; the "-" TextView is clipped to an
+                      invisible tap area at the left, the "+" sits at the right. */}
+                  <View style={itemStyles.quantityPill}>
                     <TouchableOpacity
-                      style={[styles.dropdownPill, itemStyles.unitDropdown]}
-                      onPress={() => {
-                        loadItemUnits();
-                        setIsItemUnitModalOpen(true);
-                      }}
+                      style={itemStyles.quantityMinusArea}
+                      onPress={handleQuantityDecrement}
+                    />
+                    <TextInput
+                      style={itemStyles.quantityInput}
+                      keyboardType="numeric"
+                      value={quantity}
+                      onChangeText={setQuantity}
+                      maxLength={5}
+                    />
+                    <TouchableOpacity
+                      style={itemStyles.quantityPlusArea}
+                      onPress={handleQuantityIncrement}
                     >
-                      <Text
-                        style={
-                          selectedItemUnit
-                            ? styles.dropdownPillTextValue
-                            : styles.dropdownPillTextPlaceholder
-                        }
-                        numberOfLines={1}
-                      >
-                        {selectedItemUnit
-                          ? selectedItemUnit.name
-                          : 'Select Unit'}
-                      </Text>
-                      <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                      <Text style={itemStyles.quantityPlusText}>+</Text>
                     </TouchableOpacity>
                   </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.dropdownPill,
+                      itemStyles.unitDropdown,
+                    ]}
+                    onPress={() => {
+                      loadItemUnits();
+                      setIsItemUnitModalOpen(true);
+                    }}
+                  >
+                    <Text
+                      style={
+                        selectedItemUnit
+                          ? styles.dropdownPillTextValue
+                          : styles.dropdownPillTextPlaceholder
+                      }
+                      numberOfLines={1}
+                    >
+                      {selectedItemUnit ? selectedItemUnit.name : 'Select Unit'}
+                    </Text>
+                    <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                  </TouchableOpacity>
                 </View>
 
                 {isEditMode ? null : (
-                  <View style={styles.fieldWrap}>
-                    <TextInput
-                      style={styles.pillInput}
+                  <View style={styles.fieldRow}>
+                    <OutlinedInput
+                      style={[styles.pillInput, itemStyles.halfInput]}
                       placeholder="Serial No"
-                      placeholderTextColor="#9aa0a6"
+                      placeholderTextColor={COLORS.lightGray}
                       value={serialNo}
                       onChangeText={setSerialNo}
+                      autoCapitalize="characters"
+                      maxLength={30}
                     />
+                    <View style={itemStyles.halfInput} />
                   </View>
                 )}
 
                 <View style={styles.fieldRow}>
-                  <TextInput
+                  <OutlinedInput
                     style={[styles.pillInput, itemStyles.halfInput]}
                     placeholder="Purchase Price"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     keyboardType="decimal-pad"
                     value={purchasePrice}
                     onChangeText={t => setPurchasePrice(sanitizeDecimalInput(t))}
+                    maxLength={10}
                   />
-                  <TextInput
+                  <OutlinedInput
                     style={[styles.pillInput, itemStyles.halfInput]}
                     placeholder="Sales Price"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     keyboardType="decimal-pad"
                     value={salesPrice}
                     onChangeText={t => setSalesPrice(sanitizeDecimalInput(t))}
+                    maxLength={10}
                   />
                 </View>
 
@@ -612,7 +629,11 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                     />
                   ) : (
                     <>
-                      <Text style={itemStyles.imageBoxIcon}>🖼️</Text>
+                      <Ionicons
+                        name="image-outline"
+                        size={ms(40)}
+                        color={COLORS.lightGray}
+                      />
                       <Text style={itemStyles.imageBoxText}>
                         Add/Capture Image
                       </Text>
@@ -621,17 +642,18 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                 </TouchableOpacity>
 
                 <View style={styles.fieldWrap}>
-                  <TextInput
+                  <OutlinedInput
                     style={styles.pillInput}
                     placeholder="Description"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     value={description}
                     onChangeText={setDescription}
+                    maxLength={60}
                   />
                 </View>
 
                 <TouchableOpacity
-                  style={styles.addButton}
+                  style={itemStyles.addButton}
                   onPress={handleAddItemSubmit}
                   disabled={isSubmitting}
                 >
@@ -639,8 +661,12 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
                     <>
-                      <Text style={styles.addButtonIcon}>📦</Text>
-                      <Text style={styles.addButtonText}>{isEditMode ? 'UPDATE' : 'ADD'}</Text>
+                      <View style={styles.addButtonIconWrap}>
+                        <QuoteIcon size={ms(30)} color="#FFFFFF" />
+                      </View>
+                      <Text style={styles.darkAddButtonText}>
+                        {isEditMode ? 'UPDATE' : 'ADD'}
+                      </Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -777,73 +803,79 @@ const itemStyles = StyleSheet.create({
   halfInput: {
     flex: 1,
   },
-  halfBlock: {
-    flex: 1,
+  // Quantity / Unit captions above the stepper row (default 14sp TextViews).
+  labelRow: {
+    flexDirection: 'row',
+    gap: ms(10),
+    marginBottom: ms(5),
   },
   blockLabel: {
-    fontSize: sp(11),
-    color: '#8a8f98',
-    marginBottom: ms(4),
+    flex: 1,
+    fontSize: sp(14),
+    color: COLORS.darkGray,
   },
+  // rounded_border: 20dp radius, 1dp light_gray stroke.
   quantityPill: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: ms(1),
-    borderColor: '#d5d7db',
-    borderRadius: ms(24),
-    height: ms(46),
-    paddingHorizontal: ms(6),
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(20),
+    height: ms(40),
   },
   quantityInput: {
     flex: 1,
-    fontSize: sp(13),
-    color: '#222',
+    fontSize: sp(16),
+    color: COLORS.ink,
     padding: 0,
     textAlign: 'center',
   },
-  quantityPlusButton: {
-    width: ms(34),
-    height: ms(34),
-    borderRadius: ms(17),
-    backgroundColor: THEME_PRIMARY,
-    alignItems: 'center',
-    justifyContent: 'center',
+  quantityMinusArea: {
+    width: ms(36),
+    height: '100%',
   },
-  quantityMinusButton: {
-    width: ms(34),
-    height: ms(34),
-    borderRadius: ms(17),
-    backgroundColor: THEME_PRIMARY,
+  quantityPlusArea: {
+    width: ms(36),
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
   quantityPlusText: {
-    color: '#FFFFFF',
-    fontSize: sp(18),
-    fontWeight: '700',
-    lineHeight: sp(20),
+    color: '#000000',
+    fontSize: sp(24),
   },
   unitDropdown: {
+    flex: 1,
     marginBottom: 0,
   },
+  // bg_transperent_curveborder: 20dp radius, quantum_grey400 stroke; 100dp tall.
   imageBox: {
     borderWidth: ms(1),
-    borderColor: '#d5d7db',
-    borderRadius: ms(8),
+    borderColor: '#BDBDBD',
+    borderRadius: ms(20),
     height: ms(100),
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: ms(14),
+    marginTop: ms(10),
+    marginBottom: ms(20),
     overflow: 'hidden',
   },
-  imageBoxIcon: {
-    fontSize: sp(26),
-    color: '#9aa0a6',
-    marginBottom: ms(4),
-  },
   imageBoxText: {
-    fontSize: sp(13),
-    color: '#9aa0a6',
+    fontSize: sp(16),
+    color: COLORS.lightGray,
+  },
+  // button_add: rounded_button (colorPrimaryDark, 34dp radius), ic_additem drawableLeft.
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    height: ms(48),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
   },
 });
 

@@ -83,7 +83,7 @@ const SEGMENT_DARK = COLORS.ink; // SegmentedGroup sc_tint_color @color/backgrou
 // dialog_add_task_new.xml: 20dp margins, Material outlined (34dp-radius) fields with the 20dp
 // error row reserved under each, 40dp spinners, 40dp SegmentedGroups. Overrides the CRM-wide
 // styles (shared with the other CRM modals) for this form only.
-const taskStyles = StyleSheet.create({
+export const taskStyles = StyleSheet.create({
   modalSheet: {
     backgroundColor: '#FFFFFF',
     width: '100%',
@@ -164,17 +164,17 @@ const taskStyles = StyleSheet.create({
     borderWidth: ms(1),
     borderColor: BORDER,
     borderRadius: ms(34),
-    paddingHorizontal: ms(18),
-    height: ms(41),
+    paddingHorizontal: ms(12),
+    height: ms(40),
     marginBottom: ms(16),
   },
   dropdownPillTextPlaceholder: {
-    fontSize: sp(16),
+    fontSize: sp(14),
     color: COLORS.darkGray,
     flex: 1,
   },
   dropdownPillTextValue: {
-    fontSize: sp(16),
+    fontSize: sp(14),
     color: COLORS.ink,
     flex: 1,
   },
@@ -364,7 +364,7 @@ const taskStyles = StyleSheet.create({
     textAlignVertical: 'center',
     color: COLORS.primary,
     fontSize: sp(18),
-    fontWeight: '400',
+    fontWeight: '500',
     height: ms(48),
     lineHeight: ms(48),
     marginBottom: ms(20),
@@ -557,7 +557,7 @@ const getFieldworkerId = (item: UsersListResultData) => {
 // fieldworkers). Kept as a client-side safety net in case the server doesn't
 // honor that filter, using this DTO's real Role/RoleId fields (unlike
 // Expenditure/GetTechnicianList's DTO, which has no role field at all).
-const isFieldworkerRecord = (item: UsersListResultData) => {
+export const isFieldworkerRecord = (item: UsersListResultData) => {
   const record = item as Record<string, unknown>;
   const roleId = record.RoleId ?? record.UserGroupCodeId ?? record.UserGroupId;
   if (roleId !== undefined && roleId !== null && String(roleId).trim() !== '') {
@@ -1766,8 +1766,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
   const renderTaskServiceNode = useCallback(
     (node: ServiceNode, depth: number): React.ReactNode => {
-      const isLeaf = node.children.length === 0;
-      const isSelectable = isLeaf || depth >= 2;
+      const isSelectable = depth >= 2; // Java: only services are tappable; categories stay headers
 
       return (
         <View key={node.key}>
@@ -2137,7 +2136,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   >
                     {selectedFieldworker
                       ? selectedFieldworker.name
-                      : 'Select Fieldworker'}
+                      : 'Select Fieldworkers'}
                   </Text>
                   <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
@@ -3046,14 +3045,15 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
           onPress={() => setIsTaskServiceModalOpen(false)}
         >
           <Pressable style={styles.serviceModalBox} onPress={() => {}}>
-            <View style={styles.searchModalInputWrap}>
+            <View style={styles.serviceSearchWrap}>
               <TextInput
-                style={styles.searchModalInput}
+                style={styles.serviceSearchInput}
                 placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
+                placeholderTextColor="#757575"
                 value={taskServiceTypeSearch}
                 onChangeText={setTaskServiceTypeSearch}
               />
+              <Ionicons name="search-outline" size={ms(26)} color="#8a8f98" />
             </View>
             {isServiceTypeLoading ? (
               <ActivityIndicator

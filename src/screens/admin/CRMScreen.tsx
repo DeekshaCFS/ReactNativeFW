@@ -39,7 +39,7 @@ import {getEnquiryList, addEnquiry, updateEnquiry} from '../../api/customerInqui
 import type {EnquiryListResultData} from '../../api/customerInquiry/customerInquiry.types';
 import {getCustomerList, getStateList, getCityList, deleteCustomerDetails} from '../../api/customerList/customerListService';
 import type {CustomerListResultData, StateDTOResultData, CityDTOResultData} from '../../api/customerList/customerList.types';
-import {getServiceTypeList} from '../../api/services/servicesService';
+import {getAdvanceServiceList} from '../../api/services/servicesService';
 import type {ServiceTypeListDTOResultData} from '../../api/services/services.types';
 import {getTaskTagList} from '../../api/task/taskService';
 import type {TagListResultData} from '../../api/task/task.types';
@@ -127,7 +127,9 @@ type AdvanceServiceItem = ServiceTypeListDTOResultData & {
   Children?: AdvanceServiceItem[] | null;
 };
 
-import AddTaskModal, {type AddTaskInitialValues} from './AddTaskModal';
+import AddTaskModal, {type AddTaskInitialValues, taskStyles} from './AddTaskModal';
+import OutlinedInput from '../../components/OutlinedInput';
+import {ContactBookIcon, EnquiryIcon} from '../../components/FabIcons';
 import CustomerDetailsScreen from './CustomerDetailsScreen';
 import EditCustomerModal from './EditCustomerModal';
 import {
@@ -137,7 +139,6 @@ import {
   HEADER_PRIMARY,
   pad2,
   getTodayDateString,
-  getCurrentTimeString,
   getTaskStartTimeString,
   buildPhotoFileName,
   getStringField,
@@ -218,6 +219,59 @@ import {
   styles,
 } from './crmShared';
 import TabStrip from '../../components/TabStrip';
+
+// Enquiry form: same Java dialog sheet / header / outlined-field metrics as the Add Task form
+// (dialog_enquiry_new), layered over the CRM-wide styles.
+const eq = {...styles, ...taskStyles};
+
+const enquiryStyles = {
+  howToRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginBottom: ms(20),
+    marginLeft: ms(2),
+  },
+  howToPlayIcon: {
+    width: ms(20),
+    height: ms(20),
+    borderRadius: ms(10),
+    backgroundColor: COLORS.primary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginRight: ms(12),
+  },
+  howToText: {
+    color: COLORS.primary,
+    fontSize: sp(14),
+  },
+  // Java image slots: 20dp-corner outlined boxes with a gray camera glyph.
+  photoRow: {
+    flexDirection: 'row' as const,
+    gap: ms(8),
+    marginBottom: ms(20),
+  },
+  photoBox: {
+    flex: 1,
+    height: ms(87),
+    borderWidth: ms(1),
+    borderColor: '#BDBDBD',
+    borderRadius: ms(20),
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    overflow: 'hidden' as const,
+  },
+  addButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    height: ms(48),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
+  },
+};
 
 type CRMScreenProps = {
   ownerId: number;
@@ -306,7 +360,7 @@ const CRMScreen = ({
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [enquiryDate, setEnquiryDate] = useState(getTodayDateString);
-  const [enquiryTime, setEnquiryTime] = useState(getCurrentTimeString);
+  const [enquiryTime, setEnquiryTime] = useState(getTaskStartTimeString);
   const [address, setAddress] = useState('');
   const [state, setStateValue] = useState('');
   const [city, setCity] = useState('');
@@ -660,7 +714,7 @@ const CRMScreen = ({
     setCustomerName(customer.name);
     setPhone(customer.phone);
     setEnquiryDate(getTodayDateString());
-    setEnquiryTime(getCurrentTimeString());
+    setEnquiryTime(getTaskStartTimeString());
     if (customer.address) {
       setAddress(customer.address);
     }
@@ -691,10 +745,10 @@ const CRMScreen = ({
     }
     setIsServiceTypeLoading(true);
     setServiceTypeError('');
-    getServiceTypeList({
-      OwnerId: ownerId,
+    // Java: Services/GetAdvanceServiceListByUserId -- category > subcategory > service tree.
+    getAdvanceServiceList({
+      UserId: ownerId,
       SearchParam: '',
-      pageIndex: 1,
     })
       .then(response => {
         const items = extractArray<AdvanceServiceItem>(response);
@@ -826,7 +880,7 @@ const CRMScreen = ({
     setCustomerName('');
     setPhone('');
     setEnquiryDate(getTodayDateString());
-    setEnquiryTime(getCurrentTimeString());
+    setEnquiryTime(getTaskStartTimeString());
     setAddress('');
     setStateValue('');
     setStateId(0);
@@ -873,7 +927,7 @@ const CRMScreen = ({
     setCustomerName(getEnquiryCustomerName(item));
     setPhone(getEnquiryPhone(item));
     setEnquiryDate(getEnquiryDate(item) || getTodayDateString());
-    setEnquiryTime(getEnquiryTime(item) || getCurrentTimeString());
+    setEnquiryTime(getEnquiryTime(item) || getTaskStartTimeString());
     setAddress(getEnquiryAddress(item));
     setStateValue(getEnquiryState(item));
     setCity(getEnquiryCity(item));
@@ -1425,8 +1479,7 @@ const CRMScreen = ({
     selected: ServiceNode | null,
     onSelect: (node: ServiceNode) => void,
   ) => {
-    const isLeaf = node.children.length === 0;
-    const isSelectable = isLeaf || depth >= 2;
+    const isSelectable = depth >= 2; // Java: only services are tappable; categories stay headers
 
     return (
       <View key={node.key}>
@@ -1695,37 +1748,37 @@ const CRMScreen = ({
         transparent
         onRequestClose={closeAddEnquiryModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalHeaderTitle}>
+        <View style={eq.modalOverlay}>
+          <View style={eq.modalSheet}>
+            <View style={eq.modalHeader}>
+              <Text style={eq.modalHeaderTitle}>
                 {editingEnquiryId ? 'Edit Enquiry' : 'Enquiry'}
               </Text>
               <TouchableOpacity onPress={closeAddEnquiryModal}>
-                <Text style={styles.modalCloseIcon}>✕</Text>
+                <Ionicons name="close" style={eq.modalCloseIcon} />
               </TouchableOpacity>
             </View>
 
             <KeyboardAvoidingView
-              style={styles.modalFlex}
+              style={eq.modalFlex}
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
               <ScrollView
-                contentContainerStyle={styles.modalScrollContent}
+                contentContainerStyle={eq.modalScrollContent}
                 keyboardShouldPersistTaps="handled"
               >
-                <View style={styles.howToRow}>
-                  <View style={styles.howToPlayIcon}>
-                    <Text style={styles.howToPlayIconText}>▶</Text>
+                <View style={enquiryStyles.howToRow}>
+                  <View style={enquiryStyles.howToPlayIcon}>
+                    <Ionicons name="play" size={ms(11)} color="#FFFFFF" />
                   </View>
-                  <Text style={styles.howToText}>How to add enquiry ?</Text>
+                  <Text style={enquiryStyles.howToText}>How to add enquiry ?</Text>
                 </View>
 
-                <View style={[styles.fieldWrap, styles.customerFieldWrap]}>
-                  <TextInput
-                    style={styles.pillInput}
+                <View style={[eq.fieldWrap, eq.customerFieldWrap]}>
+                  <OutlinedInput
+                    style={eq.pillInput}
                     placeholder="Customer Name"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     value={customerName}
                     onChangeText={text => {
                       setCustomerName(text);
@@ -1734,30 +1787,30 @@ const CRMScreen = ({
                     onFocus={() => setShowCustomerSuggestions(true)}
                   />
                   {showCustomerSuggestions && customerSuggestions.length > 0 ? (
-                    <View style={styles.suggestionBox}>
+                    <View style={eq.suggestionBox}>
                       {isCustomerLoading ? (
                         <ActivityIndicator
                           color={THEME_PRIMARY}
                           size="small"
-                          style={styles.suggestionLoader}
+                          style={eq.suggestionLoader}
                         />
                       ) : null}
                       <ScrollView
-                        style={styles.suggestionScroll}
+                        style={eq.suggestionScroll}
                         nestedScrollEnabled
                         keyboardShouldPersistTaps="handled"
                       >
                         {customerSuggestions.map(option => (
                           <TouchableOpacity
                             key={option.id}
-                            style={styles.suggestionItem}
+                            style={eq.suggestionItem}
                             onPress={() => handleCustomerSelect(option)}
                           >
-                            <Text style={styles.suggestionItemText}>
+                            <Text style={eq.suggestionItemText}>
                               {option.name}
                             </Text>
                             {option.phone ? (
-                              <Text style={styles.suggestionItemSubText}>
+                              <Text style={eq.suggestionItemSubText}>
                                 {option.phone}
                               </Text>
                             ) : null}
@@ -1768,58 +1821,59 @@ const CRMScreen = ({
                   ) : null}
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <View style={styles.pillInputRow}>
-                    <TextInput
-                      style={styles.pillInputFlex}
+                <View style={eq.fieldWrap}>
+                  <View>
+                    <OutlinedInput
+                      style={[eq.pillInput, {paddingRight: ms(52)}]}
                       placeholder="Phone Number *"
-                      placeholderTextColor="#9aa0a6"
+                      placeholderTextColor={COLORS.lightGray}
                       value={phone}
                       onChangeText={setPhone}
                       keyboardType="phone-pad"
                     />
-                    <Text style={styles.contactPickerIcon}>👤</Text>
+                    <View style={eq.phonebookButton} pointerEvents="none">
+                      <ContactBookIcon size={ms(25)} />
+                    </View>
                   </View>
                 </View>
 
-                <View style={styles.fieldRow}>
-                  <View style={styles.floatingFieldHalf}>
-                    <Text style={styles.floatingLabel}>Date *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                <View style={[eq.fieldRow, eq.dateRow]}>
+                  <View style={eq.halfField}>
+                    <OutlinedInput
+                      style={eq.pillInput}
+                      placeholder="Date *"
+                      placeholderTextColor={COLORS.lightGray}
                       value={enquiryDate}
                       onChangeText={setEnquiryDate}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#9aa0a6"
                     />
                   </View>
-                  <View style={styles.floatingFieldHalf}>
-                    <Text style={styles.floatingLabel}>Time *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                  <View style={eq.halfField}>
+                    <OutlinedInput
+                      style={eq.pillInput}
+                      placeholder="Time *"
+                      placeholderTextColor={COLORS.lightGray}
                       value={enquiryTime}
                       onChangeText={setEnquiryTime}
-                      placeholder="HH:MM:SS"
-                      placeholderTextColor="#9aa0a6"
                     />
                   </View>
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <TextInput
-                    style={styles.pillInput}
+                <View style={eq.fieldWrap}>
+                  <OutlinedInput
+                    style={eq.pillInput}
                     placeholder="Customer Address *"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     value={address}
                     onChangeText={setAddress}
                   />
                 </View>
 
-                <View style={[styles.fieldRow, styles.stateCityFieldRow]}>
-                  <View style={[styles.floatingFieldHalf, styles.stateFieldWrap]}>
-                    <Text style={styles.floatingLabel}>State *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                <View style={[eq.fieldRow, eq.stateCityFieldRow]}>
+                  <View style={[eq.halfField, eq.stateFieldWrap]}>
+                    <OutlinedInput
+                      style={eq.pillInput}
+                      placeholder="State *"
+                      placeholderTextColor={COLORS.lightGray}
                       value={state}
                       onChangeText={text => {
                         setStateValue(text);
@@ -1834,28 +1888,28 @@ const CRMScreen = ({
                     {showStateSuggestions &&
                     state.trim().length >= 2 &&
                     (isStateLoading || stateSuggestions.length > 0) ? (
-                      <View style={styles.suggestionBox}>
+                      <View style={eq.suggestionBox}>
                         {isStateLoading ? (
                           <ActivityIndicator
                             color={THEME_PRIMARY}
                             size="small"
-                            style={styles.suggestionLoader}
+                            style={eq.suggestionLoader}
                           />
                         ) : (
                           <ScrollView
-                            style={styles.suggestionScroll}
+                            style={eq.suggestionScroll}
                             nestedScrollEnabled
                             keyboardShouldPersistTaps="handled"
                           >
                             {stateSuggestions.map(option => (
                               <TouchableOpacity
                                 key={option.id}
-                                style={styles.suggestionItem}
+                                style={eq.suggestionItem}
                                 onPress={() => handleStateSelect(option)}
                               >
                                 <Text
                                   numberOfLines={1}
-                                  style={styles.suggestionItemText}
+                                  style={eq.suggestionItemText}
                                 >
                                   {option.name}
                                 </Text>
@@ -1866,10 +1920,11 @@ const CRMScreen = ({
                       </View>
                     ) : null}
                   </View>
-                  <View style={[styles.floatingFieldHalf, styles.cityFieldWrap]}>
-                    <Text style={styles.floatingLabel}>City *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                  <View style={[eq.halfField, eq.cityFieldWrap]}>
+                    <OutlinedInput
+                      style={eq.pillInput}
+                      placeholder="City *"
+                      placeholderTextColor={COLORS.lightGray}
                       value={city}
                       onChangeText={text => {
                         setCity(text);
@@ -1888,28 +1943,28 @@ const CRMScreen = ({
                     {showCitySuggestions &&
                     city.trim().length >= 2 &&
                     (isCityLoading || citySuggestions.length > 0) ? (
-                      <View style={styles.suggestionBox}>
+                      <View style={eq.suggestionBox}>
                         {isCityLoading ? (
                           <ActivityIndicator
                             color={THEME_PRIMARY}
                             size="small"
-                            style={styles.suggestionLoader}
+                            style={eq.suggestionLoader}
                           />
                         ) : (
                           <ScrollView
-                            style={styles.suggestionScroll}
+                            style={eq.suggestionScroll}
                             nestedScrollEnabled
                             keyboardShouldPersistTaps="handled"
                           >
                             {citySuggestions.map(option => (
                               <TouchableOpacity
                                 key={option.id}
-                                style={styles.suggestionItem}
+                                style={eq.suggestionItem}
                                 onPress={() => handleCitySelect(option)}
                               >
                                 <Text
                                   numberOfLines={1}
-                                  style={styles.suggestionItemText}
+                                  style={eq.suggestionItemText}
                                 >
                                   {option.name}
                                 </Text>
@@ -1922,11 +1977,12 @@ const CRMScreen = ({
                   </View>
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <View style={styles.floatingFieldFull}>
-                    <Text style={styles.floatingLabel}>Pin Code *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                <View style={eq.fieldRow}>
+                  <View style={eq.halfField}>
+                    <OutlinedInput
+                      style={eq.pillInput}
+                      placeholder="Pin Code *"
+                      placeholderTextColor={COLORS.lightGray}
                       value={pinCode}
                       onChangeText={text =>
                         setPinCode(text.replace(/[^0-9]/g, '').slice(0, 6))
@@ -1935,20 +1991,21 @@ const CRMScreen = ({
                       maxLength={6}
                     />
                   </View>
+                  <View style={eq.halfField} />
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <TextInput
-                    style={styles.pillInput}
+                <View style={eq.fieldWrap}>
+                  <OutlinedInput
+                    style={eq.pillInput}
                     placeholder="Landmark *"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     value={landmark}
                     onChangeText={setLandmark}
                   />
                 </View>
 
                 <TouchableOpacity
-                  style={styles.dropdownPill}
+                  style={eq.dropdownPill}
                   onPress={() => {
                     loadServiceTypes();
                     setIsServiceTypeModalOpen(true);
@@ -1957,18 +2014,18 @@ const CRMScreen = ({
                   <Text
                     style={
                       selectedService
-                        ? styles.dropdownPillTextValue
-                        : styles.dropdownPillTextPlaceholder
+                        ? eq.dropdownPillTextValue
+                        : eq.dropdownPillTextPlaceholder
                     }
                     numberOfLines={1}
                   >
                     {selectedService ? selectedService.label : 'Select Service Type'}
                   </Text>
-                  <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                  <Ionicons name="chevron-down" style={eq.dropdownChevron} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.dropdownPill}
+                  style={eq.dropdownPill}
                   onPress={() => {
                     loadTaskTags();
                     setIsTaskTagModalOpen(true);
@@ -1977,41 +2034,41 @@ const CRMScreen = ({
                   <Text
                     style={
                       selectedTaskTag
-                        ? styles.dropdownPillTextValue
-                        : styles.dropdownPillTextPlaceholder
+                        ? eq.dropdownPillTextValue
+                        : eq.dropdownPillTextPlaceholder
                     }
                     numberOfLines={1}
                   >
                     {selectedTaskTag ? selectedTaskTag.label : 'Select Task Type'}
                   </Text>
-                  <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                  <Ionicons name="chevron-down" style={eq.dropdownChevron} />
                 </TouchableOpacity>
 
-                <View style={styles.fieldWrap}>
-                  <TextInput
-                    style={styles.pillInput}
+                <View style={eq.fieldWrap}>
+                  <OutlinedInput
+                    style={eq.pillInput}
                     placeholder="Technical Problem"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     value={technicalProblem}
                     onChangeText={setTechnicalProblem}
                   />
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <TextInput
-                    style={styles.pillInput}
+                <View style={eq.fieldWrap}>
+                  <OutlinedInput
+                    style={eq.pillInput}
                     placeholder="Special Instructions"
-                    placeholderTextColor="#9aa0a6"
+                    placeholderTextColor={COLORS.lightGray}
                     value={specialInstructions}
                     onChangeText={setSpecialInstructions}
                   />
                 </View>
 
-                <View style={styles.photoRow}>
+                <View style={enquiryStyles.photoRow}>
                   {photos.map((photo, index) => (
                     <TouchableOpacity
                       key={index}
-                      style={styles.photoBox}
+                      style={enquiryStyles.photoBox}
                       onPress={() =>
                         photo ? removePhoto(index) : handlePhotoBoxPress(index)
                       }
@@ -2019,17 +2076,17 @@ const CRMScreen = ({
                       {photo ? (
                         <Image
                           source={{uri: photo.uri}}
-                          style={styles.photoPreview}
+                          style={eq.photoPreview}
                         />
                       ) : (
-                        <Text style={styles.photoBoxIcon}>📷</Text>
+                        <Ionicons name="camera-outline" size={ms(56)} color={COLORS.lightGray} />
                       )}
                     </TouchableOpacity>
                   ))}
                 </View>
 
                 <TouchableOpacity
-                  style={styles.addButton}
+                  style={enquiryStyles.addButton}
                   onPress={handleAddEnquirySubmit}
                   disabled={isSubmittingEnquiry}
                 >
@@ -2037,8 +2094,10 @@ const CRMScreen = ({
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
                     <>
-                      <Text style={styles.addButtonIcon}>?</Text>
-                      <Text style={styles.addButtonText}>
+                      <View style={eq.addButtonIconWrap}>
+                        <EnquiryIcon size={ms(30)} color="#FFFFFF" />
+                      </View>
+                      <Text style={eq.darkAddButtonText}>
                         {editingEnquiryId ? 'UPDATE' : 'ADD'}
                       </Text>
                     </>
@@ -2046,7 +2105,7 @@ const CRMScreen = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={closeAddEnquiryModal}>
-                  <Text style={styles.cancelText}>Cancel</Text>
+                  <Text style={eq.cancelText}>Cancel</Text>
                 </TouchableOpacity>
               </ScrollView>
             </KeyboardAvoidingView>
@@ -2243,15 +2302,15 @@ const CRMScreen = ({
           onPress={() => setIsServiceTypeModalOpen(false)}
         >
           <Pressable style={styles.serviceModalBox} onPress={() => {}}>
-            <View style={styles.searchModalInputWrap}>
+            <View style={styles.serviceSearchWrap}>
               <TextInput
-                style={styles.searchModalInput}
+                style={styles.serviceSearchInput}
                 placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
+                placeholderTextColor="#757575"
                 value={serviceTypeSearch}
                 onChangeText={setServiceTypeSearch}
               />
-              <Text style={styles.searchModalIcon}>🔍</Text>
+              <Ionicons name="search-outline" size={ms(26)} color="#8a8f98" />
             </View>
             {isServiceTypeLoading ? (
               <ActivityIndicator

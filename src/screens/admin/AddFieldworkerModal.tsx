@@ -4,7 +4,9 @@ import React, {useMemo, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
+  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
@@ -13,8 +15,12 @@ import {
 import Modal from '../../components/AppModal';
 import {addBulkFieldworkers} from '../../api/umEmployeeList/umEmployeeListService';
 import {isIndiaCountryDetailsId} from '../../state/session';
-import {styles} from './crmShared';
-import {scale, sp, vs} from '../../utils/responsive';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import OutlinedInput from '../../components/OutlinedInput';
+import {COLORS} from '../../theme/theme';
+import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
+import {scale, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 
 type FieldworkerBulkInsertItem = {
@@ -63,6 +69,12 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
   const [rows, setRows] = useState<FieldworkerRow[]>([createEmptyRow(0)]);
   const [rowErrors, setRowErrors] = useState<Record<number, RowErrors>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const insets = useSafeAreaInsets();
+  // Inside a Modal the safe-area inset can read 0, so fall back to the Android status bar height.
+  const statusBarHeight = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0,
+  );
 
   // 1 = India (Phone Number), anything else = NRI (Email Id).
   const isIndia = useMemo(() => isIndiaCountryDetailsId(), [visible]);
@@ -258,157 +270,254 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
     <Modal
       visible={visible}
       animationType="slide"
-      transparent
+      statusBarTranslucent
       onRequestClose={handleClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalSheet}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalHeaderTitle}>Add Fieldworker</Text>
-            <TouchableOpacity onPress={handleClose}>
-              <Text style={styles.modalCloseIcon}>✕</Text>
+      <View style={screenStyle}>
+        <View style={[headerStyle, {paddingTop: statusBarHeight}]}>
+          <View style={headerRowStyle}>
+            <TouchableOpacity onPress={handleClose} hitSlop={12}>
+              <Ionicons name="arrow-back" size={scale(26)} color="#FFFFFF" />
             </TouchableOpacity>
+            <Text style={headerTitleStyle}>Employee List</Text>
           </View>
+        </View>
 
-          <ScrollView
-            contentContainerStyle={styles.modalScrollContent}
-            keyboardShouldPersistTaps="handled">
-            <View style={styles.howToRow}>
-              <View style={styles.howToPlayIcon}>
-                <Text style={styles.howToPlayIconText}>▶</Text>
+        <ScrollView
+          contentContainerStyle={scrollContentStyle}
+          keyboardShouldPersistTaps="handled">
+          <View style={topRowStyle}>
+            <View style={howToStyle}>
+              <View style={playIconStyle}>
+                <Ionicons name="play" size={scale(11)} color="#FFFFFF" />
               </View>
-              <Text style={styles.howToText}>How to add Fieldworker ?</Text>
+              <Text style={howToTextStyle}>How to add Fieldworker ?</Text>
             </View>
-
-            {rows.map((row, index) => {
-              const errors = rowErrors[index] ?? {};
-              const isLastRow = index === rows.length - 1;
-              return (
-                <View key={row.tempSrNo} style={fieldworkerCardStyle}>
-                  <View style={fieldworkerCardHeaderStyle}>
-                    <Text style={fieldworkerCardTitleStyle}>
-                      Fieldworker #{index + 1}
-                    </Text>
-                    {index > 0 ? (
-                      <TouchableOpacity
-                        onPress={() => handleRemoveRow(index)}>
-                        <Text style={fieldworkerRemoveIconStyle}>✕</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-
-                  <View style={styles.fieldRow}>
-                    <View style={styles.floatingFieldHalf}>
-                      <Text style={styles.floatingLabel}>First Name</Text>
-                      <TextInput
-                        style={styles.floatingInput}
-                        value={row.firstName}
-                        onChangeText={value =>
-                          updateRow(index, {firstName: value})
-                        }
-                        placeholder="First Name"
-                        placeholderTextColor="#9aa0a6"
-                      />
-                    </View>
-                    <View style={styles.floatingFieldHalf}>
-                      <Text style={styles.floatingLabel}>Last Name</Text>
-                      <TextInput
-                        style={styles.floatingInput}
-                        value={row.lastName}
-                        onChangeText={value =>
-                          updateRow(index, {lastName: value})
-                        }
-                        placeholder="Last Name"
-                        placeholderTextColor="#9aa0a6"
-                      />
-                    </View>
-                  </View>
-                  {errors.firstName || errors.lastName ? (
-                    <Text style={styles.errorText}>
-                      {errors.firstName ?? errors.lastName}
-                    </Text>
-                  ) : null}
-
-                  <View style={styles.floatingFieldFull}>
-                    <Text style={styles.floatingLabel}>
-                      {isIndia ? 'Phone Number' : 'Email Id'}
-                    </Text>
-                    <TextInput
-                      style={styles.floatingInput}
-                      value={row.contact}
-                      onChangeText={value =>
-                        updateRow(index, {contact: value})
-                      }
-                      placeholder={
-                        isIndia ? 'Phone Number' : 'Email Id'
-                      }
-                      placeholderTextColor="#9aa0a6"
-                      keyboardType={isIndia ? 'phone-pad' : 'email-address'}
-                      autoCapitalize="none"
-                      maxLength={isIndia ? 10 : undefined}
-                    />
-                  </View>
-                  {errors.contact ? (
-                    <Text style={styles.errorText}>{errors.contact}</Text>
-                  ) : null}
-
-                  {isLastRow && rows.length < MAX_FIELDWORKERS ? (
-                    <TouchableOpacity
-                      style={addMoreButtonStyle}
-                      onPress={handleAddMore}>
-                      <Text style={styles.howToText}>+ Add More</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              );
-            })}
-
             <TouchableOpacity
-              style={styles.addButton}
+              style={submitPillStyle}
               onPress={handleSubmit}
               disabled={isSubmitting}>
               {isSubmitting ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.addButtonText}>SUBMIT</Text>
+                <Text style={submitPillTextStyle}>Submit</Text>
               )}
             </TouchableOpacity>
-          </ScrollView>
-        </View>
+          </View>
+
+          {rows.map((row, index) => {
+            const errors = rowErrors[index] ?? {};
+            return (
+              <View key={row.tempSrNo}>
+                <View style={fieldworkerCardStyle}>
+                  <View style={fieldworkerCardHeaderStyle}>
+                    <Text style={fieldworkerCardTitleStyle}>
+                      Fieldworker #{index + 1}
+                    </Text>
+                    <TouchableOpacity
+                      hitSlop={10}
+                      onPress={() => handleRemoveRow(index)}>
+                      <Ionicons
+                        name="close"
+                        size={scale(26)}
+                        color={COLORS.primary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={fieldRowStyle}>
+                    <OutlinedInput
+                      style={[pillInputStyle, {flex: 1}]}
+                      value={row.firstName}
+                      onChangeText={value =>
+                        updateRow(index, {
+                          firstName: value.replace(/[^A-Za-z]/g, ''),
+                        })
+                      }
+                      placeholder="First Name"
+                      placeholderTextColor={COLORS.lightGray}
+                      autoCapitalize="words"
+                      maxLength={16}
+                    />
+                    <OutlinedInput
+                      style={[pillInputStyle, {flex: 1, marginLeft: scale(10)}]}
+                      value={row.lastName}
+                      onChangeText={value =>
+                        updateRow(index, {
+                          lastName: value.replace(/[^A-Za-z]/g, ''),
+                        })
+                      }
+                      placeholder="Last Name"
+                      placeholderTextColor={COLORS.lightGray}
+                      autoCapitalize="words"
+                      maxLength={16}
+                    />
+                  </View>
+                  <Text style={fieldErrorStyle}>
+                    {errors.firstName ?? errors.lastName ?? ' '}
+                  </Text>
+
+                  <OutlinedInput
+                    style={pillInputStyle}
+                    value={row.contact}
+                    onChangeText={value =>
+                      updateRow(index, {
+                        contact: isIndia ? value.replace(/[^0-9]/g, '') : value,
+                      })
+                    }
+                    placeholder={isIndia ? 'Phone Number' : 'Email Id'}
+                    placeholderTextColor={COLORS.lightGray}
+                    keyboardType={isIndia ? 'phone-pad' : 'email-address'}
+                    autoCapitalize="none"
+                    maxLength={isIndia ? 10 : undefined}
+                  />
+                  <Text style={fieldErrorStyle}>{errors.contact ?? ' '}</Text>
+                </View>
+
+                {index === rows.length - 1 ? (
+                  <TouchableOpacity onPress={handleAddMore}>
+                    <Text style={addMoreTextStyle}>+ Add More</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            );
+          })}
+        </ScrollView>
       </View>
     </Modal>
   );
 };
 
+const screenStyle = {flex: 1, backgroundColor: '#FAFAFA'} as const;
+
+const headerStyle = {backgroundColor: COLORS.primary} as const;
+
+const headerRowStyle = {
+  flexDirection: 'row' as const,
+  alignItems: 'center' as const,
+  height: HEADER_CONTENT_HEIGHT,
+  paddingHorizontal: scale(16),
+};
+
+const headerTitleStyle = {
+  color: '#FFFFFF',
+  fontSize: sp(20),
+  fontWeight: '500' as const,
+  marginLeft: scale(24),
+};
+
+const scrollContentStyle = {
+  padding: scale(6),
+  paddingTop: scale(12),
+  paddingBottom: scale(30),
+};
+
+// Java add_bulk_tech_fragment: how-to link left, 7/10-wide Submit pill right.
+const topRowStyle = {
+  flexDirection: 'row' as const,
+  alignItems: 'center' as const,
+  marginLeft: scale(10),
+  marginRight: scale(10),
+  marginBottom: scale(20),
+};
+
+const howToStyle = {
+  flex: 3,
+  flexDirection: 'row' as const,
+  alignItems: 'center' as const,
+};
+
+const playIconStyle = {
+  width: scale(20),
+  height: scale(20),
+  borderRadius: scale(10),
+  backgroundColor: COLORS.primary,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  marginRight: scale(8),
+};
+
+const howToTextStyle = {
+  color: COLORS.primary,
+  fontSize: sp(14),
+  flexShrink: 1,
+};
+
+const submitPillStyle = {
+  flex: 2,
+  backgroundColor: COLORS.primary,
+  borderRadius: scale(34),
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  paddingTop: scale(3),
+  paddingBottom: scale(4),
+  marginLeft: scale(10),
+};
+
+const submitPillTextStyle = {
+  color: '#FFFFFF',
+  fontSize: sp(14),
+  fontWeight: '700' as const,
+};
+
+// Java add_bulk_tech_row: 20dp-radius white card, 5dp margin, elevation.
 const fieldworkerCardStyle = {
-  borderWidth: 1,
-  borderColor: '#d5d7db',
-  borderRadius: scale(8),
-  padding: scale(14),
-  marginBottom: vs(16),
+  backgroundColor: '#FFFFFF',
+  borderRadius: scale(20),
+  margin: scale(5),
+  paddingBottom: scale(10),
+  paddingHorizontal: scale(10),
+  elevation: 6,
+  shadowColor: '#000',
+  shadowOpacity: 0.15,
+  shadowRadius: 6,
+  shadowOffset: {width: 0, height: 2},
 } as const;
 
 const fieldworkerCardHeaderStyle = {
   flexDirection: 'row' as const,
   alignItems: 'center' as const,
   justifyContent: 'space-between' as const,
-  marginBottom: vs(12),
+  paddingLeft: scale(5),
+  paddingTop: scale(8),
+  marginBottom: scale(8),
 };
 
 const fieldworkerCardTitleStyle = {
-  color: '#c3002f',
+  color: COLORS.primary,
+  fontSize: sp(15),
+  fontWeight: '700' as const,
+};
+
+const fieldRowStyle = {flexDirection: 'row' as const};
+
+// TextInputLayoutStyle: outlined, 34dp radius, 1dp light_gray stroke, 14sp text.
+const pillInputStyle = {
+  borderWidth: 1,
+  borderColor: COLORS.lightGray,
+  borderRadius: scale(34),
+  paddingHorizontal: scale(14),
+  paddingVertical: 0,
+  height: scale(38),
   fontSize: sp(14),
-  fontWeight: '700' as const,
+  color: COLORS.ink,
+  backgroundColor: '#FFFFFF',
+} as const;
+
+// Material errorEnabled reserves a line under each outlined field.
+const fieldErrorStyle = {
+  color: COLORS.primary,
+  fontSize: sp(12),
+  marginLeft: scale(14),
+  minHeight: scale(26),
+  marginTop: scale(4),
 };
 
-const fieldworkerRemoveIconStyle = {
-  color: '#c3002f',
-  fontSize: sp(16),
+const addMoreTextStyle = {
+  color: COLORS.primary,
+  fontSize: sp(18),
   fontWeight: '700' as const,
-};
-
-const addMoreButtonStyle = {
-  alignSelf: 'center' as const,
-  marginTop: vs(4),
+  textAlign: 'center' as const,
+  marginTop: scale(5),
 };
 
 export default AddFieldworkerModal;
