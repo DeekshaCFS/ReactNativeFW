@@ -23,7 +23,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {postLeaveApprovReject} from '../../api/leaveManagement/leaveManagementService';
 import type {LeaveListItem} from './adminLegacyApiTypes';
 import {COLORS} from '../../theme/theme';
-import {ms, sp, vs} from '../../utils/responsive';
+import {ms, sp} from '../../utils/responsive';
 
 type Props = {
   leave: LeaveListItem | null;
@@ -103,73 +103,82 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
     ['Leave Reason', orNA(leave.ReasonOfLeave)],
   ];
 
+  // fragment_requested_leave_details.xml: red screen, action-bar-high gap, then a white card
+  // with 30dp top corners holding the centred avatar / name / role and the detail table.
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
-          <Pressable style={styles.close} onPress={onClose} hitSlop={10}>
-            <Ionicons name="close" size={sp(22)} color="#333" />
+    <Modal visible animationType="slide" onRequestClose={onClose}>
+      <View style={styles.screen}>
+        <View style={styles.bar}>
+          <Pressable onPress={onClose} hitSlop={10} style={styles.barBtn}>
+            <Ionicons name="arrow-back" size={ms(24)} color="#fff" />
           </Pressable>
-          <ScrollView keyboardShouldPersistTaps="handled">
-            <View style={styles.header}>
-              {leave.ProfileImageUrl ? (
-                <Image source={{uri: leave.ProfileImageUrl}} style={styles.avatar} />
-              ) : (
-                <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                  <Ionicons name="person" size={sp(28)} color="#60acf7" />
-                </View>
-              )}
-              <View style={styles.headerText}>
-                <Text style={styles.name}>
-                  {fullName || NA}
-                  <Text style={styles.empId}> (EMP{leave.UserID ?? ''})</Text>
-                </Text>
-                <Text style={styles.role}>{orNA(leave.UserDesignation)}</Text>
-              </View>
-            </View>
-
-            {rows.map(([label, value]) => (
-              <View key={label} style={styles.row}>
-                <Text style={styles.label}>{label}</Text>
-                <Text style={styles.value}>{value}</Text>
-              </View>
-            ))}
-
-            <Text style={[styles.label, styles.notesLabel]}>Approval/Decline Notes *</Text>
-            <TextInput
-              style={[styles.notes, notesLocked ? styles.notesLocked : null]}
-              placeholder="Notes"
-              placeholderTextColor="#9aa0a6"
-              value={notes}
-              onChangeText={setNotes}
-              editable={!notesLocked}
-              multiline
+        </View>
+        <View style={styles.card}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.cardContent}>
+            <Image
+              source={
+                leave.ProfileImageUrl
+                  ? {uri: leave.ProfileImageUrl}
+                  : require('../../../assets/images/profile_icon.png')
+              }
+              defaultSource={require('../../../assets/images/profile_icon.png')}
+              style={styles.avatar}
             />
 
-            {isActioned ? null : (
-              <View style={styles.buttonRow}>
-                <Pressable
-                  style={[styles.button, styles.decline]}
-                  disabled={submitting !== null}
-                  onPress={() => submit(false)}>
-                  {submitting === 'decline' ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.declineText}>Decline</Text>
-                  )}
-                </Pressable>
-                <Pressable
-                  style={[styles.button, styles.approve]}
-                  disabled={submitting !== null}
-                  onPress={() => submit(true)}>
-                  {submitting === 'approve' ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.approveText}>Approve</Text>
-                  )}
-                </Pressable>
-              </View>
-            )}
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>{fullName || NA}</Text>
+              <Text style={styles.empId} numberOfLines={1}>
+                (EMP{leave.UserID ?? ''})
+              </Text>
+            </View>
+            <Text style={styles.role}>{orNA(leave.UserDesignation)}</Text>
+
+            <View style={styles.details}>
+              {rows.map(([label, value], index) => (
+                <View
+                  key={label}
+                  style={[styles.row, index === rows.length - 1 ? styles.rowLast : null]}>
+                  <Text style={styles.label}>{label}</Text>
+                  <Text style={styles.value}>{value}</Text>
+                </View>
+              ))}
+
+              <Text style={styles.notesLabel}>Approval/Decline Notes *</Text>
+              <TextInput
+                style={styles.notes}
+                placeholder="Notes"
+                placeholderTextColor={COLORS.lightGray}
+                value={notes}
+                onChangeText={setNotes}
+                editable={!notesLocked}
+                multiline
+              />
+
+              {isActioned ? null : (
+                <View style={styles.buttonRow}>
+                  <Pressable
+                    style={[styles.button, styles.decline, styles.buttonLeft]}
+                    disabled={submitting !== null}
+                    onPress={() => submit(false)}>
+                    {submitting === 'decline' ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.buttonText}>Decline</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    style={[styles.button, styles.approve, styles.buttonRight]}
+                    disabled={submitting !== null}
+                    onPress={() => submit(true)}>
+                    {submitting === 'approve' ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.buttonText}>Approve</Text>
+                    )}
+                  </Pressable>
+                </View>
+              )}
+            </View>
           </ScrollView>
         </View>
       </View>
@@ -177,46 +186,76 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
   );
 };
 
+const GRAY_DARK = '#1d2536'; // Java background_gray (labels, name)
+const GRAY_LIGHT = '#9a9faa'; // Java light_gray (values)
+
 const styles = StyleSheet.create({
-  backdrop: {flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end'},
-  sheet: {
+  screen: {flex: 1, backgroundColor: COLORS.primary},
+  bar: {height: ms(56), justifyContent: 'center', paddingHorizontal: ms(12)},
+  barBtn: {width: ms(40), height: ms(40), justifyContent: 'center'},
+  card: {
+    flex: 1,
     backgroundColor: '#fff',
-    borderTopLeftRadius: ms(16),
-    borderTopRightRadius: ms(16),
-    padding: ms(20),
-    maxHeight: '88%',
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    overflow: 'hidden',
+    elevation: 24,
   },
-  close: {alignSelf: 'flex-end'},
-  header: {flexDirection: 'row', alignItems: 'center', marginBottom: vs(16)},
-  avatar: {width: ms(56), height: ms(56), borderRadius: ms(28), marginRight: ms(12)},
-  avatarPlaceholder: {backgroundColor: '#f1f3f4', alignItems: 'center', justifyContent: 'center'},
-  headerText: {flex: 1},
-  name: {fontSize: sp(16), fontWeight: '700', color: '#20283A'},
-  empId: {fontSize: sp(13), fontWeight: '400', color: '#5f6368'},
-  role: {fontSize: sp(13), color: '#5f6368', marginTop: vs(2)},
-  row: {flexDirection: 'row', paddingVertical: vs(7), borderBottomWidth: 1, borderBottomColor: '#f1f3f4'},
-  label: {flex: 1, fontSize: sp(13), color: '#5f6368'},
-  value: {flex: 1.4, fontSize: sp(13), color: '#20283A'},
-  notesLabel: {marginTop: vs(14), marginBottom: vs(6)},
+  cardContent: {paddingTop: ms(5), paddingBottom: ms(60)},
+  avatar: {
+    width: ms(100),
+    height: ms(100),
+    borderRadius: ms(50),
+    margin: ms(5),
+    alignSelf: 'center',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: ms(10),
+  },
+  name: {fontSize: sp(18), fontWeight: '700', color: GRAY_DARK},
+  empId: {fontSize: sp(18), fontWeight: '700', color: '#1976D2', marginLeft: ms(15)},
+  role: {
+    fontSize: sp(16),
+    fontWeight: '700',
+    color: '#535353',
+    textAlign: 'center',
+  },
+  details: {marginTop: ms(22), marginHorizontal: ms(20)},
+  row: {flexDirection: 'row', marginBottom: ms(10)},
+  rowLast: {marginBottom: ms(20)},
+  label: {flex: 0.4, fontSize: sp(15), color: GRAY_DARK},
+  value: {flex: 0.6, fontSize: sp(15), color: GRAY_LIGHT},
+  notesLabel: {fontSize: sp(15), color: GRAY_DARK, marginBottom: ms(10)},
   notes: {
     borderWidth: 1,
-    borderColor: '#dadce0',
-    borderRadius: ms(8),
-    minHeight: vs(70),
+    borderColor: GRAY_LIGHT,
+    borderRadius: ms(20),
     padding: ms(10),
-    fontSize: sp(13),
-    color: '#20283A',
+    marginBottom: ms(5),
+    fontSize: sp(15),
+    color: GRAY_DARK,
     textAlignVertical: 'top',
   },
-  notesLocked: {backgroundColor: '#f8f9fa'},
-  buttonRow: {flexDirection: 'row', gap: ms(12), marginTop: vs(18)},
-  button: {flex: 1, borderRadius: ms(22), paddingVertical: vs(11), alignItems: 'center'},
-  // Java: rounded_button (Decline, colorPrimaryDark) / rounded_button_green
-  // (Approve, #4EB54E) -- both filled with white bold text, not outlined.
+  buttonRow: {flexDirection: 'row'},
+  // Java: rounded_button (Decline, colorPrimaryDark) / rounded_button_green (Approve, #4EB54E),
+  // 34dp radius, white bold 18sp, 20dp gutter between them, 5dp above / 20dp below.
+  button: {
+    flex: 1,
+    height: ms(48),
+    marginTop: ms(5),
+    marginBottom: ms(20),
+    borderRadius: ms(34),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonLeft: {marginRight: ms(20)},
+  buttonRight: {marginLeft: ms(20)},
   decline: {backgroundColor: COLORS.primary},
   approve: {backgroundColor: '#4EB54E'},
-  declineText: {color: '#fff', fontWeight: '700', fontSize: sp(14)},
-  approveText: {color: '#fff', fontWeight: '700', fontSize: sp(14)},
+  buttonText: {color: '#fff', fontWeight: '700', fontSize: sp(18)},
 });
 
 export default LeaveApprovalModal;
