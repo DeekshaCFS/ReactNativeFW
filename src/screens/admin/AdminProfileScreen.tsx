@@ -14,6 +14,7 @@ import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-communi
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getProfileDetails,
+  getUserDetails,
   updateUser as updateUserProfile,
   authenticateMobile,
   authenticateEmail,
@@ -102,6 +103,9 @@ const isValidWebsite = (value: string) => WEBSITE_REGEX.test(value.trim());
 // Ported from isNumberGreater(): valid range is 1–100.
 const isValidEmployeeCount = (value: string) => /^[1-9][0-9]?$|^100$/.test(value.trim());
 
+// Image file names from the server can contain spaces (e.g. "FieldWeb Invoice Generation Workflow.png").
+// Java's Picasso encodes them; React Native's Image on Android does not and silently fails.
+const encodeImageUrl = (url?: string) => (url ?? '').replace(/ /g, '%20');
 
 const fieldStyles = StyleSheet.create({
   wrapper:        { marginBottom: ms(16) },
@@ -206,7 +210,8 @@ export default function AdminProfileScreen() {
         setServiceTypeOptions(
           rows
             .map(row => ({id: Number(row.Id) || 0, label: String(row.ServiceName ?? '')}))
-            .filter(option => option.label),
+            .filter(option => option.label)
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })),
         );
       })
       .catch(() => setServiceTypeOptions([]));
@@ -226,6 +231,19 @@ export default function AdminProfileScreen() {
       const response = await getProfileDetails({ UserId: Number(userId) });
       const user = response?.ResultData ?? null;
       setProfile(user);
+      // Java opens this screen with the HomeActivityNew.getUSerDetails result
+      // (Users/GetUsersByUserId), and that response carries CRMLoginURL while
+      // GetProfileDetails returns it as null -- patch it in for the "Link" field.
+      if (user && !user.CRMLoginURL) {
+        getUserDetails({ UserId: Number(userId) })
+          .then(res => {
+            const crmLoginUrl = res?.ResultData?.CRMLoginURL;
+            if (crmLoginUrl) {
+              setProfile(prev => (prev ? { ...prev, CRMLoginURL: crmLoginUrl } : prev));
+            }
+          })
+          .catch(() => {});
+      }
       setIsMobileNoUpdate(false);
       setIsEmailIdUpdate(false);
       setProfileImageBase64(null);
@@ -538,7 +556,7 @@ export default function AdminProfileScreen() {
               profileImageBase64
                 ? { uri: `data:image/jpeg;base64,${profileImageBase64}` }
                 : profile?.Photo && !photoLoadFailed
-                  ? { uri: profile.Photo }
+                  ? { uri: encodeImageUrl(profile.Photo) }
                   : require('../../../assets/images/image.png')
             }
             onError={() => setPhotoLoadFailed(true)}
@@ -629,7 +647,7 @@ export default function AdminProfileScreen() {
                 source={{
                   uri: companyLogoBase64
                     ? `data:image/jpeg;base64,${companyLogoBase64}`
-                    : profile!.CompanyLogo,
+                    : encodeImageUrl(profile!.CompanyLogo),
                 }}
                 style={styles.logoImage}
                 onError={() => setLogoLoadFailed(true)}
@@ -891,7 +909,7 @@ const styles = StyleSheet.create({
   logoBox: {
     alignSelf: 'center',
     height: ms(139),
-    minWidth: ms(200),
+    width: ms(200),
     borderRadius: ms(8),
     borderWidth: 0.7,
     borderColor: '#E3E3E3',
@@ -902,8 +920,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   logoImage: {
-    width: '100%',
-    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   logoClose: {
     position: 'absolute',
