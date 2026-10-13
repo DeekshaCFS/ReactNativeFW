@@ -6,16 +6,18 @@ import Slider from '@react-native-community/slider'; // matches legacy SeekBar 0
 import { useState } from 'react';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppButton from '../../components/AppButton';
 import { COLORS } from '../../theme/theme';
 import { GlobalStyles } from '../../styles/globalStyles';
 import { getRegister } from '../../api/signUp/signUpService';
-import { authEvents, AUTH_CHANGED } from '../../utils/authEvents';
+import { completeLogin } from '../../utils/completeLogin';
+import { isAccountEnabled, isBiometricAvailable, promptBiometric, addBiometricAccount } from '../../utils/biometricAuth';
+import BiometricEnableDialog from '../../components/BiometricEnableDialog';
+import type { LoginSession } from '../../utils/completeLogin';
 import { getAndroidId } from '../../utils/deviceId';
 import { sp, dp } from '../../utils/responsive';
 import { AuthBackButton } from '../../components/AuthExtras';
-import { showFailureMsg } from '../../utils/toast';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 type AuthStackParamList = {
   CompanyDetails: {
@@ -44,6 +46,19 @@ export default function CompanyDetailsScreen() {
   // (text -> value -> text) made the thumb jitter. Dragging only updates the text.
   const [sliderValue, setSliderValue] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [pendingSession, setPendingSession] = useState<LoginSession | null>(null);
+
+  // "Enable Biometric Login?" dialog result: Enable / Not Now both finish the login.
+  const finishPending = async (enable: boolean) => {
+    const sess = pendingSession;
+    setPendingSession(null);
+    if (!sess) return;
+    if (enable && (await promptBiometric('Authenticate to enable biometric login'))) {
+      await addBiometricAccount(sess.mobile);
+      showSuccessMsg('Biometric Login Enabled');
+    }
+    await completeLogin(sess);
+  };
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // keep the text input and slider in sync, same behaviour as the legacy
@@ -103,17 +118,20 @@ export default function CompanyDetailsScreen() {
       }
 
       const login = response.ResultData.LoginOutPut;
-      await AsyncStorage.multiSet([
-        ['uid',      String(login.UserID ?? 0)],
-        ['token',    login.Token ?? ''],
-        ['role',     login.UserGroupName ?? ''],
-        ['username', emailOrContactNo],
-        ['owner_id', String(login.UserID ?? 0)], // new owner is their own OwnerId
-      ]);
-      // RootNavigator remounts via key={token ? 'app' : 'auth'} on this event —
-      // no manual navigation.reset() needed (that call was a silent no-op, same
-      // reasoning as OtpScreen; LoginScreen relies on the same event flow).
-      authEvents.emit(AUTH_CHANGED);
+      const session = {
+        userId: login.UserID ?? 0,
+        token: login.Token ?? '',
+        role: login.UserGroupName ?? '',
+        ownerId: login.UserID ?? 0, // new owner is their own OwnerId
+        mobile: emailOrContactNo,
+      };
+      // First sign-in from this device: offer Fingerprint / Face / MPIN quick login. Otherwise
+      // persist and let RootNavigator swap to the app via AUTH_CHANGED (key={token ? 'app' : 'auth'}).
+      if ((await isBiometricAvailable()) && !(await isAccountEnabled(session.mobile))) {
+        setPendingSession(session);
+        return;
+      }
+      await completeLogin(session);
     } catch (err: any) {
       showFailureMsg(err?.message || 'Something went wrong');
     } finally {
@@ -223,6 +241,11 @@ export default function CompanyDetailsScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <BiometricEnableDialog
+        visible={!!pendingSession}
+        onEnable={() => finishPending(true)}
+        onNotNow={() => finishPending(false)}
+      />
     </ImageBackground>
   );
 }

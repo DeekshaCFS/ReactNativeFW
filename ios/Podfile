@@ -16,6 +16,7 @@ end
 
 target 'FieldWebApp' do
   config = use_native_modules!
+  pod 'FWBiometric', :path => './FWBiometric'
 
   use_react_native!(
     :path => config[:reactNativePath],

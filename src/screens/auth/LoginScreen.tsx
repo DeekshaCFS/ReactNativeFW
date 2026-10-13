@@ -8,19 +8,24 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useState, useEffect } from 'react';
+import { StyleSheet } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { isBiometricAvailable, isAccountEnabled, promptBiometric, addBiometricAccount } from '../../utils/biometricAuth';
+import { completeLogin, fetchBiometricSession } from '../../utils/completeLogin';
+import BiometricEnableDialog from '../../components/BiometricEnableDialog';
 import AppButton from '../../components/AppButton';
 import { AuthHelp } from '../../components/AuthExtras';
 import LanguagePickerModal from '../../components/LanguagePickerModal';
 import { COLORS } from '../../theme/theme';
 import { GlobalStyles } from '../../styles/globalStyles';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
-import { dp } from '../../utils/responsive';
+import { dp, sp } from '../../utils/responsive';
 import { urlLogin } from '../../api/auth/loginService';
 import { getAndroidId } from '../../utils/deviceId';
 import LanguageIcon from '../../components/LanguageIcon';
 import { setAppLanguage, type LanguageCode } from '../../i18n';
 import i18n from 'i18next';
-import { showFailureMsg, showToast } from '../../utils/toast';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import { SHOW_QA_OTP } from '../../config/qa';
 
 type AuthStackParamList = {
@@ -49,7 +54,13 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [langModalVisible, setLangModalVisible] = useState(false);
 
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [enableDialog, setEnableDialog] = useState(false);
+
   useEffect(() => { requestLocationPermission(); }, []);
+
+  // Java: the biometric button is only shown when the device can authenticate.
+  useEffect(() => { isBiometricAvailable().then(setBioAvailable); }, []);
 
 
   // Java validateMobileNumorEmailId(): anything with '@' must be a valid email,
@@ -105,6 +116,39 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Java btnBiometricLogin: validate the typed id; if this device already enabled biometric for it,
+  // authenticate straight away, otherwise offer "Enable Biometric Login?". No OTP either way.
+  const bioLoginId = () => {
+    const value = input.trim();
+    return value.includes('@') ? value : value.replace(/\D/g, '');
+  };
+
+  // Java userBioMetricAuth(): login call after the prompt succeeds; unknown account -> Signup.
+  const biometricLogin = async (enable: boolean) => {
+    const reason = enable ? 'Authenticate to enable biometric login' : 'Authenticate to login';
+    if (!(await promptBiometric(reason))) return;
+    const loginId = bioLoginId();
+    try {
+      setLoading(true);
+      const session = await fetchBiometricSession(loginId);
+      if (!session) { navigation.navigate('Signup'); return; }
+      if (enable) { await addBiometricAccount(loginId); showSuccessMsg('Biometric Login Enabled'); }
+      await completeLogin(session);
+    } catch (err: any) {
+      showFailureMsg(err?.message || 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBiometric = async () => {
+    const problem = validate();
+    setError(problem ?? '');
+    if (problem) return;
+    if (await isAccountEnabled(bioLoginId())) await biometricLogin(false);
+    else setEnableDialog(true);
   };
 
   const requestLocationPermission = async () => {
@@ -163,6 +207,22 @@ export default function LoginScreen() {
             {!!error && <Text style={GlobalStyles.errorText}>{error}</Text>}
 
             <AppButton title="GET OTP" onPress={handleGetOtp} loading={loading} />
+
+            {bioAvailable && (<>
+            <View style={styles.orRow}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>OR</Text>
+              <View style={styles.orLine} />
+            </View>
+
+            <Pressable
+              style={styles.bioButton}
+              onPress={handleBiometric}
+            >
+              <Ionicons name="finger-print" size={dp(28)} color={COLORS.primary} />
+              <Text style={styles.bioText}>Login with Biometric</Text>
+            </Pressable>
+            </>)}
           </View>
 
           <Pressable style={GlobalStyles.languageRow} onPress={() => setLangModalVisible(true)}>
@@ -181,6 +241,12 @@ export default function LoginScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      <BiometricEnableDialog
+        visible={enableDialog}
+        onEnable={() => { setEnableDialog(false); biometricLogin(true); }}
+        onNotNow={() => setEnableDialog(false)}
+      />
+
       <LanguagePickerModal
         visible={langModalVisible}
         selected={i18n.language as LanguageCode}
@@ -190,3 +256,15 @@ export default function LoginScreen() {
     </ImageBackground>
   );
 }
+
+const styles = StyleSheet.create({
+  orRow:     { flexDirection: 'row', alignItems: 'center', marginHorizontal: dp(25), marginVertical: dp(12) },
+  orLine:    { flex: 1, height: 2, backgroundColor: '#C4C4C4' },
+  orText:    { marginHorizontal: dp(12), fontSize: sp(16), color: COLORS.black },
+  bioButton: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#E10019', borderRadius: dp(34), backgroundColor: '#fff',
+    marginHorizontal: dp(25), marginVertical: dp(10), minHeight: dp(54), elevation: 3,
+  },
+  bioText:   { color: COLORS.black, fontSize: sp(18), fontWeight: '600', marginLeft: dp(18) },
+});

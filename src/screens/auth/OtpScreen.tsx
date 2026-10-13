@@ -10,14 +10,14 @@ import { RouteProp } from '@react-navigation/native';
 import { COLORS } from '../../theme/theme';
 import { GlobalStyles } from '../../styles/globalStyles';
 import { AuthBackButton } from '../../components/AuthExtras';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authEvents, AUTH_CHANGED } from '../../utils/authEvents';
-import { getProfileDetails } from '../../api/users/usersService';
+import { completeLogin } from '../../utils/completeLogin';
+import { isAccountEnabled, isBiometricAvailable, promptBiometric, addBiometricAccount } from '../../utils/biometricAuth';
+import BiometricEnableDialog from '../../components/BiometricEnableDialog';
+import type { LoginSession } from '../../utils/completeLogin';
 import { urlLogin } from '../../api/auth/loginService';
 import { getOtpRegister } from '../../api/signUp/signUpService';
 import { getAndroidId } from '../../utils/deviceId';
 import { sp, dp } from '../../utils/responsive';
-import { setCurrentUserId, persistLoggedInUserId, } from '../../state/session';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import { SHOW_QA_OTP } from '../../config/qa';
 
@@ -55,6 +55,19 @@ export default function OtpScreen() {
   const [otpExpired, setOtpExpired] = useState(false);
   const [currentOtp, setCurrentOtp] = useState(serverOtp);
   const [loading, setLoading] = useState(false);
+  const [pendingSession, setPendingSession] = useState<LoginSession | null>(null);
+
+  // "Enable Biometric Login?" dialog result: Enable / Not Now both finish the login.
+  const finishPending = async (enable: boolean) => {
+    const sess = pendingSession;
+    setPendingSession(null);
+    if (!sess) return;
+    if (enable && (await promptBiometric('Authenticate to enable biometric login'))) {
+      await addBiometricAccount(sess.mobile);
+      showSuccessMsg('Biometric Login Enabled');
+    }
+    await completeLogin(sess);
+  };
 
   const inputRefs = useRef<Array<TextInput | null>>(Array(OTP_LENGTH).fill(null));
   const isOtpComplete = otp.every((d) => d !== '');
@@ -106,28 +119,14 @@ export default function OtpScreen() {
       }
 
       // flow === 'login'
-      setCurrentUserId(userId);
-      await persistLoggedInUserId(userId);
-
-      await AsyncStorage.multiSet([
-        ['uid',      String(userId)],
-        ['token',     token],
-        ['role',      role],
-        ['username', mobile],
-        ['owner_id', String(ownerId)],
-      ]);
-      authEvents.emit(AUTH_CHANGED);
-      const response = await getProfileDetails({ UserId: userId });
-      const profile = response?.ResultData;
-      if (profile) {
-        const fullName    = `${profile.FirstName ?? ''} ${profile.LastName ?? ''}`.trim();
-        const contact     = profile.ContactNo ?? mobile;
-        const countryCode = profile.CountryCode || (contact.length === 10 ? '+91' : '+1');
-        await AsyncStorage.multiSet([
-          ['name', fullName], ['contact', contact], ['country_code', countryCode],
-        ]);
+      const session = { userId, token, role, ownerId, mobile };
+      // First login on this device: offer Fingerprint / Face / MPIN quick login before entering
+      // the app. The session is persisted by the setup screen (or its "Maybe later").
+      if ((await isBiometricAvailable()) && !(await isAccountEnabled(session.mobile))) {
+        setPendingSession(session);
+        return;
       }
-      navigation.getParent()?.getParent()?.reset({ index: 0, routes: [{ name: 'Auth' as never }] });
+      await completeLogin(session);
     } catch (err: any) {
       showFailureMsg(err?.message || 'Something went wrong');
     } finally {
@@ -261,6 +260,11 @@ export default function OtpScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <BiometricEnableDialog
+        visible={!!pendingSession}
+        onEnable={() => finishPending(true)}
+        onNotNow={() => finishPending(false)}
+      />
     </ImageBackground>
   );
 }
