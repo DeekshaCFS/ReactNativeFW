@@ -92,8 +92,12 @@ function YesNoSegment({ value, onChange, disabled, width }: {
   );
 }
 
-export default function FOCDetailsScreen({ navigation, route }: any) {
-  const focRequest = route.params?.focRequest as GetFOCListResultData;
+// Admin mode (Java FOC_AdminItemListAdapter): same screen, no "Update All", Item Received / Any
+// Issues are read-only text, and the page sits on a red root with a white 30dp-radius sheet.
+// Hosted inline by the admin Item Inventory screen via focRequest / onClose.
+export default function FOCDetailsScreen({ navigation, route, focRequest: focRequestProp, admin = false, onClose }: any) {
+  const focRequest = (focRequestProp ?? route?.params?.focRequest) as GetFOCListResultData;
+  const goBack = () => (onClose ? onClose() : navigation?.goBack());
 
   const [items, setItems] = useState<GetFOCListFOC_ItemList[]>(focRequest?.FOC_ItemList ?? []);
   const [localState, setLocalState] = useState<Record<number, ItemLocalState>>(() => {
@@ -191,7 +195,7 @@ export default function FOCDetailsScreen({ navigation, route }: any) {
         return;
       }
       showSuccessMsg(res?.Message || 'Updated successfully.');
-      navigation.goBack();
+      goBack();
     } catch (e: any) {
       showFailureMsg(e?.message || 'Could not update items.');
     } finally {
@@ -199,10 +203,11 @@ export default function FOCDetailsScreen({ navigation, route }: any) {
     }
   };
 
-  return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+  const body = (
+    <ScrollView style={admin ? styles.adminSheetScroll : styles.root} contentContainerStyle={styles.content}>
       {/* Header: Update All + request details (update_foc_request_details_fragment.xml) */}
       <View style={styles.headerArea}>
+        {admin ? null : (
         <Pressable
           style={[styles.updateAllBtn, updating && styles.updateAllBtnDisabled]}
           onPress={handleUpdateAll}
@@ -217,8 +222,9 @@ export default function FOCDetailsScreen({ navigation, route }: any) {
             </>
           )}
         </Pressable>
+        )}
 
-        <View style={styles.infoBlock}>
+        <View style={[styles.infoBlock, admin && { marginTop: ms(32) }]}>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Request Id:</Text>
             <Text style={styles.infoValue}>REQ{focRequest?.FocRequestId}</Text>
@@ -246,7 +252,7 @@ export default function FOCDetailsScreen({ navigation, route }: any) {
         const setSt = (patch: Partial<ItemLocalState>) =>
           it.ItemRequestId != null && setItemState(it.ItemRequestId, patch);
         return (
-          <View key={it.ItemRequestId ?? idx} style={styles.itemCard}>
+          <View key={it.ItemRequestId ?? idx} style={[styles.itemCard, admin && { minHeight: ms(259) }]}>
             <View style={styles.titleRow}>
               <Text style={styles.titleBadge} numberOfLines={1}>
                 #{idx + 1} {(it.ItemRequestName ?? '').toUpperCase()}
@@ -301,6 +307,24 @@ export default function FOCDetailsScreen({ navigation, route }: any) {
               </View>
             )}
 
+            {admin ? (
+              <>
+                <View style={styles.recvRow}>
+                  <View style={styles.recvHalf}>
+                    <Text style={[styles.lblBlack, { marginRight: ms(10) }]}>Item Received</Text>
+                    <Text style={styles.adminYesNo}>{received ? 'Yes' : 'No'}</Text>
+                  </View>
+                  <View style={styles.recvHalf}>
+                    <Text style={[styles.lblBlack, { flex: 1, marginHorizontal: ms(10) }]}>Any Issues</Text>
+                    <Text style={[styles.adminYesNo, { flex: 1 }]}>{issue ? 'Yes' : 'No'}</Text>
+                  </View>
+                </View>
+                {issue && st?.describeIssue ? (
+                  <Text style={styles.adminIssueText}>{st.describeIssue}</Text>
+                ) : null}
+              </>
+            ) : (
+            <>
             {/* Item Received + Any Issues */}
             <View style={styles.recvRow}>
               <View style={styles.recvHalf}>
@@ -336,6 +360,8 @@ export default function FOCDetailsScreen({ navigation, route }: any) {
                 numberOfLines={1}
               />
             )}
+            </>
+            )}
           </View>
         );
       })}
@@ -347,9 +373,27 @@ export default function FOCDetailsScreen({ navigation, route }: any) {
       />
     </ScrollView>
   );
+
+  if (!admin) return body;
+  return (
+    <View style={styles.adminRoot}>
+      <View style={styles.adminSheet}>{body}</View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  adminRoot: { flex: 1, backgroundColor: COLORS.primary, paddingTop: ms(10) },
+  adminSheet: {
+    flex: 1,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+  },
+  adminSheetScroll: { flex: 1 },
+  adminYesNo: { fontSize: sp(12), color: '#0e0e0e' },
+  adminIssueText: { marginHorizontal: ms(20), marginBottom: ms(10), fontSize: sp(14), color: '#535353' },
   root: { flex: 1, backgroundColor: '#fff' },
   content: { paddingTop: ms(20), paddingBottom: ms(40) },
 

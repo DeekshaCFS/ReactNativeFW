@@ -251,6 +251,7 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
             customerPhone={route.params.customerPhone}
             customerAddress={route.params.customerAddress}
             source={route.params.source}
+            sheetStyle={!!route.params.sheet}
             onBack={() => navigation.goBack()}
             hideBackBar
             underAppHeader
@@ -351,14 +352,24 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
                   : currentRoute.name === 'help'
                     ? 'Help & Support'
                     : currentRoute.name === 'TaskDetails'
-                      ? 'Tasks'
+                      ? (currentRoute.params as any)?.headerTitle ?? 'Tasks'
                       : getAdminTabTitle(currentRoute.name as keyof AdminTabParamList);
 
           return (
             <>
               {/* Pushed-style screens show their own back-arrow header. */}
               {(MAIN_TABS.includes(currentRoute.name) || MAIN_HEADER_SCREENS.includes(currentRoute.name)) && (
-                <AppHeader title={title} navigation={props.navigation as any} isAdmin />
+                <AppHeader
+                  title={title}
+                  navigation={props.navigation as any}
+                  isAdmin
+                  useRegisteredBack={currentRoute.name === 'Home'}
+                  onBack={
+                    currentRoute.name === 'TaskDetails'
+                      ? () => props.navigation.goBack()
+                      : undefined
+                  }
+                />
               )}
               <BottomTabBar
                 {...props}

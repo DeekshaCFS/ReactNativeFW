@@ -32,6 +32,7 @@ import {
 } from '../utils/responsive';
 
 import TourTarget from '../tour/TourTarget';
+import { useHeaderBack } from '../state/headerBack';
 
 // Exported so screens rendered underneath this (absolutely-positioned)
 // header can pad their own top content by `insets.top + HEADER_CONTENT_HEIGHT`
@@ -43,13 +44,21 @@ type AppHeaderProps = {
   navigation: NavigationProp<ParamListBase>;
   // Java's admin toolbar has no location icon and no unread badge on the bell.
   isAdmin?: boolean;
+  // Shows a back arrow instead of the hamburger (pushed screens, and iOS which has no hardware back).
+  onBack?: () => void;
+  // false: ignore the back handler a screen registered via setHeaderBack (other tabs sharing this header).
+  useRegisteredBack?: boolean;
 };
 
 const AppHeader: React.FC<AppHeaderProps> = ({
   title,
   navigation,
   isAdmin = false,
+  onBack,
+  useRegisteredBack = true,
 }) => {
+  const registeredBack = useHeaderBack();
+  const back = onBack ?? (useRegisteredBack ? registeredBack : null);
 
   const insets = useSafeAreaInsets();
   const unread = useUnreadCount();
@@ -88,13 +97,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         {/* LEFT */}
         <TourTarget tourKey="headerMenu">
           <Pressable
-            onPress={() =>
-              navigation.dispatch(DrawerActions.openDrawer())
-            }
+            onPress={() => (back ? back() : navigation.dispatch(DrawerActions.openDrawer()))}
             hitSlop={10}
             style={styles.sideBtn}
           >
-            <Ionicons name="menu-outline" size={ms(26)} color="#fff" />
+            <Ionicons name={back ? 'arrow-back' : 'menu-outline'} size={ms(26)} color="#fff" />
           </Pressable>
         </TourTarget>
 

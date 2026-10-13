@@ -49,6 +49,8 @@ type FOCScreenProps = {
   // technician side as ItemRequestScreen.tsx.) Optional so this screen can be
   // dropped in without wiring navigation immediately.
   onRequestNewItem?: () => void;
+  // Admin: tapping a request opens its details (Java FOCDetails_UpdateFragmnt).
+  onOpenDetails?: (item: FocRequestListItem) => void;
 };
 
 type FetchFocPageOptions = {
@@ -214,6 +216,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
   ownerId,
   isFieldWorker = false,
   onRequestNewItem,
+  onOpenDetails,
 }) => {
   const [focRequests, setFocRequests] = useState<FocRequestListItem[]>([]);
   const [focSearchText, setFocSearchText] = useState('');
@@ -398,7 +401,8 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
   };
 
   const handleFocPress = (item: FocRequestListItem) => {
-    showFailureMsg([`Status: ${getFocStatus(item)}`, `Issue: ${getFocIssue(item)}`].join('\n'));
+    // Java FOCListAdapter row click: opens the request details (FOCDetails_UpdateFragmnt).
+    onOpenDetails?.(item);
   };
 
   // Deletes the whole FOC request (matches Java's DeleteFOCReqItem, called from
@@ -572,6 +576,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
       <SearchPickerModal
         visible={isStatusModalOpen}
         title="Select Status Tag"
+        wrapContent
         options={statusTags.map(tag => ({id: tag.id, label: tag.name}))}
         emptyText="No status tags returned."
         onClose={() => setIsStatusModalOpen(false)}

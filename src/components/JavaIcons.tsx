@@ -71,3 +71,49 @@ export const AddBalIcon = ({size = 24, color = '#000000'}: Props) => (
     <Path d="M59.77,76.58H21.58c-8.35,0 -15.12,-6.77 -15.12,-15.12V28.09c0,-8.35 6.77,-15.12 15.12,-15.12h47.13c8.35,0 15.12,6.77 15.12,15.12v16.68V59.7c0,9.32 -7.56,16.88 -16.88,16.88H59.77z" fill="none" stroke={color} strokeWidth={6} strokeLinecap="round" />
   </Svg>
 );
+
+// Java ic_issueitem_dialog (outlined cube) -- "Issued details" button icon.
+export const IssueItemDialogIcon = ({size = 24, color = '#000000'}: Props) => (
+  <Svg width={size} height={size} viewBox="0 0 90 90">
+    <Path d="M42.17,82.52l-29.4,-17.35c-1.24,-0.73 -1.99,-2.07 -1.98,-3.5l0.33,-34.13c0.01,-1.44 0.79,-2.76 2.05,-3.47L42.89,7.28c1.25,-0.71 2.79,-0.69 4.02,0.04l29.4,17.35c1.24,0.73 1.99,2.07 1.98,3.5l-0.33,34.13c-0.01,1.44 -0.79,2.76 -2.05,3.47L46.19,82.56C44.94,83.27 43.4,83.25 42.17,82.52z" stroke={color} strokeWidth={6} fill="none" />
+    <Path d="M79.21,64.82L77.93,64.07" stroke={color} strokeWidth={6} fill="none" />
+    <Path d="M45.05,44.78l-0.13,-0.07l-33.51,-19.65l-0.54,-0.32" stroke={color} strokeWidth={6} fill="none" />
+    <Path d="M45.05,44.64l0,0.14l0,38.41l0,0.66" stroke={color} strokeWidth={6} fill="none" />
+    <Path d="M45.05,6.23L45.05,6.15" stroke={color} strokeWidth={6} fill="none" />
+    <Path d="M78.31,25.85l-17.05,9.63l-16.21,9.16l-0.13,0.07l-0.01,0" stroke={color} strokeWidth={6} fill="none" />
+    <Path d="M29.11,13.77L62.25,34.49" stroke={color} strokeWidth={6} fill="none" />
+  </Svg>
+);
+
+// Java ic_no_image: camera glyph (the "No Image Available" caption is drawn as text by the caller).
+export const NoImageCameraIcon = ({size = 24, color = '#B7B7B7'}: Props) => (
+  <Svg width={size} height={size} viewBox="0 0 300 300">
+    <Path d="M208.91,198.57H90.29c-8.8,0 -15.96,-7.16 -15.96,-15.96v-72.5c0,-8.8 7.16,-15.96 15.96,-15.96h24.86l12.35,-18.53c0.52,-0.77 1.38,-1.24 2.32,-1.24h39.54c0.93,0 1.8,0.46 2.32,1.24l12.35,18.53h24.86c8.8,0 15.96,7.16 15.96,15.96v72.29c0,0.06 0.01,0.13 0.01,0.2C224.88,191.41 217.71,198.57 208.91,198.57zM90.29,99.72c-5.73,0 -10.39,4.67 -10.39,10.39v72.5c0,5.73 4.67,10.39 10.39,10.39h118.62c5.67,0 10.3,-4.56 10.39,-10.21c0,-0.06 -0.01,-0.12 -0.01,-0.18v-72.5c0,-5.73 -4.67,-10.39 -10.39,-10.39h-26.36c-0.93,0 -1.8,-0.46 -2.32,-1.24l-12.34,-18.53h-36.56l-12.35,18.53c-0.52,0.77 -1.38,1.24 -2.32,1.24H90.29z" fill={color} />
+    <Path d="M149.61,172.21c-16.07,0 -29.14,-13.07 -29.14,-29.14s13.07,-29.14 29.14,-29.14s29.14,13.07 29.14,29.14S165.67,172.21 149.61,172.21zM149.61,119.49c-13,0 -23.58,10.58 -23.58,23.58c0,13 10.58,23.58 23.58,23.58c13,0 23.58,-10.58 23.58,-23.58S162.6,119.49 149.61,119.49z" fill={color} />
+  </Svg>
+);
+
+// Java ic_return (undo arrow) -- Issued/Used details row action.
+export const ReturnIcon = ({size = 24, color = '#000000'}: Props) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Path d="M2.53,4.16h10.41c5.06,0 9.16,4.1 9.16,9.16v0c0,5.06 -4.1,9.16 -9.16,9.16h-5.9" stroke={color} strokeWidth={1.4} strokeLinecap="round" fill="none" />
+    <Path d="M4.34,1.51l-2.45,2.65l2.45,2.64" stroke={color} strokeWidth={1.4} strokeLinecap="round" fill="none" />
+  </Svg>
+);
+
+// Java ic_addbal_dialog / ic_decbal_dialog: fixed-colour round +/- badges (green / primary) used by
+// the Used Item Qty segmented control.
+export const AddBalDialogIcon = ({size = 24}: Props) => (
+  <Svg width={size} height={size} viewBox="0 0 1080 1080">
+    <Path d="M540,540m-461.3,0a461.3,461.3 0,1 1,922.6 0a461.3,461.3 0,1 1,-922.6 0" fill="#4CAF50" />
+    <Path d="M478.7,295.3h122.6v489.5h-122.6z" fill="#FFFFFF" />
+    <Path d="M784.7,478.7l-0,122.6l-489.5,-0l0,-122.6z" fill="#FFFFFF" />
+  </Svg>
+);
+
+export const DecBalDialogIcon = ({size = 24}: Props) => (
+  <Svg width={size} height={size} viewBox="0 0 1080 1080">
+    <Path d="M540,540m-461.3,0a461.3,461.3 0,1 1,922.6 0a461.3,461.3 0,1 1,-922.6 0" fill="#C3002F" />
+    <Path d="M784.7,478.7l-0,122.6l-489.5,-0l0,-122.6z" fill="#FFFFFF" />
+  </Svg>
+);

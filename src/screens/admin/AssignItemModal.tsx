@@ -287,6 +287,12 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                 <Text style={assignStyles.howToText}>How to assign item ?</Text>
               </View>
 
+              {initialItem ? (
+                // Java: opened from a specific item, the name is a plain label (no spinner).
+                <Text style={assignStyles.fixedItemName} numberOfLines={1}>
+                  {selectedItem ? selectedItem.name : initialItem.name}
+                </Text>
+              ) : (
               <TouchableOpacity
                 style={[styles.dropdownPill, assignStyles.itemPill]}
                 onPress={openItemModal}
@@ -303,6 +309,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                 </Text>
                 <Ionicons name="chevron-down" style={styles.dropdownChevron} />
               </TouchableOpacity>
+              )}
 
               <TouchableOpacity
                 style={[styles.dropdownPill, assignStyles.fieldworkerPill]}
@@ -366,9 +373,11 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={handleClose}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
+              {initialItem ? null : (
+                <TouchableOpacity onPress={handleClose}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -446,6 +455,13 @@ const assignStyles = {
   fieldworkerPill: {
     marginTop: ms(20),
     marginBottom: ms(3),
+  },
+  fixedItemName: {
+    fontSize: sp(20),
+    color: '#000000',
+    marginLeft: ms(5),
+    marginTop: ms(0),
+    marginBottom: ms(0),
   },
   quantityLabel: {
     fontSize: sp(18),

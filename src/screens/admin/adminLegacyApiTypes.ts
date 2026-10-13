@@ -661,6 +661,8 @@ export type YearlyPassbookResponse = {
 };
 
 export type AssignedItemListItem = {
+  techFullName?: string | null;
+  TechFullName?: string | null;
   id?: number;
   Id?: number;
   itemId?: number;
@@ -911,6 +913,8 @@ export type ItemInventoryListResponse = {
 };
 
 export type UsedItemListItem = {
+  techFullName?: string | null;
+  TechFullName?: string | null;
   id?: number;
   Id?: number;
   itemId?: number;

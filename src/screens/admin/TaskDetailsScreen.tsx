@@ -32,7 +32,8 @@ import {downloadReport} from '../../api/report/reportService';
 import AddTaskModal, {buildTaskFormValues, type AddTaskInitialValues} from './AddTaskModal';
 import TaskClosureSection, {type TaskClosureSectionHandle} from './TaskClosureSection';
 import OwnerTaskTrackingMap from './OwnerTaskTrackingMap';
-import {getCurrentCountryCode} from '../../state/session';
+import {getCurrentCountryCode, getCurrentCurrencySymbol} from '../../state/session';
+import {getTaskClosureDetails} from '../../api/taskList/taskListService';
 import { showFailureMsg } from '../../utils/toast';
 
 type TaskDetailsTask = TasksListResultData | TaskListItem;
@@ -56,6 +57,11 @@ type TaskDetailsScreenProps = {
    * (dialog_task_details) for Completed / Rejected tasks.
    */
   source?: 'crm' | 'taskList';
+  /**
+   * Java's CRM details sit on the red root as a white 30dp-radius sheet with the 80dp default
+   * profile image on top (dialog_crm_task_details.xml). Used from Item Inventory > Used details.
+   */
+  sheetStyle?: boolean;
 };
 
 const THEME_PRIMARY = '#c3002f';
@@ -180,6 +186,7 @@ const TaskDetailsScreen = ({
   hideBackBar,
   underAppHeader,
   source = 'crm',
+  sheetStyle = false,
 }: TaskDetailsScreenProps) => {
   const closureRef = useRef<TaskClosureSectionHandle>(null);
   const insets = useSafeAreaInsets();
@@ -260,6 +267,29 @@ const TaskDetailsScreen = ({
 
   const record = (task ?? {}) as Record<string, unknown>;
 
+  // Java replaces the item table with the closure's MultipleItemAssigned (issued + used per item)
+  // once a completed task's closure details load.
+  const [closureItems, setClosureItems] = useState<TasksListMultipleItemAssigned[] | null>(null);
+  const isCompletedTask = (task ? getTaskStatus(task) : '').toLowerCase() === 'completed';
+  const closureTaskId = getNumberField(record, ['id', 'Id']) || taskId;
+  useEffect(() => {
+    if (!sheetStyle || !isCompletedTask || !closureTaskId) {
+      return undefined;
+    }
+    let active = true;
+    getTaskClosureDetails({UserId: ownerId, TaskID: closureTaskId})
+      .then(response => {
+        const items = (response?.ResultData as Record<string, unknown> | undefined)?.MultipleItemAssigned;
+        if (active && Array.isArray(items) && items.length > 0) {
+          setClosureItems(items as TasksListMultipleItemAssigned[]);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [sheetStyle, isCompletedTask, closureTaskId, ownerId]);
+
   const status = task ? getTaskStatus(task) : '';
   // Java shows only "[NewTaskId]" (never the numeric Id). The refetched task can come back
   // without NewTaskId, so fall back to the row the list passed in rather than the raw Id.
@@ -287,6 +317,7 @@ const TaskDetailsScreen = ({
   const employeeName = getStringField(record, ['assignedTo', 'AssignedTo']);
 
   const itemDetails =
+    closureItems ??
     (record.itemDetails as TasksListMultipleItemAssigned[] | undefined) ??
     (record.ItemDetails as TasksListMultipleItemAssigned[] | undefined) ??
     (record.multipleItemAssigned as TasksListMultipleItemAssigned[] | undefined) ??
@@ -332,8 +363,12 @@ const TaskDetailsScreen = ({
   // EstimatedAmount is WagesPerHours, EarnedAmount is EarningAmount (Java setData()).
   const wagesPerHour = getNumberField(record, ['wagesPerHours', 'WagesPerHours']);
   const earningAmount = getNumberField(record, ['earningAmount', 'EarningAmount']);
-  const estimatedAmount = wagesPerHour ? `Rs. ${formatAmount(wagesPerHour)}` : '';
-  const earnedAmount = earningAmount ? `Rs. ${formatAmount(earningAmount)}` : '';
+  const currencySymbol = (() => {
+    const symbol = getCurrentCurrencySymbol();
+    return !symbol || symbol === 'Rs.' ? '₹' : symbol;
+  })();
+  const estimatedAmount = wagesPerHour ? `${currencySymbol} ${formatAmount(wagesPerHour)}` : '';
+  const earnedAmount = earningAmount ? `${currencySymbol} ${formatAmount(earningAmount)}` : '';
 
   // Warranty (Java's txtWarrantyType/.../txtWarrantySerialNo, sourced from
   // TaskWarrantyDetailsModelDtoView on the same task record).
@@ -411,7 +446,7 @@ const TaskDetailsScreen = ({
           customerName={custName}
         />
       ) : null}
-      {showCompletedLayout || showTrackingLayout ? null : (
+      {showCompletedLayout || showTrackingLayout || sheetStyle ? null : (
       <View style={styles.avatarWrap}>
         <Animated.View style={[styles.avatarCircle, avatarRotationStyle]}>
           <Text style={styles.avatarIcon}>👤</Text>
@@ -636,30 +671,27 @@ const TaskDetailsScreen = ({
         </ScrollView>
       ) : (
         <ScrollView
-          style={styles.body}
-          contentContainerStyle={styles.bodyContent}
+          style={[styles.body, sheetStyle ? styles.bodySheet : null]}
+          contentContainerStyle={[styles.bodyContent, sheetStyle ? styles.bodyContentSheet : null]}
         >
+          {sheetStyle ? (
+            <Image
+              source={
+                getStringField(record, ['photo', 'Photo'])
+                  ? {uri: getStringField(record, ['photo', 'Photo'])}
+                  : require('../../../assets/images/profile_icon.png')
+              }
+              style={styles.sheetAvatar}
+            />
+          ) : null}
           <View style={styles.statusActionsRow}>
             <Text
               style={[styles.statusLabel, {color: getStatusColor(status)}]}
             >
               {status || NA}
             </Text>
+            {/* dialog_crm_task_details.xml order: message, call, reassign, download */}
             <View style={styles.actionIconsRow}>
-              {isCompleted && task ? (
-                <>
-                  <TouchableOpacity style={styles.actionIconButton} onPress={handleDownloadReport}>
-                    <Ionicons name="download-outline" style={styles.actionIconText} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionIconButton}
-                    onPress={() =>
-                      setReassignValues(buildTaskFormValues(task as never, 'reassignCompleted'))
-                    }>
-                    <Ionicons name="refresh" style={styles.actionIconText} />
-                  </TouchableOpacity>
-                </>
-              ) : null}
               <TouchableOpacity
                 style={styles.actionIconButton}
                 onPress={() => openWhatsapp(custPhoneWhatsapp)}
@@ -672,6 +704,20 @@ const TaskDetailsScreen = ({
               >
                 <Ionicons name="call-outline" style={styles.actionIconText} />
               </TouchableOpacity>
+              {isCompleted && task ? (
+                <>
+                  <TouchableOpacity
+                    style={styles.actionIconButton}
+                    onPress={() =>
+                      setReassignValues(buildTaskFormValues(task as never, 'reassignCompleted'))
+                    }>
+                    <Ionicons name="refresh" style={styles.actionIconText} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionIconButton} onPress={handleDownloadReport}>
+                    <Ionicons name="download-outline" style={styles.actionIconText} />
+                  </TouchableOpacity>
+                </>
+              ) : null}
             </View>
           </View>
 
@@ -904,6 +950,25 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: ms(640),
     alignSelf: 'center',
+  },
+  bodySheet: {
+    flex: 1,
+    marginTop: ms(10),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    overflow: 'hidden',
+  },
+  bodyContentSheet: {
+    paddingTop: ms(5),
+    paddingHorizontal: ms(20),
+  },
+  sheetAvatar: {
+    width: ms(80),
+    height: ms(80),
+    borderRadius: ms(40),
+    margin: ms(5),
+    alignSelf: 'center',
+    marginBottom: ms(10),
   },
   avatarWrap: {
     alignItems: 'center',

@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   BackHandler,
+  ScrollView,
   FlatList,
   Image,
   Pressable,
@@ -32,6 +33,10 @@ import { formatAmount } from '../../utils/decimal';
 import AddItemModal from './AddItemModal';
 import AssignItemModal from './AssignItemModal';
 import FOCScreen from './FOCScreen';
+import FOCDetailsScreen from '../technician/drawer/FOCDetailsScreen';
+import {useNavigation} from '@react-navigation/native';
+import {setHeaderBack} from '../../state/headerBack';
+import {getCurrentCurrencySymbol} from '../../state/session';
 import TabStrip from '../../components/TabStrip';
 import {COLORS} from '../../theme/theme';
 import {
@@ -39,6 +44,9 @@ import {
   ItemOptionIcon as JavaItemOptionIcon,
   DeleteAccIcon,
   DefaultItemIcon as JavaDefaultItemIcon,
+  IssueItemDialogIcon,
+  NoImageCameraIcon,
+  ReturnIcon,
 } from '../../components/JavaIcons';
 import { showFailureMsg } from '../../utils/toast';
 
@@ -365,11 +373,13 @@ const getPurchasePrice = (item: ItemInventoryListItem) =>
 const getSalesPrice = (item: ItemInventoryListItem) =>
   getItemNumber(item, ['salesPrice', 'SalesPrice']);
 
-const formatCurrency = (value: number) => `Rs. ${formatAmount(value)}`;
+const formatCurrency = (value: number) =>
+  `${(() => { const s = getCurrentCurrencySymbol(); return !s || s === 'Rs.' ? '₹' : s; })()} ${formatAmount(value)}`;
 
-const getAssignedTaskId = (item: AssignedItemListItem) =>
-  getAssignedString(item, ['newTaskID', 'NewTaskID', 'taskId', 'TaskId']) ||
-  '-';
+const getAssignedTaskId = (item: AssignedItemListItem) => {
+  const id = getAssignedString(item, ['newTaskID', 'NewTaskID', 'taskId', 'TaskId']);
+  return !id || id === '0' ? 'NA' : id;
+};
 
 const getAssignedQuantity = (item: AssignedItemListItem) =>
   getAssignedNumber(item, [
@@ -405,6 +415,8 @@ const getAssignedFieldWorkerName = (item: AssignedItemListItem) => {
 
   return (
     getAssignedString(item, [
+      'techFullName',
+      'TechFullName',
       'fieldWorkerName',
       'FieldWorkerName',
       'employeeName',
@@ -427,6 +439,8 @@ const getUsedFieldWorkerName = (item: UsedItemListItem) => {
 
   return (
     getUsedString(item, [
+      'techFullName',
+      'TechFullName',
       'fieldWorkerName',
       'FieldWorkerName',
       'employeeName',
@@ -533,6 +547,8 @@ const ItemInventoryTabHostScreen = ({
   const [selectedItem, setSelectedItem] = useState<ItemInventoryListItem | null>(
     null,
   );
+  const navigation = useNavigation();
+  const [focDetail, setFocDetail] = useState<Record<string, unknown> | null>(null);
   const [isItemDetailLoading, setIsItemDetailLoading] = useState(false);
   const [itemDetailErrorMessage, setItemDetailErrorMessage] = useState('');
   const [assignedItems, setAssignedItems] = useState<AssignedItemListItem[]>([]);
@@ -581,6 +597,33 @@ const ItemInventoryTabHostScreen = ({
     setUsedErrorMessage('');
     setIsUsedLoading(false);
   }, []);
+
+  // Header back arrow (iOS has no hardware back): active while any sub-view is open.
+  useEffect(() => {
+    let back: (() => void) | null = null;
+    if (focDetail) {
+      back = () => setFocDetail(null);
+    } else if (selectedItem && inventoryView === 'issued') {
+      back = closeIssuedDetails;
+    } else if (selectedItem && inventoryView === 'used') {
+      back = closeUsedDetails;
+    } else if (selectedItem && inventoryView !== 'list') {
+      back = closeItemDetail;
+    }
+    setHeaderBack(back);
+    return () => setHeaderBack(null);
+  }, [focDetail, selectedItem, inventoryView, closeIssuedDetails, closeUsedDetails, closeItemDetail]);
+
+  useEffect(() => {
+    if (!focDetail) {
+      return undefined;
+    }
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setFocDetail(null);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [focDetail]);
 
   useEffect(() => {
     if (!selectedItem || inventoryView === 'list') {
@@ -938,7 +981,7 @@ const ItemInventoryTabHostScreen = ({
         <View style={styles.itemBody}>
           <View style={styles.itemTitleRow}>
             <Text numberOfLines={1} style={styles.itemName}>
-              {itemName}
+              {itemName.slice(0, 20)}
             </Text>
             <Text numberOfLines={1} style={styles.itemIdText}>
               [{itemId || '-'}]
@@ -946,17 +989,17 @@ const ItemInventoryTabHostScreen = ({
           </View>
 
           <Text numberOfLines={1} style={styles.itemDescription}>
-            {getItemDescription(item)}
+            {String(getItemDescription(item) ?? '').slice(0, 21)}
           </Text>
+        </View>
 
-          <View style={styles.quantityRow}>
-            <Text style={styles.quantityLabel}>Available:</Text>
+        <View style={styles.quantityRow}>
+            <Text style={[styles.quantityLabel, {marginLeft: 0}]}>Available:</Text>
             <Text style={styles.quantityValue}>{getAvailableQuantity(item)}</Text>
             <Text style={styles.quantityLabel}>Issued:</Text>
             <Text style={styles.quantityValue}>{getIssuedQuantity(item)}</Text>
             <Text style={styles.quantityLabel}>Used:</Text>
             <Text style={styles.quantityValue}>{getUsedQuantity(item)}</Text>
-          </View>
         </View>
 
         <View style={styles.actionColumn}>
@@ -1003,11 +1046,9 @@ const ItemInventoryTabHostScreen = ({
             style={styles.searchInput}
             returnKeyType="search"
           />
-          {itemSearchText ? (
-            <Pressable hitSlop={10} onPress={clearItemSearch}>
-              <Ionicons name="close" style={styles.clearText} />
-            </Pressable>
-          ) : null}
+          <Pressable hitSlop={10} onPress={clearItemSearch}>
+            <Ionicons name="close" style={styles.clearText} />
+          </Pressable>
         </View>
         <Pressable style={styles.addItemButton} onPress={() => setIsAddingItem(true)}>
           <Text style={styles.addItemButtonText}>+ Item</Text>
@@ -1067,12 +1108,14 @@ const ItemInventoryTabHostScreen = ({
     </View>
   );
 
+  // Java rows: 20dp tall, 200dp label + 150dp value; marginTop varies per row (mt).
   const renderDetailRow = (
     label: string,
     value: string | number,
     valueStyle?: object,
+    mt = 0,
   ) => (
-    <View style={styles.detailRow}>
+    <View style={[styles.detailRow, {marginTop: ms(mt)}]}>
       <Text style={styles.detailLabel}>{label}</Text>
       <Text style={[styles.detailValue, valueStyle]}>{value}</Text>
     </View>
@@ -1093,115 +1136,88 @@ const ItemInventoryTabHostScreen = ({
     const usedQuantity = getUsedQuantity(selectedItem);
 
     return (
-      <View style={styles.detailCard}>
-        <View style={styles.detailContent}>
-          <Pressable style={styles.detailBackButton} onPress={closeItemDetail}>
-            <Text style={styles.detailBackText}>{'< Back'}</Text>
-          </Pressable>
-
-          <View style={styles.detailImageWrap}>
-            {imageUri ? (
-              <Image source={{uri: imageUri}} style={styles.detailImage} />
-            ) : (
-              <View style={styles.noImageBox}>
-                <DefaultItemIcon color="#B8B8B8" />
-              </View>
-            )}
-          </View>
-
-          <View style={styles.detailActionRow}>
-            <Pressable
-              style={[styles.detailPill, styles.detailPillDark]}
-              onPress={handleIssuedDetailsPress}>
-              <DefaultItemIcon color="#FFFFFF" />
-              <Text style={styles.detailPillText}>Issued details</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.detailPill, styles.detailPillPrimary]}
-              onPress={handleUsedDetailsPress}>
-              <ItemOptionIcon color="#FFFFFF" />
-              <Text style={styles.detailPillText}>Used details</Text>
-            </Pressable>
-          </View>
-
-          {isItemDetailLoading ? (
-            <View style={styles.detailStatusRow}>
-              <ActivityIndicator color={THEME_PRIMARY} size="small" />
-              <Text style={styles.detailStatusText}>Refreshing item details...</Text>
+      <View style={styles.detailRoot}>
+        <View style={styles.detailCard}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.detailScroll}>
+            <View style={styles.detailImageWrap}>
+              {imageUri ? (
+                <Image source={{uri: imageUri}} style={styles.detailImage} />
+              ) : (
+                <View style={styles.noImageBox}>
+                  <NoImageCameraIcon size={ms(130)} />
+                  <Text style={styles.noImageText}>No Image Available</Text>
+                </View>
+              )}
             </View>
-          ) : null}
 
-          {itemDetailErrorMessage ? (
-            <Text style={styles.detailErrorText}>{itemDetailErrorMessage}</Text>
-          ) : null}
+            <View style={styles.detailActionRow}>
+              <Pressable
+                style={[styles.detailPill, styles.detailPillDark]}
+                onPress={handleIssuedDetailsPress}>
+                <IssueItemDialogIcon size={ms(30)} color="#FFFFFF" />
+                <Text style={styles.detailPillText}>Issued details</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.detailPill, styles.detailPillPrimary]}
+                onPress={handleUsedDetailsPress}>
+                <JavaItemOptionIcon size={ms(30)} color="#FFFFFF" />
+                <Text style={styles.detailPillText}>Used details</Text>
+              </Pressable>
+            </View>
 
-          <View style={styles.detailTitleRow}>
-            <Text numberOfLines={2} style={styles.detailTitle}>
-              {selectedItemName}
-            </Text>
-            <Text style={styles.detailId}>[{selectedItemId || '-'}]</Text>
-          </View>
+            {itemDetailErrorMessage ? (
+              <Text style={styles.detailErrorText}>{itemDetailErrorMessage}</Text>
+            ) : null}
 
-          <Text style={styles.detailSectionTitle}>Item Details</Text>
-          {renderDetailRow('Create Date', formatItemDate(selectedItem))}
-          {renderDetailRow('Item Code', getItemCodeValue(selectedItem))}
-          {renderDetailRow('HSN Code', getItemHsnCode(selectedItem))}
-          {renderDetailRow('Group Name', getItemGroupName(selectedItem))}
-          {renderDetailRow('Serial No.', getItemString(selectedItem, 'serialNoValue', 'SerialNoValue'))}
-          {renderDetailRow(
-            'Purchase Price',
-            formatCurrency(purchasePrice),
-            styles.priceGreen,
-          )}
-          {renderDetailRow(
-            'Sales Price',
-            formatCurrency(salesPrice),
-            styles.priceGreen,
-          )}
-          {renderDetailRow('Unit', getItemUnit(selectedItem))}
-          {renderDetailRow('Description', getItemDescription(selectedItem))}
+            <View style={styles.detailTitleRow}>
+              <Text numberOfLines={1} style={styles.detailTitle}>
+                {selectedItemName}
+              </Text>
+              <Text style={styles.detailId}>[{selectedItemId || '-'}]</Text>
+            </View>
 
-          <Text style={styles.detailSectionTitle}>QTY. Details</Text>
-          {renderDetailRow('Available', availableQuantity)}
-          {renderDetailRow('Issued', issuedQuantity)}
-          {renderDetailRow('Used', usedQuantity)}
-          {renderDetailRow(
-            'Available Qty. Price',
-            formatCurrency(availableQuantity * purchasePrice),
-            styles.priceBlue,
-          )}
-          {renderDetailRow(
-            'Issued Qty. Price',
-            formatCurrency(issuedQuantity * purchasePrice),
-            styles.priceOrange,
-          )}
-          {renderDetailRow(
-            'Used Qty. Price',
-            formatCurrency(usedQuantity * purchasePrice),
-            styles.pricePrimary,
-          )}
+            <Text style={[styles.detailSectionTitle, {marginTop: ms(20)}]}>Item Details</Text>
+            {renderDetailRow('Create Date', formatItemDate(selectedItem), undefined, 15)}
+            {renderDetailRow('Item Code', getItemCodeValue(selectedItem))}
+            {renderDetailRow('HSN Code', getItemHsnCode(selectedItem))}
+            {renderDetailRow('Group Name', getItemGroupName(selectedItem))}
+            {renderDetailRow('Serial No.', getItemString(selectedItem, 'serialNoValue', 'SerialNoValue'), undefined, 5)}
+            {renderDetailRow('Purchase Price', formatCurrency(purchasePrice), styles.priceGreen, 5)}
+            {renderDetailRow('Sales Price', formatCurrency(salesPrice), styles.priceGreen, 5)}
+            {renderDetailRow('Unit', getItemUnit(selectedItem), undefined, 5)}
+            {renderDetailRow('Description', getItemDescription(selectedItem), undefined, 5)}
+
+            <Text style={[styles.detailSectionTitle, {marginTop: ms(15)}]}>QTY. Details</Text>
+            {renderDetailRow('Available', availableQuantity, undefined, 15)}
+            {renderDetailRow('Issued', issuedQuantity, undefined, 5)}
+            {renderDetailRow('Used', usedQuantity, undefined, 5)}
+            {renderDetailRow('Available Qty. Price', formatCurrency(availableQuantity * purchasePrice), styles.priceBlue, 15)}
+            {renderDetailRow('Issued Qty. Price', formatCurrency(issuedQuantity * purchasePrice), styles.priceOrange, 5)}
+            {renderDetailRow('Used Qty. Price', formatCurrency(usedQuantity * purchasePrice), styles.pricePrimary, 5)}
+          </ScrollView>
         </View>
       </View>
     );
   };
 
+  // Java advance_item_inventory_tech_list: 80dp card, 4 weighted text columns + 20dp return icon.
   const renderAssignedItemRow = ({item}: {item: AssignedItemListItem}) => (
     <View style={styles.assignedCard}>
       <View style={styles.assignedCardTopRow}>
-        <Text style={styles.assignedLabel}>Task ID :</Text>
-        <Text numberOfLines={1} style={styles.assignedTaskValue}>
+        <Text style={[styles.assignedLabel, styles.assignedCol, {paddingLeft: ms(15)}]}>Task ID :</Text>
+        <Text numberOfLines={1} style={[styles.assignedValue, styles.assignedCol]}>
           {getAssignedTaskId(item)}
         </Text>
-        <Text style={styles.assignedLabel}>Issued Qty :</Text>
-        <Text numberOfLines={1} style={styles.assignedQtyValue}>
+        <Text style={[styles.assignedLabel, styles.assignedCol]}>Issued Qty :</Text>
+        <Text numberOfLines={1} style={[styles.assignedValue, styles.assignedCol]}>
           {getAssignedQuantity(item)}
         </Text>
-        <Pressable
-          hitSlop={10}
-          style={styles.assignedReturnButton}
-          onPress={() => openReturnDialog(item)}>
-          <Text style={styles.assignedReturnText}>R</Text>
+        <Pressable hitSlop={10} onPress={() => openReturnDialog(item)}>
+          <ReturnIcon size={ms(20)} />
         </Pressable>
+        <View style={styles.assignedCol} />
       </View>
       <Text numberOfLines={1} style={styles.assignedWorkerName}>
         {getAssignedFieldWorkerName(item)}
@@ -1209,28 +1225,64 @@ const ItemInventoryTabHostScreen = ({
     </View>
   );
 
-  const renderUsedItemRow = ({item}: {item: UsedItemListItem}) => (
-    <View style={styles.assignedCard}>
-      <View style={styles.assignedCardTopRow}>
-        <Text style={styles.assignedLabel}>Task ID :</Text>
-        <Text numberOfLines={1} style={styles.assignedTaskValue}>
-          {getUsedTaskId(item)}
+  // Java advance_useditem_inventory_task_list.
+  const renderUsedItemRow = ({item}: {item: UsedItemListItem}) => {
+    const u = item as Record<string, any>;
+    const num = (...keys: string[]) => Number(keys.map(k => u[k]).find(v => v !== undefined && v !== null)) || 0;
+    return (
+    <View style={styles.usedCard}>
+      <View style={styles.usedTagLeft}>
+        <Text style={styles.usedTagText}>{getUsedTaskId(item)}</Text>
+      </View>
+      <View style={styles.usedTagRight}>
+        <Text numberOfLines={1} style={[styles.usedTagText, {maxWidth: ms(230)}]}>
+          {String(u.TaskName ?? u.taskName ?? '')}
         </Text>
-        <Text style={styles.assignedLabel}>Used Qty :</Text>
-        <Text numberOfLines={1} style={styles.assignedQtyValue}>
+      </View>
+      <View style={styles.usedQtyRow}>
+        <Text style={styles.usedQtyLabel}>Assigned Qty</Text>
+        <Text style={styles.usedQtyLabel}>Issued Qty</Text>
+        <Text style={styles.usedQtyLabel}>Used Qty</Text>
+      </View>
+      <View style={[styles.usedQtyRow, {marginTop: ms(5)}]}>
+        <Text style={[styles.usedQtyValue, {color: '#2F61D5'}]}>
+          {num('AssignedQty', 'assignedQty')}
+        </Text>
+        <Text style={[styles.usedQtyValue, {color: '#ff9b00'}]}>
+          {num('ItemIssuedQuantity', 'itemIssuedQuantity')}
+        </Text>
+        <Text style={[styles.usedQtyValue, {color: COLORS.primary}]}>
           {getUsedDetailQuantity(item)}
         </Text>
       </View>
-      <View style={styles.usedRowFooter}>
-        <Text numberOfLines={1} style={styles.assignedWorkerName}>
+      <View style={styles.usedFooterRow}>
+        <Text numberOfLines={1} style={styles.usedTechName}>
           {getUsedFieldWorkerName(item)}
         </Text>
-        <Pressable hitSlop={10} onPress={() => setUsedItemToUpdate(item as GetUsedItemListResultData)}>
-          <Ionicons name="refresh" style={styles.usedRowRefresh} />
+        <Pressable
+          style={styles.usedViewTask}
+          onPress={() =>
+            (navigation as any).navigate('TaskDetails', {
+              taskId: num('TaskId', 'taskId'),
+              sheet: true,
+              headerTitle: 'Item Inventory',
+              fallbackTask: {Id: num('TaskId', 'taskId'), NewTaskId: String(u.NewTaskID ?? u.newTaskID ?? u.NewTaskId ?? '') || undefined},
+              // Java opens CRMTaskDetailsFragmentNew (downloadReport + allowToReassign) from here.
+              source: 'crm',
+            })
+          }>
+          <Text style={styles.usedViewTaskText}>View Task {'>>'}</Text>
         </Pressable>
       </View>
+      <Pressable
+        hitSlop={10}
+        style={styles.usedReturn}
+        onPress={() => setUsedItemToUpdate(item as GetUsedItemListResultData)}>
+        <ReturnIcon size={ms(20)} />
+      </Pressable>
     </View>
-  );
+    );
+  };
 
   const renderIssuedDetails = () => {
     if (!selectedItem) {
@@ -1249,7 +1301,7 @@ const ItemInventoryTabHostScreen = ({
       0,
     );
     const totalIssuedPrice =
-      purchasePrice > 0 ? String(totalIssuedQuantity * purchasePrice) : '-NA-';
+      purchasePrice > 0 ? (totalIssuedQuantity * purchasePrice).toFixed(3) : '-NA-';
 
     return (
       <View style={styles.issuedCard}>
@@ -1266,19 +1318,17 @@ const ItemInventoryTabHostScreen = ({
         </Text>
 
         <View style={styles.issuedSearchRow}>
-          <Text style={styles.issuedSearchIcon}>Search</Text>
+          <Ionicons name="search" style={styles.searchIcon} />
           <TextInput
             value={assignedSearchText}
             onChangeText={setAssignedSearchText}
             placeholder="Search by Fieldworker name..."
-            placeholderTextColor="#8C8C8C"
-            style={styles.issuedSearchInput}
+            placeholderTextColor={COLORS.lightGray}
+            style={styles.searchInput}
           />
-          {assignedSearchText ? (
-            <Pressable hitSlop={10} onPress={() => setAssignedSearchText('')}>
-              <Text style={styles.issuedSearchClear}>x</Text>
-            </Pressable>
-          ) : null}
+          <Pressable hitSlop={10} onPress={() => setAssignedSearchText('')}>
+            <Ionicons name="close" style={styles.clearText} />
+          </Pressable>
         </View>
 
         {isAssignedLoading ? (
@@ -1338,7 +1388,7 @@ const ItemInventoryTabHostScreen = ({
     );
     const responseItemName = usedItems.map(getUsedItemName).find(Boolean);
     const totalUsedPrice =
-      purchasePrice > 0 ? String(totalUsedQuantity * purchasePrice) : '-NA-';
+      purchasePrice > 0 ? (totalUsedQuantity * purchasePrice).toFixed(3) : '-NA-';
 
     return (
       <View style={styles.issuedCard}>
@@ -1355,19 +1405,17 @@ const ItemInventoryTabHostScreen = ({
         </Text>
 
         <View style={styles.issuedSearchRow}>
-          <Text style={styles.issuedSearchIcon}>Search</Text>
+          <Ionicons name="search" style={styles.searchIcon} />
           <TextInput
             value={usedSearchText}
             onChangeText={setUsedSearchText}
             placeholder="Search by Fieldworker name..."
-            placeholderTextColor="#8C8C8C"
-            style={styles.issuedSearchInput}
+            placeholderTextColor={COLORS.lightGray}
+            style={styles.searchInput}
           />
-          {usedSearchText ? (
-            <Pressable hitSlop={10} onPress={() => setUsedSearchText('')}>
-              <Text style={styles.issuedSearchClear}>x</Text>
-            </Pressable>
-          ) : null}
+          <Pressable hitSlop={10} onPress={() => setUsedSearchText('')}>
+            <Ionicons name="close" style={styles.clearText} />
+          </Pressable>
         </View>
 
         {isUsedLoading ? (
@@ -1421,8 +1469,16 @@ const ItemInventoryTabHostScreen = ({
   );
 
   return (
-    <View style={styles.shell}>
-      {selectedItem && inventoryView === 'issued' ? (
+    <View
+      style={[
+        styles.shell,
+        selectedItem && (inventoryView === 'issued' || inventoryView === 'used')
+          ? styles.shellRed
+          : null,
+      ]}>
+      {focDetail ? (
+        <FOCDetailsScreen admin focRequest={focDetail} onClose={() => setFocDetail(null)} />
+      ) : selectedItem && inventoryView === 'issued' ? (
         renderIssuedDetails()
       ) : selectedItem && inventoryView === 'used' ? (
         renderUsedDetails()
@@ -1437,7 +1493,11 @@ const ItemInventoryTabHostScreen = ({
           />
 
           {activeTab === 'requested'
-            ? <FOCScreen ownerId={ownerId} isFieldWorker={isFieldWorker} />
+            ? <FOCScreen
+                ownerId={ownerId}
+                isFieldWorker={isFieldWorker}
+                onOpenDetails={item => setFocDetail(item as unknown as Record<string, unknown>)}
+              />
             : isFieldWorker
               ? renderPlaceholderTab()
               : renderItemListTab()}
@@ -1577,62 +1637,27 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: THEME_PRIMARY,
   },
+  // Java owner_item_inventory_fragment_new: plain white card (no rounded top) under the tab strip.
   card: {
     flex: 1,
-    marginTop: ms(8),
-    borderTopLeftRadius: ms(30),
-    borderTopRightRadius: ms(30),
     backgroundColor: '#FFFFFF',
-    elevation: 8,
-    shadowColor: '#000000',
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: {width: 0, height: -2},
-    overflow: 'hidden',
+  },
+  // Java item_inventory_details_enhanced: red root (paddingTop 10) + white 30dp-radius sheet.
+  detailRoot: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    paddingTop: ms(10),
   },
   detailCard: {
     flex: 1,
-    marginTop: ms(45),
     borderTopLeftRadius: ms(30),
     borderTopRightRadius: ms(30),
     backgroundColor: '#FFFFFF',
-    paddingBottom: ms(100),
+    overflow: 'hidden',
   },
-  detailTopBar: {
-    minHeight: ms(46),
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: ms(1),
-    borderBottomColor: '#F0F0F0',
-    paddingHorizontal: ms(12),
-    backgroundColor: '#FFFFFF',
-  },
-  detailContent: {
-    flex: 1,
-    paddingHorizontal: ms(30),
-    paddingTop: ms(12),
-    paddingBottom: ms(20),
-  },
-  detailBackButton: {
-    alignSelf: 'flex-start',
-    minHeight: ms(32),
-    justifyContent: 'center',
-    marginBottom: ms(8),
-  },
-  detailBackText: {
-    color: THEME_PRIMARY,
-    fontSize: sp(14),
-    fontWeight: '800',
-  },
-  detailTopTitle: {
-    flex: 1,
-    color: '#111111',
-    fontSize: sp(16),
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  detailTopSpacer: {
-    width: ms(82),
+  detailScroll: {
+    paddingTop: ms(20),
+    paddingBottom: ms(110),
   },
   detailImageWrap: {
     alignItems: 'center',
@@ -1640,41 +1665,41 @@ const styles = StyleSheet.create({
   detailImage: {
     width: ms(150),
     height: ms(150),
-    borderRadius: ms(14),
+    borderRadius: ms(15),
     borderWidth: ms(1),
-    borderColor: '#D0D5DD',
+    borderColor: COLORS.lightGray,
     resizeMode: 'contain',
-    backgroundColor: '#F2F4F7',
+    backgroundColor: '#FFFFFF',
   },
   noImageBox: {
     width: ms(150),
     height: ms(150),
-    borderRadius: ms(14),
+    borderRadius: ms(15),
     borderWidth: ms(1),
-    borderColor: '#D0D5DD',
+    borderColor: COLORS.lightGray,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
   noImageText: {
-    marginTop: ms(8),
-    color: '#B8B8B8',
-    fontSize: sp(13),
-    fontWeight: '700',
+    position: 'absolute',
+    top: ms(10 + 130 * 0.69),
+    color: '#B7B7B7',
+    fontSize: sp(9),
   },
   detailActionRow: {
     marginTop: ms(10),
     flexDirection: 'row',
-    justifyContent: 'space-between',
   },
   detailPill: {
     flex: 1,
     minHeight: ms(48),
-    borderRadius: ms(24),
+    margin: ms(10),
+    borderRadius: ms(34),
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: ms(14),
+    paddingLeft: ms(15),
+    paddingRight: ms(15),
     elevation: 3,
     shadowColor: '#000000',
     shadowOpacity: 0.15,
@@ -1682,259 +1707,299 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 2},
   },
   detailPillDark: {
-    backgroundColor: '#303530',
-    marginRight: ms(9),
+    backgroundColor: '#353935',
   },
   detailPillPrimary: {
-    backgroundColor: THEME_PRIMARY,
-    marginLeft: ms(9),
+    backgroundColor: COLORS.primary,
   },
   detailPillText: {
-    marginLeft: ms(10),
+    flex: 1,
+    textAlign: 'center',
     color: '#FFFFFF',
-    fontSize: sp(15),
-    fontWeight: '900',
-  },
-  detailStatusRow: {
-    marginTop: ms(18),
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  detailStatusText: {
-    marginLeft: ms(8),
-    color: '#4B5563',
-    fontSize: sp(13),
+    fontSize: sp(14),
   },
   detailErrorText: {
     marginTop: ms(14),
+    marginHorizontal: ms(30),
     color: '#B42318',
     fontSize: sp(13),
     fontWeight: '700',
   },
   detailTitleRow: {
-    marginTop: ms(20),
+    marginTop: ms(10),
+    marginHorizontal: ms(30),
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   detailTitle: {
     flex: 1,
-    color: '#111111',
+    color: COLORS.black,
     fontSize: sp(24),
-    lineHeight: sp(30),
-    fontWeight: '900',
+    fontWeight: 'bold',
   },
   detailId: {
-    color: '#1976D2',
+    flex: 1,
+    marginLeft: ms(10),
+    textAlign: 'center',
+    color: COLORS.linkBlue,
     fontSize: sp(20),
-    lineHeight: sp(28),
-    fontWeight: '900',
+    fontWeight: 'bold',
   },
   detailSectionTitle: {
-    marginTop: ms(20),
-    marginBottom: ms(15),
-    color: '#111111',
+    marginHorizontal: ms(30),
+    color: COLORS.black,
     fontSize: sp(16),
-    fontWeight: '900',
+    fontWeight: 'bold',
   },
   detailRow: {
-    minHeight: ms(24),
+    height: ms(20),
+    marginHorizontal: ms(30),
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   detailLabel: {
-    flex: 1,
-    marginRight: ms(18),
-    color: '#111111',
+    width: ms(200),
+    color: COLORS.black,
     fontSize: sp(16),
-    lineHeight: sp(22),
   },
   detailValue: {
-    flex: 1,
-    color: '#111111',
+    width: ms(150),
+    color: COLORS.black,
     fontSize: sp(16),
-    lineHeight: sp(22),
   },
   priceGreen: {
-    color: '#00C96A',
+    color: '#03de73',
   },
   priceBlue: {
-    color: '#2467CF',
+    color: '#2F61D5',
   },
   priceOrange: {
-    color: '#FFB21A',
+    color: '#FBC02D',
   },
   pricePrimary: {
-    color: THEME_PRIMARY,
+    color: COLORS.primary,
   },
+  shellRed: {
+    backgroundColor: COLORS.primary,
+    paddingTop: ms(10),
+  },
+  // Java item_inventory_details / useditem_inventory_details: 30dp-radius white sheet.
   issuedCard: {
     flex: 1,
-    marginTop: ms(45),
     borderTopLeftRadius: ms(30),
     borderTopRightRadius: ms(30),
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: ms(30),
-    paddingTop: ms(30),
-    paddingBottom: ms(104),
+    overflow: 'hidden',
   },
   issuedHeaderRow: {
-    minHeight: ms(24),
+    height: ms(20),
+    marginTop: ms(30),
+    marginHorizontal: ms(30),
     flexDirection: 'row',
     alignItems: 'center',
   },
   issuedItemName: {
-    flex: 1,
-    marginRight: ms(12),
-    color: '#111111',
+    width: ms(150),
+    color: COLORS.black,
     fontSize: sp(16),
-    fontWeight: '900',
+    fontWeight: 'bold',
   },
   issuedTotalLabel: {
-    color: '#111111',
+    color: COLORS.black,
     fontSize: sp(16),
-    fontWeight: '900',
+    fontWeight: 'bold',
   },
   issuedTotalValue: {
-    marginLeft: ms(6),
-    color: THEME_PRIMARY,
+    marginLeft: ms(5),
+    color: COLORS.primary,
     fontSize: sp(16),
-    fontWeight: '900',
+    fontWeight: 'bold',
   },
   issuedPriceText: {
-    marginTop: ms(28),
-    color: '#777777',
+    marginTop: ms(20),
+    marginHorizontal: ms(30),
+    color: COLORS.slate,
     fontSize: sp(14),
-    fontWeight: '900',
+    fontWeight: 'bold',
   },
   issuedSearchRow: {
-    minHeight: ms(44),
-    marginTop: ms(24),
-    borderBottomWidth: ms(1),
-    borderBottomColor: '#D7D7D7',
+    height: ms(40),
+    marginTop: ms(11),
+    marginLeft: ms(23),
+    marginRight: ms(16),
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  issuedSearchIcon: {
-    width: ms(30),
-    color: '#B5B5B5',
-    fontSize: sp(24),
-  },
-  issuedSearchInput: {
-    flex: 1,
-    minHeight: ms(42),
-    paddingVertical: 0,
-    color: '#111111',
-    fontSize: sp(18),
-  },
-  issuedSearchClear: {
-    color: '#B5B5B5',
-    fontSize: sp(28),
-    lineHeight: sp(30),
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.darkGray,
+    paddingHorizontal: ms(12),
   },
   issuedStatusBlock: {
-    marginTop: ms(22),
+    paddingVertical: ms(18),
     alignItems: 'center',
   },
   issuedStatusText: {
     marginTop: ms(8),
     color: '#4B5563',
     fontSize: sp(13),
-    fontWeight: '700',
   },
   issuedErrorText: {
-    marginTop: ms(14),
+    margin: ms(14),
     color: '#B42318',
     fontSize: sp(13),
     fontWeight: '700',
   },
   assignedListContent: {
     flexGrow: 1,
-    paddingTop: ms(14),
-    paddingBottom: ms(20),
+    marginTop: ms(13),
+    paddingHorizontal: ms(24),
+    paddingBottom: ms(110),
   },
   assignedCard: {
-    minHeight: ms(86),
-    borderRadius: ms(8),
-    borderWidth: ms(1),
-    borderColor: '#EFEFEF',
+    height: ms(80),
+    marginVertical: ms(5),
+    marginBottom: ms(15),
+    borderRadius: ms(10),
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: ms(22),
-    paddingVertical: ms(16),
     elevation: 2,
     shadowColor: '#000000',
     shadowOpacity: 0.12,
-    shadowRadius: 5,
-    shadowOffset: {width: 0, height: 2},
+    shadowRadius: 4,
+    shadowOffset: {width: 0, height: 1},
   },
   assignedCardTopRow: {
-    minHeight: ms(28),
+    marginTop: ms(10),
     flexDirection: 'row',
     alignItems: 'center',
   },
+  assignedCol: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
+  },
   assignedLabel: {
-    color: '#111111',
+    color: COLORS.black,
     fontSize: sp(16),
-    fontWeight: '900',
+    fontWeight: 'bold',
   },
-  assignedTaskValue: {
-    width: ms(140),
-    marginLeft: ms(12),
-    marginRight: ms(12),
-    color: THEME_PRIMARY,
-    fontSize: sp(15),
-  },
-  assignedQtyValue: {
-    width: ms(70),
-    marginLeft: ms(12),
-    color: THEME_PRIMARY,
-    fontSize: sp(15),
-  },
-  assignedReturnButton: {
-    marginLeft: 'auto',
-    minWidth: ms(36),
-    minHeight: ms(32),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  assignedReturnText: {
-    color: '#111111',
-    fontSize: sp(28),
-    lineHeight: sp(30),
+  assignedValue: {
+    color: COLORS.primary,
+    fontSize: sp(14),
   },
   assignedWorkerName: {
-    marginTop: ms(12),
-    color: '#9CA3AF',
+    position: 'absolute',
+    top: ms(50),
+    left: ms(15),
+    color: COLORS.lightGray,
+    fontSize: sp(13),
+    fontWeight: 'bold',
+  },
+  usedCard: {
+    marginVertical: ms(8),
+    marginHorizontal: ms(-2),
+    borderRadius: ms(10),
+    backgroundColor: '#FFFFFF',
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: {width: 0, height: 1},
+  },
+  usedTagLeft: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#353935',
+    borderTopLeftRadius: ms(10),
+    borderBottomRightRadius: ms(10),
+    paddingHorizontal: ms(15),
+    paddingVertical: ms(3),
+  },
+  usedTagRight: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: COLORS.primary,
+    borderTopRightRadius: ms(10),
+    borderBottomLeftRadius: ms(10),
+    paddingHorizontal: ms(15),
+    paddingVertical: ms(3),
+  },
+  usedTagText: {
+    color: '#FFFFFF',
+    fontSize: sp(9),
+    textTransform: 'uppercase',
+  },
+  usedQtyRow: {
+    marginTop: ms(8),
+    marginHorizontal: ms(10),
+    flexDirection: 'row',
+  },
+  usedQtyLabel: {
+    flex: 1,
+    textAlign: 'center',
+    color: COLORS.ink,
+    fontSize: sp(16),
+  },
+  usedQtyValue: {
+    flex: 1,
+    textAlign: 'center',
     fontSize: sp(14),
-    fontWeight: '900',
+  },
+  usedFooterRow: {
+    marginTop: ms(10),
+    marginBottom: ms(14),
+    marginHorizontal: ms(10),
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  usedTechName: {
+    flex: 2,
+    paddingLeft: ms(5),
+    color: COLORS.lightGray,
+    fontSize: sp(12),
+    fontWeight: 'bold',
+  },
+  usedViewTask: {
+    flex: 1,
+    marginLeft: ms(-12),
+  },
+  usedViewTaskText: {
+    color: COLORS.primary,
+    fontSize: sp(12),
+    fontWeight: 'bold',
+  },
+  usedReturn: {
+    position: 'absolute',
+    right: ms(10),
+    bottom: ms(12),
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: ms(15),
+    paddingLeft: ms(15),
+    paddingRight: ms(20),
     paddingTop: ms(15),
-    paddingBottom: ms(8),
-    gap: ms(10),
+    paddingBottom: ms(5),
+    gap: ms(13),
   },
   searchBox: {
     flex: 1,
+    marginLeft: ms(8),
     height: ms(40),
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.darkGray,
-    paddingHorizontal: ms(8),
+    paddingHorizontal: ms(12),
   },
   searchIcon: {
     color: COLORS.lightGray,
     fontSize: ms(20),
-    marginRight: ms(8),
+    marginRight: ms(1),
   },
   searchInput: {
     flex: 1,
     paddingVertical: 0,
     color: COLORS.textBlack,
-    fontSize: sp(14),
+    fontSize: sp(15),
   },
   clearText: {
     color: COLORS.textBlack,
@@ -1964,12 +2029,12 @@ const styles = StyleSheet.create({
   listContent: {
     flexGrow: 1,
     paddingHorizontal: ms(10),
-    paddingTop: ms(4),
+    paddingTop: 0,
     paddingBottom: ms(112),
   },
   itemCard: {
-    minHeight: ms(150),
-    marginHorizontal: ms(4),
+    height: ms(140),
+    marginHorizontal: ms(5),
     marginTop: ms(5),
     marginBottom: ms(20),
     borderRadius: ms(10),
@@ -2052,11 +2117,10 @@ const styles = StyleSheet.create({
     opacity: 0.22,
   },
   itemBody: {
-    flex: 1,
-    paddingLeft: ms(100),
-    paddingRight: ms(48),
-    paddingTop: ms(30),
-    paddingBottom: ms(16),
+    position: 'absolute',
+    left: ms(100),
+    top: ms(20),
+    right: ms(36),
   },
   itemTitleRow: {
     flexDirection: 'row',
@@ -2080,13 +2144,14 @@ const styles = StyleSheet.create({
     marginTop: ms(20),
     maxWidth: ms(250),
     color: COLORS.lightGray,
-    fontSize: sp(14),
+    fontSize: sp(12),
   },
   quantityRow: {
-    marginTop: ms(22),
+    position: 'absolute',
+    left: ms(100),
+    top: ms(97),
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
   },
   quantityLabel: {
     marginLeft: ms(10),
@@ -2100,17 +2165,17 @@ const styles = StyleSheet.create({
   },
   actionColumn: {
     position: 'absolute',
-    top: ms(26),
+    top: ms(25),
     right: ms(10),
     width: ms(36),
     alignItems: 'flex-end',
   },
   actionButton: {
     minWidth: ms(34),
-    minHeight: ms(24),
+    minHeight: ms(20),
     alignItems: 'flex-end',
     justifyContent: 'center',
-    marginBottom: ms(13),
+    marginBottom: ms(15),
   },
   iconFrame: {
     width: ms(22),

@@ -43,6 +43,8 @@ type Props = {
   okRight?: number;
   /** Dialog dismissed (check, outside tap, back) with text typed but nothing picked. */
   onDismissText?: (text: string) => void;
+  /** Java dialog_searchable_spinner: window pinned to the top, box only as tall as its rows. */
+  wrapContent?: boolean;
 };
 
 const SearchPickerModal: React.FC<Props> = ({
@@ -60,6 +62,7 @@ const SearchPickerModal: React.FC<Props> = ({
   showOk = false,
   okRight = 80,
   onDismissText,
+  wrapContent = false,
 }) => {
   const [query, setQuery] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -115,10 +118,12 @@ const SearchPickerModal: React.FC<Props> = ({
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={dismiss}>
       <Pressable style={styles.overlay} onPress={dismiss}>
-        <View style={minChars > 0 ? styles.window : styles.windowAuto}>
+        <View style={minChars > 0 || wrapContent ? styles.window : styles.windowAuto}>
         <Pressable
           style={
-            minChars > 0
+            wrapContent
+              ? [styles.box, styles.boxInWindow, { height: undefined }]
+              : minChars > 0
               ? [styles.box, styles.boxInWindow, !loading && shown.length === 0 ? { height: undefined } : { height: '100%' }]
               : [styles.box, hideSearch && styles.boxCompact]
           }
@@ -148,7 +153,7 @@ const SearchPickerModal: React.FC<Props> = ({
             <ActivityIndicator color={COLORS.primary} style={styles.loader} />
           ) : (
             <ScrollView
-              style={hideSearch ? styles.listCompact : styles.list}
+              style={wrapContent ? [styles.listCompact, {marginTop: 0}] : hideSearch ? styles.listCompact : styles.list}
               keyboardShouldPersistTaps="handled"
             >
               {shown.map(option => (
@@ -157,7 +162,7 @@ const SearchPickerModal: React.FC<Props> = ({
                   style={styles.item}
                   onPress={() => onSelect(option)}
                 >
-                  <Text style={styles.itemText}>{option.label}</Text>
+                  <Text style={[styles.itemText, wrapContent && styles.itemTextWrap]}>{option.label}</Text>
                 </TouchableOpacity>
               ))}
               {shown.length === 0 && query.trim().length >= minChars ? (
@@ -211,6 +216,7 @@ const styles = StyleSheet.create({
   listCompact: { flexGrow: 0, marginTop: vs(8) },
   item: { minHeight: vs(48), justifyContent: 'center', paddingHorizontal: scale(16) },
   itemText: { fontSize: sp(18), color: COLORS.textBlack },
+  itemTextWrap: { fontSize: sp(15) },
   loader: { marginVertical: vs(18) },
   empty: { textAlign: 'center', color: COLORS.lightGray, paddingVertical: vs(16), fontSize: sp(14) },
 });

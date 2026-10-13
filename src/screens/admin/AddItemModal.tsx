@@ -659,6 +659,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
       <SearchPickerModal
         visible={isItemGroupModalOpen}
         title="Select Item Group"
+        wrapContent
         options={itemGroups.map(option => ({id: option.id, label: option.name}))}
         loading={isItemGroupLoading}
         emptyText={itemGroupError || 'No item groups found.'}
@@ -675,6 +676,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
       <SearchPickerModal
         visible={isItemUnitModalOpen}
         title="Select Unit"
+        wrapContent
         options={itemUnits.map(option => ({id: option.id, label: option.name}))}
         loading={isItemUnitLoading}
         emptyText={itemUnitError || 'No units found.'}
