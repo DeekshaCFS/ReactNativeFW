@@ -5,7 +5,7 @@
 // or discard everything with "Clear All Records".
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
 import { ms, sp } from '../../../utils/responsive';
@@ -17,6 +17,7 @@ import {
 } from '../../../offline/offlineStore';
 import { syncPendingTask } from '../../../offline/offlineSync';
 import { getNetworkQuality, isPostable, resetNetworkQualityCache } from '../../../offline/networkQuality';
+import { showFailureMsg, showToast } from '../../../utils/toast';
 
 export default function SyncOfflineScreen({ navigation }: any) {
   const [tasks, setTasks] = useState<PendingTask[]>([]);
@@ -35,7 +36,7 @@ export default function SyncOfflineScreen({ navigation }: any) {
   const handleSync = async (task: PendingTask) => {
     resetNetworkQualityCache();
     if (!isPostable(await getNetworkQuality())) {
-      Alert.alert('No Connection', 'Please connect to a stronger network to sync.');
+      showToast('Please connect to a stronger network to sync.');
       return;
     }
     setSyncingId(task.taskId);
@@ -46,7 +47,7 @@ export default function SyncOfflineScreen({ navigation }: any) {
       const remaining = await getPendingTasks(task.userId);
       if (remaining.length === 0) navigation.navigate('Home');
     } else {
-      Alert.alert('Sync Failed', result.message);
+      showFailureMsg(result.message || 'Sync Failed');
     }
   };
 

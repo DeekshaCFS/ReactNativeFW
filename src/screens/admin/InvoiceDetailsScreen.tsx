@@ -28,6 +28,7 @@ import {scale, sp, vs, ms} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import BackBar from '../../components/BackBar';
+import { showFailureMsg, showToast } from '../../utils/toast';
 
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
@@ -130,7 +131,7 @@ const InvoiceDetailsScreen = ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load invoice details.';
-      Alert.alert('Invoice details error', message);
+      showFailureMsg(message || 'Invoice details error');
     } finally {
       setIsLoading(false);
     }
@@ -158,7 +159,7 @@ const InvoiceDetailsScreen = ({
           } catch (error) {
             const message =
               error instanceof Error ? error.message : 'Unable to delete invoice.';
-            Alert.alert('Delete failed', message);
+            showFailureMsg(message || 'Delete failed');
           } finally {
             setIsDeleting(false);
           }
@@ -173,13 +174,13 @@ const InvoiceDetailsScreen = ({
       const response = await getInvoicePdf({UserId: ownerId, invoiceId: invoiceId});
       const pdfUrl = String(response.ResultData?.InvoicePdfPath ?? '').trim();
       if (!pdfUrl) {
-        Alert.alert('Download', 'PDF is not available for this invoice.');
+        showToast('PDF is not available for this invoice.');
         return;
       }
       await Linking.openURL(pdfUrl);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to download PDF.';
-      Alert.alert('Download failed', message);
+      showFailureMsg(message || 'Download failed');
     } finally {
       setIsDownloading(false);
     }
@@ -208,16 +209,16 @@ const InvoiceDetailsScreen = ({
   const handleSavePayment = async () => {
     const amount = Number(paymentAmount);
     if (!paymentAmount.trim() || !Number.isFinite(amount) || amount <= 0) {
-      Alert.alert('Record Payment', 'Please enter a valid amount.');
+      showFailureMsg('Please enter a valid amount.');
       return;
     }
     if (!paymentType) {
-      Alert.alert('Record Payment', 'Please select a payment type.');
+      showFailureMsg('Please select a payment type.');
       return;
     }
     const remaining = Number(details?.RemainingAmount ?? 0);
     if (remaining > 0 && amount > remaining) {
-      Alert.alert('Record Payment', 'Entered amount is greater than the remaining amount.');
+      showFailureMsg('Entered amount is greater than the remaining amount.');
       return;
     }
 
@@ -238,7 +239,7 @@ const InvoiceDetailsScreen = ({
       await loadDetails();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to record payment.';
-      Alert.alert('Payment failed', message);
+      showFailureMsg(message || 'Payment failed');
     } finally {
       setIsSavingPayment(false);
     }
@@ -252,7 +253,7 @@ const InvoiceDetailsScreen = ({
 
   const handleSaveFollowUp = async () => {
     if (!followUpDate.trim()) {
-      Alert.alert('Follow Up', 'Please enter a date.');
+      showFailureMsg('Please enter a date.');
       return;
     }
     setIsSavingFollowUp(true);
@@ -270,7 +271,7 @@ const InvoiceDetailsScreen = ({
       setIsFollowUpModalOpen(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to save follow-up.';
-      Alert.alert('Follow up failed', message);
+      showFailureMsg(message || 'Follow up failed');
     } finally {
       setIsSavingFollowUp(false);
     }

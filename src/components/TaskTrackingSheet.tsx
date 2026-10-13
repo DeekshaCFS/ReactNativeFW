@@ -8,7 +8,7 @@ import { launchCameraWithPermission } from '../utils/cameraPermission';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, Image, TouchableOpacity,
-  ScrollView, TextInput, Alert, Linking,
+  ScrollView, TextInput, Linking,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Modal from './AppModal';
@@ -18,6 +18,7 @@ import type { TasksListResultData as Task } from '../api/task/task.types';
 import { useTaskStatus } from '../hooks/useTaskStatus';
 import { scale, vs, sp, ms } from '../utils/responsive';
 import { launchImageLibrary } from 'react-native-image-picker';
+import { showFailureMsg, showToast } from '../utils/toast';
 
 const REJECTION_REASONS = [
   'Not available', 'Wrong area', 'Personal reason', 'Equipment issue', 'Other',
@@ -31,14 +32,14 @@ const REASON_FOCUS_GREEN = '#2a7d6f';
 const handleCallTask = (task: Task) => {
   const phone = task.ContactNo ?? task.TechContactNo;
   if (phone) Linking.openURL(`tel:${phone}`);
-  else Alert.alert('Unavailable', 'Contact number is not available.');
+  else showToast('Contact number is not available.');
 };
 
 const handleLocationTask = async (task: Task) => {
   const lat = task.Latitude ? parseFloat(task.Latitude) : 0;
   const lng = task.Longitude ? parseFloat(task.Longitude) : 0;
   if (!lat || !lng) {
-    Alert.alert('Unable to find destination', 'Google Map is unable to find this destination.');
+    showToast('Google Map is unable to find this destination.');
     return;
   }
   const nativeNavUrl = `google.navigation:q=${lat},${lng}`;
@@ -48,7 +49,7 @@ const handleLocationTask = async (task: Task) => {
     if (canOpenNative) await Linking.openURL(nativeNavUrl);
     else await Linking.openURL(webFallbackUrl);
   } catch {
-    Alert.alert('Maps Unavailable', 'Please install a maps application to continue.');
+    showToast('Please install a maps application to continue.');
   }
 };
 
@@ -108,9 +109,10 @@ export default function TaskTrackingSheet({
 
   // Java: ValidateTaskDetails -> 201 "No Data Found." sends the user home to refresh.
   const handleTaskUnavailable = () =>
-    Alert.alert('Task Unavailable', 'This task is no longer available. Refreshing your tasks.', [
-      { text: 'OK', onPress: () => navigation.navigate('Home') },
-    ]);
+    {
+      showFailureMsg('This task is no longer available. Refreshing your tasks.');
+      navigation.navigate('Home');
+    }
   const isLoading = actionState === 'loading';
   const userId    = task.UserId ?? 0;
 
@@ -148,11 +150,11 @@ export default function TaskTrackingSheet({
   const handleAccept = async (responseCode?: string) => {
     if (!isResumeFlow && task.ResponseCode && Number(task.ResponseCode) !== 0) {
       if (!responseCode || !responseCode.trim()) {
-        Alert.alert('Response Code Required', 'Please enter the response code.');
+        showFailureMsg('Please enter the response code.');
         return;
       }
       if (Number(responseCode.trim()) !== Number(task.ResponseCode)) {
-        Alert.alert('Invalid Code', 'Please enter a valid response code.');
+        showFailureMsg('Please enter a valid response code.');
         return;
       }
     }
@@ -164,7 +166,7 @@ export default function TaskTrackingSheet({
         handleTaskUnavailable();
         return;
       }
-      Alert.alert('Error', errorMessage ?? 'Could not accept task');
+      showFailureMsg(errorMessage ?? 'Could not accept task');
       return;
     }
 
@@ -185,7 +187,7 @@ export default function TaskTrackingSheet({
         handleTaskUnavailable();
         return;
       }
-      Alert.alert('Error', errorMessage ?? 'Could not resume task');
+      showFailureMsg(errorMessage ?? 'Could not resume task');
       return;
     }
 
@@ -199,7 +201,7 @@ export default function TaskTrackingSheet({
 
     const photosWithImage = rejectPhotos.filter(p => p?.base64);
     if (photosWithImage.length === 0) {
-      Alert.alert('Validation', 'At least one image is mandatory to reject the task');
+      showFailureMsg('At least one image is mandatory to reject the task');
       return;
     }
 
@@ -209,7 +211,7 @@ export default function TaskTrackingSheet({
         handleTaskUnavailable();
         return;
       }
-      Alert.alert('Error', errorMessage ?? 'Could not reject task');
+      showFailureMsg(errorMessage ?? 'Could not reject task');
       return;
     }
     setSheetVisible(false);
@@ -228,7 +230,7 @@ export default function TaskTrackingSheet({
     setRejectNoteError(false);
     const photosWithImage = rejectPhotos.filter(p => p?.base64);
     if (photosWithImage.length === 0) {
-      Alert.alert('Validation', 'At least One Image is mandatory to Reject the Task !!');
+      showFailureMsg('At least One Image is mandatory to Reject the Task !!');
       return;
     }
     const success = await rejectTask(task, userId, rejectNote, photosWithImage);
@@ -237,7 +239,7 @@ export default function TaskTrackingSheet({
         handleTaskUnavailable();
         return;
       }
-      Alert.alert('Error', errorMessage ?? 'Could not reject task');
+      showFailureMsg(errorMessage ?? 'Could not reject task');
       return;
     }
     setSheetVisible(false);

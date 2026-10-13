@@ -3,7 +3,6 @@ import {ms, sp} from '../../utils/responsive';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -45,6 +44,7 @@ import {
   type CityOption,
   type StateOption,
 } from './crmShared';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 const STATE_KEYS = ['state', 'State', 'stateName', 'StateName'];
 const CITY_KEYS = ['city', 'City', 'cityName', 'CityName'];
@@ -365,19 +365,19 @@ const EditCustomerModal = ({
 
   const handleUpdate = async () => {
     if (!form.customerName.trim()) {
-      Alert.alert(modalTitle, 'Customer Name is required.');
+      showFailureMsg('Customer Name is required.');
       return;
     }
     if (!form.address.trim()) {
-      Alert.alert(modalTitle, 'Primary Address is required.');
+      showFailureMsg('Primary Address is required.');
       return;
     }
     if (!form.state.trim() || !form.city.trim() || !form.pinCode.trim()) {
-      Alert.alert(modalTitle, 'State, City and Pin Code are required.');
+      showFailureMsg('State, City and Pin Code are required.');
       return;
     }
     if (!form.mobileNumber.trim()) {
-      Alert.alert(modalTitle, 'Phone Number is required.');
+      showFailureMsg('Phone Number is required.');
       return;
     }
 
@@ -458,10 +458,7 @@ const EditCustomerModal = ({
           await addCustomer(addPayload as unknown as Parameters<typeof addCustomer>[0]),
         );
         const addRecord = (addResponse ?? {}) as unknown as Record<string, unknown>;
-        Alert.alert(
-          modalTitle,
-          String(addRecord.Message ?? addRecord.message ?? '').trim() || 'Customer added successfully.',
-        );
+        showSuccessMsg(String(addRecord.Message ?? addRecord.message ?? '').trim() || 'Customer added successfully.');
         onUpdated({...addPayload});
         return;
       }
@@ -477,7 +474,7 @@ const EditCustomerModal = ({
         throw new Error(message || 'Unable to update customer details.');
       }
 
-      Alert.alert('Edit Customer', message || 'Customer details updated successfully.');
+      showSuccessMsg(message || 'Customer details updated successfully.');
       onUpdated({
         ...(customer ?? {}),
         ...payload,
@@ -485,7 +482,7 @@ const EditCustomerModal = ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to update customer details.';
-      Alert.alert(modalTitle, message);
+      showFailureMsg(message);
     } finally {
       setIsSubmitting(false);
     }

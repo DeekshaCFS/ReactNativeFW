@@ -39,6 +39,7 @@ import OutlinedInput from '../../components/OutlinedInput';
 import {QuoteIcon} from '../../components/FabIcons';
 import {COLORS} from '../../theme/theme';
 import {requestLocationPermission} from '../../utils/locationPermision';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 // Same Java dialog sheet / header / outlined-field metrics as the Add Task form.
 const styles = {...sharedStyles, ...taskStyles};
@@ -264,7 +265,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      Alert.alert('Photo', 'Unable to read the selected image. Please try again.');
+      showToast('Unable to read the selected image. Please try again.');
       return;
     }
     const picked: PickedImage = {
@@ -287,7 +288,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
       return;
     }
     if (result.errorCode) {
-      Alert.alert('Camera', result.errorMessage || 'Unable to open camera.');
+      showToast(result.errorMessage || 'Unable to open camera.');
       return;
     }
     const asset = result.assets?.[0];
@@ -307,7 +308,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
       return;
     }
     if (result.errorCode) {
-      Alert.alert('Gallery', result.errorMessage || 'Unable to open gallery.');
+      showToast(result.errorMessage || 'Unable to open gallery.');
       return;
     }
     const asset = result.assets?.[0];
@@ -334,7 +335,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
 
   const handleAddItemSubmit = async () => {
     if (!itemName.trim()) {
-      Alert.alert(modalTitle, 'Please enter item name.');
+      showFailureMsg('Please enter item name.');
       return;
     }
 
@@ -344,7 +345,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
       const sales = Number(salesPrice) || 0;
       // Java's edit dialog blocks saving when sales price < purchase price.
       if (sales < purchase) {
-        Alert.alert(modalTitle, 'Sales price should be greater than or equal to purchase price.');
+        showFailureMsg('Sales price should be greater than or equal to purchase price.');
         return;
       }
       setIsSubmitting(true);
@@ -369,12 +370,12 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
             UpdatedBy: ownerId,
           } as unknown as Parameters<typeof editItem>[0]),
         );
-        Alert.alert(modalTitle, 'Item updated successfully.');
+        showSuccessMsg('Item updated successfully.');
         resetForm();
         onSaved?.();
         onClose();
       } catch (error) {
-        Alert.alert(modalTitle, error instanceof Error ? error.message : 'Unable to update item right now.');
+        showFailureMsg(error instanceof Error ? error.message : 'Unable to update item right now.');
       } finally {
         setIsSubmitting(false);
       }
@@ -411,14 +412,14 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
     setIsSubmitting(true);
     try {
       ensureSuccess(await addItem(payload as Partial<AddItem>));
-      Alert.alert('Add Item', 'Item added successfully.');
+      showSuccessMsg('Item added successfully.');
       resetForm();
       onSaved?.();
       onClose();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to add item right now.';
-      Alert.alert('Add Item', message);
+      showFailureMsg(message || 'Add Item');
     } finally {
       setIsSubmitting(false);
     }

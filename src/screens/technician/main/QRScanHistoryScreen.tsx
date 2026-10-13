@@ -6,7 +6,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   ScrollView,
   ActivityIndicator,
   Platform,
@@ -20,6 +19,7 @@ import { COLORS } from '../../../theme/theme';
 import { ms, sp } from '../../../utils/responsive';
 import { getQRScannedData, postQRScannedData } from '../../../api/taskList/taskListService';
 import type { QRPostDataDTOField } from '../../../api/taskList/taskList.types';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
 // Java: MAX_SCAN_LIMIT = 15
 const MAX_SCAN_LIMIT = 15;
@@ -112,7 +112,7 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
 
     setScans(prev => {
       if (prev.length >= MAX_SCAN_LIMIT) {
-        Alert.alert('Limit reached', `You can scan a maximum of ${MAX_SCAN_LIMIT} QR codes.`);
+        showFailureMsg(`You can scan a maximum of ${MAX_SCAN_LIMIT} QR codes.`);
         return prev;
       }
       const next: QRScan = { no: prev.length + 1, fields: parseQRText(value), rawText: value };
@@ -122,12 +122,12 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
 
   const openScanner = async () => {
     if (scans.length >= MAX_SCAN_LIMIT) {
-      Alert.alert('Limit reached', `You can scan a maximum of ${MAX_SCAN_LIMIT} QR codes.`);
+      showFailureMsg(`You can scan a maximum of ${MAX_SCAN_LIMIT} QR codes.`);
       return;
     }
     const granted = await requestCameraPermission();
     if (!granted) {
-      Alert.alert('Camera permission needed', 'Please allow camera access to scan QR codes.');
+      showToast('Please allow camera access to scan QR codes.');
       return;
     }
     setScannerOpen(true);
@@ -139,7 +139,7 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
 
   const handlePost = async () => {
     if (scans.length === 0) {
-      Alert.alert('Scan the QR Code to submit the data!');
+      showFailureMsg('Scan the QR Code to submit the data!');
       return;
     }
     setPosting(true);
@@ -164,11 +164,10 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
         Fields: fields,
       });
 
-      Alert.alert(response?.Message || 'Success', undefined, [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      showSuccessMsg(response?.Message || 'Success');
+      navigation.goBack();
     } catch {
-      Alert.alert('Error', 'Could not post scanned data. Please try again.');
+      showFailureMsg('Could not post scanned data. Please try again.');
     } finally {
       setPosting(false);
     }

@@ -1,7 +1,7 @@
 // src/screens/technician/main/HomeScreen.tsx
 import {
   View, Text, StyleSheet, FlatList,
-  Pressable, Alert, ActivityIndicator, Linking,
+  Pressable, ActivityIndicator, Linking,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import { COLORS } from '../../../theme/theme';
@@ -34,6 +34,7 @@ import {
   isDisclaimerAcceptedResponse,
 } from '../../../api/userDisclaimer/userDisclaimerService';
 import { getCurrentLocationAndAddress } from '../../../utils/locationPermision';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -207,14 +208,14 @@ export default function HomeScreen({ navigation }: any) {
         const todayKey = checkedInTodayKey();
         await AsyncStorage.setItem(todayKey, 'true');
         setShowCheckInModal(false);
-        if (!alreadyAdded) Alert.alert('Success', 'Checked in successfully!');
+        if (!alreadyAdded) showSuccessMsg('Check-In Successfully'); // Java: R.string.check_in_successfully
         // Java: disclaimer is checked right after a successful (or already-added) check-in.
         checkDisclaimer();
       } else {
-        Alert.alert('Check-in Failed', response?.Message || 'Please try again');
+        showFailureMsg(response?.Message || 'Please try again');
       }
     } catch (err: any) {
-      Alert.alert('Check-in Failed', err?.message || 'Please try again');
+      showFailureMsg(err?.message || 'Please try again');
     }
   };
 
@@ -431,13 +432,13 @@ export default function HomeScreen({ navigation }: any) {
       });
       const files = response?.ResultData?.Files ?? [];
       if (files.length === 0) {
-        Alert.alert('Attachments', 'You have no attachment!');
+        showToast('You have no attachment!');
         return;
       }
       setAttachmentFiles(files);
       setAttachmentTask(task);
     } catch {
-      Alert.alert('Attachments', 'You have no attachment!');
+      showToast('You have no attachment!');
     }
   };
 
@@ -445,7 +446,7 @@ export default function HomeScreen({ navigation }: any) {
     try {
       await Linking.openURL(url);
     } catch (err: any) {
-      Alert.alert('Download failed', err?.message || 'Could not open the file.');
+      showFailureMsg(err?.message || 'Could not open the file.');
     }
   };
 

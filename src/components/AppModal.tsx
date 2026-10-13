@@ -3,6 +3,7 @@ import React from 'react';
 import { Modal as RNModal, ModalProps, View, StyleSheet } from 'react-native';
 import { isTablet } from '../utils/responsive';
 import { APP_MAX_WIDTH } from './AppContainer';
+import ToastHost from './ToastHost';
 
 // Drop-in replacement for react-native's Modal. A Modal is drawn above the app,
 // outside AppContainer, so on tablets it would fill the full screen width.
@@ -17,6 +18,8 @@ const AppModal: React.FC<ModalProps> = ({ children, ...props }) => (
     ) : (
       children
     )}
+    {/* A Modal is its own window above the app: draw the success / failure banner in it too. */}
+    <ToastHost />
   </RNModal>
 );
 

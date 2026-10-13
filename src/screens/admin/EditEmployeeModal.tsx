@@ -8,7 +8,6 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -34,6 +33,7 @@ import {
 } from '../../api/umEmployeeList/umEmployeeListService';
 import {getDesignationType} from '../../api/umDesignations/umDesignationsService';
 import {getAllZoneList, getManagerListByServzone} from '../../api/umServiceZone/umServiceZoneService';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 type Props = {
   visible: boolean;
@@ -135,7 +135,7 @@ const EditEmployeeModal: React.FC<Props> = ({
         setKycDocName(String(data.EmpDocument ?? ''));
       })
       .catch(error => {
-        Alert.alert('Edit Profile', error instanceof Error ? error.message : 'Unable to load employee details.');
+        showFailureMsg(error instanceof Error ? error.message : 'Unable to load employee details.');
       })
       .finally(() => active && setIsLoading(false));
     return () => {
@@ -148,7 +148,7 @@ const EditEmployeeModal: React.FC<Props> = ({
   const openPicker = useCallback(
     async (kind: PickerKind) => {
       if (kind === 'manager' && !zone) {
-        Alert.alert('Edit Profile', 'Please select a zone first.');
+        showFailureMsg('Please select a zone first.');
         return;
       }
       setPicker(kind);
@@ -212,7 +212,7 @@ const EditEmployeeModal: React.FC<Props> = ({
         return;
       }
       if (typeof file.size === 'number' && file.size > MAX_DOC_BYTES) {
-        Alert.alert('Attach File', 'File size must be 6 MB or less.');
+        showFailureMsg('File size must be 6 MB or less.');
         return;
       }
       const base64 = await RNFS.readFile(file.uri, 'base64');
@@ -226,7 +226,7 @@ const EditEmployeeModal: React.FC<Props> = ({
     } catch (error) {
       const code = (error as {code?: string} | null)?.code;
       if (code !== 'DOCUMENT_PICKER_CANCELED' && code !== 'OPERATION_CANCELED') {
-        Alert.alert('Attach File', 'Unable to attach this file.');
+        showFailureMsg('Unable to attach this file.');
       }
     }
   };
@@ -234,31 +234,31 @@ const EditEmployeeModal: React.FC<Props> = ({
   const handleUpdate = async () => {
     // Same checks as Java's EditEmpFragment btnUpdate.
     if (!firstName.trim()) {
-      Alert.alert('Edit Profile', 'Please enter first name.');
+      showFailureMsg('Please enter first name.');
       return;
     }
     if (firstName.includes(' ')) {
-      Alert.alert('Edit Profile', 'Space is not allowed in first name.');
+      showFailureMsg('Space is not allowed in first name.');
       return;
     }
     if (!lastName.trim()) {
-      Alert.alert('Edit Profile', 'Please enter last name.');
+      showFailureMsg('Please enter last name.');
       return;
     }
     if (lastName.includes(' ')) {
-      Alert.alert('Edit Profile', 'Space is not allowed in last name.');
+      showFailureMsg('Space is not allowed in last name.');
       return;
     }
     if (hasContactNo && !/^\d{10,12}$/.test(contactNo.trim())) {
-      Alert.alert('Edit Profile', 'Please enter a valid contact number.');
+      showFailureMsg('Please enter a valid contact number.');
       return;
     }
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      Alert.alert('Edit Profile', 'Please enter a valid email id.');
+      showFailureMsg('Please enter a valid email id.');
       return;
     }
     if (joiningDate.trim() && !toApiDate(joiningDate)) {
-      Alert.alert('Edit Profile', 'Joining date must be DD-MM-YYYY.');
+      showFailureMsg('Joining date must be DD-MM-YYYY.');
       return;
     }
 
@@ -294,11 +294,11 @@ const EditEmployeeModal: React.FC<Props> = ({
             : {}),
         } as unknown as Parameters<typeof updateEmpDetails>[0]),
       );
-      Alert.alert('Edit Profile', 'Profile updated successfully.');
+      showSuccessMsg('Profile updated successfully.');
       onUpdated();
       onClose();
     } catch (error) {
-      Alert.alert('Edit Profile', error instanceof Error ? error.message : 'Unable to update profile.');
+      showFailureMsg(error instanceof Error ? error.message : 'Unable to update profile.');
     } finally {
       setIsSubmitting(false);
     }

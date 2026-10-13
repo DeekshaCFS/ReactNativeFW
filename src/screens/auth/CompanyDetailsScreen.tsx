@@ -1,7 +1,6 @@
 // src/screens/auth/CompanyDetailsScreen.tsx
 import {
-  View, TextInput, Text, Image, ImageBackground, Alert,
-  KeyboardAvoidingView, ScrollView, Platform, StatusBar, StyleSheet,
+  View, TextInput, Text, Image, ImageBackground, KeyboardAvoidingView, ScrollView, Platform, StatusBar, StyleSheet,
 } from 'react-native';
 import Slider from '@react-native-community/slider'; // matches legacy SeekBar 0–100
 import { useState } from 'react';
@@ -16,6 +15,7 @@ import { authEvents, AUTH_CHANGED } from '../../utils/authEvents';
 import { getAndroidId } from '../../utils/deviceId';
 import { sp, dp } from '../../utils/responsive';
 import { AuthBackButton } from '../../components/AuthExtras';
+import { showFailureMsg } from '../../utils/toast';
 
 type AuthStackParamList = {
   CompanyDetails: {
@@ -98,7 +98,7 @@ export default function CompanyDetailsScreen() {
       });
 
       if (response.Code !== '200' || !response.ResultData?.LoginOutPut) {
-        Alert.alert('Error', response.Message || 'Could not create your account');
+        showFailureMsg(response.Message || 'Could not create your account');
         return;
       }
 
@@ -115,7 +115,7 @@ export default function CompanyDetailsScreen() {
       // reasoning as OtpScreen; LoginScreen relies on the same event flow).
       authEvents.emit(AUTH_CHANGED);
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Something went wrong');
+      showFailureMsg(err?.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }

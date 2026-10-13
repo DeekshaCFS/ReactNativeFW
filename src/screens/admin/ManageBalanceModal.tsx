@@ -3,7 +3,6 @@ import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,6 +19,7 @@ import {
   type ExpenseTechnicianListResponse,
 } from './adminLegacyApiTypes';
 import { getExpenseUserList, updateAddCredit, updateDeductBalance } from '../../api/expenditure/expenditureService';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 const GREEN_500 = '#4CAF50'; // @color/green_500
 
@@ -136,7 +136,7 @@ const ManageBalanceModal = ({
       setTechnicians([]);
       const message =
         error instanceof Error ? error.message : 'Unable to load fieldworkers.';
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setIsLoadingTechnicians(false);
     }
@@ -172,22 +172,19 @@ const ManageBalanceModal = ({
 
   const handleSubmit = () => {
     if (!selectedTechnician) {
-      Alert.alert('Select fieldworker', 'Please select a fieldworker first.');
+      showFailureMsg('Please select a fieldworker first.');
       return;
     }
 
     if (!balanceAmount.trim() || Number(balanceAmount) <= 0) {
-      Alert.alert('Enter amount', 'Please enter a valid balance amount.');
+      showFailureMsg('Please enter a valid balance amount.');
       return;
     }
 
     if (balanceMode === 'deduct') {
       const remaining = selectedTechnicianBalance ?? getTechnicianBalance(selectedTechnician);
       if (remaining <= 0) {
-        Alert.alert(
-          'Cannot Deduct',
-          'Current amount is 0, balance cannot be deducted.',
-        );
+        showFailureMsg('Current amount is 0, balance cannot be deducted.');
         return;
       }
     }
@@ -202,7 +199,7 @@ const ManageBalanceModal = ({
             ReceivedBy: getTechnicianId(selectedTechnician),
           }));
 
-          Alert.alert('Add Balance', `₹${formatAmount(balanceAmount)} added to ${getTechnicianName(selectedTechnician)}.`);
+          showSuccessMsg(`₹${formatAmount(balanceAmount)} added to ${getTechnicianName(selectedTechnician)}.`);
         } else {
           ensureSuccess(await updateDeductBalance({
             Amount: Number(balanceAmount),
@@ -210,13 +207,13 @@ const ManageBalanceModal = ({
             DeductBy: userId,
             UserId: getTechnicianId(selectedTechnician),
           }));
-          Alert.alert('Deduct Balance', `₹${formatAmount(balanceAmount)} deducted from ${getTechnicianName(selectedTechnician)}.`);
+          showSuccessMsg(`₹${formatAmount(balanceAmount)} deducted from ${getTechnicianName(selectedTechnician)}.`);
         }
 
         onSuccess?.();
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unable to submit request.';
-        Alert.alert('Error', msg);
+        showFailureMsg(msg || 'Error');
       } finally {
         handleClose();
       }

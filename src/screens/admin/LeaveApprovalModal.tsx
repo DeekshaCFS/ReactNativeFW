@@ -9,7 +9,6 @@
 import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -24,6 +23,7 @@ import {postLeaveApprovReject} from '../../api/leaveManagement/leaveManagementSe
 import type {LeaveListItem} from './adminLegacyApiTypes';
 import {COLORS} from '../../theme/theme';
 import {ms, sp} from '../../utils/responsive';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 type Props = {
   leave: LeaveListItem | null;
@@ -67,7 +67,7 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
 
   const submit = async (approve: boolean) => {
     if (!notes.trim()) {
-      Alert.alert('Leave Request', 'Please Explain Leave Reason');
+      showFailureMsg('Please Explain Leave Reason');
       return;
     }
     setSubmitting(approve ? 'approve' : 'decline');
@@ -80,15 +80,12 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
         ActionedBy: ownerId,
       });
       const message = String(response?.Message ?? '');
-      Alert.alert(
-        'Leave Request',
-        message.toLowerCase() === 'leave successfully declined'
+      showSuccessMsg(message.toLowerCase() === 'leave successfully declined'
           ? 'Leave Successfully Declined.'
-          : message || (approve ? 'Leave approved.' : 'Leave declined.'),
-      );
+          : message || (approve ? 'Leave approved.' : 'Leave declined.'));
       onActioned();
     } catch (error) {
-      Alert.alert('Leave Request', error instanceof Error ? error.message : 'Unable to update leave.');
+      showFailureMsg(error instanceof Error ? error.message : 'Unable to update leave.');
     } finally {
       setSubmitting(null);
     }

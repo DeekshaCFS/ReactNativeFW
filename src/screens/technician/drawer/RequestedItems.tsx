@@ -2,8 +2,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, Pressable, Image, TextInput, Dimensions,
-  Platform, StatusBar, ActivityIndicator, RefreshControl, Alert, ToastAndroid,
-} from 'react-native';
+  Platform, StatusBar, ActivityIndicator, RefreshControl, } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Svg, { Path } from 'react-native-svg';
 import { COLORS } from '../../../theme/theme';
@@ -15,6 +14,7 @@ import { getCurrentUserId } from '../../../state/session';
 import DeleteFocDialog from '../../../components/DeleteFocDialog';
 import SearchPickerModal from '../../../components/SearchPickerModal';
 import { FocRequestCard, FocFilterRow, formatFocDate } from '../../../components/FocRequestCard';
+import { showFailureMsg, showToast } from '../../../utils/toast';
 
 const ISSUE_OPTIONS = [
   { id: 1, label: 'Yes' },
@@ -119,13 +119,13 @@ export default function RequestedItems() {
     try {
       const res = await getDeleteFocRequestItem({ id: focRequestId });
       if (res?.Code !== '200') {
-        Alert.alert('Failed', res?.Message || 'Could not delete the request.');
+        showFailureMsg(res?.Message || 'Could not delete the request.');
         return;
       }
-      if (res?.Message) ToastAndroid.show(res.Message, ToastAndroid.SHORT);
+      if (res?.Message) showToast(res.Message);
       setRequests(prev => prev.filter(r => r.FocRequestId !== focRequestId));
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not delete the request.');
+      showFailureMsg(e?.message || 'Could not delete the request.');
     }
   };
 

@@ -38,6 +38,7 @@ import { getDocumentTypes, uploadTaskDoc } from '../../../api/taskList/taskListS
 import type { DocAttachmentType } from '../../../api/taskList/taskList.types';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { finishTaskFlowToHome } from '../../../navigation/taskFlowNavigation';
+import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
 
 // Java: DocumentUploadFragment limits.
 const MAX_TOTAL_MB = 5;
@@ -117,15 +118,15 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
 
         // Track running totals locally: state has not updated yet inside this loop.
         if (count >= MAX_FILES) {
-          Alert.alert('', `You can upload only ${MAX_FILES} files`);
+          showFailureMsg(`You can upload only ${MAX_FILES} files`);
           break;
         }
         if (toMB(sizeBytes) > MAX_TOTAL_MB) {
-          Alert.alert('', `${name} is larger than ${MAX_TOTAL_MB} MB`);
+          showFailureMsg(`${name} is larger than ${MAX_TOTAL_MB} MB`);
           continue;
         }
         if (toMB(sizeBytes) > room) {
-          Alert.alert('', `Not enough space. You can upload only ${formatMB(room)} MB more`);
+          showFailureMsg(`Not enough space. You can upload only ${formatMB(room)} MB more`);
           continue;
         }
 
@@ -148,7 +149,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
       }
     } catch (err: any) {
       if (!isErrorWithCode(err) || err.code !== errorCodes.OPERATION_CANCELED) {
-        Alert.alert('Error', 'Error selecting file');
+        showFailureMsg('Error selecting file');
       }
     }
   };
@@ -172,10 +173,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
         0,
       );
       if (toMB(sizeBytes) + others > MAX_TOTAL_MB) {
-        Alert.alert(
-          '',
-          `Total size exceeded! You can upload only ${formatMB(Math.max(MAX_TOTAL_MB - others, 0))} MB more.`,
-        );
+        showFailureMsg(`Total size exceeded! You can upload only ${formatMB(Math.max(MAX_TOTAL_MB - others, 0))} MB more.`);
         return;
       }
 
@@ -201,7 +199,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
         return next;
       });
     } catch {
-      Alert.alert('Error', 'Could not load the photo');
+      showFailureMsg('Could not load the photo');
     }
   };
 
@@ -225,11 +223,11 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
 
   const handleSave = async () => {
     if (activeFiles.length === 0) {
-      Alert.alert('', 'To upload : PDF or Image is compulsory !');
+      showFailureMsg('To upload : PDF or Image is compulsory !');
       return;
     }
     if (totalMB > MAX_TOTAL_MB) {
-      Alert.alert('', 'Total file size cannot exceed 5 MB');
+      showFailureMsg('Total file size cannot exceed 5 MB');
       return;
     }
 
@@ -251,15 +249,14 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
       });
 
       if (res?.Code && res.Code !== '200') {
-        Alert.alert('Upload failed', res.Message || 'Could not upload the documents.');
+        showFailureMsg(res.Message || 'Could not upload the documents.');
         return;
       }
 
-      Alert.alert('Success', res?.Message || 'Documents uploaded successfully.', [
-        { text: 'OK', onPress: () => finishTaskFlowToHome(navigation) },
-      ]);
+      showSuccessMsg(res?.Message || 'Documents uploaded successfully.');
+      finishTaskFlowToHome(navigation);
     } catch (err: any) {
-      Alert.alert('Upload failed', err?.message || 'Could not upload the documents.');
+      showFailureMsg(err?.message || 'Could not upload the documents.');
     } finally {
       setSaving(false);
     }

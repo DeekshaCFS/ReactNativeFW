@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   TextInput,
   Image,
   ActivityIndicator,
@@ -15,8 +14,7 @@ import {
   Platform,
   PermissionsAndroid,
   Linking,
-  ToastAndroid,
-} from 'react-native';
+  } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
@@ -44,6 +42,7 @@ import { TASK_STATUS_ID } from '../../../constants/taskStatus';
 import { buildImagesPayload } from '../../../utils/imagePayload';
 import { nowAsJavaTime } from '../../../utils/taskStatus.utils';
 import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
+import { showFailureMsg, showToast } from '../../../utils/toast';
 
 type Task = TasksListResultData;
 type AssignedItem = TasksListMultipleItemAssigned;
@@ -247,7 +246,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
     if (source === 'camera' && Platform.OS === 'android') {
       const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
       if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-        Alert.alert('Camera unavailable', 'Camera permission is required to take a photo.');
+        showToast('Camera permission is required to take a photo.');
         return;
       }
     }
@@ -258,17 +257,14 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7, saveToPhotos: false })
         : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Unable to open the camera');
+      showToast(e?.message || 'Unable to open the camera');
       return;
     }
 
     if (result.errorCode) {
-      Alert.alert(
-        'Camera unavailable',
-        result.errorCode === 'permission'
+      showToast(result.errorCode === 'permission'
           ? 'Camera permission is required to take a photo.'
-          : result.errorMessage || 'Unable to open the camera',
-      );
+          : result.errorMessage || 'Unable to open the camera');
       return;
     }
 
@@ -323,18 +319,18 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             : prev
         );
       } else {
-        Alert.alert('Error', response?.Message || 'Failed to start task');
+        showFailureMsg(response?.Message || 'Failed to start task');
       }
     } catch (err: any) {
       console.log('START ERROR', err);
-      Alert.alert('Error', err?.message || 'Failed to start task');
+      showFailureMsg(err?.message || 'Failed to start task');
     }
   };
 
   const handleUploadAndStart = async () => {
     const presentPhotos = photos.filter(p => p?.base64);
     if (presentPhotos.length === 0) {
-      Alert.alert('Please Add/Capture Image');
+      showFailureMsg('Please Add/Capture Image');
       return;
     }
     try {
@@ -359,14 +355,14 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       });
 
       if (response?.Code !== '200') {
-        Alert.alert('Upload failed', response?.Message || 'Could not upload photos');
+        showFailureMsg(response?.Message || 'Could not upload photos');
         return;
       }
 
       setShowUploadSheet(false);
       await startTask();
     } catch (err: any) {
-      Alert.alert('Upload failed', err?.message || 'Could not upload photos');
+      showFailureMsg(err?.message || 'Could not upload photos');
     } finally {
       setUploading(false);
     }
@@ -382,7 +378,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
     const presentRejectPhotos = rejectPhotos.filter(p => p?.base64);
     if (presentRejectPhotos.length === 0) {
-      ToastAndroid.show('At least One Image is mandatory to Reject the Task !!', ToastAndroid.LONG);
+      showToast('At least One Image is mandatory to Reject the Task !!', true);
       return;
     }
 
@@ -407,18 +403,18 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       });
 
       if (response?.Code !== '200') {
-        Alert.alert('Error', response?.Message || 'Failed to reject task');
+        showFailureMsg(response?.Message || 'Failed to reject task');
         return;
       }
 
       setShowRejectSheet(false);
       setRejectReason('');
       setRejectPhotos([]);
-      ToastAndroid.show('Task updated successfully', ToastAndroid.LONG);
+      showToast('Task updated successfully', true);
       // Java returns to the Task tab after a rejection.
       navigation.navigate('Task');
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to reject task');
+      showFailureMsg(err?.message || 'Failed to reject task');
     } finally {
       setRejecting(false);
     }
@@ -434,7 +430,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
     const presentHoldPhotos = onHoldPhotos.filter(p => p?.base64);
     if (presentHoldPhotos.length === 0) {
-      Alert.alert('At Least One Image is Mandatory to put task on hold !! ');
+      showFailureMsg('At Least One Image is Mandatory to put task on hold !! ');
       return;
     }
 
@@ -459,19 +455,19 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       });
 
       if (response?.Code !== '200') {
-        Alert.alert('Error', response?.Message || 'Failed to put task on hold');
+        showFailureMsg(response?.Message || 'Failed to put task on hold');
         return;
       }
 
       setShowOnHoldSheet(false);
       setIsRunning(false);
-      ToastAndroid.show('Status Updated Successfully.', ToastAndroid.LONG);
+      showToast('Status Updated Successfully.', true);
       navigation.navigate('Task');
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to put task on hold');
+      showFailureMsg(err?.message || 'Failed to put task on hold');
     } finally {
       setOnHolding(false);
     }
@@ -490,14 +486,14 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       // Java only moves on to Closure after the server confirms ENDED_NO_PAYMENT.
       if (res?.Code !== '200') {
         setIsRunning(true);
-        Alert.alert('Error', res?.Message || 'Could not end the task. Please try again.');
+        showFailureMsg(res?.Message || 'Could not end the task. Please try again.');
         return;
       }
     } catch (err: any) {
       // Keep the task running so the technician can retry instead of reaching
       // Closure while the server still thinks the task is in progress.
       setIsRunning(true);
-      Alert.alert('Error', err?.message || 'Could not end the task. Please try again.');
+      showFailureMsg(err?.message || 'Could not end the task. Please try again.');
       return;
     }
     // Java sets TaskState = ENDED_NO_PAYMENT before opening Closure (HomeActivityNew
@@ -523,10 +519,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       routeTask.AudioFilePath;
 
     if (!audioPath) {
-      Alert.alert(
-        'No Audio',
-        'No instruction audio is attached to this task.'
-      );
+      showToast('No instruction audio is attached to this task.');
       return;
     }
 
@@ -859,7 +852,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             setAudioLoading(false);
             setIsPlayingAudio(false);
             setAudioSource(null);
-            Alert.alert('Playback Error', 'Unable to play instruction audio.');
+            showToast('Unable to play instruction audio.');
           }}
         />
       )}

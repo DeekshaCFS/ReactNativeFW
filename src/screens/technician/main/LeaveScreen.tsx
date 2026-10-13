@@ -21,6 +21,7 @@ import type {
   LeavaBalanceSummaryDTOResultData as LeaveBalanceSummary,
   GetAllLeavesListDTOLeaveDetails as LeaveDetails,
 } from '../../../api/leaveManagement/leaveManagement.types';
+import { showFailureMsg } from '../../../utils/toast';
 
 // ── Screen-local UI helpers (not Java DTOs — kept inline) ──────────────────
 const LeaveStatusId = { PENDING: 1, APPROVED: 2, DECLINED: 3 } as const;
@@ -245,7 +246,7 @@ export default function LeaveScreen() {
 
   const openUpdateSheet = (leave: LeaveDetails) => {
     if (leave.LeaveStatusId === LeaveStatusId.APPROVED || leave.LeaveStatusId === LeaveStatusId.DECLINED) {
-      Alert.alert('Not allowed', "You can't edit an Approved or Declined leave.");
+      showFailureMsg("You can't edit an Approved or Declined leave.");
       return;
     }
     setSheetMode('update');
@@ -367,10 +368,10 @@ export default function LeaveScreen() {
               resetAndLoad();
               loadBalanceSummary();
             } else {
-              Alert.alert('Failed', res.Message || 'Could not delete leave.');
+              showFailureMsg(res.Message || 'Could not delete leave.');
             }
           } catch (e: any) {
-            Alert.alert('Failed', e?.message || 'Could not delete leave.');
+            showFailureMsg(e?.message || 'Could not delete leave.');
           } finally {
             setSubmitting(false);
           }

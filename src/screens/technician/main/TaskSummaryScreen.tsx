@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   Image,
   ActivityIndicator,
   ScrollView,
@@ -22,6 +21,7 @@ import { getIsHNGClient } from '../../../api/users/usersService';
 import type { TasksListResultData as Task, TaskClosureResultData as TaskClosurePayload } from '../../../api/task/task.types';
 import { resetToTabsThen, finishTaskFlowToHome } from '../../../navigation/taskFlowNavigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
 
 interface SignaturePath {
   points: { x: number; y: number }[];
@@ -156,7 +156,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
       setSubmitting(true);
       const freshUid = await AsyncStorage.getItem('uid');
       if (!freshUid) {
-        Alert.alert('Error', 'User session not found. Please log in again.');
+        showFailureMsg('User session not found. Please log in again.');
         return;
       }
 
@@ -164,11 +164,11 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
       try {
         const closureRes = await addTaskClosure(payload);
         if (closureRes.Code !== '200') {
-          Alert.alert('Closure Failed', closureRes.Message || 'Unknown error');
+          showFailureMsg(closureRes.Message || 'Unknown error');
           return;
         }
       } catch (err: any) {
-        Alert.alert('Closure Error', err?.response?.data?.Message || err?.message);
+        showFailureMsg(err?.response?.data?.Message || err?.message || 'Closure Error');
         return;
       }
 
@@ -196,14 +196,10 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
 
       // Java: after a non-Rate, non-HNG closure the technician is offered the document
       // upload screen (skippable) before returning to the dashboard.
-      Alert.alert('Task Completed', 'The task has been closed successfully.', [
-        {
-          text: 'OK',
-          onPress: () => resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task } }),
-        },
-      ]);
+      showSuccessMsg('The task has been closed successfully.');
+      resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task } });
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to close task');
+      showFailureMsg(err?.message || 'Failed to close task');
     } finally {
       setSubmitting(false);
     }

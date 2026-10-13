@@ -1,6 +1,6 @@
 // src/navigation/CustomDrawerContent.tsx
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Image, Alert, PermissionsAndroid, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, PermissionsAndroid, Platform } from 'react-native';
 import Modal from '../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
@@ -28,6 +28,7 @@ import { authEvents, AUTH_CHANGED } from '../utils/authEvents';
 import { ms, sp, scale } from '../utils/responsive';
 import { checkedInTodayKey } from '../utils/attendanceKey';
 import { setPassbookTabOrder } from '../state/passbookTabOrder';
+import { showFailureMsg, showSuccessMsg } from '../utils/toast';
 
 // Same local-date key Home writes on check-in (see utils/attendanceKey.ts).
 const todayKey = checkedInTodayKey;
@@ -110,7 +111,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
 
       const hasPermission = await requestLocationPermission();
       if (!hasPermission) {
-        Alert.alert('Location permission is required to check out.');
+        showFailureMsg('Location permission is required to check out.');
         return;
       }
       const { latitude, longitude } = await getCurrentPosition();
@@ -129,12 +130,13 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
       if (response?.Code === '200') {
         await AsyncStorage.removeItem(todayKey());
         setShowCheckOutModal(false);
-        Alert.alert('Checked Out Successfully');
+        // Java: showSuccessMsg(checkOut.getMessage()) -- the server text ("Check out successfully.").
+        showSuccessMsg(response?.Message || 'Check out successfully.');
       } else {
-        Alert.alert(response?.Message || 'Checkout failed');
+        showFailureMsg(response?.Message || 'Fail to check out, please try again.');
       }
     } catch (e: any) {
-      Alert.alert(e.message);
+      showFailureMsg(e?.message || 'Fail to check out, please try again.');
     }
   };
 

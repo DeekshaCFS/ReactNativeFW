@@ -3,7 +3,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Pressable,
@@ -33,6 +32,7 @@ import AddTaskModal, {
   type AddTaskInitialValues,
   type TaskFormMode,
 } from './AddTaskModal';
+import { showFailureMsg } from '../../utils/toast';
 
 // TasksListAdapter's textView_reassign_from_list: edit icon for InActive,
 // re-assign icon for Completed / Rejected / OnHold, nothing for Ongoing.
@@ -612,17 +612,14 @@ const MainTaskFragmentNewScreen = ({
     const status = getTaskStatus(task);
     const taskId = getTaskId(task);
     const newTaskId = getNewTaskId(task);
-    Alert.alert(
-      getTaskTitle(task),
-      [
+    showFailureMsg([
         newTaskId ? `Task ID: ${newTaskId}` : taskId ? `Task ID: ${taskId}` : '',
         `Status: ${status}`,
         `Type: ${getTaskType(task)}`,
         getTaskDate(task) ? `Date: ${getTaskDate(task)}` : '',
       ]
         .filter(Boolean)
-        .join('\n'),
-    );
+        .join('\n'));
   };
 
   // Icon only for now. Java: TasksListAdapter -> TechDashboardFragmentNew.getDownloadReport()

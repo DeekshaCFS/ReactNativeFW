@@ -13,7 +13,6 @@
 
 import React, {useEffect, useMemo, useState} from 'react';
 import {
-  Alert,
   Image,
   Linking,
   Pressable,
@@ -28,6 +27,7 @@ import {getAttendanceTechMonthly} from '../../api/attendance/attendanceService';
 import type {TechMonthlyAttendanceResultData} from '../../api/attendance/attendance.types';
 import type {EmployeeListItem} from './adminLegacyApiTypes';
 import {COLORS} from '../../theme/theme.ts';
+import { showToast } from '../../utils/toast';
 
 type Props = {
   visible: boolean;
@@ -136,11 +136,11 @@ const EmployeeAttendanceModal: React.FC<Props> = ({visible, employee, onClose}) 
   const handleCall = () => {
     const mobile = String(employee?.ContactM ?? '').trim();
     if (!mobile) {
-      Alert.alert('Attendance', 'Mobile number is not available.');
+      showToast('Mobile number is not available.');
       return;
     }
     Linking.openURL(`tel:${mobile}`).catch(() => {
-      Alert.alert('Attendance', 'Unable to open dialer.');
+      showToast('Unable to open dialer.');
     });
   };
 

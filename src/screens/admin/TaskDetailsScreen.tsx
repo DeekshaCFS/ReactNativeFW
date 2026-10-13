@@ -3,7 +3,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Easing,
   Image,
@@ -34,6 +33,7 @@ import AddTaskModal, {buildTaskFormValues, type AddTaskInitialValues} from './Ad
 import TaskClosureSection, {type TaskClosureSectionHandle} from './TaskClosureSection';
 import OwnerTaskTrackingMap from './OwnerTaskTrackingMap';
 import {getCurrentCountryCode} from '../../state/session';
+import { showFailureMsg } from '../../utils/toast';
 
 type TaskDetailsTask = TasksListResultData | TaskListItem;
 
@@ -360,10 +360,10 @@ const TaskDetailsScreen = ({
       if (response?.Code === '200' && response.Message) {
         await Linking.openURL(response.Message);
       } else {
-        Alert.alert('Download Report', response?.Message || 'Could not generate the task report.');
+        showFailureMsg(response?.Message || 'Could not generate the task report.');
       }
     } catch (err) {
-      Alert.alert('Download Report', err instanceof Error ? err.message : 'Could not download the report.');
+      showFailureMsg(err instanceof Error ? err.message : 'Could not download the report.');
     }
   };
 

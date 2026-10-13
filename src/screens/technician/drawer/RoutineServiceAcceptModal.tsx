@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable,
-  ActivityIndicator, Alert, Linking, FlatList,
+  ActivityIndicator, Linking, FlatList,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import SearchPickerModal from '../../../components/SearchPickerModal';
@@ -21,6 +21,7 @@ import { addTaskRoutineService, updateTaskStatus } from '../../../api/task/taskS
 import { TASK_STATUS_ID } from '../../../constants/taskStatus';
 import { nowAsJavaTime } from '../../../utils/taskStatus.utils';
 import { getCurrentUserId } from '../../../state/session';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
 type PaymentMode = 'AMC' | 'Rate';
 
@@ -61,7 +62,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
   const handleCall = () => {
     const number = customer?.MobileNumber;
     if (!number) {
-      Alert.alert('', 'Contact Number is not available...!!');
+      showToast('Contact Number is not available...!!');
       return;
     }
     Linking.openURL(`tel:${number}`);
@@ -145,7 +146,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
       });
 
       if (res?.Code !== '200') {
-        Alert.alert('Failed', res?.Message || 'Could not create the task.');
+        showFailureMsg(res?.Message || 'Could not create the task.');
         return;
       }
 
@@ -162,10 +163,10 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
         });
       }
 
-      Alert.alert('Success', res?.Message || 'Task created successfully.');
+      showSuccessMsg(res?.Message || 'Task created successfully.');
       onCreated();
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not create the task.');
+      showFailureMsg(e?.message || 'Could not create the task.');
     } finally {
       setSubmitting(false);
     }

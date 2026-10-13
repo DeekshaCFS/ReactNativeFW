@@ -3,7 +3,7 @@ import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useState, useEffect, } from 'react';
 import {
   View, Text, StyleSheet, Pressable, TextInput,
-  FlatList, ActivityIndicator, Alert, Image, Linking,
+  FlatList, ActivityIndicator, Image, Linking,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -26,6 +26,7 @@ import SearchPickerModal from '../../../components/SearchPickerModal';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTaskStatus } from '../../../hooks/useTaskStatus';
 import { useOpenTask } from '../../../hooks/useOpenTask';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
 export default function TaskScreen({ navigation, route }: any) {
   const headerHeight = useAppHeaderHeight();
@@ -245,10 +246,10 @@ export default function TaskScreen({ navigation, route }: any) {
       if (res.Code === '200' && res.Message) {
         await Linking.openURL(res.Message);
       } else {
-        Alert.alert('Download Failed', res.Message || 'Could not generate the report.');
+        showFailureMsg(res.Message || 'Could not generate the report.');
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.Message || err?.message || 'Could not download the report.');
+      showFailureMsg(err?.response?.data?.Message || err?.message || 'Could not download the report.');
     }
   };
 
@@ -267,13 +268,13 @@ export default function TaskScreen({ navigation, route }: any) {
       });
       const files = response?.ResultData?.Files ?? [];
       if (files.length === 0) {
-        Alert.alert('Attachments', 'You have no attachment!');
+        showToast('You have no attachment!');
         return;
       }
       setAttachmentFiles(files);
       setAttachmentTask(task);
     } catch {
-      Alert.alert('Attachments', 'You have no attachment!');
+      showToast('You have no attachment!');
     }
   };
 
@@ -281,7 +282,7 @@ export default function TaskScreen({ navigation, route }: any) {
     try {
       await Linking.openURL(url);
     } catch (err: any) {
-      Alert.alert('Download failed', err?.message || 'Could not open the file.');
+      showFailureMsg(err?.message || 'Could not open the file.');
     }
   };
 
@@ -289,7 +290,7 @@ export default function TaskScreen({ navigation, route }: any) {
   const handleSyncFab = async () => {
     const pending = await getPendingTasks(Number(uid) || undefined);
     if (pending.length === 0) {
-      Alert.alert('Sync', 'You have no Offline data to be sync.');
+      showToast('You have no Offline data to be sync.');
       return;
     }
     navigation.navigate('SyncOffline');
@@ -318,12 +319,12 @@ export default function TaskScreen({ navigation, route }: any) {
 
   const handleRejectTask = async () => {
     if (!rejectReason.trim()) {
-      Alert.alert('Validation', 'Please enter reason');
+      showFailureMsg('Please enter reason');
       return;
     }
     const photosWithImage = rejectPhotos.filter(p => p?.base64);
     if (photosWithImage.length === 0) {
-      Alert.alert('Validation', 'At least one image is mandatory to reject the task');
+      showFailureMsg('At least one image is mandatory to reject the task');
       return;
     }
     try {
@@ -339,7 +340,7 @@ export default function TaskScreen({ navigation, route }: any) {
           closeLateRejectSheet();
           fetchTasks(1, true);
         }
-        Alert.alert('Error', errorMessageRef.current ?? 'Failed to reject task');
+        showFailureMsg(errorMessageRef.current ?? 'Failed to reject task');
         return;
       }
 
@@ -354,9 +355,9 @@ export default function TaskScreen({ navigation, route }: any) {
 
       fetchTasks(1, true);
 
-      Alert.alert('Success', 'Task rejected successfully.');
+      showSuccessMsg('Task rejected successfully.');
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to reject task');
+      showFailureMsg(err?.message || 'Failed to reject task');
     }
   };
 

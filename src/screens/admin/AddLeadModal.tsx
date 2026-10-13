@@ -41,6 +41,7 @@ import { getCustomerList, getStateList, getCityList } from '../../api/customerLi
 import type { CustomerListResultData } from '../../api/customerList/customerList.types';
 import { getEnquiryServiceTypeList } from '../../api/services/servicesService';
 import { postExternalLeadForm, postExternalLeadFormByTech } from '../../api/leadForm/leadFormService';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 type Photo = { base64: string; uri: string; fileName: string };
 
@@ -177,7 +178,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
 
   const setPhoto = (slot: number, asset: { base64?: string; uri?: string }) => {
     if (!asset.base64) {
-      Alert.alert('Photo', 'Unable to read the selected image. Please try again.');
+      showToast('Unable to read the selected image. Please try again.');
       return;
     }
     setPhotos(prev => {
@@ -192,7 +193,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
     const handle = (result: any, label: string) => {
       if (result.didCancel) return;
       if (result.errorCode) {
-        Alert.alert(label, result.errorMessage || `Unable to open ${label.toLowerCase()}.`);
+        showToast(result.errorMessage || `Unable to open ${label.toLowerCase()}.`);
         return;
       }
       const asset = result.assets?.[0];
@@ -234,7 +235,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
     if (submitting) return;
     const error = validate();
     if (error) {
-      Alert.alert('Add Lead', error);
+      showFailureMsg(error || 'Add Lead');
       return;
     }
 
@@ -281,11 +282,11 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
         ? await postExternalLeadFormByTech(payload)
         : await postExternalLeadForm(payload as unknown as Parameters<typeof postExternalLeadForm>[0]);
       ensureSuccess(res, 'Failed to update, please try again');
-      Alert.alert('Lead', res?.Message || 'Lead added successfully.', [
-        { text: 'OK', onPress: () => { onSuccess?.(); onClose(); } },
-      ]);
+      showSuccessMsg(res?.Message || 'Lead added successfully.');
+      onSuccess?.();
+      onClose();
     } catch (e) {
-      Alert.alert('Lead', e instanceof Error ? e.message : 'Failed to update, please try again');
+      showFailureMsg(e instanceof Error ? e.message : 'Failed to update, please try again');
     } finally {
       setSubmitting(false);
     }

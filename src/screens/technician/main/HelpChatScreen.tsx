@@ -6,10 +6,11 @@
 // Java app but never initialises at runtime, so there is no landing page / messages list.
 
 import React, { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, ToastAndroid, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { COLORS } from '../../../theme/theme';
 import { ms, sp, useAppHeaderHeight } from '../../../utils/responsive';
+import { showToast } from '../../../utils/toast';
 
 export const HELP_CHAT_URL = 'https://tawk.to/chat/65eada4b8d261e1b5f6a7448/1hoem9egj';
 
@@ -27,7 +28,7 @@ export default function HelpChatScreen({ underAppHeader = false }: { underAppHea
         onLoadEnd={() => setLoading(false)}
         onError={e => {
           setLoading(false);
-          ToastAndroid.show(`Error:${e.nativeEvent.description}`, ToastAndroid.SHORT);
+          showToast(`Error:${e.nativeEvent.description}`);
         }}
       />
 

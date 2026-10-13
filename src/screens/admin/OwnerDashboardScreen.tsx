@@ -4,7 +4,6 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +18,7 @@ import {ms, sp} from '../../utils/responsive';
 import {COLORS} from '../../theme/theme';
 import {formatAmount} from '../../utils/decimal';
 import {getCurrentCurrencySymbol} from '../../state/session';
+import { showFailureMsg } from '../../utils/toast';
 
 export type DayFilter = 'Today' | 'Week' | 'Month' | 'Year';
 
@@ -238,7 +238,7 @@ const OwnerDashboardScreen = ({
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unable to load dashboard data';
-        Alert.alert('Dashboard API error', message);
+        showFailureMsg(message || 'Dashboard API error');
       } finally {
         if (isMountedRef.current) {
           setIsLoading(false);

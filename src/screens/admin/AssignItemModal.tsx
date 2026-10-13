@@ -6,7 +6,6 @@ import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   Text,
@@ -33,6 +32,7 @@ import {isFieldworkerRecord, taskStyles} from './AddTaskModal';
 import {AssignItemIcon} from '../../components/FabIcons';
 import SearchPickerModal from '../../components/SearchPickerModal';
 import {COLORS} from '../../theme/theme';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 // Same Java dialog sheet / header / spinner metrics as the Add Task form.
 const styles = {...sharedStyles, ...taskStyles};
@@ -215,15 +215,15 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
 
   const handleAssignSubmit = async () => {
     if (!selectedItem) {
-      Alert.alert('Assign Item', 'Please select an item.');
+      showFailureMsg('Please select an item.');
       return;
     }
     if (!selectedFieldworker) {
-      Alert.alert('Assign Item', 'Please select a fieldworker.');
+      showFailureMsg('Please select a fieldworker.');
       return;
     }
     if (!quantity || Number(quantity) <= 0) {
-      Alert.alert('Assign Item', 'Please enter a valid quantity.');
+      showFailureMsg('Please enter a valid quantity.');
       return;
     }
 
@@ -244,7 +244,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
     setIsSubmitting(true);
     try {
       ensureSuccess(await issueItem(payload));
-      Alert.alert('Assign Item', 'Item assigned successfully.');
+      showSuccessMsg('Item assigned successfully.');
       resetForm();
       onAssigned?.();
       onClose();
@@ -253,7 +253,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
         error instanceof Error
           ? error.message
           : 'Unable to assign item right now.';
-      Alert.alert('Assign Item', message);
+      showFailureMsg(message || 'Assign Item');
     } finally {
       setIsSubmitting(false);
     }

@@ -1,12 +1,13 @@
 // src/components/DisclaimerModal.tsx
 
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import Modal from './AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../theme/theme';
 import { ms, sp, scale } from '../utils/responsive';
 import { htmlToText } from '../utils/htmlToText';
+import { showFailureMsg } from '../utils/toast';
 
 type Props = {
   visible: boolean;
@@ -20,7 +21,7 @@ export default function DisclaimerModal({ visible, disclaimerHtml, loading, onAc
 
   const handleContinue = () => {
     if (!agreed) {
-      Alert.alert('', 'Please Click on I Agree');
+      showFailureMsg('Please Click on I Agree');
       return;
     }
     onAccept();

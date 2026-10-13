@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -44,6 +43,7 @@ import AccountsScreen from './AccountsScreen';
 import AMCDashboardScreen from './AMCDashboardScreen';
 import ServiceCategoryTabHost from './ServiceCategoryTabHost';
 import BrandModelTabHost from './BrandModelTabHost';
+import { showFailureMsg } from '../../utils/toast';
 
 const LANGUAGE_GREETINGS: Record<string, string> = {
   English: 'Hello',
@@ -289,7 +289,7 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
           error instanceof Error
             ? error.message
             : 'Unable to load user details right now.';
-        Alert.alert('User details error', message);
+        showFailureMsg(message || 'User details error');
       } finally {
         if (isMounted) {
           setIsUserDetailsLoading(false);

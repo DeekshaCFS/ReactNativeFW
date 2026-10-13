@@ -6,7 +6,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   TextInput,
   Image,
   ActivityIndicator,
@@ -41,6 +40,7 @@ import { buildImagesPayload } from '../../../utils/imagePayload';
 import { getCustomFieldData } from '../../../api/users/usersService';
 import { pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
+import { showFailureMsg } from '../../../utils/toast';
 
 // ─── Local Types ──────────────────────────────────────────────────────────────
 
@@ -421,7 +421,7 @@ export default function TaskClosure({ navigation, route }: any) {
       // Decoded size, as Java's isValidBase64Size() checks.
       const bytes = Math.floor((base64.length * 3) / 4);
       if (bytes > MAX_ATTACHMENT_BYTES) {
-        Alert.alert('', 'File size exceeds 5 MB.');
+        showFailureMsg('File size exceeds 5 MB.');
         return;
       }
 
@@ -434,7 +434,7 @@ export default function TaskClosure({ navigation, route }: any) {
     } catch (err: any) {
       // Picker cancelled -> no-op; anything else is worth surfacing.
       if (!isErrorWithCode(err) || err.code !== errorCodes.OPERATION_CANCELED) {
-        Alert.alert('Error', 'Could not read the selected file.');
+        showFailureMsg('Could not read the selected file.');
       }
     }
   };
@@ -551,7 +551,7 @@ export default function TaskClosure({ navigation, route }: any) {
         setFsrCompletedCount(Object.keys(preSelected).length);
       }
     } catch (err) {
-      Alert.alert('Error', 'Could not load FSR checkpoints. Please try again.');
+      showFailureMsg('Could not load FSR checkpoints. Please try again.');
     } finally {
       setFsrLoading(false);
     }
@@ -613,7 +613,7 @@ export default function TaskClosure({ navigation, route }: any) {
       await postChkpointData(payload);
       setShowFSRSheet(false);
     } catch (err) {
-      Alert.alert('Error', 'Could not save checkpoints. Please try again.');
+      showFailureMsg('Could not save checkpoints. Please try again.');
     } finally {
       setFsrSubmitting(false);
     }
@@ -634,11 +634,11 @@ export default function TaskClosure({ navigation, route }: any) {
     if (visibleSlotCount > 0) {
       const lastSlot = adHocSlots[visibleSlotCount - 1];
       if (!lastSlot?.itemName || !lastSlot?.usedQty || lastSlot.usedQty === '0') {
-        Alert.alert('', 'Please Enter Item Name and Quantity!!');
+        showFailureMsg('Please Enter Item Name and Quantity!!');
         return;
       }
       if (Number(lastSlot.usedQty) > lastSlot.avlQty) {
-        Alert.alert('', 'Quantity should not be greater than Available Qty!!');
+        showFailureMsg('Quantity should not be greater than Available Qty!!');
         setAdHocSlots(prev => {
           const updated = [...prev];
           if (updated[visibleSlotCount - 1]) {
@@ -682,19 +682,19 @@ export default function TaskClosure({ navigation, route }: any) {
 
     if (assignedSlots.length > 0 && filledAdHoc.length > 0) {
       if (hasDuplicatesBetween(assignedSlots, filledAdHoc)) {
-        Alert.alert('', 'Duplicate Items are not allowed!!');
+        showFailureMsg('Duplicate Items are not allowed!!');
         return;
       }
     } else if (filledAdHoc.length > 0) {
       if (hasDuplicatesInAdHoc(filledAdHoc)) {
-        Alert.alert('', 'Duplicate Items not allowed!!');
+        showFailureMsg('Duplicate Items not allowed!!');
         return;
       }
     }
 
     const hasAssignedQty = assignedSlots.some(s => s.usedQty.trim() !== '');
     if (!hasAssignedQty && filledAdHoc.length === 0) {
-      Alert.alert('', 'Please Enter Used Quantity!');
+      showFailureMsg('Please Enter Used Quantity!');
       return;
     }
 
@@ -800,14 +800,14 @@ export default function TaskClosure({ navigation, route }: any) {
   const handleContinue = async () => {
     const validationError = validateClosure();
     if (validationError) {
-      Alert.alert('Required', validationError);
+      showFailureMsg(validationError || 'Required');
       return;
     }
     try {
       setSubmitting(true);
       const freshUid = await AsyncStorage.getItem('uid');
       if (!freshUid) {
-        Alert.alert('Error', 'User session not found. Please log in again.');
+        showFailureMsg('User session not found. Please log in again.');
         return;
       }
       // Java (getCustomFieldData -> isCustomLabelRequired): every required Task Input
@@ -818,12 +818,12 @@ export default function TaskClosure({ navigation, route }: any) {
           f => f.IsRequired && (f.UserValue == null || String(f.UserValue).trim() === ''),
         );
         if (missingRequired) {
-          Alert.alert('Required', 'Please Add all the mandatory Task Input to proceed !!');
+          showFailureMsg('Please Add all the mandatory Task Input to proceed !!');
           return;
         }
       } catch {
         // Java simply does not proceed when this check fails; do the same, visibly.
-        Alert.alert('Error', 'Could not verify the required task inputs. Please try again.');
+        showFailureMsg('Could not verify the required task inputs. Please try again.');
         return;
       }
 
@@ -997,7 +997,7 @@ export default function TaskClosure({ navigation, route }: any) {
         },
       });
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Something went wrong building the summary.');
+      showFailureMsg(err?.message || 'Something went wrong building the summary.');
     } finally {
       setSubmitting(false);
     }

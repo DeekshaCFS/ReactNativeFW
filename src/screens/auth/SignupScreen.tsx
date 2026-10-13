@@ -2,7 +2,7 @@
 // Java: TouchLessSignupActivity / touchless_signup_activity.xml
 import {
   View, TextInput, Text, Image, Pressable,
-  ImageBackground, FlatList, Alert, StyleSheet,
+  ImageBackground, FlatList, StyleSheet,
   KeyboardAvoidingView, ScrollView, Platform, StatusBar,
 } from 'react-native';
 import Modal from '../../components/AppModal';
@@ -18,6 +18,7 @@ import { sp, dp } from '../../utils/responsive';
 import { getCountryList } from '../../api/countryDetails/countryDetailsService';
 import { getOtpRegister } from '../../api/signUp/signUpService';
 import type { GetCountryListResultData } from '../../api/countryDetails/countryDetails.types';
+import { showFailureMsg } from '../../utils/toast';
 
 type AuthStackParamList = {
   Login: undefined;
@@ -54,7 +55,6 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [countriesLoading, setCountriesLoading] = useState(true);
 
-  const SHOW_QA_OTP = true;
 
   useEffect(() => {
     (async () => {
@@ -94,7 +94,7 @@ export default function SignupScreen() {
     setError(problem ?? '');
     if (problem) return;
     if (!selectedCountry) {
-      Alert.alert('Select Country', 'Please select your country.');
+      showFailureMsg('Please select your country.');
       return;
     }
     const contact = useEmail ? email.trim() : mobile;
@@ -107,7 +107,7 @@ export default function SignupScreen() {
         CountryDetailsId: selectedCountry.CountryDetailsId ?? 0,
       });
       if (response.Code === '404') {
-        Alert.alert('Error', response.Message || 'Something went wrong. Please try again.');
+        showFailureMsg(response.Message || 'Something went wrong. Please try again.');
         if (response.Message?.toLowerCase().includes('already exist')) {
           navigation.navigate('Login');
         }
@@ -115,11 +115,9 @@ export default function SignupScreen() {
       }
       const result = response?.ResultData;
       if (response.Code !== '200' || !result?.OTP) {
-        Alert.alert('Error', 'Failed to get OTP. Please try again.');
+        showFailureMsg('Failed to get OTP. Please try again.');
         return;
       }
-
-      if (SHOW_QA_OTP) Alert.alert('QA OTP', `OTP IS: ${result.OTP}`);
 
       navigation.navigate('Otp', {
         mobile: contact,
@@ -131,7 +129,7 @@ export default function SignupScreen() {
         flow: 'signup',
       });
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Something went wrong');
+      showFailureMsg(err?.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }

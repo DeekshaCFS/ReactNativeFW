@@ -4,7 +4,7 @@ import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Image, ScrollView,
-  Pressable, Alert, ActivityIndicator, Platform, StatusBar, TouchableOpacity, Share,
+  Pressable, ActivityIndicator, Platform, StatusBar, TouchableOpacity, Share,
 } from 'react-native';
 import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -26,6 +26,7 @@ import { ms, sp, scale, vs, useAppHeaderHeight } from '../../utils/responsive';
 import { useNavigation } from '@react-navigation/native';
 import { PencilEditIcon, EditFieldIcon } from '../../components/DialogIcons';
 import { getServiceType } from '../../api/customerInquiry/customerInquiryService';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 type UserResultData = UserDetailsResultData;
 
@@ -270,7 +271,7 @@ export default function AdminProfileScreen() {
       setLeadEmailInput('');
       setServiceTypeId(user?.CompanyServiceTypeId ?? 0);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to load profile');
+      showFailureMsg(e.message || 'Failed to load profile');
     } finally {
       setLoading(false);
     }
@@ -329,20 +330,20 @@ export default function AdminProfileScreen() {
 
     if (from === 'MOBILE') {
       if (!isValidPhone(newValue)) {
-        Alert.alert('Validation', 'Please enter a valid 10-digit number');
+        showFailureMsg('Please enter a valid 10-digit number');
         return;
       }
       if (newValue === profile?.ContactNo) {
-        Alert.alert('Validation', 'This is a duplicate mobile number');
+        showFailureMsg('This is a duplicate mobile number');
         return;
       }
     } else {
       if (!isValidEmailFormat(newValue)) {
-        Alert.alert('Validation', 'Please enter a valid email id');
+        showFailureMsg('Please enter a valid email id');
         return;
       }
       if (newValue.toLowerCase() === (profile?.Email ?? '').toLowerCase()) {
-        Alert.alert('Validation', 'This is a duplicate email id');
+        showFailureMsg('This is a duplicate email id');
         return;
       }
     }
@@ -353,19 +354,19 @@ export default function AdminProfileScreen() {
         : await authenticateEmail({ EmailId: newValue, UserId: Number(userId) });
 
       if (body?.Message?.toLowerCase().includes('already registered')) {
-        Alert.alert('Notice', body.Message);
+        showFailureMsg(body.Message || 'Notice');
         return;
       }
       setOtpModal(prev => ({ ...prev, stage: 'otp', sentOtp: body?.ResultData?.OTP ?? null }));
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to send OTP');
+      showFailureMsg(e?.message || 'Failed to send OTP');
     }
   };
 
   const handleVerifyOtp = () => {
     const { from, newValue, otpValue, sentOtp } = otpModal;
     if (sentOtp == null || Number(otpValue) !== sentOtp) {
-      Alert.alert('Error', 'Invalid OTP');
+      showFailureMsg('Invalid OTP');
       return;
     }
 
@@ -376,7 +377,7 @@ export default function AdminProfileScreen() {
       setProfile(prev => prev ? { ...prev, Email: newValue } : prev);
       setIsEmailIdUpdate(true);
     }
-    Alert.alert('Success', 'OTP verified');
+    showSuccessMsg('OTP verified');
     closeOtpFlow();
   };
 
@@ -419,7 +420,7 @@ export default function AdminProfileScreen() {
   const handleUpdate = async () => {
     const validationError = validate();
     if (validationError) {
-      Alert.alert('Validation', validationError);
+      showFailureMsg(validationError || 'Validation');
       return;
     }
     if (!profile || !userId) return;
@@ -483,7 +484,7 @@ export default function AdminProfileScreen() {
       const isSuccess = code === '200' || code === 'success';
 
       if (isSuccess) {
-        Alert.alert('Success', message);
+        showSuccessMsg(message || 'Success');
         setIsMobileNoUpdate(false);
         setIsEmailIdUpdate(false);
         setProfileImageBase64(null);
@@ -491,10 +492,10 @@ export default function AdminProfileScreen() {
         setCompanyLogoRemoved(false);
         await fetchProfile();
       } else {
-        Alert.alert('Error', message);
+        showFailureMsg(message || 'Error');
       }
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to update profile');
+      showFailureMsg(e?.message || 'Failed to update profile');
     } finally {
       setUpdating(false);
     }
@@ -514,14 +515,14 @@ export default function AdminProfileScreen() {
   const addLeadEmail = () => {
     const email = leadEmailInput.trim();
     if (leadEmails.length >= 5) {
-      Alert.alert('Triggers', "You can add up to 5 Email ID's only!");
+      showFailureMsg("You can add up to 5 Email ID's only!");
     } else if (isValidEmailFormat(email)) {
       if (!leadEmails.includes(email)) {
         setLeadEmails(prev => [...prev, email]);
       }
       setLeadEmailInput('');
     } else {
-      Alert.alert('Triggers', 'Invalid Email!!');
+      showFailureMsg('Invalid Email!!');
     }
   };
 

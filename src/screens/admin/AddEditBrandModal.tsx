@@ -25,6 +25,7 @@ import {ms, scale, sp, vs} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {addBrand, updateBrand} from '../../api/brandModel/brandModelService';
 import type {BrandItem} from '../../api/brandModel/brandModelService';
+import { showToast } from '../../utils/toast';
 
 type Props = {
   visible: boolean;
@@ -59,7 +60,7 @@ const AddEditBrandModal: React.FC<Props> = ({visible, ownerId, editing, onClose,
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      Alert.alert('Photo', 'Unable to read the selected image. Please try again.');
+      showToast('Unable to read the selected image. Please try again.');
       return;
     }
     setImage({
@@ -73,7 +74,7 @@ const AddEditBrandModal: React.FC<Props> = ({visible, ownerId, editing, onClose,
     const result = await launchCameraWithPermission({mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true});
     if (result.didCancel) return;
     if (result.errorCode) {
-      Alert.alert('Camera', result.errorMessage || 'Unable to open camera.');
+      showToast(result.errorMessage || 'Unable to open camera.');
       return;
     }
     const asset = result.assets?.[0];
@@ -84,7 +85,7 @@ const AddEditBrandModal: React.FC<Props> = ({visible, ownerId, editing, onClose,
     const result = await launchImageLibrary({mediaType: 'photo', includeBase64: true, quality: 0.6, selectionLimit: 1});
     if (result.didCancel) return;
     if (result.errorCode) {
-      Alert.alert('Gallery', result.errorMessage || 'Unable to open gallery.');
+      showToast(result.errorMessage || 'Unable to open gallery.');
       return;
     }
     const asset = result.assets?.[0];

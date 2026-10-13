@@ -3,7 +3,6 @@
 import React, {useMemo, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   ScrollView,
   StatusBar,
@@ -22,6 +21,7 @@ import {COLORS} from '../../theme/theme';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
 import {scale, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 type FieldworkerBulkInsertItem = {
   AE_FW_Contact: string;
@@ -162,7 +162,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
 
   const handleAddMore = () => {
     if (rows.length >= MAX_FIELDWORKERS) {
-      Alert.alert('Add Fieldworker', 'Not allowed.');
+      showFailureMsg('Not allowed.');
       return;
     }
 
@@ -178,7 +178,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
 
   const handleRemoveRow = (index: number) => {
     if (index < 1) {
-      Alert.alert('Add Fieldworker', 'Not allowed.');
+      showFailureMsg('Not allowed.');
       return;
     }
 
@@ -222,12 +222,12 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
 
     if (Object.keys(nextRowErrors).length > 0) {
       setRowErrors(nextRowErrors);
-      Alert.alert('Add Fieldworker', 'Invalid data.');
+      showFailureMsg('Invalid data.');
       return;
     }
 
     if (hasDuplicateContactsAcrossRows()) {
-      Alert.alert('Add Fieldworker', 'Duplicate Contact number not allowed !');
+      showFailureMsg('Duplicate Contact number not allowed !');
       return;
     }
 
@@ -251,7 +251,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
     setIsSubmitting(true);
     try {
       ensureSuccess(await addBulkFieldworkers([payload]));
-      Alert.alert('Add Fieldworker', 'Fieldworker(s) added successfully.');
+      showSuccessMsg('Fieldworker(s) added successfully.');
       resetForm();
       onAdded?.();
       onClose();
@@ -260,7 +260,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
         error instanceof Error
           ? error.message
           : 'Unable to add fieldworker right now.';
-      Alert.alert('Add Fieldworker', message);
+      showFailureMsg(message || 'Add Fieldworker');
     } finally {
       setIsSubmitting(false);
     }

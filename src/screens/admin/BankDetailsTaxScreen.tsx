@@ -35,6 +35,7 @@ import type {
   UserDetailsLstOwnerTaxDetailsDtos,
   UserDetailsOwnerAccountDetailsDto,
 } from '../../api/users/users.types';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 type Props = {
   ownerId: number;
@@ -127,7 +128,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      Alert.alert('Photo', 'Unable to read the selected image. Please try again.');
+      showToast('Unable to read the selected image. Please try again.');
       return;
     }
     setPickedQrImage({
@@ -162,11 +163,11 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
   const handlePay = () => {
     const link = bankFields.PaymentLink.trim();
     if (!link.startsWith('http://') && !link.startsWith('https://')) {
-      Alert.alert('Payment Link', 'Enter a valid payment link starting with http:// or https:// first.');
+      showFailureMsg('Enter a valid payment link starting with http:// or https:// first.');
       return;
     }
     Linking.openURL(link).catch(() => {
-      Alert.alert('Payment Link', 'Unable to open this link.');
+      showToast('Unable to open this link.');
     });
   };
 
@@ -184,13 +185,13 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
       });
       const code = String(response?.Code ?? '').toLowerCase();
       if (code === '200' || code === 'success') {
-        Alert.alert('Success', response?.Message ?? 'Bank details updated successfully.');
+        showSuccessMsg(response?.Message ?? 'Bank details updated successfully.');
         fetchProfile();
       } else {
-        Alert.alert('Bank Details', response?.Message ?? 'Unable to update bank details.');
+        showFailureMsg(response?.Message ?? 'Unable to update bank details.');
       }
     } catch (e) {
-      Alert.alert('Bank Details', e instanceof Error ? e.message : 'Unable to update bank details.');
+      showFailureMsg(e instanceof Error ? e.message : 'Unable to update bank details.');
     } finally {
       setSavingBank(false);
     }
@@ -220,7 +221,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
 
   const handleSaveTax = async () => {
     if (!areAllTaxRowsFilled) {
-      Alert.alert('Tax Details', 'Please fill in both fields for every tax row.');
+      showFailureMsg('Please fill in both fields for every tax row.');
       return;
     }
     setSavingTax(true);
@@ -236,13 +237,13 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
       });
       const code = String(response?.Code ?? '').toLowerCase();
       if (code === '200' || code === 'success') {
-        Alert.alert('Success', response?.Message ?? 'Tax details updated successfully.');
+        showSuccessMsg(response?.Message ?? 'Tax details updated successfully.');
         fetchProfile();
       } else {
-        Alert.alert('Tax Details', response?.Message ?? 'Unable to update tax details.');
+        showFailureMsg(response?.Message ?? 'Unable to update tax details.');
       }
     } catch (e) {
-      Alert.alert('Tax Details', e instanceof Error ? e.message : 'Unable to update tax details.');
+      showFailureMsg(e instanceof Error ? e.message : 'Unable to update tax details.');
     } finally {
       setSavingTax(false);
     }

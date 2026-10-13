@@ -25,6 +25,7 @@ import {sp, ms, vs, scale} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {formatAmount} from '../../utils/decimal';
 import BackBar from '../../components/BackBar';
+import { showFailureMsg, showToast } from '../../utils/toast';
 
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
@@ -114,7 +115,7 @@ const QuotationDetailsScreen = ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load quotation details.';
-      Alert.alert('Quotation details error', message);
+      showFailureMsg(message || 'Quotation details error');
     } finally {
       setIsLoading(false);
     }
@@ -142,7 +143,7 @@ const QuotationDetailsScreen = ({
           } catch (error) {
             const message =
               error instanceof Error ? error.message : 'Unable to delete quotation.';
-            Alert.alert('Delete failed', message);
+            showFailureMsg(message || 'Delete failed');
           } finally {
             setIsDeleting(false);
           }
@@ -157,13 +158,13 @@ const QuotationDetailsScreen = ({
       const resultData = response.ResultData ?? null;
       const pdfUrl = String(resultData?.QuotationPdfPath ?? '').trim();
       if (!pdfUrl) {
-        Alert.alert('Download', 'PDF is not available for this quotation.');
+        showToast('PDF is not available for this quotation.');
         return;
       }
       await Linking.openURL(pdfUrl);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to download PDF.';
-      Alert.alert('Download failed', message);
+      showFailureMsg(message || 'Download failed');
     }
   };
 
@@ -182,7 +183,7 @@ const QuotationDetailsScreen = ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to update quotation status.';
-      Alert.alert('Update failed', message);
+      showFailureMsg(message || 'Update failed');
     } finally {
       setIsUpdatingStatus(false);
     }

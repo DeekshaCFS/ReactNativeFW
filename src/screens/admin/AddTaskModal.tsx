@@ -6,7 +6,6 @@ import {sanitizeDecimalInput} from '../../utils/decimal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   PermissionsAndroid,
   Platform,
@@ -75,6 +74,7 @@ import {
   type StateOption,
   type TaskTagOption,
 } from './crmShared';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 Sound.setCategory('Playback');
 
@@ -1085,23 +1085,20 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         const stat = await RNFS.stat(audioFile);
         if (Number(stat.size) <= 44) {
           console.warn('[AddTask] Recorded instruction file is empty', audioFile);
-          Alert.alert(
-            'Add Task',
-            'Recording did not capture any audio. Please try again.',
-          );
+          showFailureMsg('Recording did not capture any audio. Please try again.');
           setInstructionAudioPath('');
           return;
         }
       } catch (statError) {
         console.warn('[AddTask] Recorded instruction file not found', statError);
-        Alert.alert('Add Task', 'Unable to save the recorded instruction.');
+        showFailureMsg('Unable to save the recorded instruction.');
         setInstructionAudioPath('');
         return;
       }
       setInstructionAudioPath(audioFile);
     } catch (error) {
       console.warn('[AddTask] Unable to save recorded instruction', error);
-      Alert.alert('Add Task', 'Unable to save the recorded instruction.');
+      showFailureMsg('Unable to save the recorded instruction.');
     } finally {
       setIsRecordingInstruction(false);
     }
@@ -1116,10 +1113,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
       );
       if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-        Alert.alert(
-          'Add Task',
-          'Microphone permission is required to record instructions.',
-        );
+        showFailureMsg('Microphone permission is required to record instructions.');
         return;
       }
     }
@@ -1159,14 +1153,14 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
   const playInstructionRecording = useCallback(() => {
     if (isRecordingInstruction) {
-      Alert.alert('Add Task', 'Please stop recording first.');
+      showFailureMsg('Please stop recording first.');
       return;
     }
     if (isPlayingInstruction) {
       return;
     }
     if (!instructionAudioPath) {
-      Alert.alert('Add Task', 'Please record an instruction first.');
+      showFailureMsg('Please record an instruction first.');
       return;
     }
     if (instructionSoundRef.current) {
@@ -1177,7 +1171,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     const sound = new Sound(instructionAudioPath, '', error => {
       if (error) {
         console.warn('[AddTask] Unable to load recorded instruction', error);
-        Alert.alert('Add Task', 'Unable to play the recorded instruction.');
+        showFailureMsg('Unable to play the recorded instruction.');
         instructionSoundRef.current = null;
         return;
       }
@@ -1338,11 +1332,11 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
   const openProductPicker = (kind: 'brand' | 'model' | 'serial' | 'warranty') => {
     if (kind === 'model' && !selectedBrand) {
-      Alert.alert('Add Task', 'Please select a brand first.');
+      showFailureMsg('Please select a brand first.');
       return;
     }
     if (kind === 'serial' && !selectedModel) {
-      Alert.alert('Add Task', 'Please select a model first.');
+      showFailureMsg('Please select a model first.');
       return;
     }
     setProductPickerOptions([]);
@@ -1645,7 +1639,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       row => row.rowId !== activeItemRowId && row.itemId === option.id,
     );
     if (isDuplicate) {
-      Alert.alert('Add Task', 'This item has already been added.');
+      showFailureMsg('This item has already been added.');
       return;
     }
     setTaskItemRows(prev =>
@@ -1677,10 +1671,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
           row.availableQuantity > 0 &&
           Number(quantity) > row.availableQuantity
         ) {
-          Alert.alert(
-            'Add Task',
-            `Quantity should not be greater than available quantity (${row.availableQuantity}).`,
-          );
+          showFailureMsg(`Quantity should not be greater than available quantity (${row.availableQuantity}).`);
           return row;
         }
         return {...row, quantity};
@@ -1692,26 +1683,20 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     const lastRow = taskItemRows[taskItemRows.length - 1];
     if (lastRow && lastRow.itemName) {
       if (!lastRow.quantity || Number(lastRow.quantity) <= 0) {
-        Alert.alert('Add Task', 'Item Quantity should not be zero.');
+        showFailureMsg('Item Quantity should not be zero.');
         return;
       }
       if (
         lastRow.availableQuantity > 0 &&
         Number(lastRow.quantity) > lastRow.availableQuantity
       ) {
-        Alert.alert(
-          'Add Task',
-          `Quantity should not be greater than available quantity (${lastRow.availableQuantity}).`,
-        );
+        showFailureMsg(`Quantity should not be greater than available quantity (${lastRow.availableQuantity}).`);
         return;
       }
     }
     setTaskItemRows(prev => {
       if (prev.length >= MAX_TASK_ITEM_ROWS) {
-        Alert.alert(
-          'Add Task',
-          `You can add a maximum of ${MAX_TASK_ITEM_ROWS} items.`,
-        );
+        showFailureMsg(`You can add a maximum of ${MAX_TASK_ITEM_ROWS} items.`);
         return prev;
       }
       return [...prev, createEmptyTaskItemRow()];
@@ -1825,14 +1810,14 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       return null;
     })();
     if (validationError) {
-      Alert.alert(formTitle, validationError);
+      showFailureMsg(validationError);
       return;
     }
     const hasInvalidItemQuantity = taskItemRows.some(
       row => row.itemName && Number(row.quantity) <= 0,
     );
     if (hasInvalidItemQuantity) {
-      Alert.alert('Add Task', 'Item Quantity should not be zero.');
+      showFailureMsg('Item Quantity should not be zero.');
       return;
     }
 
@@ -1861,7 +1846,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     // Java: no resolved lat/long -> "Please enter address correctly".
     if (!resolvedLatitude || !resolvedLongitude || Number(resolvedLatitude) === 0 || Number(resolvedLongitude) === 0) {
       setIsSubmittingTask(false);
-      Alert.alert(formTitle, 'Please enter address correctly');
+      showFailureMsg('Please enter address correctly');
       return;
     }
 
@@ -1884,7 +1869,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         instructionAudioBase64 = await RNFS.readFile(instructionAudioPath, 'base64');
       } catch {
         setIsSubmittingTask(false);
-        Alert.alert('Add Task', 'Unable to read the recorded instruction.');
+        showFailureMsg('Unable to read the recorded instruction.');
         return;
       }
     }
@@ -1971,7 +1956,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         ensureSuccess(
           await updateTask({...payload, ...existingTaskFields} as unknown as Parameters<typeof updateTask>[0]),
         );
-        Alert.alert(formTitle, 'Task updated successfully.');
+        showSuccessMsg('Task updated successfully.');
       } else if (formMode === 'reassign') {
         ensureSuccess(
           await reassignTaskNew({
@@ -1980,13 +1965,13 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             NewTaskId: initialValues?.newTaskId ?? '',
           } as unknown as Parameters<typeof reassignTaskNew>[0]),
         );
-        Alert.alert(formTitle, 'Task re-assigned successfully.');
+        showSuccessMsg('Task re-assigned successfully.');
       } else if (formMode === 'reassignCompleted') {
         ensureSuccess(await addTask({...payload, Id: 0, OnHoldTaskId: sourceTaskId}));
-        Alert.alert(formTitle, 'Task re-assigned successfully.');
+        showSuccessMsg('Task re-assigned successfully.');
       } else {
         ensureSuccess(await addTask(payload));
-        Alert.alert('Add Task', 'Task added successfully.');
+        showSuccessMsg('Task added successfully.');
       }
       onSaved?.();
       onClose();
@@ -1995,7 +1980,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         error instanceof Error
           ? error.message
           : 'Unable to save the task right now.';
-      Alert.alert(formTitle, message);
+      showFailureMsg(message);
     } finally {
       setIsSubmittingTask(false);
     }
@@ -2316,7 +2301,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       }}
                       onFocus={() => {
                         if (!taskStateId) {
-                          Alert.alert('Add Task', 'Please select a State first.');
+                          showFailureMsg('Please select a State first.');
                           return;
                         }
                         setShowTaskCitySuggestions(true);

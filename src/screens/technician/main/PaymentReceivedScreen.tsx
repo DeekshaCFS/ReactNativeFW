@@ -33,6 +33,7 @@ import { TASK_STATUS_ID } from '../../../constants/taskStatus';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
 import { getCurrentCurrencySymbol } from '../../../state/session';
+import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
 
 // Java (TechPaymentReceivedFragmentNew): first spinner is the mode, the type spinner only
 // appears for Offline.
@@ -93,7 +94,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
         setProofPhoto({ uri: asset.uri, base64: asset.base64 });
       }
     }).catch(() => {
-      Alert.alert('Error', 'Could not load the photo.');
+      showFailureMsg('Could not load the photo.');
     });
   };
 
@@ -209,13 +210,13 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
   // ── Adjustment rows (Task_Excess_Amount_Dtls), capped at 5 ──
   const addAdjustmentRow = () => {
     if (adjustments.length >= 5) {
-      Alert.alert('', 'You can add up to 5 adjustment entries.');
+      showFailureMsg('You can add up to 5 adjustment entries.');
       return;
     }
     // Java: a new service row is only added once the previous one has been filled in.
     const last = adjustments[adjustments.length - 1];
     if (last && !last.description.trim() && !last.amount.trim()) {
-      Alert.alert('', 'Please Enter Amount and Description!!');
+      showFailureMsg('Please Enter Amount and Description!!');
       return;
     }
     setAdjustments(prev => [...prev, { description: '', amount: '' }]);
@@ -237,7 +238,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
   const handleSubmit = async (markPendingParam = false) => {
     if (!markPendingParam) {
       if (!earnedAmount.trim() || Number.isNaN(Number(earnedAmount))) {
-        Alert.alert('Required', 'Please enter the amount received.');
+        showFailureMsg('Please enter the amount received.');
         return;
       }
     }
@@ -248,16 +249,16 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
     let adjustmentTotal = 0;
     if (!markPending) {
       if (!paymentMode) {
-        Alert.alert('Required', 'Select Payment Mode');
+        showFailureMsg('Select Payment Mode');
         return;
       }
       if (paymentMode === MODE_OFFLINE && !paymentType) {
-        Alert.alert('Required', 'Select Payment Type');
+        showFailureMsg('Select Payment Type');
         return;
       }
       for (const row of adjustments) {
         if (row.amount.trim() && !row.description.trim()) {
-          Alert.alert('Required', 'Please enter a description for each adjustment amount.');
+          showFailureMsg('Please enter a description for each adjustment amount.');
           return;
         }
       }
@@ -269,7 +270,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
       const total = Number(earnedAmount) + adjustmentTotal;
 
       if (grandTotal > 0 && total > grandTotal) {
-        Alert.alert('', 'Received amount cannot be greater than the total task amount.');
+        showFailureMsg('Received amount cannot be greater than the total task amount.');
         return;
       }
     }
@@ -278,7 +279,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
       setSubmitting(true);
       const uid = await AsyncStorage.getItem('uid');
       if (!uid) {
-        Alert.alert('Error', 'User session not found. Please log in again.');
+        showFailureMsg('User session not found. Please log in again.');
         return;
       }
       const userId = Number(uid);
@@ -322,16 +323,15 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
       });
 
       if (res.Code !== '200') {
-        Alert.alert('Failed', res.Message || 'Could not update payment.');
+        showFailureMsg(res.Message || 'Could not update payment.');
         return;
       }
 
-      Alert.alert('Task Completed', 'Payment recorded and the task has been closed.', [
-        // Java: after payment the Tasks tab is shown with the Document Upload sheet on top.
-        { text: 'OK', onPress: () => resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task: routeTask } }) },
-      ]);
+      showSuccessMsg('Payment recorded and the task has been closed.');
+      // Java: after payment the Tasks tab is shown with the Document Upload sheet on top.
+      resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task: routeTask } });
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.Message || err?.message || 'Something went wrong.');
+      showFailureMsg(err?.response?.data?.Message || err?.message || 'Something went wrong.');
     } finally {
       setSubmitting(false);
     }
@@ -339,10 +339,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
 
   // ── Gateway placeholder ──
   const handlePayViaGateway = () => {
-    Alert.alert(
-      'Coming soon',
-      'Online payment via gateway is not yet enabled — order creation needs to be implemented server-side first. Please collect payment manually for now.',
-    );
+    showFailureMsg('Online payment via gateway is not yet enabled — order creation needs to be implemented server-side first. Please collect payment manually for now.');
   };
 
   const selectMode = (mode: string) => {
@@ -354,7 +351,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
     }
     if (mode === MODE_ONLINE && !pgActive) {
       // Java: Online Payment Mode is not activated for your account.
-      Alert.alert('', 'Online Payment Mode is not activated for your account !');
+      showFailureMsg('Online Payment Mode is not activated for your account !');
       setPaymentMode('');
       setPaymentType('');
       return;

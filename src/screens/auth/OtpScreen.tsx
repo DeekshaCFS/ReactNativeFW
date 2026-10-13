@@ -1,7 +1,7 @@
 // src/screens/auth/OtpScreen.tsx
 import {
   View, TextInput, Text, Image, ImageBackground,
-  Alert, TouchableOpacity, StyleSheet, Pressable,
+  TouchableOpacity, StyleSheet, Pressable,
   KeyboardAvoidingView, ScrollView, Platform, StatusBar,
 } from 'react-native';
 import { useState, useRef, useEffect } from 'react';
@@ -18,6 +18,8 @@ import { getOtpRegister } from '../../api/signUp/signUpService';
 import { getAndroidId } from '../../utils/deviceId';
 import { sp, dp } from '../../utils/responsive';
 import { setCurrentUserId, persistLoggedInUserId, } from '../../state/session';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
+import { SHOW_QA_OTP } from '../../config/qa';
 
 type AuthStackParamList = {
   Otp: {
@@ -59,6 +61,12 @@ export default function OtpScreen() {
 
   useEffect(() => { inputRefs.current[0]?.focus(); }, []);
 
+  // Java VerifyOTPActivity: Toast "OTP IS::<otp>" (LENGTH_LONG) when the screen opens.
+  useEffect(() => {
+    if (SHOW_QA_OTP) showToast(`OTP IS::${serverOtp}`, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (expiryTimer <= 0) { setOtpExpired(true); return; }
     const timer = setInterval(() => setExpiryTimer((p) => p - 1), 1000);
@@ -78,10 +86,10 @@ export default function OtpScreen() {
   };
 
   const verifyOtp = async () => {
-    if (otpExpired) { Alert.alert('OTP Expired', 'Please resend OTP.'); return; }
-    if (!isOtpComplete) { Alert.alert('Error', 'Please enter complete OTP'); return; }
+    if (otpExpired) { showFailureMsg('Please resend OTP.'); return; }
+    if (!isOtpComplete) { showFailureMsg('Please enter complete OTP'); return; }
     if (Number(otp.join('')) !== Number(currentOtp)) {
-      Alert.alert('Invalid OTP', 'Please enter correct OTP'); return;
+      showFailureMsg('Please enter correct OTP'); return;
     }
     try {
       setLoading(true);
@@ -121,7 +129,7 @@ export default function OtpScreen() {
       }
       navigation.getParent()?.getParent()?.reset({ index: 0, routes: [{ name: 'Auth' as never }] });
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Something went wrong');
+      showFailureMsg(err?.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -150,9 +158,9 @@ export default function OtpScreen() {
       setOtpExpired(false);
       setResendTimer(RESEND_COOLDOWN);
       setCurrentOtp(newOtp ?? currentOtp);
-      Alert.alert('OTP Sent', 'A new OTP has been sent.');
+      showSuccessMsg('A new OTP has been sent.');
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to resend OTP');
+      showFailureMsg(err?.message || 'Failed to resend OTP');
     }
   };
 

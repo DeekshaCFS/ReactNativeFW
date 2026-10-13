@@ -29,6 +29,7 @@ import {
 import { getLeadstatusList, getAllLEADList, deleteLeadDetails } from '../../api/lead/leadService';
 import LeadDetailsScreen from './LeadDetailsScreen';
 import AddLeadModal from './AddLeadModal';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 type LeadListScreenProps = {
   userId: number;
@@ -507,7 +508,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
   const openCall = async (phone: string) => {
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
-      Alert.alert('Phone number unavailable');
+      showToast('Phone number unavailable');
       return;
     }
 
@@ -518,14 +519,14 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
         await Linking.openURL(url);
       }
     } catch {
-      Alert.alert('Unable to call', 'Please try again on a device.');
+      showToast('Please try again on a device.');
     }
   };
 
   const openWhatsapp = async (phone: string) => {
     const normalizedPhone = normalizePhone(phone).replace(/^\+/, '');
     if (!normalizedPhone) {
-      Alert.alert('WhatsApp number unavailable');
+      showToast('WhatsApp number unavailable');
       return;
     }
 
@@ -535,10 +536,10 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Unable to open WhatsApp', 'Please try again on a device.');
+        showToast('Please try again on a device.');
       }
     } catch {
-      Alert.alert('Unable to open WhatsApp', 'Please try again later.');
+      showToast('Please try again later.');
     }
   };
 
@@ -645,13 +646,13 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
                 onPress: async () => {
                   try {
                     const response = await deleteLeadDetails({ UserId: userId, Id: selectedLeadId });
-                    Alert.alert('', response?.Message ?? 'Lead deleted.');
+                    showSuccessMsg(response?.Message ?? 'Lead deleted.');
                     if (response?.Code === '200') {
                       setSelectedLeadId(null);
                       fetchLeadPage({ nextPage: PAGE_START, replace: true });
                     }
                   } catch (error) {
-                    Alert.alert('', error instanceof Error ? error.message : 'Unable to delete lead.');
+                    showFailureMsg(error instanceof Error ? error.message : 'Unable to delete lead.');
                   }
                 },
               },

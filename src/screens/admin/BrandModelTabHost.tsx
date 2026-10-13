@@ -40,6 +40,7 @@ import {
 import AddEditBrandModal from './AddEditBrandModal';
 import AddEditModelModal from './AddEditModelModal';
 import AddEditSerialNoModal from './AddEditSerialNoModal';
+import { showFailureMsg } from '../../utils/toast';
 
 type Props = {
   ownerId: number;
@@ -146,7 +147,7 @@ const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
             await ensureSuccess(await deleteBrand({BrandId: brand.BrandId ?? 0, ownerId}));
             fetchBrands();
           } catch (e) {
-            Alert.alert('Delete Brand', e instanceof Error ? e.message : 'Unable to delete brand.');
+            showFailureMsg(e instanceof Error ? e.message : 'Unable to delete brand.');
           }
         },
       },
@@ -164,7 +165,7 @@ const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
             await ensureSuccess(await deleteModel({ModelId: model.ModelId ?? 0, ownerId}));
             if (view.level === 'model') fetchModels(view.brand.BrandId ?? 0);
           } catch (e) {
-            Alert.alert('Delete Model', e instanceof Error ? e.message : 'Unable to delete model.');
+            showFailureMsg(e instanceof Error ? e.message : 'Unable to delete model.');
           }
         },
       },
@@ -182,7 +183,7 @@ const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
             await ensureSuccess(await deleteSerialNo({SerialNoId: serial.SerialNoId ?? 0, ownerId}));
             if (view.level === 'serial') fetchSerials(view.brand.BrandId ?? 0, view.model.ModelId ?? 0);
           } catch (e) {
-            Alert.alert('Delete Serial Number', e instanceof Error ? e.message : 'Unable to delete serial number.');
+            showFailureMsg(e instanceof Error ? e.message : 'Unable to delete serial number.');
           }
         },
       },

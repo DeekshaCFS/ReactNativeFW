@@ -2,7 +2,6 @@
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -39,6 +38,7 @@ import {getCurrentUserId, isIndiaCountryDetailsId} from '../../state/session';
 import {getCustomerList} from '../../api/customerList/customerListService';
 import type {CustomerListResultData} from '../../api/customerList/customerList.types';
 import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 type LeadServiceTypeItem = EnquiryServiceTypeDTOResultData;
 type ItemInventoryListItem = ItemsListResultData;
@@ -259,7 +259,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       const response = await getTaxList({UserId: ownerId});
       const rows = Array.isArray(response?.ResultData) ? response.ResultData : [];
       if (String(response?.Code) !== '200' || rows.length === 0) {
-        Alert.alert(docTitle, 'Please add Dynamic Tax from Portal to proceed further.');
+        showFailureMsg('Please add Dynamic Tax from Portal to proceed further.');
         onClose();
         return;
       }
@@ -271,7 +271,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         }),
       );
     } catch (error) {
-      Alert.alert(docTitle, 'Unable to load tax details. Please try again.');
+      showFailureMsg('Unable to load tax details. Please try again.');
       onClose();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -309,7 +309,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
   const addServiceRow = () => {
     if (technician && serviceRows.length >= TECH_MAX_ROWS) {
-      Alert.alert(docTitle, 'Not allowed');
+      showFailureMsg('Not allowed');
       return;
     }
     setServiceRows(prev => [
@@ -328,7 +328,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
   const addItemRow = () => {
     if (technician && itemRows.length >= TECH_MAX_ROWS) {
-      Alert.alert(docTitle, 'Not allowed');
+      showFailureMsg('Not allowed');
       return;
     }
     setItemRows(prev => [...prev, {id: makeRowId(), itemId: null, itemName: '', quantity: '', price: ''}]);
@@ -353,7 +353,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         return;
       }
       if (typeof file.size === 'number' && file.size > MAX_ATTACHMENT_BYTES) {
-        Alert.alert('Attach File', 'File size must be 6 MB or less.');
+        showFailureMsg('File size must be 6 MB or less.');
         return;
       }
       const base64 = await RNFS.readFile(file.uri, 'base64');
@@ -362,7 +362,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     } catch (error) {
       const code = (error as {code?: string} | null)?.code;
       if (code !== 'DOCUMENT_PICKER_CANCELED' && code !== 'OPERATION_CANCELED') {
-        Alert.alert('Attach File', 'Unable to attach this file.');
+        showFailureMsg('Unable to attach this file.');
       }
     }
   };
@@ -503,31 +503,31 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     if (technician) {
       const problem = validateTechnician();
       if (problem) {
-        Alert.alert(docTitle, problem);
+        showFailureMsg(problem);
         return;
       }
     } else if (!quoteName.trim()) {
-      Alert.alert(docTitle, `Please enter ${docLabel} Name.`);
+      showFailureMsg(`Please enter ${docLabel} Name.`);
       return;
     }
     if (!validityDate.trim()) {
-      Alert.alert(docTitle, 'Please enter Validity Date.');
+      showFailureMsg('Please enter Validity Date.');
       return;
     }
     if (!customerName.trim()) {
-      Alert.alert(docTitle, 'Please enter Customer Name.');
+      showFailureMsg('Please enter Customer Name.');
       return;
     }
     if (!address.trim()) {
-      Alert.alert(docTitle, 'Please enter Address.');
+      showFailureMsg('Please enter Address.');
       return;
     }
     if (!landmark.trim()) {
-      Alert.alert(docTitle, 'Please enter Landmark.');
+      showFailureMsg('Please enter Landmark.');
       return;
     }
     if (!phoneNumber.trim()) {
-      Alert.alert(docTitle, 'Please enter Phone Number.');
+      showFailureMsg('Please enter Phone Number.');
       return;
     }
 
@@ -577,17 +577,17 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     if (isInvoice) {
       // Same checks as Java's invoice preview dialog.
       if (!receivedAmount.trim()) {
-        Alert.alert(docTitle, 'Please enter amount received.');
+        showFailureMsg('Please enter amount received.');
         setIsPreviewOpen(true);
         return;
       }
       if (!selectedPaymentType) {
-        Alert.alert(docTitle, 'Please select Payment Transaction Type');
+        showFailureMsg('Please select Payment Transaction Type');
         setIsPreviewOpen(true);
         return;
       }
       if (Number(receivedAmount) > grandTotal) {
-        Alert.alert(docTitle, 'Entered Amount is greater than Grand Total Amount');
+        showFailureMsg('Entered Amount is greater than Grand Total Amount');
         setIsPreviewOpen(true);
         return;
       }
@@ -693,7 +693,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
           );
         }
 
-        Alert.alert(docTitle, isInvoice ? 'Invoice Created Successfully.' : 'Quotation Created Successfully.');
+        showSuccessMsg(isInvoice ? 'Invoice Created Successfully.' : 'Quotation Created Successfully.');
         onSuccess?.();
         handleClose();
         return;
@@ -752,12 +752,12 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         );
       }
 
-      Alert.alert(docTitle, `${docLabel} saved successfully.`);
+      showSuccessMsg(`${docLabel} saved successfully.`);
       onSuccess?.();
       handleClose();
     } catch (error) {
       const message = error instanceof Error ? error.message : `Unable to save ${docLabel.toLowerCase()}.`;
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setIsSubmitting(false);
     }
@@ -820,7 +820,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       technician &&
       serviceRows.some(r => r.id !== rowId && r.serviceTypeName.toLowerCase() === typeName.toLowerCase())
     ) {
-      Alert.alert(docTitle, 'Same Service name not allowed!');
+      showFailureMsg('Same Service name not allowed!');
       return;
     }
     setServiceRows(prev =>
@@ -843,7 +843,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     const name = getItemName(item);
     const price = getItemPrice(item);
     if (technician && itemRows.some(r => r.id !== rowId && r.itemName.toLowerCase() === name.toLowerCase())) {
-      Alert.alert(docTitle, 'Same Item name not allowed!');
+      showFailureMsg('Same Item name not allowed!');
       return;
     }
     setItemRows(prev =>

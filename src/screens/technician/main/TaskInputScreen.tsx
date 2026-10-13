@@ -13,7 +13,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ToastAndroid,
   Keyboard,
   ActivityIndicator,
 } from 'react-native';
@@ -26,6 +25,7 @@ import OutlinedInput from '../../../components/OutlinedInput';
 import { getCustomFieldData, postTaskCustomField } from '../../../api/users/usersService';
 import type { CustomFieldDTOResultData } from '../../../api/users/users.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { showToast } from '../../../utils/toast';
 
 const FIELD_TYPE = {
   NUMBER: 1,
@@ -42,7 +42,7 @@ const formatDate = (date: Date): string => {
   return `${dd}-${mm}-${yyyy}`;
 };
 
-const toast = (msg: string) => ToastAndroid.show(msg, ToastAndroid.SHORT);
+const toast = (msg: string) => showToast(msg);
 
 export default function TaskInputScreen({ navigation, route }: any) {
   const { routeTask, returnTo } = route.params as {
@@ -91,7 +91,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
         });
         setValues(prefill);
       } catch (err) {
-        ToastAndroid.show('Could not load task input fields.', ToastAndroid.SHORT);
+        showToast('Could not load task input fields.');
       } finally {
         setLoading(false);
       }
@@ -146,7 +146,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
   const handleSubmit = async () => {
     // Java: nothing entered at all -> one failure message, before any required-field check.
     if (Object.keys(values).length === 0) {
-      ToastAndroid.show('Please Provide an Input to proceed !!', ToastAndroid.SHORT);
+      showToast('Please Provide an Input to proceed !!');
       return;
     }
 

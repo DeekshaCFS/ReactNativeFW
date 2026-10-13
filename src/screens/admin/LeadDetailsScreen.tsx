@@ -9,7 +9,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import AddTaskModal, {type AddTaskInitialValues} from './AddTaskModal';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Image,
   Linking,
@@ -30,6 +29,7 @@ import {
   type LeadStatusResponse,
 } from './adminLegacyApiTypes';
 import { getLeadstatusList, getLeadetailsByLeadId, updateLeadStatus as updateLeadStatusApi } from '../../api/lead/leadService';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 type LeadDetailsScreenProps = {
   /** Technician view: no Update Status / delete (Java LeadDetailsFragment). */
@@ -193,7 +193,7 @@ const LeadDetailsScreen = ({
 
   const handleStatusUpdate = async () => {
     if (!selectedStatusId) {
-      Alert.alert('Selection Required', 'Please select a lead status.');
+      showFailureMsg('Please select a lead status.');
       return;
     }
 
@@ -232,7 +232,7 @@ const LeadDetailsScreen = ({
       // Based on Api.ts, request returns the parsed JSON response
       // Usually success is indicated by the absence of error or a specific field
       if (response) {
-        Alert.alert('Success', 'Lead status updated successfully.');
+        showSuccessMsg('Lead status updated successfully.');
         setStatusModalVisible(false);
         setUpdateNotes('');
         setSelectedStatusId(null);
@@ -243,7 +243,7 @@ const LeadDetailsScreen = ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to update lead status.';
-      Alert.alert('Update Failed', message);
+      showFailureMsg(message || 'Update Failed');
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -325,7 +325,8 @@ const LeadDetailsScreen = ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load lead details.';
-      Alert.alert('Error', message, [{text: 'OK', onPress: onBack}]);
+      showFailureMsg(message);
+      onBack();
     } finally {
       setIsLoading(false);
     }
@@ -615,7 +616,7 @@ const LeadDetailsScreen = ({
   const openCall = (phone: string) => {
     if (!phone) return;
     Linking.openURL(`tel:${phone.replace(/[^\d+]/g, '')}`).catch(() => {
-      Alert.alert('Error', 'Unable to open dialer.');
+      showToast('Unable to open dialer.');
     });
   };
 

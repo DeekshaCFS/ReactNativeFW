@@ -16,7 +16,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -43,6 +42,7 @@ import { getTaskById } from '../../../api/task/taskService';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { useOpenTask } from '../../../hooks/useOpenTask';
 import { countUnread, decrementUnreadCount, setUnreadCount } from '../../../state/notificationBadge';
+import { showFailureMsg, showToast } from '../../../utils/toast';
 
 // Util/TaskStatus.java, Util/TaskState.java, Constant.PaymentMode.
 const STATUS = { COMPLETED: 1, REJECTED: 2, ON_GOING: 3, IN_ACTIVE: 4, ONHOLD: 5 };
@@ -192,7 +192,7 @@ export default function NotificationScreen() {
         setItems(list);
         setUnreadCount(countUnread(list));
       } catch (error) {
-        Alert.alert('Notification', error instanceof Error ? error.message : 'Unable to load notifications.');
+        showFailureMsg(error instanceof Error ? error.message : 'Unable to load notifications.');
       } finally {
         isRefresh ? setRefreshing(false) : setLoading(false);
       }
@@ -231,14 +231,14 @@ export default function NotificationScreen() {
       const response = await getTaskById({ UserId: userId, TaskID: n.TaskId });
       const task = (Array.isArray(response?.ResultData) ? response.ResultData[0] : response?.ResultData) as Task | undefined;
       if (!task) {
-        Alert.alert('Notification', response?.Message || 'Task details are not available.');
+        showToast(response?.Message || 'Task details are not available.');
         return;
       }
       markTaskNotificationRead(n, task);
       markLocallyRead(n);
       openTask(task);
     } catch (error) {
-      Alert.alert('Notification', error instanceof Error ? error.message : 'Unable to load the task.');
+      showFailureMsg(error instanceof Error ? error.message : 'Unable to load the task.');
     }
   };
 

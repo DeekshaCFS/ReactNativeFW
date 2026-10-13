@@ -8,7 +8,6 @@
 import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -20,6 +19,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {addUsedItem, deductUsedItem} from '../../api/item/itemService';
 import type {GetUsedItemListResultData} from '../../api/item/item.types';
 import {ms, sp, vs} from '../../utils/responsive';
+import { showFailureMsg } from '../../utils/toast';
 
 type Props = {
   row: GetUsedItemListResultData | null;
@@ -46,7 +46,7 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
   const step = (delta: number) => {
     const next = (Number(qty) || 0) + delta;
     if (next <= 0) {
-      Alert.alert('', 'Quantity should not less than 0');
+      showFailureMsg('Quantity should not less than 0');
       return;
     }
     setQty(String(next));
@@ -55,15 +55,15 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
   const submit = async () => {
     const quantity = Number(qty) || 0;
     if (quantity === 0) {
-      Alert.alert('', 'Please enter valid quantity');
+      showFailureMsg('Please enter valid quantity');
       return;
     }
     if (!note.trim()) {
-      Alert.alert('', 'Please enter notes');
+      showFailureMsg('Please enter notes');
       return;
     }
     if (quantity > (Number(row.AssignedQty) || 0)) {
-      Alert.alert('', 'Used quantity is greater than Updated assign quantity!');
+      showFailureMsg('Used quantity is greater than Updated assign quantity!');
       return;
     }
     const payload = {
@@ -80,11 +80,11 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
     try {
       const response = await (mode === 'add' ? addUsedItem(payload) : deductUsedItem(payload));
       if (response?.Message) {
-        Alert.alert('', response.Message);
+        showFailureMsg(response.Message);
       }
       onUpdated();
     } catch (error) {
-      Alert.alert('', error instanceof Error ? error.message : 'Unable to update used item.');
+      showFailureMsg(error instanceof Error ? error.message : 'Unable to update used item.');
     } finally {
       setSubmitting(false);
     }

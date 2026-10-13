@@ -10,7 +10,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ToastAndroid,
   ActivityIndicator,
   Image,
 } from 'react-native';
@@ -27,6 +26,7 @@ import { postFocDetails, getFocAttachmentList } from '../../../api/focItemReques
 import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { showToast } from '../../../utils/toast';
 
 // Local request-body shapes for FOC_Item_Request/Add_FOC_Request_Details — kept
 // inline since the generated DTO (AddFocDTOResultData) is missing several
@@ -144,7 +144,7 @@ const parseYMD = (value: string): Date => {
   return new Date(yyyy, mm - 1, dd);
 };
 
-const toast = (msg: string) => ToastAndroid.show(msg, ToastAndroid.SHORT);
+const toast = (msg: string) => showToast(msg);
 
 const MAX_ITEMS = 5;
 

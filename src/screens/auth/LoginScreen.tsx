@@ -2,7 +2,7 @@
 // Java: LoginTouchlessActivity / activity_login_touchless.xml
 import {
   View, TextInput, Text, Image, ImageBackground,
-  Pressable, Alert, Platform, KeyboardAvoidingView,
+  Pressable, Platform, KeyboardAvoidingView,
   ScrollView, StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -20,6 +20,8 @@ import { getAndroidId } from '../../utils/deviceId';
 import LanguageIcon from '../../components/LanguageIcon';
 import { setAppLanguage, type LanguageCode } from '../../i18n';
 import i18n from 'i18next';
+import { showFailureMsg, showToast } from '../../utils/toast';
+import { SHOW_QA_OTP } from '../../config/qa';
 
 type AuthStackParamList = {
   Login: undefined;
@@ -49,7 +51,6 @@ export default function LoginScreen() {
 
   useEffect(() => { requestLocationPermission(); }, []);
 
-  const SHOW_QA_OTP = true; // mirrors legacy commented-out toast; flip off when QA is done
 
   // Java validateMobileNumorEmailId(): anything with '@' must be a valid email,
   // otherwise it is treated as a mobile number.
@@ -85,9 +86,10 @@ export default function LoginScreen() {
         navigation.navigate('Signup');
         return;
       }
-      if (!result.OTP) { Alert.alert('Login Failed', 'OTP not received'); return; }
+      if (!result.OTP) { showFailureMsg('OTP not received'); return; }
 
-      if (SHOW_QA_OTP) Alert.alert('QA OTP', `OTP IS: ${result.OTP}`);
+      // Java LoginTouchlessActivity: Toast "OTP IS::<otp>" (LENGTH_SHORT).
+      if (SHOW_QA_OTP) showToast(`OTP IS::${result.OTP}`);
 
       navigation.navigate('Otp', {
         mobile: userName,
@@ -99,7 +101,7 @@ export default function LoginScreen() {
         flow: 'login',
       });
     } catch (err: any) {
-      Alert.alert('Login Failed', err?.message || 'Something went wrong');
+      showFailureMsg(err?.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -111,7 +113,7 @@ export default function LoginScreen() {
         ? PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION
         : PERMISSIONS.IOS.LOCATION_WHEN_IN_USE;
       const result = await request(permission);
-      if (result !== RESULTS.GRANTED) Alert.alert('Permission Required', 'Location permission is required');
+      if (result !== RESULTS.GRANTED) showToast('Location permission is required');
     } catch (e) { console.log(e); }
   };
 

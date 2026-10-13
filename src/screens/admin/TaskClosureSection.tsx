@@ -9,7 +9,6 @@
 import React, {forwardRef, useEffect, useImperativeHandle, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
   Pressable,
@@ -28,6 +27,7 @@ import {
 import {getAllChkpointInputformData} from '../../api/fsrManagement/fsrManagementService';
 import {formatAmount} from '../../utils/decimal';
 import {ms, sp, vs} from '../../utils/responsive';
+import { showToast } from '../../utils/toast';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -140,12 +140,12 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
         const result = rec(response?.ResultData);
         const files = arr(result.Files).length ? arr(result.Files) : result.FilePath ? [result] : [];
         if (!files.length) {
-          Alert.alert('', 'You have no attachment!');
+          showToast('You have no attachment!');
           return;
         }
         setDocs(files);
       } catch {
-        Alert.alert('', 'You have no attachment!');
+        showToast('You have no attachment!');
       }
     };
 

@@ -9,7 +9,7 @@
 //   - UserInfo:      "Assign Task" (only for registered fieldworkers)
 // The card/sheet visuals are shared with the technician screen (NotificationCard).
 import React, {useCallback, useEffect, useState} from 'react';
-import {ActivityIndicator, Alert, FlatList, RefreshControl, Text} from 'react-native';
+import {ActivityIndicator, FlatList, RefreshControl, Text} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {
@@ -32,6 +32,7 @@ import {
   type NotificationCardAction,
   type NotificationSegment as Segment,
 } from '../../components/NotificationCard';
+import { showFailureMsg, showToast } from '../../utils/toast';
 
 type Props = {ownerId: number};
 
@@ -214,7 +215,7 @@ const AdminNotificationScreen: React.FC<Props> = ({ownerId}) => {
         setItems(list);
         setUnreadCount(countUnread(list));
       } catch (error) {
-        Alert.alert('Notification', error instanceof Error ? error.message : 'Unable to load notifications.');
+        showFailureMsg(error instanceof Error ? error.message : 'Unable to load notifications.');
       } finally {
         isRefresh ? setRefreshing(false) : setLoading(false);
       }
@@ -240,18 +241,18 @@ const AdminNotificationScreen: React.FC<Props> = ({ownerId}) => {
       const response = await getTaskById({UserId: ownerId, TaskID: n.TaskId});
       const task = Array.isArray(response?.ResultData) ? response.ResultData[0] : response?.ResultData;
       if (!task) {
-        Alert.alert('Re-Assign', 'Task details are not available.');
+        showToast('Task details are not available.');
         return;
       }
       setTaskFormValues(buildTaskFormValues(task as never, 'reassign'));
     } catch (error) {
-      Alert.alert('Re-Assign', error instanceof Error ? error.message : 'Unable to load the task.');
+      showFailureMsg(error instanceof Error ? error.message : 'Unable to load the task.');
     }
   };
 
   const openAssign = (n: NotificationResultData) => {
     if (!n.IsRegistered) {
-      Alert.alert('Assign Task', 'You can not assign task to this technician.');
+      showFailureMsg('You can not assign task to this technician.');
       return;
     }
     markRead(n);

@@ -45,6 +45,7 @@ import AddEditServiceGroupModal, {
 import AddEditServiceModal from './AddEditServiceModal';
 import UnderlineSearch from '../../components/UnderlineSearch';
 import {DeleteAccIcon, EditProfileIcon, RightArrowIcon} from '../../components/JavaIcons';
+import { showFailureMsg } from '../../utils/toast';
 
 type Props = {
   ownerId: number;
@@ -152,7 +153,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
             );
             refresh();
           } catch (e) {
-            Alert.alert('Delete Category', e instanceof Error ? e.message : 'Unable to delete category.');
+            showFailureMsg(e instanceof Error ? e.message : 'Unable to delete category.');
           }
         },
       },
@@ -182,7 +183,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
               );
               refresh();
             } catch (e) {
-              Alert.alert('Delete Sub-Category', e instanceof Error ? e.message : 'Unable to delete sub-category.');
+              showFailureMsg(e instanceof Error ? e.message : 'Unable to delete sub-category.');
             }
           },
         },
@@ -201,7 +202,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
             await ensureSuccess(await getDeleteService({OwnerId: ownerId, SId: service.Id}));
             refresh();
           } catch (e) {
-            Alert.alert('Delete Service', e instanceof Error ? e.message : 'Unable to delete service.');
+            showFailureMsg(e instanceof Error ? e.message : 'Unable to delete service.');
           }
         },
       },

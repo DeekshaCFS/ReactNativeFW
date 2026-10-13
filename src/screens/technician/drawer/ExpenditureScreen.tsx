@@ -34,6 +34,7 @@ import ExpenseDetailsBody, {
   toExpenseApiDate,
   toExpenseLabel,
 } from '../../../components/ExpenseDetailsBody';
+import { showFailureMsg, showToast } from '../../../utils/toast';
 
 type NavigationProp = NativeStackNavigationProp<TechnicianStackParamList, 'Expenditure'>;
 
@@ -115,7 +116,7 @@ export default function ExpenditureScreen() {
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64) {
-      Alert.alert('Photo', 'Unable to read the selected image. Please try again.');
+      showToast('Unable to read the selected image. Please try again.');
       return;
     }
     setExpensePhoto(asset);
@@ -125,7 +126,7 @@ export default function ExpenditureScreen() {
     const result = await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true });
     if (result.didCancel) return;
     if (result.errorCode) {
-      Alert.alert('Camera', result.errorMessage || 'Unable to open camera.');
+      showToast(result.errorMessage || 'Unable to open camera.');
       return;
     }
     const asset = result.assets?.[0];
@@ -136,7 +137,7 @@ export default function ExpenditureScreen() {
     const result = await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.6, selectionLimit: 1 });
     if (result.didCancel) return;
     if (result.errorCode) {
-      Alert.alert('Gallery', result.errorMessage || 'Unable to open gallery.');
+      showToast(result.errorMessage || 'Unable to open gallery.');
       return;
     }
     const asset = result.assets?.[0];
@@ -164,12 +165,12 @@ export default function ExpenditureScreen() {
       return;
     }
     if (!expenseName.trim()) {
-      Alert.alert('Add Expense', 'Please enter an expense name.');
+      showFailureMsg('Please enter an expense name.');
       return;
     }
     const amount = Number(expenseAmount);
     if (!expenseAmount || !Number.isFinite(amount) || amount <= 0) {
-      Alert.alert('Add Expense', 'Please enter a valid amount.');
+      showFailureMsg('Please enter a valid amount.');
       return;
     }
     setSaving(true);
@@ -184,10 +185,10 @@ export default function ExpenditureScreen() {
         closeAddExpenseModal();
         load();
       } else {
-        Alert.alert('Add Expense', res?.Message || 'Unable to add expense right now.');
+        showFailureMsg(res?.Message || 'Unable to add expense right now.');
       }
     } catch (e) {
-      Alert.alert('Add Expense', e instanceof Error ? e.message : 'Unable to add expense right now.');
+      showFailureMsg(e instanceof Error ? e.message : 'Unable to add expense right now.');
     } finally {
       setSaving(false);
     }

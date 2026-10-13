@@ -13,7 +13,6 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Pressable,
@@ -40,6 +39,7 @@ import {
   getFocStatusTagList,
   getDeleteFocRequestItem,
 } from '../../api/focItemRequest/focItemRequestService';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 type FOCScreenProps = {
   ownerId: number;
@@ -398,10 +398,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
   };
 
   const handleFocPress = (item: FocRequestListItem) => {
-    Alert.alert(
-      getFocRequestNo(item),
-      [`Status: ${getFocStatus(item)}`, `Issue: ${getFocIssue(item)}`].join('\n'),
-    );
+    showFailureMsg([`Status: ${getFocStatus(item)}`, `Issue: ${getFocIssue(item)}`].join('\n'));
   };
 
   // Deletes the whole FOC request (matches Java's DeleteFOCReqItem, called from
@@ -413,7 +410,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
   const confirmDeleteFocRequest = async (item: FocRequestListItem) => {
     const focRequestId = getFocId(item);
     if (!focRequestId) {
-      Alert.alert('Delete request', 'Request id is not available.');
+      showToast('Request id is not available.');
       return;
     }
 
@@ -421,14 +418,14 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
     try {
       const response = await getDeleteFocRequestItem({id: focRequestId});
       if (response.Code === '200') {
-        Alert.alert('Deleted', response.Message || 'Request deleted successfully.');
+        showSuccessMsg(response.Message || 'Request deleted successfully.');
         setFocRequests(previous => previous.filter(row => getFocId(row) !== focRequestId));
       } else {
-        Alert.alert('Delete Failed', response.Message || 'Could not delete this request.');
+        showFailureMsg(response.Message || 'Could not delete this request.');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not delete this request.';
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setDeletingFocId(null);
     }
@@ -490,7 +487,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
               if (onRequestNewItem) {
                 onRequestNewItem();
               } else {
-                Alert.alert('Request item', 'Raise a request from the Items tab.');
+                showToast('Raise a request from the Items tab.');
               }
             }}>
             <Text style={styles.requestButtonText}>+ Request</Text>

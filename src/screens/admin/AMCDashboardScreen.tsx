@@ -13,7 +13,6 @@ import {ensureSuccess} from '../../utils/apiResponse';
 import {sanitizeDecimalInput} from '../../utils/decimal';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -46,6 +45,7 @@ type AMCLookupItem =
 type CustomerLookupItem = CustomerListResultData;
 import { getCurrentUserId } from '../../state/session';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 type AMCDashboardScreenProps = {
   ownerId: number;
@@ -867,7 +867,7 @@ const AMCDashboardScreen = ({
 
         const message =
           error instanceof Error ? error.message : 'Unable to load AMC data.';
-        Alert.alert('AMC Error', message);
+        showFailureMsg(message || 'AMC Error');
         setItems([]);
       } finally {
         if (latestRequestId.current === requestId) {
@@ -983,67 +983,67 @@ const AMCDashboardScreen = ({
     const owner = ownerId || getCurrentUserId();
 
     if (!amcName.trim()) {
-      Alert.alert('Validation', 'Please enter AMC Name.');
+      showFailureMsg('Please enter AMC Name.');
       return;
     }
 
     if (!customerName.trim()) {
-      Alert.alert('Validation', 'Please enter Customer Name.');
+      showFailureMsg('Please enter Customer Name.');
       return;
     }
 
     if (!customerNumber.trim()) {
-      Alert.alert('Validation', 'Please enter Customer Number.');
+      showFailureMsg('Please enter Customer Number.');
       return;
     }
 
     if (!customerAddress.trim()) {
-      Alert.alert('Validation', 'Please enter Address.');
+      showFailureMsg('Please enter Address.');
       return;
     }
 
     if (!customerLandmark.trim()) {
-      Alert.alert('Validation', 'Please enter Landmark.');
+      showFailureMsg('Please enter Landmark.');
       return;
     }
 
     if (!brandName.trim()) {
-      Alert.alert('Validation', 'Please enter Brand Name.');
+      showFailureMsg('Please enter Brand Name.');
       return;
     }
 
     if (!modelName.trim()) {
-      Alert.alert('Validation', 'Please enter Model Name.');
+      showFailureMsg('Please enter Model Name.');
       return;
     }
 
     if (!serialNo.trim()) {
-      Alert.alert('Validation', 'Please enter Serial No.');
+      showFailureMsg('Please enter Serial No.');
       return;
     }
 
     if (!activationDate) {
-      Alert.alert('Validation', 'Please select Activation Date.');
+      showFailureMsg('Please select Activation Date.');
       return;
     }
 
     if (!contractDate) {
-      Alert.alert('Validation', 'Please select Contract Date.');
+      showFailureMsg('Please select Contract Date.');
       return;
     }
 
     if (!serviceTime) {
-      Alert.alert('Validation', 'Please select Service Time.');
+      showFailureMsg('Please select Service Time.');
       return;
     }
 
     if (!selectedServiceCount) {
-      Alert.alert('Validation', 'Please select number of services.');
+      showFailureMsg('Please select number of services.');
       return;
     }
 
     if (!selectedOccurrence) {
-      Alert.alert('Validation', 'Please select occurrence.');
+      showFailureMsg('Please select occurrence.');
       return;
     }
 
@@ -1053,11 +1053,11 @@ const AMCDashboardScreen = ({
     const amcAmountValue = underWarranty ? 0 : Number(amcAmount) || 0;
     const receivedAmountValue = underWarranty ? 0 : Number(receivedAmount) || 0;
     if (!underWarranty && !amcAmount.trim()) {
-      Alert.alert('Validation', 'Please enter service amount.');
+      showFailureMsg('Please enter service amount.');
       return;
     }
     if (receivedAmountValue > amcAmountValue) {
-      Alert.alert('Validation', 'Received amount cannot be greater than service amount !');
+      showFailureMsg('Received amount cannot be greater than service amount !');
       return;
     }
 
@@ -1132,7 +1132,7 @@ const AMCDashboardScreen = ({
         UserId: owner,
       }));
 
-      Alert.alert('Success', 'AMC added successfully.');
+      showSuccessMsg('AMC added successfully.');
       setAddModalVisible(false);
       onAddAmcModalClose?.();
       resetAddAMCForm();
@@ -1140,7 +1140,7 @@ const AMCDashboardScreen = ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to add AMC.';
-      Alert.alert('AMC Error', message);
+      showFailureMsg(message || 'AMC Error');
     } finally {
       setIsSubmitting(false);
     }

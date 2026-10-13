@@ -8,9 +8,7 @@
 // adapter_tech_request_foc_details.xml.
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Alert,
-  ActivityIndicator, Linking, TextInput, ToastAndroid,
-} from 'react-native';
+  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Linking, TextInput, } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { COLORS } from '../../../theme/theme';
 import { ms, sp } from '../../../utils/responsive';
@@ -25,6 +23,7 @@ import type {
 } from '../../../api/focItemRequest/focItemRequest.types';
 import { getCurrentUserId } from '../../../state/session';
 import DeleteFocDialog from '../../../components/DeleteFocDialog';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
 const formatDate = (iso?: string): string => {
   if (!iso) return 'NA';
@@ -137,22 +136,22 @@ export default function FOCDetailsScreen({ navigation, route }: any) {
     try {
       const res = await getDeleteFocRequestSubItem({ ItemRequestId: itemRequestId });
       if (res?.Code !== '200') {
-        Alert.alert('Failed', res?.Message || 'Could not delete the item.');
+        showFailureMsg(res?.Message || 'Could not delete the item.');
         return;
       }
-      if (res?.Message) ToastAndroid.show(res.Message, ToastAndroid.SHORT);
+      if (res?.Message) showToast(res.Message);
       setItems(prev => prev.filter(it => it.ItemRequestId !== itemRequestId));
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not delete the item.');
+      showFailureMsg(e?.message || 'Could not delete the item.');
     }
   };
 
   const openAttachment = (url?: string) => {
     if (!url) {
-      Alert.alert('No Attachment!!');
+      showToast('No Attachment!!');
       return;
     }
-    Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open the attachment.'));
+    Linking.openURL(url).catch(() => showFailureMsg('Could not open the attachment.'));
   };
 
   // Java: "Update All" posts every locally-touched item in one
@@ -174,7 +173,7 @@ export default function FOCDetailsScreen({ navigation, route }: any) {
       });
 
     if (touched.length === 0) {
-      Alert.alert('', 'Please provide an Item status to proceed !');
+      showFailureMsg('Please provide an Item status to proceed !');
       return;
     }
 
@@ -188,14 +187,13 @@ export default function FOCDetailsScreen({ navigation, route }: any) {
         FOC_Item_Request_Details: touched,
       });
       if (res?.Code !== '200') {
-        Alert.alert('Failed', res?.Message || 'Could not update items.');
+        showFailureMsg(res?.Message || 'Could not update items.');
         return;
       }
-      Alert.alert('Success', res?.Message || 'Updated successfully.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      showSuccessMsg(res?.Message || 'Updated successfully.');
+      navigation.goBack();
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not update items.');
+      showFailureMsg(e?.message || 'Could not update items.');
     } finally {
       setUpdating(false);
     }

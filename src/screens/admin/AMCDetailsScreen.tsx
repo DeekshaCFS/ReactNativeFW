@@ -27,6 +27,7 @@ import { getCurrentCountryCode, getCurrentCurrencySymbol } from '../../state/ses
 import { downloadAmcReport } from '../../api/report/reportService';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
 import AddTaskModal, { type AddTaskInitialValues } from './AddTaskModal';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 type AMCDetailsScreenProps = NativeStackScreenProps<AdminStackParamList, 'AMCDetails'>;
 
@@ -663,7 +664,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
 
   const submitRenewal = async () => {
     if (!renewActivationDate.trim() || !renewContractDate.trim()) {
-      Alert.alert('Renew AMC', 'Please enter activation and contract dates.');
+      showFailureMsg('Please enter activation and contract dates.');
       return;
     }
     const sourceData = (amcData || amcItem || {}) as Record<string, unknown>;
@@ -705,11 +706,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           UnderWarranty: Boolean(getFirstValue(productDetail, ['UnderWarranty'])),
         }),
       );
-      Alert.alert('Renew AMC', 'AMC renewed successfully.');
+      showSuccessMsg('AMC renewed successfully.');
       setRenewModalVisible(false);
       fetchAMCDetails();
     } catch (error) {
-      Alert.alert('Renew AMC', error instanceof Error ? error.message : 'Unable to renew AMC.');
+      showFailureMsg(error instanceof Error ? error.message : 'Unable to renew AMC.');
     } finally {
       setIsRenewing(false);
     }
@@ -743,7 +744,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     const userId = ownerId || toNumberValue(getFirstValue((amcData || amcItem || {}) as Record<string, unknown>, ['UserId', 'userId']));
 
     if (!editAmcsId || !userId) {
-      Alert.alert('Error', 'No data available for editing');
+      showFailureMsg('No data available for editing');
       return;
     }
 
@@ -756,7 +757,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       const fetchedData = response.ResultData ? (response.ResultData as unknown as Record<string, unknown>) : (amcData as Record<string, unknown>);
 
       if (!fetchedData) {
-        Alert.alert('Error', 'No edit data received from server');
+        showFailureMsg('No edit data received from server');
         return;
       }
 
@@ -766,7 +767,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       setEditModalVisible(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load AMC edit data';
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setEditLoading(false);
     }
@@ -822,7 +823,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       const occurrenceId = editFormData.occurrenceId || getNumberFromPaths(sourceRecord, OCCURRENCE_ID_PATHS);
 
       if (toNumberValue(editFormData.receivedAmount) > toNumberValue(editFormData.amcAmount)) {
-        Alert.alert('Error', 'Received amount cannot be greater than service amount !');
+        showFailureMsg('Received amount cannot be greater than service amount !');
         return;
       }
 
@@ -836,7 +837,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       ].filter(Boolean);
 
       if (missingFields.length > 0) {
-        Alert.alert('Error', `Unable to update AMC. Missing ${missingFields.join(', ')}.`);
+        showFailureMsg(`Unable to update AMC. Missing ${missingFields.join(', ')}.`);
         return;
       }
 
@@ -899,7 +900,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
 
       ensureSuccess(await putAmcDetails(payload));
 
-      Alert.alert('Success', 'AMC updated successfully');
+      showSuccessMsg('AMC updated successfully');
       setEditModalVisible(false);
       setEditSourceData(null);
       // Refresh the details
@@ -907,7 +908,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update AMC';
       console.warn('[AMC Update Error]', err);
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setEditLoading(false);
     }
@@ -1070,23 +1071,23 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   const handleCallPress = () => {
     const phone = String(details?.contactNo || '').trim();
     if (!phone || phone.toUpperCase() === 'NA') {
-      Alert.alert('Call', 'Contact number is not available');
+      showToast('Contact number is not available');
       return;
     }
     Linking.openURL(`tel:${phone}`).catch(() => {
-      Alert.alert('Call', 'Unable to open the dialer');
+      showToast('Unable to open the dialer');
     });
   };
 
   const handleWhatsAppPress = () => {
     const phone = String(details?.contactNoWhatsapp || '').trim();
     if (!phone || phone.toUpperCase() === 'NA') {
-      Alert.alert('WhatsApp', 'Contact number is not available');
+      showToast('Contact number is not available');
       return;
     }
     const digits = phone.replace(/[^0-9]/g, '');
     Linking.openURL(`https://wa.me/${digits}`).catch(() => {
-      Alert.alert('WhatsApp', 'Unable to open WhatsApp');
+      showToast('Unable to open WhatsApp');
     });
   };
 
@@ -1095,7 +1096,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     const userId = getResolvedUserId();
 
     if (!downloadAmcId) {
-      Alert.alert('Download', 'AMC report is not available');
+      showToast('AMC report is not available');
       return;
     }
 
@@ -1105,11 +1106,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       if (response.Code === '200' && response.Message) {
         await Linking.openURL(response.Message);
       } else {
-        Alert.alert('Download Failed', response.Message || 'Could not generate the AMC report.');
+        showFailureMsg(response.Message || 'Could not generate the AMC report.');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not download the report.';
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setIsDownloadingReport(false);
     }
@@ -1120,7 +1121,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     const userId = getResolvedUserId();
 
     if (!deleteAmcId) {
-      Alert.alert('Delete AMC', 'AMC id is not available.');
+      showToast('AMC id is not available.');
       return;
     }
 
@@ -1130,14 +1131,14 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       // {Id, UserId} entries, matching the Java call's List<DeleteAMC.ResultData>.
       const response = await deleteAmc(([{ Id: deleteAmcId, UserId: userId }] as unknown) as Partial<DeleteAMCResultData>);
       if (response.Code === '200') {
-        Alert.alert('Deleted', response.Message || 'AMC deleted successfully.');
+        showSuccessMsg(response.Message || 'AMC deleted successfully.');
         navigation.goBack();
       } else {
-        Alert.alert('Delete Failed', response.Message || 'Could not delete this AMC.');
+        showFailureMsg(response.Message || 'Could not delete this AMC.');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not delete this AMC.';
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setIsDeletingAmc(false);
     }
@@ -1162,11 +1163,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       const validation = await getAmcUpcomingValidation({OwnerId: ownerId, AMCId: validationAmcId});
       const message = String(validation?.Message ?? '');
       if (validation?.Code !== '200' || message.toLowerCase() !== 'allow to task assing') {
-        Alert.alert('Add Task', message || 'Can not add task at this moment');
+        showFailureMsg(message || 'Can not add task at this moment');
         return;
       }
     } catch (err) {
-      Alert.alert('Add Task', err instanceof Error ? err.message : 'Can not add task at this moment');
+      showFailureMsg(err instanceof Error ? err.message : 'Can not add task at this moment');
       return;
     }
 

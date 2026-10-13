@@ -20,6 +20,7 @@ import { getCurrentUserProfile } from '../../../state/session';
 import { placeTeleCmiCall } from '../../../utils/teleCmiCall';
 import { FieldWebLocationPin, FieldWebTechMarker } from '../../../components/MapMarkers';
 import { FIELDWEB_MAP_STYLE } from '../../../config/mapStyle';
+import { showToast } from '../../../utils/toast';
 
 type Props = NativeStackScreenProps<TechnicianStackParamList, 'TaskRouteMap'>;
 
@@ -117,7 +118,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
     const lng = task.Longitude ? parseFloat(task.Longitude) : 0;
 
     if (!lat || !lng) {
-      Alert.alert('Unable to find destination', 'Google Map is unable to find this destination.');
+      showToast('Google Map is unable to find this destination.');
       return;
     }
 
@@ -132,7 +133,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
         await Linking.openURL(webFallbackUrl);
       }
     } catch {
-      Alert.alert('Maps Unavailable', 'Please install a maps application to continue.');
+      showToast('Please install a maps application to continue.');
       return;
     }
 
@@ -161,7 +162,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
     // Java: TeleCMI module on -> bridged call (number stays hidden); otherwise the dialer.
     if (masked) placeTeleCmiCall(phone);
     else if (phone && phone.trim()) Linking.openURL(`tel:${phone}`);
-    else Alert.alert('Unavailable', 'Contact number is not available.');
+    else showToast('Contact number is not available.');
   };
 
   const address = task.FullAddress || task.LocationName || '';

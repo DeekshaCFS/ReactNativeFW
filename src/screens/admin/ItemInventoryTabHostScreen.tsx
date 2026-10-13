@@ -40,6 +40,7 @@ import {
   DeleteAccIcon,
   DefaultItemIcon as JavaDefaultItemIcon,
 } from '../../components/JavaIcons';
+import { showFailureMsg } from '../../utils/toast';
 
 type ItemInventoryTabHostScreenProps = {
   ownerId: number;
@@ -725,7 +726,7 @@ const ItemInventoryTabHostScreen = ({
     // otherwise asks for confirmation (SureTodeleteItemDialog) first.
     const assigned = getItemNumber(item, ['assignedQuantity', 'AssignedQuantity']);
     if (assigned > 0) {
-      Alert.alert('Delete item', 'This item is assigned to fieldworkers. Return it before deleting.');
+      showFailureMsg('This item is assigned to fieldworkers. Return it before deleting.');
       return;
     }
     Alert.alert('Delete item', 'Are you sure do you want to delete the item ?', [
@@ -738,7 +739,7 @@ const ItemInventoryTabHostScreen = ({
             ensureSuccess(await getDeleteItemPortal({Id: getItemId(item)}));
             loadFirstItemPage(true);
           } catch (error) {
-            Alert.alert('Delete item', error instanceof Error ? error.message : 'Unable to delete item.');
+            showFailureMsg(error instanceof Error ? error.message : 'Unable to delete item.');
           }
         },
       },
@@ -757,15 +758,15 @@ const ItemInventoryTabHostScreen = ({
     }
     const quantity = Math.trunc(Number(returnQuantity));
     if (!quantity || quantity <= 0) {
-      Alert.alert('Return Item', 'Please enter a valid quantity.');
+      showFailureMsg('Please enter a valid quantity.');
       return;
     }
     if (quantity > getAssignedQuantity(returningRow)) {
-      Alert.alert('Return Item', 'Quantity cannot exceed the issued quantity.');
+      showFailureMsg('Quantity cannot exceed the issued quantity.');
       return;
     }
     if (!returnNotes.trim()) {
-      Alert.alert('Return Item', 'Please enter notes.');
+      showFailureMsg('Please enter notes.');
       return;
     }
     const workerId = getAssignedNumber(returningRow, ['userId', 'UserId']);
@@ -788,7 +789,7 @@ const ItemInventoryTabHostScreen = ({
       handleIssuedDetailsPress();
       loadFirstItemPage(true);
     } catch (error) {
-      Alert.alert('Return Item', error instanceof Error ? error.message : 'Unable to return item.');
+      showFailureMsg(error instanceof Error ? error.message : 'Unable to return item.');
     } finally {
       setIsReturning(false);
     }

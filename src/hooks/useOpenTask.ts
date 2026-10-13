@@ -12,8 +12,8 @@
 //   state 3    closure not done -> Closure, else "completed" message
 
 import { useCallback } from 'react';
-import { Alert } from 'react-native';
 import type { TasksListResultData as Task } from '../api/task/task.types';
+import { showFailureMsg } from '../utils/toast';
 
 // Java: a task more than this many days in the past can no longer be accepted, only rejected.
 const MAX_ACCEPT_AGE_DAYS = 3;
@@ -40,11 +40,11 @@ export function useOpenTask(navigation: any, { onLateInactive, onOpenTracking }:
     (task: Task) => {
       // ── Terminal states ──
       if (task.TaskStatus === 'Completed') {
-        Alert.alert('Task Completed', 'This task has already been completed.');
+        showFailureMsg('This task has already been completed.');
         return;
       }
       if (task.TaskStatus === 'Rejected') {
-        Alert.alert('Task Rejected', 'This task has been rejected.');
+        showFailureMsg('This task has been rejected.');
         return;
       }
 
@@ -72,11 +72,11 @@ export function useOpenTask(navigation: any, { onLateInactive, onOpenTracking }:
             if (task.TaskClosureStatus !== true) {
               navigation.navigate('TaskClosure', { task });
             } else {
-              Alert.alert('Task Completed', 'This task is completed and payment is received.');
+              showFailureMsg('This task is completed and payment is received.');
             }
             break;
           case 4: // TASK_CLOSURE
-            Alert.alert('Task Closed', 'This task has already been closed.');
+            showFailureMsg('This task has already been closed.');
             break;
           default:
             navigation.navigate('TaskRouteMap', { task });
@@ -94,7 +94,7 @@ export function useOpenTask(navigation: any, { onLateInactive, onOpenTracking }:
           const diffDays = Math.round((today.getTime() - taskDate.getTime()) / (1000 * 60 * 60 * 24));
 
           if (taskDate > today) {
-            Alert.alert('Too Early', "It's too early to accept this task!");
+            showFailureMsg("It's too early to accept this task!");
             return;
           }
           if (diffDays > MAX_ACCEPT_AGE_DAYS) {
@@ -123,7 +123,7 @@ export function useOpenTask(navigation: any, { onLateInactive, onOpenTracking }:
         if (!task.TaskClosureStatus) {
           navigation.navigate('TaskClosure', { task });
         } else {
-          Alert.alert('Task Completed', 'This task is completed and payment is received.');
+          showFailureMsg('This task is completed and payment is received.');
         }
       }
     },

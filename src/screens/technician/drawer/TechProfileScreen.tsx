@@ -7,7 +7,7 @@ import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Image, ScrollView,
-  Pressable, Alert, ActivityIndicator, Platform, ToastAndroid, TouchableOpacity, Linking,
+  Pressable, ActivityIndicator, Platform, TouchableOpacity, Linking,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -33,6 +33,7 @@ import { ms, sp, scale, vs, useAppHeaderHeight } from '../../../utils/responsive
 import { PencilEditIcon, EditFieldIcon } from '../../../components/DialogIcons';
 import PlaceSearchModal from '../../../components/PlaceSearchModal';
 import SearchPickerModal from '../../../components/SearchPickerModal';
+import { showFailureMsg, showToast } from '../../../utils/toast';
 
 // `UserResultData` / `KycDocType` are just local aliases for the api-layer
 // DTO shapes, kept so the rest of this screen reads the same as before.
@@ -130,7 +131,7 @@ const formatAadhar = (raw: string) => {
   return groups.join(' ');
 };
 
-const toast = (msg: string) => ToastAndroid.show(msg, ToastAndroid.SHORT);
+const toast = (msg: string) => showToast(msg);
 
 const fieldStyles = StyleSheet.create({
   wrapper:        { marginBottom: ms(16) },
@@ -250,7 +251,7 @@ export default function TechProfileScreen() {
         }
       }
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to load profile');
+      showFailureMsg(e.message || 'Failed to load profile');
     } finally {
       setLoading(false);
     }
@@ -307,7 +308,7 @@ export default function TechProfileScreen() {
       const file = result[0];
 
       if (file.size != null && file.size > MAX_FILE_SIZE_BYTES) {
-        Alert.alert('File too large', 'Please choose a file under 6 MB.');
+        showFailureMsg('Please choose a file under 6 MB.');
         return;
       }
 

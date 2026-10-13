@@ -41,6 +41,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../theme/theme';
 import TabStrip from '../../components/TabStrip';
 import SearchPickerModal from '../../components/SearchPickerModal';
+import { showFailureMsg, showToast } from '../../utils/toast';
 
 type EmployeeManagementScreenProps = {
   ownerId: number;
@@ -656,28 +657,28 @@ const EmployeeManagementScreen = ({
   const handleCallEmployee = (item: EmployeeListItem) => {
     const mobile = String(item.ContactM ?? '').trim();
     if (!mobile) {
-      Alert.alert('Employee Details', 'Mobile number is not available.');
+      showToast('Mobile number is not available.');
       return;
     }
     Linking.openURL(`tel:${mobile}`).catch(() => {
-      Alert.alert('Employee Details', 'Unable to place the call.');
+      showToast('Unable to place the call.');
     });
   };
 
   const handleWhatsAppEmployee = (item: EmployeeListItem) => {
     const mobile = String(item.ContactM ?? '').trim();
     if (!mobile) {
-      Alert.alert('Employee Details', 'Mobile number is not available.');
+      showToast('Mobile number is not available.');
       return;
     }
     Linking.openURL(`https://wa.me/${mobile}`).catch(() => {
-      Alert.alert('Employee Details', 'Unable to open WhatsApp.');
+      showToast('Unable to open WhatsApp.');
     });
   };
 
   const handleEditEmployee = (item: EmployeeListItem) => {
     if (!item.EmployeeNumber) {
-      Alert.alert('Edit Profile', 'Employee id is not available.');
+      showToast('Employee id is not available.');
       return;
     }
     setEditingEmployee(item);
@@ -692,10 +693,10 @@ const EmployeeManagementScreen = ({
       if (response?.Code === '200' && url) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Download', response?.Message || 'Unable to download the employee list.');
+        showFailureMsg(response?.Message || 'Unable to download the employee list.');
       }
     } catch (error) {
-      Alert.alert('Download', error instanceof Error ? error.message : 'Unable to download the employee list.');
+      showFailureMsg(error instanceof Error ? error.message : 'Unable to download the employee list.');
     }
   };
 
@@ -721,10 +722,7 @@ const EmployeeManagementScreen = ({
               setSelectedEmployee(null);
               refreshList();
             } catch (error) {
-              Alert.alert(
-                'Delete Employee',
-                error instanceof Error ? error.message : 'Unable to delete employee.',
-              );
+              showFailureMsg(error instanceof Error ? error.message : 'Unable to delete employee.');
             }
           },
         },
@@ -827,7 +825,7 @@ const EmployeeManagementScreen = ({
               style={styles.trackButton}
               onPress={() => {
                 if (attendanceLower === 'absent') {
-                  Alert.alert('Track', 'Employee is Absent today.');
+                  showToast('Employee is Absent today.');
                   return;
                 }
                 setTrackingEmployee(item);

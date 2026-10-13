@@ -26,7 +26,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  ToastAndroid,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -221,6 +220,7 @@ import {
   styles,
 } from './crmShared';
 import TabStrip from '../../components/TabStrip';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 // Enquiry form: same Java dialog sheet / header / outlined-field metrics as the Add Task form
 // (dialog_enquiry_new), layered over the CRM-wide styles.
@@ -988,7 +988,7 @@ const CRMScreen = ({
 
   const applyPickedPhoto = (slotIndex: number, asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      Alert.alert('Photo', 'Unable to read the selected photo. Please try again.');
+      showToast('Unable to read the selected photo. Please try again.');
       return;
     }
 
@@ -1015,7 +1015,7 @@ const CRMScreen = ({
       return;
     }
     if (result.errorCode) {
-      Alert.alert('Camera', result.errorMessage || 'Unable to open camera.');
+      showToast(result.errorMessage || 'Unable to open camera.');
       return;
     }
     const asset = result.assets?.[0];
@@ -1035,7 +1035,7 @@ const CRMScreen = ({
       return;
     }
     if (result.errorCode) {
-      Alert.alert('Gallery', result.errorMessage || 'Unable to open gallery.');
+      showToast(result.errorMessage || 'Unable to open gallery.');
       return;
     }
     const asset = result.assets?.[0];
@@ -1207,31 +1207,31 @@ const CRMScreen = ({
 
   const handleAddEnquirySubmit = async () => {
     if (!phone.trim()) {
-      Alert.alert('Validation', 'Please enter Phone Number.');
+      showFailureMsg('Please enter Phone Number.');
       return;
     }
     if (!address.trim()) {
-      Alert.alert('Validation', 'Please enter Customer Address.');
+      showFailureMsg('Please enter Customer Address.');
       return;
     }
     if (!state.trim()) {
-      Alert.alert('Validation', 'Please enter State.');
+      showFailureMsg('Please enter State.');
       return;
     }
     if (!city.trim()) {
-      Alert.alert('Validation', 'Please enter City.');
+      showFailureMsg('Please enter City.');
       return;
     }
     if (!pinCode.trim()) {
-      Alert.alert('Validation', 'Please enter Pin Code.');
+      showFailureMsg('Please enter Pin Code.');
       return;
     }
     if (!/^\d{6}$/.test(pinCode.trim())) {
-      Alert.alert('Validation', 'Please enter a valid 6-digit Pin Code.');
+      showFailureMsg('Please enter a valid 6-digit Pin Code.');
       return;
     }
     if (!landmark.trim()) {
-      Alert.alert('Validation', 'Please enter Landmark.');
+      showFailureMsg('Please enter Landmark.');
       return;
     }
 
@@ -1314,7 +1314,7 @@ const CRMScreen = ({
           },
         }));
         closeAddEnquiryModal();
-        Alert.alert('Enquiry', 'Enquiry updated successfully.');
+        showSuccessMsg('Enquiry updated successfully.');
       } else {
         const payload: AddEnquiryRequest = {
           CustomerDetailsid: customerId || 0,
@@ -1350,7 +1350,7 @@ const CRMScreen = ({
         };
         ensureSuccess(await addEnquiry(payload as unknown as Parameters<typeof addEnquiry>[0]));
         closeAddEnquiryModal();
-        Alert.alert('Enquiry', 'Enquiry added successfully.');
+        showSuccessMsg('Enquiry added successfully.');
       }
       fetchEnquiries();
     } catch (error) {
@@ -1358,7 +1358,7 @@ const CRMScreen = ({
         error instanceof Error
           ? error.message
           : `Unable to ${isEditing ? 'update' : 'add'} enquiry right now.`;
-      Alert.alert('Enquiry', message);
+      showFailureMsg(message || 'Enquiry');
     } finally {
       setIsSubmittingEnquiry(false);
     }
@@ -1416,7 +1416,7 @@ const CRMScreen = ({
         url,
       });
     } catch {
-      Alert.alert('Enquiry', 'Unable to share the link right now.');
+      showFailureMsg('Unable to share the link right now.');
     }
   };
 
@@ -1446,7 +1446,7 @@ const CRMScreen = ({
 
       if (result.statusCode && result.statusCode >= 200 && result.statusCode < 300) {
         if (Platform.OS === 'android') {
-          ToastAndroid.show('File downloaded successfully', ToastAndroid.SHORT);
+          showToast('File downloaded successfully');
         }
         setQrPreviewPath(filePath);
       } else {
@@ -1454,9 +1454,9 @@ const CRMScreen = ({
       }
     } catch {
       if (Platform.OS === 'android') {
-        ToastAndroid.show('Download failed', ToastAndroid.SHORT);
+        showToast('Download failed');
       } else {
-        Alert.alert('Enquiry', 'Unable to download QR code right now.');
+        showFailureMsg('Unable to download QR code right now.');
       }
     } finally {
       setIsDownloadingQrCode(false);
@@ -1466,7 +1466,7 @@ const CRMScreen = ({
   const openCall = async (rawPhone: string) => {
     const normalizedPhone = normalizePhone(rawPhone);
     if (!normalizedPhone) {
-      Alert.alert('Phone number unavailable');
+      showToast('Phone number unavailable');
       return;
     }
     const url = `tel:${normalizedPhone}`;
@@ -1476,7 +1476,7 @@ const CRMScreen = ({
         await Linking.openURL(url);
       }
     } catch {
-      Alert.alert('Unable to call', 'Please try again on a device.');
+      showToast('Please try again on a device.');
     }
   };
 
@@ -1487,7 +1487,7 @@ const CRMScreen = ({
   const openSms = async (rawPhone: string) => {
     const normalizedPhone = normalizePhone(rawPhone);
     if (!normalizedPhone) {
-      Alert.alert('Phone number unavailable');
+      showToast('Phone number unavailable');
       return;
     }
     const url = `sms:${normalizedPhone}`;
@@ -1496,10 +1496,10 @@ const CRMScreen = ({
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Unable to open Messages', 'Please try again on a device.');
+        showToast('Please try again on a device.');
       }
     } catch {
-      Alert.alert('Unable to open Messages', 'Please try again later.');
+      showToast('Please try again later.');
     }
   };
 
@@ -1509,7 +1509,7 @@ const CRMScreen = ({
   const openWhatsapp = async (rawPhone: string) => {
     const digitsOnly = normalizePhone(rawPhone).replace(/^\+/, '');
     if (!digitsOnly) {
-      Alert.alert('WhatsApp number unavailable');
+      showToast('WhatsApp number unavailable');
       return;
     }
     const countryCode = getCurrentCountryCode().replace(/\D/g, '');
@@ -1520,10 +1520,10 @@ const CRMScreen = ({
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Unable to open WhatsApp', 'Please try again on a device.');
+        showToast('Please try again on a device.');
       }
     } catch {
-      Alert.alert('Unable to open WhatsApp', 'Please try again later.');
+      showToast('Please try again later.');
     }
   };
 
@@ -1753,13 +1753,13 @@ const CRMScreen = ({
                           UserId: ownerId,
                           CustomerId: getNumberField(record, ['customerDetailsid', 'CustomerDetailsid']),
                         });
-                        Alert.alert('', response?.Message ?? 'Customer deleted.');
+                        showSuccessMsg(response?.Message ?? 'Customer deleted.');
                         if (response?.Code === '200') {
                           setSelectedCustomer(null);
                           fetchCustomers(true);
                         }
                       } catch (error) {
-                        Alert.alert('', error instanceof Error ? error.message : 'Unable to delete customer.');
+                        showFailureMsg(error instanceof Error ? error.message : 'Unable to delete customer.');
                       }
                     },
                   },
@@ -2142,7 +2142,7 @@ const CRMScreen = ({
                       }}
                       onFocus={() => {
                         if (!stateId) {
-                          Alert.alert('Enquiry', 'Please select a State first.');
+                          showFailureMsg('Please select a State first.');
                           return;
                         }
                         setShowCitySuggestions(true);
