@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {useFocusEffect} from '@react-navigation/native';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {getTaskListSearchNew} from '../../api/taskList/taskListService';
 import {getTaskTagList} from '../../api/task/taskService';
 import type {TasksList, TasksListResultData, TagList, TagListResultData} from '../../api/task/task.types';
@@ -580,6 +580,25 @@ const MainTaskFragmentNewScreen = ({
     setSelectedTag({id: 0, name: 'Select Task Tag'});
     loadCleanMonthTasks();
   };
+
+  // Re-tapping the Task tab while already on it refreshes the screen (same as the
+  // technician Task tab): clear filters, back to the current month, reload.
+  const taskNavigation = useNavigation();
+  const refreshOnTabPressRef = useRef(() => {});
+  refreshOnTabPressRef.current = () => {
+    if (!isControlled) {
+      setOwnMonthYear(getDefaultTaskMonthYear());
+    }
+    resetAndLoad();
+  };
+  useEffect(() => {
+    const unsubscribe = (taskNavigation as any).addListener('tabPress', () => {
+      if (taskNavigation.isFocused()) {
+        refreshOnTabPressRef.current();
+      }
+    });
+    return unsubscribe;
+  }, [taskNavigation]);
 
   const submitSearch = () => {
     setSubmittedSearch(searchText.trim());

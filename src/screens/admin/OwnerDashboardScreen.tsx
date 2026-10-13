@@ -1,6 +1,7 @@
 // src/screens/admin/OwnerDashboardScreen.tsx
 
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
@@ -106,10 +107,15 @@ const OwnerDashboardScreen = ({
     );
   }, [taskStats.complete, taskStats.inactive, taskStats.onHold, taskStats.reject, taskStats.urgent]);
 
-  useEffect(() => {
-    let isMounted = true;
+  const isMountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      isMountedRef.current = false;
+    },
+    [],
+  );
 
-    const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
       setIsLoading(true);
       try {
         const [dashboardResponse, earningResponse, amcResponse] = await Promise.all([
@@ -129,7 +135,7 @@ const OwnerDashboardScreen = ({
           }),
         ]);
 
-        if (!isMounted) {
+        if (!isMountedRef.current) {
           return;
         }
 
@@ -234,18 +240,30 @@ const OwnerDashboardScreen = ({
           error instanceof Error ? error.message : 'Unable to load dashboard data';
         Alert.alert('Dashboard API error', message);
       } finally {
-        if (isMounted) {
+        if (isMountedRef.current) {
           setIsLoading(false);
         }
       }
-    };
-
-    loadDashboard();
-
-    return () => {
-      isMounted = false;
-    };
   }, [ownerId, filter]);
+
+  // Same refresh logic as the technician tabs: reload whenever the Home tab gains focus
+  // (and when the owner / Today-Week-Month-Year filter changes while it is focused) ...
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard();
+    }, [loadDashboard]),
+  );
+
+  // ... and re-tapping the Home tab while already on it refreshes the dashboard.
+  const navigation = useNavigation();
+  useEffect(() => {
+    const unsubscribe = (navigation as any).addListener('tabPress', () => {
+      if (navigation.isFocused()) {
+        loadDashboard();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, loadDashboard]);
 
   const taskChartItems = useMemo(
     () => [

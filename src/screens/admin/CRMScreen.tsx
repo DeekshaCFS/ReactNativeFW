@@ -1,7 +1,8 @@
 // src/screens/admin/CRMScreen.tsx
 
 import { launchCameraWithPermission } from '../../utils/cameraPermission';
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {ms, sp} from '../../utils/responsive';
 import {COLORS} from '../../theme/theme';
 import {ensureSuccess} from '../../utils/apiResponse';
@@ -666,10 +667,35 @@ const CRMScreen = ({
     [ownerId, customerTagFilter],
   );
 
+  // Same refresh logic as the technician tabs: reload whenever the CRM tab gains focus (and
+  // when the customer tag filter changes while it is focused).
+  useFocusEffect(
+    useCallback(() => {
+      fetchEnquiries();
+      fetchCustomers();
+    }, [fetchEnquiries, fetchCustomers]),
+  );
+
+  // Re-tapping the CRM tab while already on it refreshes both lists and clears the tag filter.
+  const crmNavigation = useNavigation();
+  const refreshOnTabPressRef = useRef(() => {});
+  refreshOnTabPressRef.current = () => {
+    fetchEnquiries(true);
+    if (customerTagFilter) {
+      // Changing the filter re-runs the focus effect above, which reloads the customers.
+      setCustomerTagFilter(null);
+    } else {
+      fetchCustomers(true);
+    }
+  };
   useEffect(() => {
-    fetchEnquiries();
-    fetchCustomers();
-  }, [fetchEnquiries, fetchCustomers]);
+    const unsubscribe = (crmNavigation as any).addListener('tabPress', () => {
+      if (crmNavigation.isFocused()) {
+        refreshOnTabPressRef.current();
+      }
+    });
+    return unsubscribe;
+  }, [crmNavigation]);
 
   const loadCustomerSuggestions = useCallback(
     async (query: string) => {

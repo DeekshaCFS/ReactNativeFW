@@ -1,6 +1,7 @@
 // src/screens/admin/EmployeeManagementScreen.tsx
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {ms, sp} from '../../utils/responsive';
 import {
   ActivityIndicator,
@@ -544,15 +545,21 @@ const EmployeeManagementScreen = ({
     loadLookup();
   }, [loadLookup]);
 
-  useEffect(() => {
-    fetchEmployeePage({nextPage: PAGE_START, replace: true});
-  }, [fetchEmployeePage]);
+  // Same refresh logic as the technician tabs: reload whenever the Employee tab gains focus
+  // (and when a filter changes while it is focused).
+  useFocusEffect(
+    useCallback(() => {
+      fetchEmployeePage({nextPage: PAGE_START, replace: true});
+    }, [fetchEmployeePage]),
+  );
 
-  useEffect(() => {
-    if (activeTab === 'leave') {
-      fetchLeavePage({nextPage: PAGE_START, replace: true});
-    }
-  }, [activeTab, fetchLeavePage]);
+  useFocusEffect(
+    useCallback(() => {
+      if (activeTab === 'leave') {
+        fetchLeavePage({nextPage: PAGE_START, replace: true});
+      }
+    }, [activeTab, fetchLeavePage]),
+  );
 
   const refreshList = () => {
     setSearchText('');
@@ -569,6 +576,26 @@ const EmployeeManagementScreen = ({
       status: 0,
     });
   };
+
+  // Re-tapping the Employee tab while already on it refreshes the screen (clears the
+  // filters and reloads), like the technician tabs. Only fires when mounted as a tab.
+  const employeeNavigation = useNavigation();
+  const refreshOnTabPressRef = useRef(() => {});
+  refreshOnTabPressRef.current = () => {
+    if (activeTab === 'leave') {
+      fetchLeavePage({nextPage: PAGE_START, replace: true, refreshing: true});
+    } else {
+      refreshList();
+    }
+  };
+  useEffect(() => {
+    const unsubscribe = (employeeNavigation as any).addListener('tabPress', () => {
+      if (employeeNavigation.isFocused()) {
+        refreshOnTabPressRef.current();
+      }
+    });
+    return unsubscribe;
+  }, [employeeNavigation]);
 
   const submitSearch = () => {
     setSubmittedSearch(searchText.trim());

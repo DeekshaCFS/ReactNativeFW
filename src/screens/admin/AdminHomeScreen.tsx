@@ -1,6 +1,6 @@
 // src/screens/admin/AdminHomeScreen.tsx
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {getUserDetails} from '../../api/users/usersService';
 import type {UserDetails, UserDetailsResultData} from '../../api/users/users.types';
 import {getCountrySymbol} from '../../api/countryDetails/countryDetailsService';
-import {useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
+import {useFocusEffect, useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import { HEADER_CONTENT_HEIGHT } from '../../components/AppHeader';
 import { useDoubleBackExit } from '../../hooks/useDoubleBackExit';
@@ -263,7 +263,8 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
     setUseDefaultAvatar(false);
   }, [profileImageUri]);
 
-  useEffect(() => {
+  // Reload the profile each time the Home tab gains focus (same as the technician Home).
+  useFocusEffect(useCallback(() => {
     let isMounted = true;
 
     const loadUserDetails = async () => {
@@ -301,7 +302,7 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
     return () => {
       isMounted = false;
     };
-  }, [ownerId]);
+  }, [ownerId]));
 
   // Java's HomeActivityNew.onCreate() fetches this once per session
   // alongside getUSerDetails() and caches it in SharedPrefManager
