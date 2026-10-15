@@ -11,7 +11,7 @@ import Modal from './AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../theme/theme';
 import { ms, sp, scale, vs } from '../utils/responsive';
-import { PLACES_API_KEY } from '../config/maps';
+import { PLACES_API_KEY, googleApiHeaders } from '../config/maps';
 
 export type PickedPlace = { address: string; name: string; latitude: number; longitude: number };
 
@@ -55,9 +55,14 @@ export default function PlaceSearchModal({ visible, onClose, onSelect }: Props) 
       try {
         const res = await fetch(
           `${MAPS}/autocomplete/json?input=${encodeURIComponent(text.trim())}&key=${PLACES_API_KEY}`,
+          { headers: googleApiHeaders() },
         );
         const data = await res.json();
         if (id !== latest.current) return;
+        if (data?.status && data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+          // e.g. REQUEST_DENIED when the key's Android/iOS app restriction does not list this app
+          console.warn('Places autocomplete:', data.status, data.error_message ?? '');
+        }
         setResults(
           (data?.predictions ?? []).map((p: any) => ({
             placeId: p.place_id,
@@ -80,8 +85,10 @@ export default function PlaceSearchModal({ visible, onClose, onSelect }: Props) 
     try {
       const res = await fetch(
         `${MAPS}/details/json?place_id=${p.placeId}&fields=name,formatted_address,geometry&key=${PLACES_API_KEY}`,
+        { headers: googleApiHeaders() },
       );
       const data = await res.json();
+      if (data?.status && data.status !== 'OK') console.warn('Places details:', data.status, data.error_message ?? '');
       const r = data?.result;
       onSelect({
         address: r?.formatted_address ?? p.full,

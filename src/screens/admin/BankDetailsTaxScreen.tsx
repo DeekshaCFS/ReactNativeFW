@@ -28,6 +28,7 @@ import {
 } from 'react-native';
 import {launchImageLibrary, type Asset} from 'react-native-image-picker';
 import {COLORS} from '../../theme/theme';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
 import {ms, scale, sp, vs} from '../../utils/responsive';
 import {sanitizeDecimalInput} from '../../utils/decimal';
 import {getProfileDetails, updateUser} from '../../api/users/usersService';
@@ -76,6 +77,7 @@ const emptyBankFields: BankFields = {
 const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
   const [activeTab, setActiveTab] = useState<'bank' | 'tax'>('bank');
   const [loading, setLoading] = useState(true);
+  const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
   const [savingBank, setSavingBank] = useState(false);
   const [savingTax, setSavingTax] = useState(false);
 
@@ -292,14 +294,29 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
           ).map(([label, field]) => (
             <View key={field}>
               <Text style={styles.label}>{label}</Text>
-              <TextInput
-                style={styles.input}
-                placeholder={label}
-                placeholderTextColor={COLORS.textMuted}
-                value={bankFields[field]}
-                onChangeText={t => setBankFields(f => ({...f, [field]: t}))}
-                autoCapitalize={field === 'IFSC_Code' ? 'characters' : 'sentences'}
-              />
+              {field === 'BranchAddress' ? (
+                // tapping the branch address opens the Google Places search
+                <Pressable onPress={() => setPlaceSearchOpen(true)}>
+                  <View pointerEvents="none">
+                    <TextInput
+                      style={styles.input}
+                      placeholder={label}
+                      placeholderTextColor={COLORS.textMuted}
+                      value={bankFields[field]}
+                      editable={false}
+                    />
+                  </View>
+                </Pressable>
+              ) : (
+                <TextInput
+                  style={styles.input}
+                  placeholder={label}
+                  placeholderTextColor={COLORS.textMuted}
+                  value={bankFields[field]}
+                  onChangeText={t => setBankFields(f => ({...f, [field]: t}))}
+                  autoCapitalize={field === 'IFSC_Code' ? 'characters' : 'sentences'}
+                />
+              )}
             </View>
           ))}
 
@@ -379,6 +396,14 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
           </Pressable>
         </ScrollView>
       )}
+      <PlaceSearchModal
+        visible={placeSearchOpen}
+        onClose={() => setPlaceSearchOpen(false)}
+        onSelect={place => {
+          setBankFields(f => ({...f, BranchAddress: place.address}));
+          setPlaceSearchOpen(false);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 };

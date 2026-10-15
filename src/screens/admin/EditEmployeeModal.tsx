@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Linking,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +24,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {pick} from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import SearchPickerModal, {type PickerOption} from '../../components/SearchPickerModal';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
 import {COLORS} from '../../theme/theme';
 import {ms, sp, vs} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
@@ -88,6 +90,7 @@ const EditEmployeeModal: React.FC<Props> = ({
   const [hasContactNo, setHasContactNo] = useState(false);
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
+  const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
   const [landmark, setLandmark] = useState('');
   const [joiningDate, setJoiningDate] = useState('');
   const [designation, setDesignation] = useState<PickerOption | null>(null);
@@ -359,7 +362,12 @@ const EditEmployeeModal: React.FC<Props> = ({
               {showManager ? pill(manager?.label === 'Manager' ? '' : manager?.label ?? '', 'Select Manager', () => openPicker('manager')) : null}
 
               <Text style={styles.section}>Other Details</Text>
-              {input(address, setAddress, 'Address')}
+              {/* tapping the address opens the Google Places search */}
+              <Pressable onPress={() => setPlaceSearchOpen(true)}>
+                <View pointerEvents="none">
+                  {input(address, setAddress, 'Address', {editable: false})}
+                </View>
+              </Pressable>
               {input(landmark, setLandmark, 'Landmark')}
               {input(joiningDate, setJoiningDate, 'Joining Date (DD-MM-YYYY)')}
               {input(email, setEmail, 'E-Mail ID', {keyboardType: 'email-address', autoCapitalize: 'none'})}
@@ -399,6 +407,14 @@ const EditEmployeeModal: React.FC<Props> = ({
         )}
       </View>
 
+      <PlaceSearchModal
+        visible={placeSearchOpen}
+        onClose={() => setPlaceSearchOpen(false)}
+        onSelect={place => {
+          setAddress(place.address);
+          setPlaceSearchOpen(false);
+        }}
+      />
       <SearchPickerModal
         visible={picker !== null}
         title={
