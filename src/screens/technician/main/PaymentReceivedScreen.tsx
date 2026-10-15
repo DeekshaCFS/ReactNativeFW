@@ -77,11 +77,10 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
   // offered for UPI / Online payments and posted as QRCodeImageFileName / ...Base64Str.
   const [proofPhoto, setProofPhoto] = useState<{ uri: string; base64: string } | null>(null);
   // Java (spinPaymntMode listener): UPI / Online -> QR image + "+ Add Proof of Payment";
-  // Cash -> Tax field; any other type shows nothing extra.
   const showProofPicker = paymentMode === MODE_OFFLINE && (paymentType === 'UPI' || paymentType === 'Online');
-  const showTaxForCash = paymentMode === MODE_OFFLINE && paymentType === 'Cash';
   const [proofBoxOpen, setProofBoxOpen] = useState(false);
-  const [tax, setTax] = useState('');
+  // Discount, as an amount (not a percentage), for every payment method; deducted from the total.
+  const [discount, setDiscount] = useState('');
   const [upiQrUri, setUpiQrUri] = useState('');
   const [paymentLink, setPaymentLink] = useState('');
   const [upiQrFailed, setUpiQrFailed] = useState(false);
@@ -206,7 +205,10 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
 
   // Java: mTextViewAmount -- (items) + Task Amount + (services), shown as a
   // reference total and used as the "can't exceed this" ceiling on submit.
-  const grandTotal = (taskAmount ?? 0) + itemsTotal + servicesTotal;
+  const grossTotal = (taskAmount ?? 0) + itemsTotal + servicesTotal;
+  const discountAmount = Math.max(Number(discount) || 0, 0);
+  // The total shown (and the ceiling for the received amount) is the amount after the discount.
+  const grandTotal = Math.max(grossTotal - discountAmount, 0);
 
   // ── Adjustment rows (Task_Excess_Amount_Dtls), capped at 5 ──
   const addAdjustmentRow = () => {
@@ -249,6 +251,10 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
 
     let adjustmentTotal = 0;
     if (!markPending) {
+      if (discountAmount > grossTotal) {
+        showFailureMsg('Discount cannot be greater than the total task amount.');
+        return;
+      }
       if (!paymentMode) {
         showFailureMsg('Select Payment Mode');
         return;
@@ -314,7 +320,9 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
         PaymentTransactionType: markPending ? 'Payment Pending' : paymentMode === MODE_ONLINE ? 'RazorPay' : paymentType,
         // Java sends mTextViewAmount's value here — items + Task Amount + adjustments
         // (unchanged from the base task amount when there are no items/adjustments).
-        NewWagePerHours: (taskAmount ?? 0) + itemsTotal + (markPending ? 0 : adjustmentTotal),
+        // With a discount this is the reduced total.
+        NewWagePerHours: (taskAmount ?? 0) + itemsTotal + (markPending ? 0 : adjustmentTotal - discountAmount),
+        TaskDiscountedAmount: markPending ? 0 : discountAmount,
         Task_Excess_Amount_Dtls: excessDtls,
         // Only attach proof when it applies to the chosen payment type.
         ...(!markPending && showProofPicker && proofPhoto && {
@@ -504,18 +512,16 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
               />
             </View>
 
-            {showTaxForCash && (
-              <View style={styles.amountReceivedRow}>
-                <Text style={styles.amountReceivedLabel}>Tax</Text>
-                <DecimalInput
-                  style={styles.amountReceivedInput}
-                  label="Discount"
-                  placeholderTextColor="#9CA3AF"
-                  value={tax}
-                  onChangeText={t => setTax(t)}
-                />
-              </View>
-            )}
+            <View style={styles.amountReceivedRow}>
+              <Text style={styles.amountReceivedLabel}>Discount</Text>
+              <DecimalInput
+                style={styles.amountReceivedInput}
+                label="Discount"
+                placeholderTextColor="#9CA3AF"
+                value={discount}
+                onChangeText={t => setDiscount(t)}
+              />
+            </View>
 
             {showProofPicker && (
               <View style={styles.proofWrap}>

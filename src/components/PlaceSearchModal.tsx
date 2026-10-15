@@ -11,19 +11,18 @@ import Modal from './AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../theme/theme';
 import { ms, sp, scale, vs } from '../utils/responsive';
-import { PLACES_API_KEY, googleApiHeaders } from '../config/maps';
+import { PLACES_API_KEY } from '../config/maps';
+import { placesAutocomplete, placeDetails, type PlacePrediction } from '../utils/googleMaps';
 
 export type PickedPlace = { address: string; name: string; latitude: number; longitude: number };
 
-type Prediction = { placeId: string; primary: string; secondary: string; full: string };
+type Prediction = PlacePrediction;
 
 type Props = {
   visible: boolean;
   onClose: () => void;
   onSelect: (place: PickedPlace) => void;
 };
-
-const MAPS = 'https://maps.googleapis.com/maps/api/place';
 
 export default function PlaceSearchModal({ visible, onClose, onSelect }: Props) {
   const [query, setQuery] = useState('');
@@ -53,24 +52,9 @@ export default function PlaceSearchModal({ visible, onClose, onSelect }: Props) 
       const id = ++latest.current;
       setLoading(true);
       try {
-        const res = await fetch(
-          `${MAPS}/autocomplete/json?input=${encodeURIComponent(text.trim())}&key=${PLACES_API_KEY}`,
-          { headers: googleApiHeaders() },
-        );
-        const data = await res.json();
+        const predictions = await placesAutocomplete(text);
         if (id !== latest.current) return;
-        if (data?.status && data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-          // e.g. REQUEST_DENIED when the key's Android/iOS app restriction does not list this app
-          console.warn('Places autocomplete:', data.status, data.error_message ?? '');
-        }
-        setResults(
-          (data?.predictions ?? []).map((p: any) => ({
-            placeId: p.place_id,
-            primary: p.structured_formatting?.main_text ?? p.description,
-            secondary: p.structured_formatting?.secondary_text ?? '',
-            full: p.description,
-          })),
-        );
+        setResults(predictions);
       } catch {
         if (id === latest.current) setResults([]);
       } finally {
@@ -83,18 +67,12 @@ export default function PlaceSearchModal({ visible, onClose, onSelect }: Props) 
     Keyboard.dismiss();
     setLoading(true);
     try {
-      const res = await fetch(
-        `${MAPS}/details/json?place_id=${p.placeId}&fields=name,formatted_address,geometry&key=${PLACES_API_KEY}`,
-        { headers: googleApiHeaders() },
-      );
-      const data = await res.json();
-      if (data?.status && data.status !== 'OK') console.warn('Places details:', data.status, data.error_message ?? '');
-      const r = data?.result;
+      const place = await placeDetails(p.placeId);
       onSelect({
-        address: r?.formatted_address ?? p.full,
-        name: r?.name ?? p.primary,
-        latitude: Number(r?.geometry?.location?.lat) || 0,
-        longitude: Number(r?.geometry?.location?.lng) || 0,
+        address: place?.address || p.full,
+        name: place?.name || p.primary,
+        latitude: place?.latitude ?? 0,
+        longitude: place?.longitude ?? 0,
       });
     } catch {
       onSelect({ address: p.full, name: p.primary, latitude: 0, longitude: 0 });

@@ -30,6 +30,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {COLORS} from '../../theme/theme';
 import {downloadReport} from '../../api/report/reportService';
 import {getInvoicedetailsByInvoiceId} from '../../api/accountManagement/accountManagementService';
+import {geocodeAddress} from '../../utils/googleMaps';
 import AddTaskModal, {buildTaskFormValues, type AddTaskInitialValues} from './AddTaskModal';
 import TaskClosureSection, {type TaskClosureSectionHandle} from './TaskClosureSection';
 import OwnerTaskTrackingMap from './OwnerTaskTrackingMap';
@@ -291,6 +292,29 @@ const TaskDetailsScreen = ({
     };
   }, [sheetStyle, isCompletedTask, closureTaskId, ownerId]);
 
+  // Tasks created without coordinates (e.g. an address typed by hand) have no map pin, so look the
+  // task's address up on Google and use that as the destination instead.
+  const taskLat = Number(record.Latitude ?? record.latitude) || 0;
+  const taskLng = Number(record.Longitude ?? record.longitude) || 0;
+  const addressForMap =
+    getStringField(record, ['fullAddress', 'FullAddress', 'address', 'Address']) || customerAddress || '';
+  const [geocodedDestination, setGeocodedDestination] = useState<{latitude: number; longitude: number} | null>(null);
+  useEffect(() => {
+    if ((taskLat && taskLng) || !addressForMap.trim()) {
+      setGeocodedDestination(null);
+      return undefined;
+    }
+    let active = true;
+    geocodeAddress(addressForMap).then(found => {
+      if (active) {
+        setGeocodedDestination(found);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [taskLat, taskLng, addressForMap]);
+
   // The discount given on a task lives on its invoice (InvoiceDetails: Discount % and
   // DiscountAmounnt), so fetch it by the task's InvoiceId.
   const invoiceId = getNumberField(record, ['invoiceId', 'InvoiceId']);
@@ -401,12 +425,19 @@ const TaskDetailsScreen = ({
   const estimatedAmount = wagesPerHour ? `${currencySymbol} ${formatAmount(wagesPerHour)}` : '';
   const earnedAmount = earningAmount ? `${currencySymbol} ${formatAmount(earningAmount)}` : '';
   // Discount from the invoice, shown on its own row and taken off the earned amount.
-  const discountAmount = invoiceDiscount?.amount ?? 0;
+  // The technician's discount (an amount) comes back on the task record itself; the invoice's
+  // discount is the fallback for tasks invoiced elsewhere.
+  const taskDiscount = getNumberField(record, ['taskDiscountedAmount', 'TaskDiscountedAmount', 'discountAmount', 'DiscountAmount']);
+  const discountAmount = taskDiscount || invoiceDiscount?.amount || 0;
   const discountText = discountAmount
-    ? `${currencySymbol} ${formatAmount(discountAmount)} (${Number((invoiceDiscount?.percent ?? 0).toFixed(3))}%)`
+    ? `${currencySymbol} ${formatAmount(discountAmount)}${
+        !taskDiscount && invoiceDiscount?.percent ? ` (${Number(invoiceDiscount.percent.toFixed(3))}%)` : ''
+      }`
     : '';
+  // A technician discount is already taken off the stored total (NewWagePerHours), so only the
+  // invoice discount is subtracted from the earned amount here.
   const netEarnedAmount =
-    discountAmount && earningAmount
+    !taskDiscount && discountAmount && earningAmount
       ? `${currencySymbol} ${formatAmount(Math.max(earningAmount - discountAmount, 0))}`
       : '';
 
@@ -480,8 +511,8 @@ const TaskDetailsScreen = ({
           technicianId={getNumberField(record, ['userId', 'UserId'])}
           technicianName={employeeName}
           isOngoing={status.toLowerCase() === 'ongoing'}
-          fieldLatitude={Number(record.Latitude ?? record.latitude) || 0}
-          fieldLongitude={Number(record.Longitude ?? record.longitude) || 0}
+          fieldLatitude={taskLat || geocodedDestination?.latitude || 0}
+          fieldLongitude={taskLng || geocodedDestination?.longitude || 0}
           taskName={taskName}
           customerName={custName}
         />
@@ -650,7 +681,7 @@ const TaskDetailsScreen = ({
                 ? [['Earned Amount', earnedAmount]]
                 : []),
               ...(closureLoaded && paymentModeId !== 1 && earningAmount && discountText
-                ? [['Discount', discountText], ['Net Amount', netEarnedAmount]]
+                ? [['Discount', discountText], ...(netEarnedAmount ? [['Net Amount', netEarnedAmount]] : [])]
                 : []),
               ['Payment Mode', valueOrNA(paymentMode)],
               ['Start Date & Time', valueOrNA(startDateTime)],

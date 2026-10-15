@@ -7,6 +7,8 @@
 // geocoding already used in locationPermision.ts. Swap the URL for Google Directions
 // if a key becomes available; the return shape would stay the same.
 
+import { googleDirections } from './googleMaps';
+
 export type LatLng = { latitude: number; longitude: number };
 
 export interface DrivingRoute {
@@ -36,6 +38,10 @@ export async function fetchDrivingRoute(
   to: LatLng,
   timeoutMs = 8000,
 ): Promise<DrivingRoute | null> {
+  // Google Directions API first (what Java uses); the public OSRM router below is the fallback.
+  const google = await googleDirections(from, to);
+  if (google) return google;
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 

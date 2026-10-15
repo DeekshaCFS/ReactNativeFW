@@ -30,6 +30,7 @@
 import { Platform } from 'react-native';
 import { request, check, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import Geolocation from 'react-native-geolocation-service';
+import { googleReverseGeocode } from './googleMaps';
 
 export type Coordinates = { latitude: number; longitude: number };
 
@@ -75,6 +76,9 @@ export function getCurrentPosition(): Promise<Coordinates> {
  * Returns null (mirroring the Java "Phone GPS is OFF" fallback) on failure.
  */
 export async function getAddressFromCoordinates(latitude: number, longitude: number): Promise<string | null> {
+  // Google Geocoding first (Java Geocoder equivalent); OpenStreetMap below is the fallback.
+  const google = await googleReverseGeocode(latitude, longitude);
+  if (google) return google;
   try {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,

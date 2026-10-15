@@ -21,6 +21,7 @@ import DateTimePicker, {type DateTimePickerChangeEvent} from '@react-native-comm
 import Modal from '../../components/AppModal';
 import OutlinedInput from '../../components/OutlinedInput';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
+import {geocodeAddress as geocodeWithGoogle} from '../../utils/googleMaps';
 import {ContactBookIcon, InvoiceIcon} from '../../components/FabIcons';
 import {COLORS} from '../../theme/theme';
 import {ms, sp} from '../../utils/responsive';
@@ -1420,18 +1421,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       return null;
     }
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
-          query,
-        )}`,
-        {headers: {Accept: 'application/json'}},
-      );
-      const results = await response.json();
-      if (Array.isArray(results) && results.length > 0) {
-        const {lat, lon} = results[0];
-        if (lat && lon) {
-          return {latitude: String(lat), longitude: String(lon)};
-        }
+      // Google Geocoding first; OpenStreetMap only if Google is unavailable.
+      const found = await geocodeWithGoogle(query);
+      if (found) {
+        return {latitude: String(found.latitude), longitude: String(found.longitude)};
       }
     } catch (error) {
       console.warn('[AddTask] Unable to geocode address', error);
@@ -2165,19 +2158,20 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                         setAmcAmount(sanitizeDecimalInput(text))
                       }
                       editable={warrantyMode === 'out'}
+                      // in warranty the field is disabled and the overlay below explains why; when
+                      // it can be filled the 0.000 placeholder shows
+                      placeholder={warrantyMode === 'out' ? undefined : ''}
                     />
                     {/* TextInput's native placeholder just clips long text with no
                         ellipsis -- overlay a Text with ellipsizeMode instead. */}
-                    {!(warrantyMode === 'out' && amcAmount) ? (
+                    {warrantyMode !== 'out' ? (
                       <Text
                         style={styles.amcPlaceholderOverlay}
                         numberOfLines={1}
                         ellipsizeMode="tail"
                         pointerEvents="none"
                       >
-                        {warrantyMode === 'out'
-                          ? 'Please Enter Amount'
-                          : 'Not Applicable In AMC Mode'}
+                        Not Applicable In AMC Mode
                       </Text>
                     ) : null}
                   </View>
