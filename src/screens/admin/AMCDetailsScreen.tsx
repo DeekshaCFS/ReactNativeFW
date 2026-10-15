@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   TextInput,
   Linking,
+  Image,
 } from 'react-native';
 import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -28,6 +29,11 @@ import { downloadAmcReport } from '../../api/report/reportService';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
 import AddTaskModal, { type AddTaskInitialValues } from './AddTaskModal';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
+import { COLORS } from '../../theme/theme';
+import { DeleteAccIcon } from '../../components/JavaIcons';
+import BottomSheetDialog from '../../components/BottomSheetDialog';
+import DecimalInput from '../../components/DecimalInput';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
 
 type AMCDetailsScreenProps = NativeStackScreenProps<AdminStackParamList, 'AMCDetails'>;
 
@@ -38,9 +44,154 @@ const THEME_BORDER = '#E5E7EB';
 const SECTION_TITLE_COLOR = '#dc2626';
 
 const styles = StyleSheet.create({
+  // fragment_amc_details_new.xml: red background, white card with 30dp top corners.
   safeArea: {
     flex: 1,
+    backgroundColor: COLORS.primary,
+    paddingTop: 10,
+  },
+  sheet: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
+  },
+  scrollContent: {
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 30,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  statusLabel: {
+    flex: 0.4,
+    paddingLeft: 5,
+    fontSize: sp(14),
+    fontWeight: 'bold',
+  },
+  iconsWrap: {
+    flex: 0.6,
+    flexDirection: 'row',
+  },
+  iconCell: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  actionIcon: {
+    width: 24,
+    height: 24,
+    resizeMode: 'contain',
+    tintColor: COLORS.primary,
+  },
+  titleCard: {
+    backgroundColor: '#DEE3ED', // @color/amc_background
+    borderRadius: 10,
+    marginTop: 15,
+    marginBottom: 15,
+  },
+  titleRow: {
+    flexDirection: 'row',
+  },
+  titleLabel: {
+    flex: 0.4,
+    paddingLeft: 20,
+    fontSize: sp(15),
+    fontWeight: 'bold',
+    color: COLORS.ink,
+  },
+  titleValue: {
+    flex: 0.6,
+    paddingLeft: 10,
+    fontSize: sp(15),
+    color: COLORS.ink,
+  },
+  sectionTitle: {
+    marginBottom: 5,
+    paddingLeft: 10,
+    fontSize: sp(16),
+    fontWeight: 'bold',
+    color: COLORS.primary,
+  },
+  sectionBody: {
+    paddingHorizontal: 10,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailLabel: {
+    flex: 0.4,
+    fontSize: sp(15),
+    fontWeight: 'bold',
+    color: COLORS.textBlack,
+  },
+  detailValue: {
+    flex: 0.6,
+    paddingLeft: 5,
+    fontSize: sp(15),
+    color: 'rgba(0,0,0,0.87)',
+  },
+  serviceBlock: {
+    padding: 10,
+  },
+  delOuter: { padding: 20 },
+  delMessage: {
+    marginVertical: 20,
+    textAlign: 'center',
+    fontSize: sp(16),
+    fontWeight: 'bold',
+    color: COLORS.ink,
+  },
+  delButtons: { flexDirection: 'row', alignItems: 'center', padding: 20 },
+  delNo: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: ms(48) },
+  delNoText: { color: COLORS.lightGray, fontSize: sp(18) },
+  delYes: {
+    flex: 1,
+    minHeight: ms(48),
+    borderRadius: ms(34),
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  delYesText: { color: '#FFFFFF', fontSize: sp(18) },
+  histRoot: { flex: 1, backgroundColor: '#FFFFFF' },
+  histHeader: { height: 60, padding: 10, alignItems: 'center', justifyContent: 'center' },
+  histTitle: { fontSize: sp(20), fontWeight: 'bold', color: COLORS.textBlack },
+  histClose: { position: 'absolute', right: 10, top: 5, width: 50, height: 50, alignItems: 'center', justifyContent: 'center' },
+  histAmcName: { marginLeft: 15, fontSize: sp(18), fontWeight: 'bold', color: COLORS.textBlack },
+  histDivider: { height: 1, margin: 2, backgroundColor: COLORS.lightGray },
+  histSubTitle: { alignSelf: 'center', marginTop: 5, fontSize: sp(18), fontWeight: 'bold', color: COLORS.textBlack },
+  histTable: { flexDirection: 'row', marginTop: 5 },
+  histHeadCol: { width: 120, backgroundColor: '#EEEEEE' },
+  histHeadCell: {
+    height: 50,
+    lineHeight: 50,
+    paddingLeft: 10,
+    fontWeight: 'bold',
+    color: COLORS.textBlack,
+    fontSize: sp(14),
+    borderTopWidth: 1,
+    borderTopColor: '#A9A9A9',
+  },
+  histDataCol: { width: 160 },
+  histDataCell: {
+    height: 50,
+    lineHeight: 50,
+    paddingLeft: 10,
+    fontSize: sp(15),
+    color: COLORS.textBlack,
+    borderTopWidth: 1,
+    borderTopColor: '#A9A9A9',
+  },
+  serviceTitle: {
+    fontSize: sp(16),
+    fontWeight: 'bold',
+    color: COLORS.textBlack,
+    marginBottom: 5,
   },
   contentContainer: {
     flex: 1,
@@ -91,19 +242,10 @@ const styles = StyleSheet.create({
     marginBottom: ms(8),
     paddingBottom: ms(8),
   },
-  sectionTitle: {
-    fontSize: sp(15),
-    fontWeight: '700',
-    color: SECTION_TITLE_COLOR,
-    marginBottom: ms(8),
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     paddingVertical: ms(5),
-  },
-  serviceBlock: {
-    marginTop: ms(10),
   },
   serviceSubTitle: {
     fontSize: sp(13),
@@ -194,7 +336,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   editModalRoot: {
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: COLORS.dialogDim,
     flex: 1,
     justifyContent: 'flex-end',
     alignItems: 'center',
@@ -203,23 +345,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     width: '100%',
     maxWidth: ms(560),
-    borderTopLeftRadius: ms(18),
-    borderTopRightRadius: ms(18),
-    maxHeight: '92%',
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
+    maxHeight: '94%',
     overflow: 'hidden',
   },
   editModalHeader: {
     alignItems: 'center',
-    backgroundColor: GRAY,
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(20),
     flexDirection: 'row',
-    minHeight: ms(56),
-    paddingHorizontal: ms(16),
+    height: ms(60),
+    paddingHorizontal: ms(20),
   },
   editModalTitle: {
     color: '#FFFFFF',
     flex: 1,
-    fontSize: sp(18),
-    fontWeight: '700',
+    fontSize: sp(22),
+    fontWeight: '500',
   },
   editModalClose: {
     alignItems: 'center',
@@ -236,22 +379,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   editFormContent: {
-    padding: ms(16),
-    paddingBottom: ms(24),
+    paddingHorizontal: ms(20),
+    paddingTop: ms(12),
+    paddingBottom: ms(18),
   },
   editField: {
-    marginBottom: ms(10),
+    marginBottom: ms(26),
   },
   // Java (dialog_add_amc_new.xml) pairs the date/number fields two to a row
   // (Activation Date+Time, Contract Date+No. of Services, etc.) instead of
   // stacking every field full-width -- this halves the form's height.
   editRow: {
     flexDirection: 'row',
-    gap: ms(12),
-    marginBottom: ms(10),
+    gap: ms(10),
   },
   editFieldHalf: {
     flex: 1,
+    marginBottom: ms(26),
   },
   editSelectValue: {
     fontSize: sp(14),
@@ -277,27 +421,43 @@ const styles = StyleSheet.create({
     marginBottom: ms(6),
   },
   editInput: {
-    borderColor: GRAY,
-    borderRadius: ms(20),
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
     borderWidth: ms(1),
-    color: '#111827',
+    color: '#000000',
+    fontSize: sp(16),
+    height: ms(41),
+    paddingHorizontal: ms(18),
+    paddingVertical: 0,
+  },
+  editFloatLabel: {
+    backgroundColor: '#FFFFFF',
+    color: COLORS.lightGray,
+    fontSize: sp(12),
+    left: ms(14),
+    paddingHorizontal: ms(4),
+    position: 'absolute',
+    top: -ms(8),
+  },
+  editWarrantyLabel: {
+    color: COLORS.darkGray,
+    flex: 1,
     fontSize: sp(14),
-    minHeight: ms(40),
-    paddingHorizontal: ms(12),
-    paddingVertical: ms(7),
+    marginLeft: ms(4),
   },
   editToggleRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    marginBottom: ms(12),
-    gap: ms(100),
+    marginBottom: ms(26),
+    minHeight: ms(30),
   },
   editToggle: {
-    borderColor: '#000',
-    borderRadius: ms(20),
+    borderColor: COLORS.ink,
+    borderRadius: ms(25),
     borderWidth: ms(1),
     flexDirection: 'row',
     height: ms(30),
-    width: ms(180),
+    width: '45%',
     overflow: 'hidden',
   },
   editToggleOption: {
@@ -306,12 +466,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editToggleOptionActive: {
-    backgroundColor: '#000',
+    backgroundColor: COLORS.ink,
   },
   editToggleText: {
-    color: '#374151',
+    color: COLORS.ink,
     fontSize: sp(14),
-    fontWeight: '700',
+    fontWeight: '400',
   },
   editToggleTextActive: {
     color: '#FFFFFF',
@@ -319,29 +479,29 @@ const styles = StyleSheet.create({
   editSaveButton: {
     alignItems: 'center',
     backgroundColor: THEME_PRIMARY,
-    borderRadius: ms(25),
-    height: ms(46),
+    borderRadius: ms(34),
+    height: ms(48),
     justifyContent: 'center',
-    marginTop: ms(6),
+    marginTop: ms(10),
+    elevation: 4,
   },
   editSaveButtonDisabled: {
     opacity: 0.7,
   },
   editSaveButtonText: {
     color: '#FFFFFF',
-    fontSize: sp(15),
-    fontWeight: '700',
+    fontSize: sp(18),
+    fontWeight: '500',
   },
   editCancelButton: {
     alignItems: 'center',
-    height: ms(44),
+    height: ms(52),
     justifyContent: 'center',
-    marginTop: ms(4),
   },
   editCancelButtonText: {
     color: THEME_PRIMARY,
-    fontSize: sp(15),
-    fontWeight: '700',
+    fontSize: sp(18),
+    fontWeight: '500',
   },
   editLoadingPanel: {
     alignItems: 'center',
@@ -410,6 +570,9 @@ const styles = StyleSheet.create({
 });
 
 type EditFormData = {
+  // set only when a new address is picked from Google Places; otherwise the saved ones are kept
+  latitude?: string;
+  longitude?: string;
   amcName: string;
   customerName: string;
   customerNumber: string;
@@ -459,6 +622,14 @@ const REMINDER_ID_PATHS = [
 const SERVICE_STATUS_LABELS: Record<number, string> = {1: 'Completed', 2: 'Rejected', 3: 'Ongoing', 4: 'InActive'};
 const SERVICE_COUNT_OPTIONS: PickerOption[] = Array.from({length: 20}, (_, i) => ({id: i + 1, label: String(i + 1)}));
 
+// Java layout_*_details.xml TableRow: bold label 40%, value 60% with 5dp left padding, 5dp between rows.
+const DetailRow = ({label, value, first}: {label: string; value?: string | number | null; first?: boolean}) => (
+  <View style={[styles.detailRow, !first && {marginTop: 5}]}>
+    <Text style={styles.detailLabel}>{label}</Text>
+    <Text style={styles.detailValue}>{value === undefined || value === null || value === '' ? 'NA' : String(value)}</Text>
+  </View>
+);
+
 const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }) => {
   const { amcItem, amcServiceDetailsId, amcsId, ownerId } = route.params || {};
   const [loading, setLoading] = useState(false);
@@ -470,6 +641,8 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   // History (Java: amcHistoryDialog, fed by GetAMCRenewalDetails) and Renew
   // (Java: AMCDialog with fromWhere="Renewal", posts AddAMCRenewal).
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
   const [historyRows, setHistoryRows] = useState<Record<string, unknown>[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [renewModalVisible, setRenewModalVisible] = useState(false);
@@ -876,11 +1049,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
             Description: toEditableText(String(locationDetail.Description || editFormData.landmark)),
             Id: customerLocationId,
             IsActive: true,
-            Longitude: String(locationDetail.Longitude || ''),
+            Longitude: String(editFormData.longitude ?? (locationDetail.Longitude || '')),
             Name: '',
             PinCode: editFormData.pinCode.trim(),
             UpdatedBy: toNumberValue(locationDetail.UpdatedBy),
-            latitude: String(locationDetail.latitude || locationDetail.Latitude || ''),
+            latitude: String(editFormData.latitude ?? (locationDetail.latitude || locationDetail.Latitude || '')),
           },
           ProductBrand: toEditableText(editFormData.productBrand),
           ProductDetailsId: productId,
@@ -1145,10 +1318,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   };
 
   const handleDeletePress = () => {
-    Alert.alert('Delete AMC', 'Do you want to delete this AMC? It wil delete all AMC history.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: confirmDeleteAmc },
-    ]);
+    setDeleteVisible(true);
   };
 
   // Java (AMCDetailsFragment add-task icon) replaced its local expired /
@@ -1202,25 +1372,29 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     label: string,
     value: string,
     onChangeText: (value: string) => void,
-    options?: { keyboardType?: 'default' | 'numeric' | 'decimal-pad' | 'phone-pad' | 'email-address'; multiline?: boolean; half?: boolean },
+    options?: { keyboardType?: 'default' | 'numeric' | 'decimal-pad' | 'phone-pad' | 'email-address'; multiline?: boolean; half?: boolean; editable?: boolean },
   ) => (
     <View style={options?.half ? styles.editFieldHalf : styles.editField}>
-      <Text style={styles.editLabel}>{label}</Text>
-      <TextInput
-        style={[styles.editInput]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={label}
-        placeholderTextColor="#9CA3AF"
-        keyboardType={options?.keyboardType || 'default'}
-        multiline={options?.multiline}
-      />
+      {options?.keyboardType === 'decimal-pad' ? (
+        <DecimalInput style={[styles.editInput]} value={value} onChangeText={onChangeText} />
+      ) : (
+        <TextInput
+          style={[styles.editInput]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={label}
+          placeholderTextColor={COLORS.lightGray}
+          keyboardType={options?.keyboardType || 'default'}
+          multiline={options?.multiline}
+          editable={options?.editable}
+        />
+      )}
+      {value || options?.keyboardType === 'decimal-pad' ? <Text style={styles.editFloatLabel}>{label}</Text> : null}
     </View>
   );
 
   const renderEditSelect = (label: string, value: string, onPress: () => void, half?: boolean) => (
     <View style={half ? styles.editFieldHalf : styles.editField}>
-      <Text style={styles.editLabel}>{label}</Text>
       <Pressable style={[styles.editInput, styles.editSelectInput]} onPress={onPress}>
         <Text
           style={[value ? styles.editSelectValue : styles.editSelectPlaceholder, styles.editSelectText]}
@@ -1276,220 +1450,158 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     );
   }
 
+  const statusColor = details.status.toLowerCase() === 'active' ? COLORS.statusCompleted : COLORS.darkGray;
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Status + toolbar, one row (matches Java: "Active" label and the
-          action icons share the bar directly under the header). */}
-      <View style={styles.toolbarRow}>
-        {details.status ? (
-          <Text
-            style={[
-              styles.statusText,
-              details.status.toLowerCase() !== 'active' ? styles.statusTextInactive : null,
-            ]}
-          >
-            {details.status}
-          </Text>
-        ) : <View />}
-          <Pressable style={styles.toolbarButton} onPress={openEditModal} disabled={editLoading}>
-            <Ionicons name="create-outline" size={24} color={THEME_PRIMARY} />
-          </Pressable>
-          <Pressable style={styles.toolbarButton} onPress={handleWhatsAppPress}>
-            <Ionicons name="logo-whatsapp" size={24} color={THEME_PRIMARY} />
-          </Pressable>
-          <Pressable style={styles.toolbarButton} onPress={handleCallPress}>
-            <Ionicons name="call-outline" size={24} color={THEME_PRIMARY} />
-          </Pressable>
-          <Pressable style={styles.toolbarButton} onPress={handleDownloadPress} disabled={isDownloadingReport}>
-            <Ionicons name="download-outline" size={24} color={THEME_PRIMARY} />
-          </Pressable>
-          <Pressable style={styles.toolbarButton} onPress={handleAddTaskPress}>
-            <Ionicons name="add" size={24} color={THEME_PRIMARY} />
-          </Pressable>
-          <Pressable style={styles.toolbarButton} onPress={handleDeletePress} disabled={isDeletingAmc}>
-            <Ionicons name="trash-outline" size={24} color={THEME_PRIMARY} />
-          </Pressable>
+    <SafeAreaView style={styles.safeArea} edges={[]}>
+      <View style={styles.sheet}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Status + action icons (Java: status 40%, icons 60% split in 7 slots). */}
+        <View style={styles.statusRow}>
+          <Text style={[styles.statusLabel, {color: statusColor}]}>{details.status}</Text>
+          <View style={styles.iconsWrap}>
+            <Pressable style={styles.iconCell} onPress={openEditModal} disabled={editLoading}>
+              <Image source={require('../../../assets/images/fw_edit_task_icon.png')} style={styles.actionIcon} />
+            </Pressable>
+            <Pressable style={styles.iconCell} onPress={handleWhatsAppPress}>
+              <Ionicons name="logo-whatsapp" size={24} color={COLORS.primary} style={styles.actionIcon} />
+            </Pressable>
+            <Pressable style={styles.iconCell} onPress={handleCallPress}>
+              <Image source={require('../../../assets/images/ic_phone.png')} style={styles.actionIcon} />
+            </Pressable>
+            <Pressable style={styles.iconCell} onPress={handleDownloadPress} disabled={isDownloadingReport}>
+              <Image source={require('../../../assets/images/ic_download.png')} style={styles.actionIcon} />
+            </Pressable>
+            <Pressable style={styles.iconCell} onPress={handleAddTaskPress}>
+              <Image source={require('../../../assets/images/ic_plus.png')} style={styles.actionIcon} />
+            </Pressable>
+            <Pressable style={styles.iconCell} onPress={handleDeletePress} disabled={isDeletingAmc}>
+              <DeleteAccIcon size={24} color={COLORS.primary} />
+            </Pressable>
+            <View style={styles.iconCell} />
+          </View>
+        </View>
+
+        {/* AMC name / contact card (bg_amc_title). */}
+        <View style={styles.titleCard}>
+          <View style={[styles.titleRow, {marginTop: 10}]}>
+            <Text style={styles.titleLabel}>AMC Name</Text>
+            <Text style={styles.titleValue}>{details.amcName}</Text>
+          </View>
+          <View style={[styles.titleRow, {marginTop: 5, marginBottom: 10}]}>
+            <Text style={styles.titleLabel}>Contact No</Text>
+            <Text style={styles.titleValue}>{details.contactNoDisplay}</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.sectionTitle, {paddingTop: 5}]}>Customer Details</Text>
+        <View style={styles.sectionBody}>
+        <DetailRow label="Customer Name" value={details.customerName} first />
+        <DetailRow label="Customer Number" value={details.customerNumber} />
+        <DetailRow label="Customer Email" value={details.customerEmail} />
+        <DetailRow label="Address" value={details.address} />
+        <DetailRow label="Landmark" value={details.landmark} />
+        </View>
+
+        <Text style={[styles.sectionTitle, {marginTop: 20}]}>Product Details</Text>
+        <View style={styles.sectionBody}>
+        <DetailRow label="Product Brand" value={details.productBrand} first />
+        <DetailRow label="Product Name" value={details.productName} />
+        <DetailRow label="Serial Number" value={details.serialNumber} />
+        <DetailRow label="Service Amount" value={details.serviceAmount} />
+        <DetailRow label="Remaining Amount" value={details.remainingAmount} />
+        <DetailRow label="Under Warranty" value={details.underWarranty} />
+        </View>
+
+        <Text style={[styles.sectionTitle, {marginTop: 20}]}>AMC Details</Text>
+        <View style={styles.sectionBody}>
+        <DetailRow label="Activation Date" value={details.activationDate} first />
+        <DetailRow label="Contract Date" value={details.contractDate} />
+        <DetailRow label="Expiry Date" value={details.expiryDate} />
+        <DetailRow label="No. of Services" value={details.noOfServices} />
+        <DetailRow label="Service Completed" value={details.serviceCompleted} />
+        <DetailRow label="Reminder" value={details.reminder} />
+        <DetailRow label="Occurrence" value={details.occurrence} />
+        <DetailRow label="Status" value={details.status} />
+        <DetailRow label="Note" value={details.note} />
+        </View>
+
+        {/* Services Details (Java ServiceListAdapter -- service_details_custom.xml). */}
+        <Text style={[styles.sectionTitle, {marginTop: 20}]}>
+          {details.serviceTasks.length ? 'Services Details' : 'Services Details : NA'}
+        </Text>
+        {details.serviceTasks.map((task, index) => (
+          <View key={index} style={styles.serviceBlock}>
+            <Text style={styles.serviceTitle}>{`Service ${index + 1}`}</Text>
+            <DetailRow label="Fieldworker Name" value={task.TechnicianName || 'NA'} first />
+            <DetailRow label="Date" value={String(task.TaskDate ?? '').split('T')[0] || 'NA'} />
+            <DetailRow label="Time" value={task.TaskTime || 'NA'} />
+            <DetailRow label="Status" value={SERVICE_STATUS_LABELS[Number(task.TaskStatus)] ?? 'NA'} />
+          </View>
+        ))}
+      </ScrollView>
       </View>
 
-      <ScrollView style={styles.contentContainer} contentContainerStyle={{ paddingBottom: vs(20) }}>
-        {/* Info Card */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>AMC Name</Text>
-            <Text style={styles.infoValue}>{details.amcName}</Text>
+      <Modal visible={historyVisible} animationType="slide" transparent={false} onRequestClose={() => setHistoryVisible(false)}>
+        <SafeAreaView style={styles.histRoot}>
+          <View style={styles.histHeader}>
+            <Text style={styles.histTitle}>AMC History</Text>
+            <Pressable onPress={() => setHistoryVisible(false)} hitSlop={10} style={styles.histClose}>
+              <Ionicons name="close" size={ms(28)} color={COLORS.ink} />
+            </Pressable>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Contact No</Text>
-            <Text style={styles.infoValue}>{details.contactNoDisplay}</Text>
-          </View>
-        </View>
-
-        {/* Customer Details Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Customer Details</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Customer Name</Text>
-            <Text style={styles.value}>{details.customerName}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Customer Number</Text>
-            <Text style={styles.value}>{details.customerNumber}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Customer Email</Text>
-            <Text style={styles.value}>{details.customerEmail}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Address</Text>
-            <Text style={styles.value}>{details.address}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Landmark</Text>
-            <Text style={styles.value}>{details.landmark}</Text>
-          </View>
-        </View>
-
-        {/* Product Details Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Product Details</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Product Brand</Text>
-            <Text style={styles.value}>{details.productBrand}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Product Name</Text>
-            <Text style={styles.value}>{details.productName}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Serial Number</Text>
-            <Text style={styles.value}>{details.serialNumber}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Service Amount</Text>
-            <Text style={styles.value}>{details.serviceAmount}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Remaining Amount</Text>
-            <Text style={styles.value}>{details.remainingAmount}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Under Warranty</Text>
-            <Text style={styles.value}>{details.underWarranty}</Text>
-          </View>
-        </View>
-
-        {/* AMC Details Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AMC Details</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Activation Date</Text>
-            <Text style={styles.value}>{details.activationDate}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Contract Date</Text>
-            <Text style={styles.value}>{details.contractDate}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Expiry Date</Text>
-            <Text style={styles.value}>{details.expiryDate}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>No. of Services</Text>
-            <Text style={styles.value}>{details.noOfServices}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Service Completed</Text>
-            <Text style={styles.value}>{details.serviceCompleted}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Reminder</Text>
-            <Text style={styles.value}>{details.reminder}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Occurrence</Text>
-            <Text style={styles.value}>{details.occurrence}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Status</Text>
-            <Text
-              style={[
-                styles.value,
-                details.status.toLowerCase() === 'active' ? styles.statusValueActive : null,
-              ]}
-            >
-              {details.status}
-            </Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Note</Text>
-            <Text style={styles.value}>{details.note}</Text>
-          </View>
-        </View>
-
-        {/* Services Details: each scheduled AMC service gets its own
-            sub-heading with Fieldworker Name/Date/Time/Status rows
-            (Java ServiceListAdapter -- item_service_details.xml). */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {details.serviceTasks.length ? 'Services Details' : 'Services Details : NA'}
-          </Text>
-          {details.serviceTasks.map((task, index) => (
-            <View key={index} style={styles.serviceBlock}>
-              <Text style={styles.serviceSubTitle}>{`Services ${index + 1}`}</Text>
-              <View style={styles.row}>
-                <Text style={styles.label}>Fieldworker Name</Text>
-                <Text style={styles.value}>{task.TechnicianName || 'NA'}</Text>
+          <Text style={styles.histAmcName}>{details?.amcName}</Text>
+          <View style={styles.histDivider} />
+          <Text style={styles.histSubTitle}>Renewal History Details</Text>
+          {isHistoryLoading ? (
+            <ActivityIndicator color={THEME_PRIMARY} style={{marginVertical: 24}} />
+          ) : historyRows.length === 0 ? (
+            <Text style={styles.modalEmptyText}>No renewal history found.</Text>
+          ) : (
+            <ScrollView>
+              <View style={styles.histTable}>
+                <View style={styles.histHeadCol}>
+                  {['Sr.No', 'AMC ID', 'AMC Name', 'Created Date', 'Activation Date', 'Expiry Date', 'Services', 'Rs.Amount', 'Rs.Received'].map(h => (
+                    <Text key={h} style={styles.histHeadCell}>{h}</Text>
+                  ))}
+                </View>
+                <ScrollView horizontal>
+                  {historyRows.map((row: any, index: number) => {
+                    const day = (v: unknown) => String(v ?? '').split('T')[0];
+                    const cells = [
+                      String(index + 1),
+                      'AMC' + String(row.AMCsId ?? row.amcsId ?? ''),
+                      String(row.AMCName ?? row.amcName ?? ''),
+                      day(row.CreatedDate ?? row.createdDate),
+                      day(row.ActivationDate ?? row.activationDate),
+                      day(row.ExpiryDate ?? row.expiryDate),
+                      String(row.TotalServices ?? row.totalServices ?? ''),
+                      formatAmount(row.AMCAmount ?? row.amcAmount),
+                      formatAmount(row.ReceivedAmount ?? row.receivedAmount),
+                    ];
+                    return (
+                      <View key={index} style={styles.histDataCol}>
+                        {cells.map((c, i) => (
+                          <Text
+                            key={i}
+                            numberOfLines={1}
+                            style={[
+                              styles.histDataCell,
+                              i === 0 && {textAlign: 'center'},
+                              i === 1 && {color: COLORS.primary, fontWeight: 'bold'},
+                            ]}
+                          >
+                            {c}
+                          </Text>
+                        ))}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
               </View>
-              <View style={styles.row}>
-                <Text style={styles.label}>Date</Text>
-                <Text style={styles.value}>{String(task.TaskDate ?? '').split('T')[0] || 'NA'}</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={styles.label}>Time</Text>
-                <Text style={styles.value}>{task.TaskTime || 'NA'}</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={styles.label}>Status</Text>
-                <Text style={styles.value}>{SERVICE_STATUS_LABELS[Number(task.TaskStatus)] ?? 'NA'}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-
-      <Modal visible={historyVisible} animationType="fade" transparent onRequestClose={() => setHistoryVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>AMC History</Text>
-              <Pressable onPress={() => setHistoryVisible(false)} hitSlop={10}>
-                <Text style={styles.modalCloseIcon}>✕</Text>
-              </Pressable>
-            </View>
-            {isHistoryLoading ? (
-              <ActivityIndicator color={THEME_PRIMARY} style={{marginVertical: vs(24)}} />
-            ) : historyRows.length === 0 ? (
-              <Text style={styles.modalEmptyText}>No renewal history found.</Text>
-            ) : (
-              <ScrollView style={{maxHeight: vs(360)}}>
-                {historyRows.map((row, index) => (
-                  <View key={index} style={styles.historyRow}>
-                    <Text style={styles.historyRowLabel}>Sr.No {index + 1}</Text>
-                    <Text style={styles.historyRowValue}>
-                      {String(row.ActivationDate ?? row.activationDate ?? '-')}
-                    </Text>
-                    <Text style={styles.historyRowValue}>
-                      Rs.Amount {formatAmount(row.AMCAmount ?? row.amcAmount)}
-                    </Text>
-                    <Text style={styles.historyRowValue}>
-                      Rs.Received {formatAmount(row.ReceivedAmount ?? row.receivedAmount)}
-                    </Text>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-          </View>
-        </View>
+            </ScrollView>
+          )}
+        </SafeAreaView>
       </Modal>
 
       <Modal visible={renewModalVisible} animationType="slide" transparent onRequestClose={() => setRenewModalVisible(false)}>
@@ -1559,14 +1671,19 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 {renderEditInput('Customer Name *', editFormData.customerName, value => updateEditField('customerName', value))}
                 {renderEditInput('Customer Number *', editFormData.customerNumber, value => updateEditField('customerNumber', value), { keyboardType: 'phone-pad' })}
                 {renderEditInput('Email ID', editFormData.customerEmail, value => updateEditField('customerEmail', value), { keyboardType: 'email-address' })}
-                {renderEditInput('Address *', editFormData.address, value => updateEditField('address', value), { multiline: true })}
+                {/* Java: address is not focusable -- tapping opens Google Places search. */}
+                <Pressable onPress={() => setPlaceSearchOpen(true)}>
+                  <View pointerEvents="none">
+                    {renderEditInput('Address *', editFormData.address, () => {}, { multiline: true, editable: false })}
+                  </View>
+                </Pressable>
                 {renderEditInput('Landmark *', editFormData.landmark, value => updateEditField('landmark', value))}
                 {renderEditInput('Brand Name *', editFormData.productBrand, value => updateEditField('productBrand', value))}
                 {renderEditInput('Model Name *', editFormData.productName, value => updateEditField('productName', value))}
                 {renderEditInput('Serial No. *', editFormData.serialNumber, value => updateEditField('serialNumber', value))}
 
                 <View style={styles.editToggleRow}>
-                  <Text style={styles.editLabel}>Under Warranty</Text>
+                  <Text style={styles.editWarrantyLabel}>Under Warranty</Text>
                   <View style={styles.editToggle}>
                     <Pressable
                       style={[styles.editToggleOption, !editFormData.underWarranty ? styles.editToggleOptionActive : null]}
@@ -1641,6 +1758,18 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 <ActivityIndicator color={THEME_PRIMARY} />
               </View>
             )}
+            <PlaceSearchModal
+              visible={placeSearchOpen}
+              onClose={() => setPlaceSearchOpen(false)}
+              onSelect={place => {
+                setEditFormData(current =>
+                  current
+                    ? { ...current, address: place.address, latitude: String(place.latitude), longitude: String(place.longitude) }
+                    : current,
+                );
+                setPlaceSearchOpen(false);
+              }}
+            />
             {editPickerConfig ? (
               <SearchPickerModal
                 visible
@@ -1662,6 +1791,29 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           </View>
         </View>
       </Modal>
+
+      {/* Java delete_amc_dialog.xml */}
+      <BottomSheetDialog visible={deleteVisible} onRequestClose={() => setDeleteVisible(false)}>
+        <View style={styles.delOuter}>
+          <Text style={styles.delMessage}>
+            Do you want to delete this AMC ? It will delete all AMC history.
+          </Text>
+          <View style={styles.delButtons}>
+            <Pressable style={styles.delNo} onPress={() => setDeleteVisible(false)}>
+              <Text style={styles.delNoText}>No</Text>
+            </Pressable>
+            <Pressable
+              style={styles.delYes}
+              onPress={() => {
+                setDeleteVisible(false);
+                confirmDeleteAmc();
+              }}
+            >
+              <Text style={styles.delYesText}>YES</Text>
+            </Pressable>
+          </View>
+        </View>
+      </BottomSheetDialog>
 
       <AddTaskModal
         visible={isAddTaskModalOpen}

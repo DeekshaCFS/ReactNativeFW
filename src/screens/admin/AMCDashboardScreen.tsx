@@ -46,6 +46,8 @@ type CustomerLookupItem = CustomerListResultData;
 import { getCurrentUserId } from '../../state/session';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
+import DecimalInput from '../../components/DecimalInput';
 
 type AMCDashboardScreenProps = {
   ownerId: number;
@@ -762,6 +764,9 @@ const AMCDashboardScreen = ({
   const [customerNumber, setCustomerNumber] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [customerLat, setCustomerLat] = useState('');
+  const [customerLng, setCustomerLng] = useState('');
+  const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
   const [customerLandmark, setCustomerLandmark] = useState('');
   const [brandName, setBrandName] = useState('');
   const [modelName, setModelName] = useState('');
@@ -955,6 +960,8 @@ const AMCDashboardScreen = ({
     setCustomerNumber('');
     setCustomerEmail('');
     setCustomerAddress('');
+    setCustomerLat('');
+    setCustomerLng('');
     setCustomerLandmark('');
     setBrandName('');
     setModelName('');
@@ -1110,11 +1117,11 @@ const AMCDashboardScreen = ({
             Description: customerLandmark.trim(),
             Id: 0,
             IsActive: true,
-            Longitude: '',
+            Longitude: customerLng,
             Name: '',
             PinCode: '', // editText_pin_code is 'gone' in dialog_add_amc_new.xml
             UpdatedBy: owner,
-            latitude: '',
+            latitude: customerLat,
           },
           ProductBrand: brandName.trim(),
           ProductDetailsId: 0,
@@ -1376,24 +1383,38 @@ const AMCDashboardScreen = ({
       value?: string;
       onChangeText?: (text: string) => void;
       onFocus?: () => void;
+      editable?: boolean;
       keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'decimal-pad' | 'number-pad';
     } = {},
   ) => (
     <View
       style={[styles.formInputShell, options.half ? styles.formHalf : null]}
     >
-      <TextInput
-        style={styles.formInput}
-        placeholder={placeholder}
-        placeholderTextColor={COLORS.lightGray}
-        value={options.value}
-        onChangeText={options.onChangeText}
-        onFocus={options.onFocus}
-        keyboardType={options.keyboardType ?? 'default'}
-      />
+      {options.keyboardType === 'decimal-pad' ? (
+        // amounts: 0.000 placeholder, max 3 decimals, padded on blur (the label floats permanently)
+        <DecimalInput
+          style={styles.formInput}
+          value={options.value}
+          onChangeText={options.onChangeText}
+          onFocus={options.onFocus}
+        />
+      ) : (
+        <TextInput
+          style={styles.formInput}
+          placeholder={placeholder}
+          placeholderTextColor={COLORS.lightGray}
+          value={options.value}
+          onChangeText={options.onChangeText}
+          onFocus={options.onFocus}
+          editable={options.editable}
+          keyboardType={options.keyboardType ?? 'default'}
+        />
+      )}
       {options.trailing ? (
         <View style={styles.formTrailing}>{options.trailing}</View>
       ) : null}
+      {/* Java's outlined TextInputLayout floats the hint onto the border once filled. */}
+      {options.value || options.keyboardType === 'decimal-pad' ? <Text style={styles.formFloatLabel}>{placeholder}</Text> : null}
     </View>
   );
 
@@ -1416,6 +1437,7 @@ const AMCDashboardScreen = ({
       {options.trailing ? (
         <View style={styles.formTrailing}>{options.trailing}</View>
       ) : null}
+      {value ? <Text style={styles.formFloatLabel}>{placeholder}</Text> : null}
     </Pressable>
   );
 
@@ -1483,6 +1505,8 @@ const AMCDashboardScreen = ({
     setCustomerNumber(customer.phone);
     setCustomerEmail(customer.email);
     setCustomerAddress(customer.address);
+    setCustomerLat('');
+    setCustomerLng('');
     setCustomerLandmark(customer.landmark);
     setBrandName(customer.brandName);
     setModelName(customer.modelName);
@@ -1877,10 +1901,15 @@ const AMCDashboardScreen = ({
               onChangeText: setCustomerEmail,
               keyboardType: 'email-address',
             })}
-            {renderFormInput('Address *', {
-              value: customerAddress,
-              onChangeText: setCustomerAddress,
-            })}
+            {/* Java (dialog_add_amc_new): the address field is not focusable -- tapping it opens Google Places. */}
+            <Pressable onPress={() => setPlaceSearchOpen(true)}>
+              <View pointerEvents="none">
+                {renderFormInput('Address *', {
+                  value: customerAddress,
+                  editable: false,
+                })}
+              </View>
+            </Pressable>
             {renderFormInput('Landmark *', {
               value: customerLandmark,
               onChangeText: setCustomerLandmark,
@@ -2030,6 +2059,16 @@ const AMCDashboardScreen = ({
             </Pressable>
           </ScrollView>
         </View>
+        <PlaceSearchModal
+          visible={placeSearchOpen}
+          onClose={() => setPlaceSearchOpen(false)}
+          onSelect={place => {
+            setCustomerAddress(place.address);
+            setCustomerLat(String(place.latitude));
+            setCustomerLng(String(place.longitude));
+            setPlaceSearchOpen(false);
+          }}
+        />
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -2087,6 +2126,7 @@ const AMCDashboardScreen = ({
         >
           <Text style={styles.addButtonText}>+ AMC</Text>
         </Pressable>
+        <View style={{flex: 0.06}} />
       </View>
 
       {loading ? (
@@ -2262,12 +2302,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
-    paddingHorizontal: ms(15),
+    paddingHorizontal: 10,
     paddingBottom: ms(5),
-    gap: ms(10),
   },
   searchBox: {
-    flex: 1,
+    flex: 0.94,
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
@@ -2310,7 +2349,7 @@ const styles = StyleSheet.create({
     fontSize: sp(12),
   },
   listContent: {
-    paddingHorizontal: ms(2),
+    paddingHorizontal: 10,
     paddingBottom: ms(18),
   },
   emptyListContent: {
@@ -2326,7 +2365,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: ms(10),
     margin: ms(8),
-    elevation: 2,
+    elevation: 1,
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 3,
@@ -2352,7 +2391,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingRight: ms(10),
     paddingVertical: ms(10),
-    paddingLeft: ms(5),
+    paddingLeft: 10,
   },
   cardTopRow: {
     flexDirection: 'row',
@@ -2417,26 +2456,25 @@ const styles = StyleSheet.create({
   },
   metaLabel: {
     color: COLORS.ink,
+    flex: 0.26,
     fontSize: sp(12),
     fontWeight: '700',
-    marginRight: ms(4),
   },
   metaValue: {
     color: COLORS.authText,
-    flex: 1,
+    flex: 0.34,
     fontSize: sp(12),
-    marginRight: ms(8),
   },
   taskLabel: {
     color: COLORS.textBlack,
+    flex: 0.2,
     fontSize: sp(12),
     fontWeight: '700',
-    marginRight: ms(4),
   },
   taskValue: {
     color: COLORS.authText,
+    flex: 0.2,
     fontSize: sp(12),
-    minWidth: ms(48),
   },
   loadingRow: {
     alignItems: 'center',
@@ -2568,6 +2606,15 @@ const styles = StyleSheet.create({
     height: ms(40),
     paddingHorizontal: 0,
     paddingVertical: 0,
+  },
+  formFloatLabel: {
+    backgroundColor: '#FFFFFF',
+    color: COLORS.lightGray,
+    fontSize: sp(12),
+    left: ms(14),
+    paddingHorizontal: ms(4),
+    position: 'absolute',
+    top: -ms(8),
   },
   formTrailing: {
     alignItems: 'center',
