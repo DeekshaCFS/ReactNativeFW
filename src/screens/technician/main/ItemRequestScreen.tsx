@@ -27,6 +27,7 @@ import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showToast } from '../../../utils/toast';
+import DecimalInput from '../../../components/DecimalInput';
 
 // Local request-body shapes for FOC_Item_Request/Add_FOC_Request_Details — kept
 // inline since the generated DTO (AddFocDTOResultData) is missing several
@@ -523,13 +524,11 @@ export default function ItemRequestScreen({ navigation, route }: any) {
 
                   <View style={styles.qtyCell}>
                     <View style={styles.qtyBox}>
-                      <TextInput
+                      <DecimalInput
                         value={item.quantity}
-                        onChangeText={val => updateItem(item.id, { quantity: val.replace(/[^0-9]/g, '') })}
-                        keyboardType="numeric"
-                        maxLength={3}
+                        onChangeText={val => updateItem(item.id, { quantity: val })}
                         editable={!locked}
-                        placeholder="Quantity"
+                        label="Quantity"
                         placeholderTextColor={COLORS.lightGray}
                         style={styles.qtyInput}
                       />

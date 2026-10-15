@@ -33,6 +33,7 @@ import {AssignItemIcon} from '../../components/FabIcons';
 import SearchPickerModal from '../../components/SearchPickerModal';
 import {COLORS} from '../../theme/theme';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
 
 // Same Java dialog sheet / header / spinner metrics as the Add Task form.
 const styles = {...sharedStyles, ...taskStyles};
@@ -341,12 +342,10 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                 >
                   <Text style={assignStyles.quantityButtonText}>-</Text>
                 </TouchableOpacity>
-                <TextInput
+                <DecimalInput
                   style={assignStyles.quantityInput}
-                  keyboardType="numeric"
                   value={quantity}
                   onChangeText={setQuantity}
-                  maxLength={5}
                 />
                 <TouchableOpacity
                   style={assignStyles.quantityButton}

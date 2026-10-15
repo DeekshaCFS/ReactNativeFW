@@ -75,6 +75,7 @@ import {
   type TaskTagOption,
 } from './crmShared';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
 
 Sound.setCategory('Playback');
 
@@ -2141,7 +2142,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     </TouchableOpacity>
                   </View>
                   <View style={styles.amcDisabledField}>
-                    <TextInput
+                    <DecimalInput
                       style={[
                         styles.amcDisabledInput,
                         warrantyMode === 'out' ? styles.amcEnabledInput : null,
@@ -2151,7 +2152,6 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                         setAmcAmount(sanitizeDecimalInput(text))
                       }
                       editable={warrantyMode === 'out'}
-                      keyboardType="decimal-pad"
                     />
                     {/* TextInput's native placeholder just clips long text with no
                         ellipsis -- overlay a Text with ellipsizeMode instead. */}
@@ -2639,16 +2639,15 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                               {row.price}
                             </Text>
                           </View>
-                          <TextInput
+                          <DecimalInput
                             style={[styles.pillInput, styles.itemQuantityInput]}
-                            placeholder="Item Quantity"
+                            label="Item Quantity"
                             placeholderTextColor="#9aa0a6"
-                            keyboardType="number-pad"
                             value={row.quantity}
                             onChangeText={text =>
                               updateItemRowQuantity(
                                 row.rowId,
-                                text.replace(/[^0-9]/g, ''),
+                                text,
                               )
                             }
                           />

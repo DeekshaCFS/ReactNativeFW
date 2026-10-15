@@ -29,6 +29,7 @@ import {ensureSuccess} from '../../utils/apiResponse';
 import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import BackBar from '../../components/BackBar';
 import { showFailureMsg, showToast } from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
 
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
@@ -486,11 +487,9 @@ const InvoiceDetailsScreen = ({
             <Text style={styles.modalSubtitle}>
               Remaining Amount: Rs. {formatAmount(paymentStatus?.remaining ?? details?.RemainingAmount)}
             </Text>
-            <TextInput
+            <DecimalInput
               style={styles.modalInput}
-              placeholder="Enter Amount"
               placeholderTextColor="#9aa0a6"
-              keyboardType="decimal-pad"
               value={paymentAmount}
               onChangeText={t => setPaymentAmount(sanitizeDecimalInput(t))}
             />

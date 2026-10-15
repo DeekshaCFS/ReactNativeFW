@@ -39,6 +39,7 @@ import {getCustomerList} from '../../api/customerList/customerListService';
 import type {CustomerListResultData} from '../../api/customerList/customerList.types';
 import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
 
 type LeadServiceTypeItem = EnquiryServiceTypeDTOResultData;
 type ItemInventoryListItem = ItemsListResultData;
@@ -1033,13 +1034,11 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                       </View>
                       <View style={styles.rowCardFields}>
                         {renderServiceTypeDropdown(row)}
-                        <TextInput
+                        <DecimalInput
                           style={styles.qtyInput}
-                          keyboardType="numeric"
-                          maxLength={3}
                           value={row.quantity}
                           onChangeText={value => {
-                            const qty = technician ? value.replace(/[^0-9]/g, '') : value;
+                            const qty = value;
                             setServiceRows(prev =>
                               prev.map(r => {
                                 if (r.id !== row.id) {
@@ -1054,11 +1053,10 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                             );
                           }}
                         />
-                        <OutlinedInput
+                        <DecimalInput
                           style={[styles.pillInput, styles.thirdInput, {flex: 2}]}
-                          placeholder="Price"
+                          label="Price"
                           placeholderTextColor={COLORS.lightGray}
-                          keyboardType="decimal-pad"
                           value={row.price}
                           onChangeText={value =>
                             setServiceRows(prev =>
@@ -1088,21 +1086,19 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                       </View>
                       <View style={styles.rowCardFields}>
                         {renderItemDropdown(row)}
-                        <OutlinedInput
+                        <DecimalInput
                           style={[styles.pillInput, styles.thirdInput]}
-                          placeholder="Qty."
+                          label="Qty."
                           placeholderTextColor={COLORS.lightGray}
-                          keyboardType="numeric"
                           value={row.quantity}
                           onChangeText={value =>
                             setItemRows(prev => prev.map(r => (r.id === row.id ? {...r, quantity: value} : r)))
                           }
                         />
-                        <OutlinedInput
+                        <DecimalInput
                           style={[styles.pillInput, styles.thirdInput, {flex: 2}]}
-                          placeholder="Price"
+                          label="Price"
                           placeholderTextColor={COLORS.lightGray}
-                          keyboardType="decimal-pad"
                           value={row.price}
                           onChangeText={value =>
                             setItemRows(prev => prev.map(r => (r.id === row.id ? {...r, price: sanitizeDecimalInput(value)} : r)))
@@ -1121,15 +1117,14 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
               {activeSection === 'discount' ? (
                 <View>
-                  <OutlinedInput
+                  <DecimalInput
                     style={styles.pillInput}
-                    placeholder="Discount %"
+                    label="Discount %"
                     placeholderTextColor={COLORS.lightGray}
-                    keyboardType="decimal-pad"
                     value={discountPercent}
                     onChangeText={t =>
                       // Java's technician discount is a whole number (Integer.parseInt).
-                      setDiscountPercent(technician ? t.replace(/[^0-9]/g, '') : sanitizeDecimalInput(t))
+                      setDiscountPercent(sanitizeDecimalInput(t))
                     }
                   />
                   <View style={[styles.fieldRow, styles.taxRow]}>
@@ -1169,11 +1164,10 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                   value={extraName}
                   onChangeText={setExtraName}
                 />
-                <OutlinedInput
+                <DecimalInput
                   style={[styles.pillInput, styles.halfInput]}
-                  placeholder="Price"
+                  label="Price"
                   placeholderTextColor={COLORS.lightGray}
-                  keyboardType="decimal-pad"
                   value={extraPrice}
                   onChangeText={t => setExtraPrice(sanitizeDecimalInput(t))}
                 />
@@ -1386,11 +1380,10 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               <Text style={styles.extraLabel}>Total: {formatAmount(grandTotal)}</Text>
               {isInvoice ? (
                 <View>
-                  <OutlinedInput
+                  <DecimalInput
                     style={styles.pillInput}
-                    placeholder="Amount Received"
+                    label="Amount Received"
                     placeholderTextColor={COLORS.lightGray}
-                    keyboardType="decimal-pad"
                     value={receivedAmount}
                     onChangeText={t => setReceivedAmount(sanitizeDecimalInput(t))}
                   />

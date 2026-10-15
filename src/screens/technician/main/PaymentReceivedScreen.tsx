@@ -34,6 +34,7 @@ import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
 import { getCurrentCurrencySymbol } from '../../../state/session';
 import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
+import DecimalInput from '../../../components/DecimalInput';
 
 // Java (TechPaymentReceivedFragmentNew): first spinner is the mode, the type spinner only
 // appears for Offline.
@@ -424,11 +425,10 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
                   value={row.description}
                   onChangeText={v => updateAdjustmentRow(index, 'description', v)}
                 />
-                <TextInput
+                <DecimalInput
                   style={[styles.pillInput, { flex: 0.7 }]}
-                  placeholder="Amount"
+                  label="Amount"
                   placeholderTextColor="#9CA3AF"
-                  keyboardType="decimal-pad"
                   value={row.amount}
                   onChangeText={v => updateAdjustmentRow(index, 'amount', sanitizeDecimalInput(v))}
                 />
@@ -490,11 +490,10 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
 
             <View style={styles.amountReceivedRow}>
               <Text style={styles.amountReceivedLabel}>Amount Received</Text>
-              <TextInput
+              <DecimalInput
                 style={styles.amountReceivedInput}
-                placeholder="Amount"
+                label="Amount"
                 placeholderTextColor="#9CA3AF"
-                keyboardType="decimal-pad"
                 value={earnedAmount}
                 onChangeText={t => setEarnedAmount(sanitizeDecimalInput(t))}
                 onBlur={() => {
@@ -508,14 +507,12 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
             {showTaxForCash && (
               <View style={styles.amountReceivedRow}>
                 <Text style={styles.amountReceivedLabel}>Tax</Text>
-                <TextInput
+                <DecimalInput
                   style={styles.amountReceivedInput}
-                  placeholder="Discount"
+                  label="Discount"
                   placeholderTextColor="#9CA3AF"
-                  keyboardType="number-pad"
-                  maxLength={3}
                   value={tax}
-                  onChangeText={t => setTax(t.replace(/[^0-9]/g, ''))}
+                  onChangeText={t => setTax(t)}
                 />
               </View>
             )}

@@ -35,6 +35,7 @@ import ExpenseDetailsBody, {
   toExpenseLabel,
 } from '../../../components/ExpenseDetailsBody';
 import { showFailureMsg, showToast } from '../../../utils/toast';
+import DecimalInput from '../../../components/DecimalInput';
 
 type NavigationProp = NativeStackNavigationProp<TechnicianStackParamList, 'Expenditure'>;
 
@@ -262,11 +263,9 @@ export default function ExpenditureScreen() {
               onChangeText={setExpenseName}
             />
 
-            <TextInput
-              placeholder="Please Enter Amount"
+            <DecimalInput
               placeholderTextColor={COLORS.lightGray}
               style={styles.expInput}
-              keyboardType="numeric"
               returnKeyType="done"
               value={expenseAmount}
               onChangeText={setExpenseAmount}

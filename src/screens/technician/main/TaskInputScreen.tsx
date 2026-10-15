@@ -26,6 +26,7 @@ import { getCustomFieldData, postTaskCustomField } from '../../../api/users/user
 import type { CustomFieldDTOResultData } from '../../../api/users/users.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showToast } from '../../../utils/toast';
+import DecimalInput from '../../../components/DecimalInput';
 
 const FIELD_TYPE = {
   NUMBER: 1,
@@ -199,14 +200,13 @@ export default function TaskInputScreen({ navigation, route }: any) {
     switch (field.FieldTypeId) {
       case FIELD_TYPE.NUMBER:
         return (
-          <OutlinedInput
+          <DecimalInput
             style={styles.box}
-            placeholder="Number"
+            label="Number"
             placeholderTextColor={COLORS.lightGray}
-            keyboardType="numeric"
             value={values[id] ?? ''}
             onChangeText={t => {
-              const cleaned = t.replace(/[^0-9]/g, '');
+              const cleaned = t;
               if (cleaned.length === 0) clearFieldValue(id);
               else setFieldValue(id, cleaned);
             }}

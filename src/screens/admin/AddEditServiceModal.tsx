@@ -31,6 +31,7 @@ import {sanitizeDecimalInput} from '../../utils/decimal';
 import {postServiceTypeList, updateServiceTypeList} from '../../api/services/servicesService';
 import type {ServiceTypeListDTOResultData} from '../../api/services/services.types';
 import { showToast } from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
 
 type Props = {
   visible: boolean;
@@ -205,13 +206,11 @@ const AddEditServiceModal: React.FC<Props> = ({
             />
 
             <Text style={styles.label}>Service Price *</Text>
-            <TextInput
+            <DecimalInput
               style={styles.input}
-              placeholder="0.00"
               placeholderTextColor={COLORS.textMuted}
               value={price}
               onChangeText={t => setPrice(sanitizeDecimalInput(t))}
-              keyboardType="decimal-pad"
             />
 
             <Text style={styles.label}>SAC Code</Text>

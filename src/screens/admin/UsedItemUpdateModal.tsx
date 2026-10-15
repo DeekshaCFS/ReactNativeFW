@@ -23,6 +23,7 @@ import {AddBalDialogIcon, DecBalDialogIcon} from '../../components/JavaIcons';
 import {COLORS} from '../../theme/theme';
 import {ms, sp} from '../../utils/responsive';
 import {showFailureMsg} from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
 
 type Props = {
   row: GetUsedItemListResultData | null;
@@ -162,11 +163,10 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
               <Pressable style={styles.stepSide} onPress={() => step(-1)}>
                 <Text style={styles.stepSign}>-</Text>
               </Pressable>
-              <TextInput
+              <DecimalInput
                 style={styles.stepInput}
                 value={qty}
-                onChangeText={t => setQty(t.replace(/[^0-9]/g, ''))}
-                keyboardType="number-pad"
+                onChangeText={t => setQty(t)}
               />
               <Pressable style={styles.stepSide} onPress={() => step(1)}>
                 <Text style={styles.stepSign}>+</Text>

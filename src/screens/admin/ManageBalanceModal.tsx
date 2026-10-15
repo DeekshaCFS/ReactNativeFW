@@ -20,6 +20,7 @@ import {
 } from './adminLegacyApiTypes';
 import { getExpenseUserList, updateAddCredit, updateDeductBalance } from '../../api/expenditure/expenditureService';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
 
 const GREEN_500 = '#4CAF50'; // @color/green_500
 
@@ -308,13 +309,10 @@ const ManageBalanceModal = ({
             </View>
 
             <View style={styles.fieldWrap}>
-              <OutlinedInput
+              <DecimalInput
                 value={balanceAmount}
                 onChangeText={t => setBalanceAmount(sanitizeDecimalInput(t))}
-                placeholder="Enter Amount"
                 placeholderTextColor={COLORS.lightGray}
-                keyboardType="decimal-pad"
-                maxLength={10}
                 style={styles.pillInput}
               />
             </View>

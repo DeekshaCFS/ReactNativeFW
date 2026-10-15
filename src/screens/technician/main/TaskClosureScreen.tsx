@@ -41,6 +41,7 @@ import { getCustomFieldData } from '../../../api/users/usersService';
 import { pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import { showFailureMsg } from '../../../utils/toast';
+import DecimalInput from '../../../components/DecimalInput';
 
 // ─── Local Types ──────────────────────────────────────────────────────────────
 
@@ -1272,7 +1273,7 @@ export default function TaskClosure({ navigation, route }: any) {
                       placeholderTextColor="#ABABAB"
                       style={styles.deviceInput}
                     />
-                    <TextInput
+                    <DecimalInput
                       value={
                         device.DeviceReadingText ??
                         (device.DeviceReading ? String(device.DeviceReading) : '')
@@ -1287,9 +1288,8 @@ export default function TaskClosure({ navigation, route }: any) {
                           )
                         );
                       }}
-                      placeholder="Device Reading"
+                      label="Device Reading"
                       placeholderTextColor="#ABABAB"
-                      keyboardType="decimal-pad"
                       style={styles.deviceInput}
                     />
                     <View style={styles.devicePhotoRow}>
@@ -1702,7 +1702,7 @@ export default function TaskClosure({ navigation, route }: any) {
                       <View style={usedItemStyles.assignedPlain}>
                         <Text style={usedItemStyles.assignedQtyText}>{slot.AssignedQty}</Text>
                       </View>
-                      <TextInput
+                      <DecimalInput
                         value={slot.usedQty}
                         onChangeText={val => {
                           const num = Number(val);
@@ -1711,9 +1711,8 @@ export default function TaskClosure({ navigation, route }: any) {
                             prev.map((s, i) => (i === idx ? { ...s, usedQty: val } : s))
                           );
                         }}
-                        placeholder="Used Qty"
+                        label="Used Qty"
                         placeholderTextColor="#ABABAB"
-                        keyboardType="numeric"
                         style={usedItemStyles.usedQtyInput}
                       />
                     </View>
@@ -1774,7 +1773,7 @@ export default function TaskClosure({ navigation, route }: any) {
                           </View>
 
                           {/* Used qty input */}
-                          <TextInput
+                          <DecimalInput
                             value={slot?.usedQty ?? ''}
                             onChangeText={val => {
                               const num = Number(val);
@@ -1793,9 +1792,7 @@ export default function TaskClosure({ navigation, route }: any) {
                                 return updated;
                               });
                             }}
-                            placeholder="Use..."
                             placeholderTextColor="#ABABAB"
-                            keyboardType="numeric"
                             style={usedItemStyles.usedQtyInput}
                           />
                         </View>

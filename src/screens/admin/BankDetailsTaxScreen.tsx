@@ -37,6 +37,7 @@ import type {
   UserDetailsOwnerAccountDetailsDto,
 } from '../../api/users/users.types';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
 
 type Props = {
   ownerId: number;
@@ -357,13 +358,12 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
                 value={row.TaxName}
                 onChangeText={t => updateTaxRow(index, 'TaxName', t)}
               />
-              <TextInput
+              <DecimalInput
                 style={[styles.input, styles.taxPercentInput]}
-                placeholder="%"
+                label="%"
                 placeholderTextColor={COLORS.textMuted}
                 value={row.TaxPercentage}
                 onChangeText={t => updateTaxRow(index, 'TaxPercentage', sanitizeDecimalInput(t))}
-                keyboardType="decimal-pad"
               />
               <Pressable
                 hitSlop={8}

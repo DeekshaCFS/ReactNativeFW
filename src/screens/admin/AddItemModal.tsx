@@ -40,6 +40,7 @@ import {QuoteIcon} from '../../components/FabIcons';
 import {COLORS} from '../../theme/theme';
 import {requestLocationPermission} from '../../utils/locationPermision';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
 
 // Same Java dialog sheet / header / outlined-field metrics as the Add Task form.
 const styles = {...sharedStyles, ...taskStyles};
@@ -518,12 +519,10 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                       style={itemStyles.quantityMinusArea}
                       onPress={handleQuantityDecrement}
                     />
-                    <TextInput
+                    <DecimalInput
                       style={itemStyles.quantityInput}
-                      keyboardType="numeric"
                       value={quantity}
                       onChangeText={setQuantity}
-                      maxLength={5}
                     />
                     <TouchableOpacity
                       style={itemStyles.quantityPlusArea}
@@ -573,23 +572,19 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                 )}
 
                 <View style={styles.fieldRow}>
-                  <OutlinedInput
+                  <DecimalInput
                     style={[styles.pillInput, itemStyles.halfInput]}
-                    placeholder="Purchase Price"
+                    label="Purchase Price"
                     placeholderTextColor={COLORS.lightGray}
-                    keyboardType="decimal-pad"
                     value={purchasePrice}
                     onChangeText={t => setPurchasePrice(sanitizeDecimalInput(t))}
-                    maxLength={10}
                   />
-                  <OutlinedInput
+                  <DecimalInput
                     style={[styles.pillInput, itemStyles.halfInput]}
-                    placeholder="Sales Price"
+                    label="Sales Price"
                     placeholderTextColor={COLORS.lightGray}
-                    keyboardType="decimal-pad"
                     value={salesPrice}
                     onChangeText={t => setSalesPrice(sanitizeDecimalInput(t))}
-                    maxLength={10}
                   />
                 </View>
 

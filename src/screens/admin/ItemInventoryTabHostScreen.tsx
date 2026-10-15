@@ -49,6 +49,7 @@ import {
   ReturnIcon,
 } from '../../components/JavaIcons';
 import { showFailureMsg } from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
 
 type ItemInventoryTabHostScreenProps = {
   ownerId: number;
@@ -1550,9 +1551,8 @@ const ItemInventoryTabHostScreen = ({
                 style={{padding: ms(10)}}>
                 <Text style={{fontSize: sp(20)}}>−</Text>
               </Pressable>
-              <TextInput
+              <DecimalInput
                 style={{flex: 1, borderWidth: 1, borderColor: '#d5d7db', borderRadius: ms(8), textAlign: 'center', padding: ms(6)}}
-                keyboardType="number-pad"
                 value={returnQuantity}
                 onChangeText={setReturnQuantity}
               />

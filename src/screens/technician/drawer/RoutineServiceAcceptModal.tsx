@@ -22,6 +22,7 @@ import { TASK_STATUS_ID } from '../../../constants/taskStatus';
 import { nowAsJavaTime } from '../../../utils/taskStatus.utils';
 import { getCurrentUserId } from '../../../state/session';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
+import DecimalInput from '../../../components/DecimalInput';
 
 type PaymentMode = 'AMC' | 'Rate';
 
@@ -229,14 +230,12 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
               </Pressable>
             </View>
 
-            <TextInput
+            <DecimalInput
               value={wages}
-              onChangeText={text => { setWages(text.replace(/[^0-9.]/g, '')); if (wagesError) setWagesError(''); }}
+              onChangeText={text => { setWages(text); if (wagesError) setWagesError(''); }}
               placeholder={paymentMode === 'AMC' ? 'Not Applicable In AMC Mode' : 'Please Enter Amount'}
               placeholderTextColor="#9ca3af"
               editable={paymentMode === 'Rate'}
-              keyboardType="decimal-pad"
-              maxLength={10}
               style={[styles.inputRate, paymentMode === 'AMC' && styles.inputDisabled]}
             />
           </View>
