@@ -76,6 +76,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
   const [customerId, setCustomerId] = useState(0);
   const [name, setName] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showNumberSuggestions, setShowNumberSuggestions] = useState(false);
   const [mobile, setMobile] = useState('');
   const [address, setAddress] = useState('');
   const [landmark, setLandmark] = useState('');
@@ -133,6 +134,15 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
       .slice(0, MAX_SUGGESTIONS);
   }, [customers, name, showSuggestions]);
 
+  // Typing a phone number suggests saved customers whose number contains the digits typed.
+  const numberSuggestions = useMemo(() => {
+    const digits = mobile.replace(/\D/g, '');
+    if (!showNumberSuggestions || digits.length < 3) return [];
+    return customers
+      .filter(c => String(c.MobileNumber ?? '').replace(/\D/g, '').includes(digits))
+      .slice(0, MAX_SUGGESTIONS);
+  }, [customers, mobile, showNumberSuggestions]);
+
   const loadCities = async (stateId: number) => {
     setCities([]);
     setCityLoading(true);
@@ -163,6 +173,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
     setLatitude(Number.isFinite(parseFloat(c.latitude ?? '')) ? String(parseFloat(c.latitude as string)) : '0');
     setLongitude(Number.isFinite(parseFloat(c.Longitude ?? '')) ? String(parseFloat(c.Longitude as string)) : '0');
     setShowSuggestions(false);
+    setShowNumberSuggestions(false);
     // Java sets state/city text only; the city list stays tied to the last picked state.
     setCities([]);
     const match = states.find(s => s.label.toLowerCase() === (c.State ?? '').toLowerCase());
@@ -172,6 +183,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
   const onNameChange = (text: string) => {
     setName(text);
     setShowSuggestions(true);
+    setShowNumberSuggestions(false);
     // Editing the name detaches it from a previously picked customer.
     if (customerId) setCustomerId(0);
   };
@@ -337,12 +349,36 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
         <OutlinedInput
           style={styles.input}
           value={mobile}
-          onChangeText={t => setMobile(t.replace(/[^0-9]/g, ''))}
+          onChangeText={t => {
+            setMobile(t.replace(/[^0-9]/g, ''));
+            setShowNumberSuggestions(true);
+            setShowSuggestions(false);
+            // typing a different number detaches it from a previously picked customer
+            if (customerId) setCustomerId(0);
+          }}
+          onFocus={() => {
+            setShowNumberSuggestions(true);
+            setShowSuggestions(false);
+          }}
           keyboardType="number-pad"
           maxLength={15}
           placeholder="Phone Number *"
           placeholderTextColor={COLORS.lightGray}
         />
+        {numberSuggestions.length > 0 && (
+          <View style={styles.suggestBox}>
+            {numberSuggestions.map((c, i) => (
+              <Pressable
+                key={`${c.CustomerDetailsid ?? i}-n`}
+                style={styles.suggestRow}
+                onPress={() => pickCustomer(c)}
+              >
+                <Text style={styles.suggestName}>{c.MobileNumber}</Text>
+                <Text style={styles.suggestSub}>{c.CustomerName}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         {/* Java: tapping the address opens the full-screen Google Places search. */}
         <Pressable onPress={() => setPlaceSearchOpen(true)}>

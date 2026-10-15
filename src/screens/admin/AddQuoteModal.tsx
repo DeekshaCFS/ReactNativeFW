@@ -247,6 +247,16 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     }
   }, [ownerId, technician]);
 
+  // Admin: only the customer list is needed (for name / number suggestions).
+  const loadCustomerList = useCallback(async () => {
+    try {
+      const response = await getCustomerList({UserId: ownerId, CustomerTagId: 0});
+      setCustomers(response?.ResultData ?? []);
+    } catch (error) {
+      setCustomers([]);
+    }
+  }, [ownerId]);
+
   // Java: getCustomerListForTech -> getCustomerList(ownerId, 0), then getTaxDetails(ownerId);
   // with no tax configured the form never opens.
   const loadTechnicianData = useCallback(async () => {
@@ -298,6 +308,8 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       loadItems();
       if (technician) {
         loadTechnicianData();
+      } else {
+        loadCustomerList();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -766,7 +778,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
   // Java: autoComplete_cust_name / edittext_quote_number item-click listeners.
   const customerSuggestions = useMemo(() => {
-    if (!technician || !suggestFor) {
+    if (!suggestFor) {
       return [];
     }
     const q = (suggestFor === 'name' ? customerName : phoneNumber).trim().toLowerCase();
@@ -777,10 +789,10 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       .filter(c =>
         suggestFor === 'name'
           ? (c.CustomerName ?? '').toLowerCase().includes(q)
-          : (c.MobileNumber ?? '').includes(q),
+          : String(c.MobileNumber ?? '').includes(q),
       )
       .slice(0, 6);
-  }, [technician, suggestFor, customers, customerName, phoneNumber]);
+  }, [suggestFor, customers, customerName, phoneNumber]);
 
   const pickCustomer = (c: CustomerListResultData) => {
     setCustomerId(Number(c.CustomerDetailsid) || 0);
@@ -932,11 +944,9 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                 value={customerName}
                 onChangeText={text => {
                   setCustomerName(text);
-                  if (technician) {
-                    setSuggestFor('name');
-                    // Editing the name detaches it from a previously picked customer.
-                    setCustomerId(0);
-                  }
+                  setSuggestFor('name');
+                  // Editing the name detaches it from a previously picked customer.
+                  setCustomerId(0);
                 }}
               />
               {renderSuggestions('name')}
@@ -978,10 +988,8 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                   value={phoneNumber}
                   onChangeText={text => {
                     setPhoneNumber(technician ? text.replace(/[^0-9]/g, '') : text);
-                    if (technician) {
-                      setSuggestFor('phone');
-                      setCustomerId(0);
-                    }
+                    setSuggestFor('phone');
+                    setCustomerId(0);
                   }}
                 />
               </View>

@@ -762,6 +762,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   >([]);
   const [showTaskCustomerSuggestions, setShowTaskCustomerSuggestions] =
     useState(false);
+  const [showTaskNumberSuggestions, setShowTaskNumberSuggestions] = useState(false);
   const [allCustomerOptions, setAllCustomerOptions] = useState<
     CustomerOption[]
   >([]);
@@ -1368,7 +1369,19 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setProductPicker(null);
   };
 
+  // Typing a customer number suggests saved customers whose number contains the digits typed.
+  const taskNumberSuggestions = useMemo(() => {
+    const digits = taskCustomerNumber.replace(/\D/g, '');
+    if (!showTaskNumberSuggestions || digits.length < 3) {
+      return [];
+    }
+    return allCustomerOptions
+      .filter(option => option.phone.replace(/\D/g, '').includes(digits))
+      .slice(0, 20);
+  }, [allCustomerOptions, taskCustomerNumber, showTaskNumberSuggestions]);
+
   const handleTaskCustomerSelect = (customer: CustomerOption) => {
+    setShowTaskNumberSuggestions(false);
     setTaskCustomerId(customer.id);
     setTaskCustomerName(customer.name);
     setTaskCustomerNumber(customer.phone);
@@ -2472,8 +2485,12 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                         onChangeText={text => {
                           setTaskCustomerName(text);
                           setShowTaskCustomerSuggestions(true);
+                          setShowTaskNumberSuggestions(false);
                         }}
-                        onFocus={() => setShowTaskCustomerSuggestions(true)}
+                        onFocus={() => {
+                          setShowTaskCustomerSuggestions(true);
+                          setShowTaskNumberSuggestions(false);
+                        }}
                       />
                       {showTaskCustomerSuggestions &&
                       taskCustomerSuggestions.length > 0 ? (
@@ -2511,14 +2528,26 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       ) : null}
                     </View>
 
-                    <View style={styles.fieldWrap}>
+                    <View style={[styles.fieldWrap, {zIndex: 25, elevation: 25}]}>
                       <View>
                         <OutlinedInput
                           style={[styles.pillInput, styles.pillInputMuted, {paddingRight: ms(52)}]}
                           placeholder="Customer Number"
                           placeholderTextColor={COLORS.lightGray}
                           value={taskCustomerNumber}
-                          onChangeText={setTaskCustomerNumber}
+                          onChangeText={text => {
+                            setTaskCustomerNumber(text);
+                            setShowTaskNumberSuggestions(true);
+                            setShowTaskCustomerSuggestions(false);
+                            // the customer list is fetched lazily; start it as soon as digits are typed
+                            if (allCustomerOptions.length === 0 && text.replace(/\D/g, '').length >= 3) {
+                              loadTaskCustomerSuggestions(text);
+                            }
+                          }}
+                          onFocus={() => {
+                            setShowTaskNumberSuggestions(true);
+                            setShowTaskCustomerSuggestions(false);
+                          }}
                           keyboardType="number-pad"
                           maxLength={15}
                           editable={!initialValues?.leadId}
@@ -2527,6 +2556,26 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                           <ContactBookIcon size={ms(25)} />
                         </View>
                       </View>
+                      {taskNumberSuggestions.length > 0 ? (
+                        <View style={styles.suggestionBox}>
+                          <ScrollView
+                            style={styles.suggestionScroll}
+                            nestedScrollEnabled
+                            keyboardShouldPersistTaps="handled"
+                          >
+                            {taskNumberSuggestions.map(option => (
+                              <TouchableOpacity
+                                key={`${option.id}-${option.phone}`}
+                                style={styles.suggestionItem}
+                                onPress={() => handleTaskCustomerSelect(option)}
+                              >
+                                <Text style={styles.suggestionItemText}>{option.phone}</Text>
+                                <Text style={styles.suggestionItemSubText}>{option.name}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      ) : null}
                     </View>
 
                     <View style={styles.fieldWrap}>

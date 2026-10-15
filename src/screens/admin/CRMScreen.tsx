@@ -542,6 +542,7 @@ const CRMScreen = ({
   const [isCustomerLoading, setIsCustomerLoading] = useState(false);
   const [showCustomerSuggestions, setShowCustomerSuggestions] =
     useState(false);
+  const [showNumberSuggestions, setShowNumberSuggestions] = useState(false);
 
   const [stateId, setStateId] = useState(0);
   const [cityId, setCityId] = useState(0);
@@ -896,7 +897,19 @@ const CRMScreen = ({
     setShowCitySuggestions(false);
   };
 
+  // Typing a phone number suggests saved customers whose number contains the digits typed.
+  const numberSuggestions = useMemo(() => {
+    const digits = phone.replace(/\D/g, '');
+    if (!showNumberSuggestions || digits.length < 3) {
+      return [];
+    }
+    return allCustomerOptions
+      .filter(option => option.phone.replace(/\D/g, '').includes(digits))
+      .slice(0, 20);
+  }, [allCustomerOptions, phone, showNumberSuggestions]);
+
   const handleCustomerSelect = (customer: CustomerOption) => {
+    setShowNumberSuggestions(false);
     setCustomerId(customer.id);
     setCustomerName(customer.name);
     setPhone(customer.phone);
@@ -1987,8 +2000,12 @@ const CRMScreen = ({
                     onChangeText={text => {
                       setCustomerName(text);
                       setShowCustomerSuggestions(true);
+                      setShowNumberSuggestions(false);
                     }}
-                    onFocus={() => setShowCustomerSuggestions(true)}
+                    onFocus={() => {
+                      setShowCustomerSuggestions(true);
+                      setShowNumberSuggestions(false);
+                    }}
                   />
                   {showCustomerSuggestions && customerSuggestions.length > 0 ? (
                     <View style={eq.suggestionBox}>
@@ -2025,20 +2042,52 @@ const CRMScreen = ({
                   ) : null}
                 </View>
 
-                <View style={eq.fieldWrap}>
+                <View style={[eq.fieldWrap, eq.customerFieldWrap, {zIndex: 25, elevation: 25}]}>
                   <View>
                     <OutlinedInput
                       style={[eq.pillInput, {paddingRight: ms(52)}]}
                       placeholder="Phone Number *"
                       placeholderTextColor={COLORS.lightGray}
                       value={phone}
-                      onChangeText={setPhone}
+                      onChangeText={text => {
+                        setPhone(text);
+                        setShowNumberSuggestions(true);
+                        setShowCustomerSuggestions(false);
+                        // the customer list is fetched lazily; start it as soon as digits are typed
+                        if (allCustomerOptions.length === 0 && text.replace(/\D/g, '').length >= 3) {
+                          loadCustomerSuggestions(text);
+                        }
+                      }}
+                      onFocus={() => {
+                        setShowNumberSuggestions(true);
+                        setShowCustomerSuggestions(false);
+                      }}
                       keyboardType="phone-pad"
                     />
                     <View style={eq.phonebookButton} pointerEvents="none">
                       <ContactBookIcon size={ms(25)} />
                     </View>
                   </View>
+                  {numberSuggestions.length > 0 ? (
+                    <View style={eq.suggestionBox}>
+                      <ScrollView
+                        style={eq.suggestionScroll}
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                      >
+                        {numberSuggestions.map(option => (
+                          <TouchableOpacity
+                            key={`${option.id}-${option.phone}`}
+                            style={eq.suggestionItem}
+                            onPress={() => handleCustomerSelect(option)}
+                          >
+                            <Text style={eq.suggestionItemText}>{option.phone}</Text>
+                            <Text style={eq.suggestionItemSubText}>{option.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={[eq.fieldRow, eq.dateRow]}>

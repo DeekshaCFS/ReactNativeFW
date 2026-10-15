@@ -784,6 +784,7 @@ const AMCDashboardScreen = ({
   >([]);
   const [isCustomerLoading, setIsCustomerLoading] = useState(false);
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
+  const [showNumberSuggestions, setShowNumberSuggestions] = useState(false);
   const latestRequestId = useRef(0);
   const latestCustomerRequestId = useRef(0);
 
@@ -953,6 +954,18 @@ const AMCDashboardScreen = ({
     },
     [allCustomerOptions, ownerId],
   );
+
+  // Typing a customer number suggests saved customers whose number contains the digits typed;
+  // picking one autofills the whole form, exactly like picking by name.
+  const numberSuggestions = useMemo(() => {
+    const digits = customerNumber.replace(/\D/g, '');
+    if (!showNumberSuggestions || digits.length < 3) {
+      return [];
+    }
+    return allCustomerOptions
+      .filter(option => option.phone.replace(/\D/g, '').includes(digits))
+      .slice(0, 20);
+  }, [allCustomerOptions, customerNumber, showNumberSuggestions]);
 
   const resetAddAMCForm = () => {
     setAmcName('');
@@ -1513,6 +1526,37 @@ const AMCDashboardScreen = ({
     setSerialNo(customer.serialNo);
     setCustomerSuggestions([]);
     setShowCustomerSuggestions(false);
+    setShowNumberSuggestions(false);
+  };
+
+  const renderNumberSuggestions = () => {
+    if (numberSuggestions.length === 0) {
+      return null;
+    }
+    return (
+      <View style={styles.customerSuggestionPanel}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          style={styles.customerSuggestionList}
+        >
+          {numberSuggestions.map(customer => (
+            <Pressable
+              key={`${customer.id}-${customer.phone}`}
+              style={styles.customerSuggestionItem}
+              onPress={() => handleCustomerSelect(customer)}
+            >
+              <Text numberOfLines={1} style={styles.customerSuggestionName}>
+                {customer.phone}
+              </Text>
+              <Text numberOfLines={1} style={styles.customerSuggestionMeta}>
+                {customer.name}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+    );
   };
 
   const renderCustomerSuggestions = () => {
@@ -1549,6 +1593,11 @@ const AMCDashboardScreen = ({
                 <Text numberOfLines={1} style={styles.customerSuggestionName}>
                   {customer.name}
                 </Text>
+                {customer.phone ? (
+                  <Text numberOfLines={1} style={styles.customerSuggestionMeta}>
+                    {customer.phone}
+                  </Text>
+                ) : null}
               </Pressable>
             ))}
           </ScrollView>
@@ -1882,20 +1931,34 @@ const AMCDashboardScreen = ({
                 onChangeText: text => {
                   setCustomerName(text);
                   setShowCustomerSuggestions(true);
+                  setShowNumberSuggestions(false);
                 },
                 onFocus: () => {
                   setShowCustomerSuggestions(true);
+                  setShowNumberSuggestions(false);
                   preloadCustomers();
                 },
               })}
               {renderCustomerSuggestions()}
             </View>
-            {renderFormInput('Customer Number *', {
-              value: customerNumber,
-              onChangeText: setCustomerNumber,
-              keyboardType: 'phone-pad',
-              trailing: <ContactBookIcon size={ms(25)} />,
-            })}
+            <View style={styles.customerNumberWrapper}>
+              {renderFormInput('Customer Number *', {
+                value: customerNumber,
+                onChangeText: text => {
+                  setCustomerNumber(text);
+                  setShowNumberSuggestions(true);
+                  setShowCustomerSuggestions(false);
+                },
+                onFocus: () => {
+                  setShowNumberSuggestions(true);
+                  setShowCustomerSuggestions(false);
+                  preloadCustomers();
+                },
+                keyboardType: 'phone-pad',
+                trailing: <ContactBookIcon size={ms(25)} />,
+              })}
+              {renderNumberSuggestions()}
+            </View>
             {renderFormInput('Email ID', {
               value: customerEmail,
               onChangeText: setCustomerEmail,
@@ -2622,6 +2685,9 @@ const styles = StyleSheet.create({
     marginLeft: ms(8),
   },
   customerAutocompleteWrapper: {
+    zIndex: 30,
+  },
+  customerNumberWrapper: {
     zIndex: 20,
   },
   customerSuggestionPanel: {
