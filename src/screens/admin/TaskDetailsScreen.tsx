@@ -29,6 +29,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {COLORS} from '../../theme/theme';
 import {downloadReport} from '../../api/report/reportService';
+import {getInvoicedetailsByInvoiceId} from '../../api/accountManagement/accountManagementService';
 import AddTaskModal, {buildTaskFormValues, type AddTaskInitialValues} from './AddTaskModal';
 import TaskClosureSection, {type TaskClosureSectionHandle} from './TaskClosureSection';
 import OwnerTaskTrackingMap from './OwnerTaskTrackingMap';
@@ -290,6 +291,36 @@ const TaskDetailsScreen = ({
     };
   }, [sheetStyle, isCompletedTask, closureTaskId, ownerId]);
 
+  // The discount given on a task lives on its invoice (InvoiceDetails: Discount % and
+  // DiscountAmounnt), so fetch it by the task's InvoiceId.
+  const invoiceId = getNumberField(record, ['invoiceId', 'InvoiceId']);
+  const [invoiceDiscount, setInvoiceDiscount] = useState<{amount: number; percent: number} | null>(null);
+  useEffect(() => {
+    if (!invoiceId) {
+      setInvoiceDiscount(null);
+      return undefined;
+    }
+    let active = true;
+    getInvoicedetailsByInvoiceId({InvoiceId: invoiceId, UserId: ownerId})
+      .then(response => {
+        const data: any = response?.ResultData;
+        const row = Array.isArray(data) ? data[0] : data;
+        const amount = Number(row?.DiscountAmounnt) || 0;
+        const percent = Number(row?.Discount) || 0;
+        if (active) {
+          setInvoiceDiscount(amount > 0 ? {amount, percent} : null);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setInvoiceDiscount(null);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [invoiceId, ownerId]);
+
   const status = task ? getTaskStatus(task) : '';
   // Java shows only "[NewTaskId]" (never the numeric Id). The refetched task can come back
   // without NewTaskId, so fall back to the row the list passed in rather than the raw Id.
@@ -369,6 +400,15 @@ const TaskDetailsScreen = ({
   })();
   const estimatedAmount = wagesPerHour ? `${currencySymbol} ${formatAmount(wagesPerHour)}` : '';
   const earnedAmount = earningAmount ? `${currencySymbol} ${formatAmount(earningAmount)}` : '';
+  // Discount from the invoice, shown on its own row and taken off the earned amount.
+  const discountAmount = invoiceDiscount?.amount ?? 0;
+  const discountText = discountAmount
+    ? `${currencySymbol} ${formatAmount(discountAmount)} (${Number((invoiceDiscount?.percent ?? 0).toFixed(3))}%)`
+    : '';
+  const netEarnedAmount =
+    discountAmount && earningAmount
+      ? `${currencySymbol} ${formatAmount(Math.max(earningAmount - discountAmount, 0))}`
+      : '';
 
   // Warranty (Java's txtWarrantyType/.../txtWarrantySerialNo, sourced from
   // TaskWarrantyDetailsModelDtoView on the same task record).
@@ -609,6 +649,9 @@ const TaskDetailsScreen = ({
               ...(closureLoaded && paymentModeId !== 1 && earningAmount
                 ? [['Earned Amount', earnedAmount]]
                 : []),
+              ...(closureLoaded && paymentModeId !== 1 && earningAmount && discountText
+                ? [['Discount', discountText], ['Net Amount', netEarnedAmount]]
+                : []),
               ['Payment Mode', valueOrNA(paymentMode)],
               ['Start Date & Time', valueOrNA(startDateTime)],
               ['End Date & Time', valueOrNA(endDateTime)],
@@ -766,6 +809,20 @@ const TaskDetailsScreen = ({
             <Text style={styles.fieldLabel}>Earned Amount</Text>
             <Text style={styles.fieldValue}>{valueOrNA(earnedAmount)}</Text>
           </View>
+          {discountText ? (
+            <>
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>Discount</Text>
+                <Text style={styles.fieldValue}>{discountText}</Text>
+              </View>
+              {netEarnedAmount ? (
+                <View style={styles.fieldRow}>
+                  <Text style={styles.fieldLabel}>Net Amount</Text>
+                  <Text style={styles.fieldValue}>{netEarnedAmount}</Text>
+                </View>
+              ) : null}
+            </>
+          ) : null}
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>Start Date & Time</Text>
             <Text style={styles.fieldValue}>{valueOrNA(startDateTime)}</Text>

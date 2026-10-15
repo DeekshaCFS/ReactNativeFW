@@ -254,7 +254,8 @@ export default function TechnicianTabs() {
             options={({ navigation, route }: any) =>
               name === 'Leave' || name === 'Expenditure' || name === 'Leads' || name === 'Profile' || SHEET_SCREENS.includes(name)
                 ? { headerShown: false }
-                : pushedScreenOptions(title, navigation, route)}
+                // Task Details: the header arrow goes back to the task list, not Home.
+                : pushedScreenOptions(title, navigation, route, name === 'TaskClosure' ? 'Task' : undefined)}
           />
         ))}
       </Tab.Navigator>

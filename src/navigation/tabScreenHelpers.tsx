@@ -50,7 +50,11 @@ export function unmountOnBlur<P extends object>(
 }
 
 /** Red back-arrow header matching the native stack header these screens had. */
-export const pushedScreenOptions = (title: string, navigation: any, route?: any) => ({
+/**
+ * `backTo` is the tab the arrow returns to when the screen was not opened from another screen
+ * (`returnTo`); without it the tab navigator's own back behaviour applies (Home).
+ */
+export const pushedScreenOptions = (title: string, navigation: any, route?: any, backTo?: string) => ({
   headerShown: true,
   title,
   headerStyle: { backgroundColor: COLORS.primary, height: HEADER_BAR_HEIGHT },
@@ -62,6 +66,7 @@ export const pushedScreenOptions = (title: string, navigation: any, route?: any)
       onPress={() => {
         const returnTo = route?.params?.returnTo;
         if (returnTo) navigation.navigate(returnTo.name, returnTo.params);
+        else if (backTo) navigation.navigate(backTo);
         else navigation.goBack();
       }}
       hitSlop={10}
