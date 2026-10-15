@@ -76,7 +76,7 @@ export const isAndroid = Platform.OS === 'android';
 export const isTablet = SHORT_SIDE >= 600;
 
 /** Height of AppHeader's toolbar row (below the status bar inset). */
-export const HEADER_BAR_HEIGHT = ms(56);
+export const HEADER_BAR_HEIGHT = 45; // Java activity_main toolbar: exactly 45dp
 
 /** Total height of the absolutely-positioned AppHeader: the live top safe-area
  *  inset plus the toolbar. Screens rendered under it (the tab screens) must

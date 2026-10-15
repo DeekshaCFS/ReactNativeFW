@@ -24,6 +24,7 @@ type AuthStackParamList = {
     emailOrContactNo: string;   // mobile or email captured at signup
     touchlessSignupId: number;
     countryDetailsId: number;
+    displayName?: string;       // Google sign-up: pre-fills first / last name
   };
 };
 
@@ -36,10 +37,12 @@ const CENTER_CONTENT = { justifyContent: 'center' as const };
 export default function CompanyDetailsScreen() {
   const route = useRoute<RouteProp<AuthStackParamList, 'CompanyDetails'>>();
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
-  const { emailOrContactNo, touchlessSignupId, countryDetailsId } = route.params;
+  const { emailOrContactNo, touchlessSignupId, countryDetailsId, displayName } = route.params;
+  // Java WelcomeActivity splits the Google display name on spaces.
+  const nameParts = (displayName ?? '').trim().split(' ').filter(Boolean);
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [firstName, setFirstName] = useState(nameParts[0] ?? '');
+  const [lastName, setLastName] = useState(nameParts.slice(1).join(' '));
   const [companyName, setCompanyName] = useState('');
   const [noOfFieldWorkers, setNoOfFieldWorkers] = useState('1');
   // The slider keeps its own value: feeding the text back into it on every drag tick
