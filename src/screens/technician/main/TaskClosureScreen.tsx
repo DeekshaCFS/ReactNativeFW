@@ -21,6 +21,7 @@ import Svg, { Path, Rect } from 'react-native-svg';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
+import { getUsedItemIssueListByUserid } from '../../../api/item/itemService';
 import { scale, vs, sp, ms } from '../../../utils/responsive';
 import ImageSourceDialog from '../../../components/ImageSourceDialog';
 import SearchPickerModal from '../../../components/SearchPickerModal';
@@ -622,8 +623,37 @@ export default function TaskClosure({ navigation, route }: any) {
 
   // ─── Open used item sheet ──
 
+  // Java UpdateUsedItems_FW.getUsedItemsIssueList(): Item/GetAssignedItemsListForFieldWorker?UserId=
+  // -> the items assigned to this fieldworker, which feed the "Item Name" picker of every
+  // ad-hoc slot (Id = ItemIssuedId, Quantity = available qty).
+  const loadIssueList = async () => {
+    if (issueListLoading || issueList.length > 0) return;
+    setIssueListLoading(true);
+    try {
+      const uid = Number(await AsyncStorage.getItem('uid')) || 0;
+      const response = await getUsedItemIssueListByUserid({ UserId: uid });
+      const rows = Array.isArray(response?.ResultData) ? response.ResultData : [];
+      setIssueList(
+        rows
+          .filter(r => !!r.Name)
+          .map(r => ({
+            Id: r.Id ?? 0,
+            ItemId: r.ItemId ?? 0,
+            Name: String(r.Name),
+            Quantity: Number(r.Quantity) || 0,
+            SalesPrice: Number(r.SalesPrice) || 0,
+          })),
+      );
+    } catch {
+      showFailureMsg('Unable to load items. Please try again.');
+    } finally {
+      setIssueListLoading(false);
+    }
+  };
+
   const openUsedItemSheet = () => {
     setShowUsedItemSheet(true);
+    loadIssueList();
   };
 
   // ─── Add More slot handler ───
@@ -1750,6 +1780,7 @@ export default function TaskClosure({ navigation, route }: any) {
                             style={usedItemStyles.itemPickerBtn}
                             onPress={() => {
                               pendingSlotIndexRef.current = idx;
+                              loadIssueList(); // retries if the first load failed or came back empty
                               setShowItemPicker(true);
                             }}
                           >
@@ -1943,6 +1974,7 @@ export default function TaskClosure({ navigation, route }: any) {
         visible={showItemPicker}
         title="Select Item"
         options={issueList.map(i => ({ id: i.Id, label: i.Name }))}
+        loading={issueListLoading}
         onSelect={option => {
           const item = issueList.find(i => i.Id === option.id);
           const idx = pendingSlotIndexRef.current;
