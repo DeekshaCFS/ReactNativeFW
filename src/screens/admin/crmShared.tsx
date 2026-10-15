@@ -238,6 +238,8 @@ export type CustomerOption = {
   landmark: string;
   productBrand: string;
   emailId?: string;
+  // the customer's saved location record (Java customerObj.getLocationId())
+  locationId?: number;
   latitude: string;
   longitude: string;
 };
@@ -348,6 +350,7 @@ export const normalizeCustomerOption = (
     landmark: getStringField(record, CUSTOMER_LANDMARK_KEYS),
     productBrand: getStringField(record, CUSTOMER_BRAND_KEYS),
     emailId: getStringField(record, ['emailId', 'EmailId', 'emailID', 'EmailID', 'email', 'Email']),
+    locationId: getNumberField(record, ['locationId', 'LocationId', 'customerLocationId', 'CustomerLocationId']) || undefined,
     latitude: getStringField(record, CUSTOMER_LATITUDE_KEYS),
     longitude: getStringField(record, CUSTOMER_LONGITUDE_KEYS),
   };

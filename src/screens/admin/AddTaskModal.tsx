@@ -35,7 +35,7 @@ import {getCustomerList, getCityList, getStateList} from '../../api/customerList
 import type {CityDTOResultData, CustomerListResultData, StateDTOResultData} from '../../api/customerList/customerList.types';
 import {getAdvanceServiceList} from '../../api/services/servicesService';
 import type {AdvanceServiceListDTOResultData} from '../../api/services/services.types';
-import {getQuoteBindList} from '../../api/quotation/quotationService';
+import {getQuoteBindList, getQuotationdetailsByQuoteId} from '../../api/quotation/quotationService';
 import type {QuoteBindListDTOResultData} from '../../api/quotation/quotation.types';
 import {getFsrBindList} from '../../api/fsrManagement/fsrManagementService';
 import type {FSRBindListDTOResultData} from '../../api/fsrManagement/fsrManagement.types';
@@ -756,6 +756,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     useState<TaskFormTabKey>('cust');
 
   const [taskCustomerId, setTaskCustomerId] = useState(0);
+  // Java: locationID is the picked customer's own location record, 0 for a new customer
+  // ("FOR NEW CUSTOMER PASS 0"). It is NOT the city id.
+  const [taskLocationId, setTaskLocationId] = useState(0);
   const [taskCustomerName, setTaskCustomerName] = useState('');
   const [taskCustomerNumber, setTaskCustomerNumber] = useState('');
   const [taskCustomerSuggestions, setTaskCustomerSuggestions] = useState<
@@ -877,6 +880,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setTaskLongitude(initialValues?.longitude ?? '');
     setActiveTaskFormTab('cust');
     setTaskCustomerId(initialValues?.customerId ?? 0);
+    setTaskLocationId(initialValues?.locationId ?? 0);
     setTaskCustomerName(initialValues?.customerName ?? '');
     setTaskCustomerNumber(initialValues?.customerNumber ?? '');
     setTaskCustomerSuggestions([]);
@@ -1384,6 +1388,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   const handleTaskCustomerSelect = (customer: CustomerOption) => {
     setShowTaskNumberSuggestions(false);
     setTaskCustomerId(customer.id);
+    setTaskLocationId(customer.locationId ?? 0);
     setTaskCustomerName(customer.name);
     setTaskCustomerNumber(customer.phone);
     if (customer.address) {
@@ -1413,6 +1418,58 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setTaskLongitude(customer.longitude || '');
     setTaskCustomerSuggestions([]);
     setShowTaskCustomerSuggestions(false);
+  };
+
+  // Java TaskDialogNew quote spinner + getQuotationIdWiseDetails(): picking a quote names the task
+  // after it, clears the customer block and refills it from Quotation/getquotationsbyid (customer,
+  // location, grand total as the Rate amount). The task is then posted with that customer and
+  // location -- the quote id itself is not sent.
+  const handleQuoteSelect = async (option: QuoteOption) => {
+    setSelectedQuote(option);
+    setTaskTitle(option.label);
+    setTaskCustomerId(0);
+    setTaskLocationId(0);
+    setTaskCustomerName('');
+    setTaskCustomerNumber('');
+    setTaskEmail('');
+    setTaskAddress('');
+    setTaskLandmark('');
+    setTaskState('');
+    setTaskCity('');
+    setTaskPinCode('');
+    setTaskLatitude('');
+    setTaskLongitude('');
+    setAmcAmount('');
+    setTaskStateId(0);
+    setTaskCityId(0);
+    setTaskAllCityOptions([]);
+    try {
+      const response = await getQuotationdetailsByQuoteId({Id: option.id, UserId: ownerId});
+      const data = (response?.ResultData ?? {}) as Record<string, any>;
+      const customer = (data.Customer ?? {}) as Record<string, any>;
+      const location = (customer.LocationList ?? {}) as Record<string, any>;
+      setTaskCustomerName(String(customer.CustomerName ?? ''));
+      setTaskCustomerNumber(String(customer.MobileNumber ?? ''));
+      setTaskAddress(String(location.Address ?? ''));
+      setTaskLandmark(String(location.Description ?? ''));
+      setTaskState(String(location.State ?? ''));
+      setTaskCity(String(location.City ?? ''));
+      setTaskPinCode(String(location.PinCode ?? ''));
+      const total = Number(data.GrandTotalAmount) || 0;
+      if (total !== 0) {
+        setAmcAmount(total.toFixed(3));
+        setWarrantyMode('out'); // Java: Rate on, AMC off
+      }
+      // Java: customerDetailsID / locationID from the quote's customer, lat/long from its address
+      // (Java reads CountryDetailsId into customerDetailsID, which looks like a slip; the customer's
+      // own CustomerDetailsid is what the task needs.)
+      setTaskCustomerId(Number(customer.CustomerDetailsid) || 0);
+      setTaskLocationId(Number(customer.LocationId) || Number(location.Id) || 0);
+      setTaskLatitude(String(location.latitude ?? location.Latitude ?? ''));
+      setTaskLongitude(String(location.Longitude ?? location.longitude ?? ''));
+    } catch {
+      showFailureMsg('Unable to load the quote details.');
+    }
   };
 
   const geocodeAddress = useCallback(async (fullAddress: string) => {
@@ -1596,17 +1653,31 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
   const MAX_TASK_ITEM_ROWS = 10;
 
+  // The dropdown lists every item as soon as it opens (fullItemOptions); typing 1-2 characters
+  // filters that list on the device, and from 3 characters the server is searched
+  // (allItemOptions) so items beyond the first page can still be found.
+  const [fullItemOptions, setFullItemOptions] = useState<ItemOption[]>([]);
+
   const loadItemOptions = useCallback(
     (searchParam: string) => {
       setIsItemSearchLoading(true);
       getLargeItemAssignedUnassigned({ownerId, searchParam})
         .then(response => {
           const items = extractArray<ItemsListResultData>(response);
-          setAllItemOptions(
-            items.map(normalizeItemOption).filter(option => option.name),
-          );
+          const options = items.map(normalizeItemOption).filter(option => option.name);
+          if (searchParam) {
+            setAllItemOptions(options);
+          } else {
+            setFullItemOptions(options);
+          }
         })
-        .catch(() => setAllItemOptions([]))
+        .catch(() => {
+          if (searchParam) {
+            setAllItemOptions([]);
+          } else {
+            setFullItemOptions([]);
+          }
+        })
         .finally(() => setIsItemSearchLoading(false));
     },
     [ownerId],
@@ -1628,17 +1699,21 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   }, [isItemSearchModalOpen, itemSearchQuery, loadItemOptions]);
 
   const itemSearchResults = useMemo(() => {
-    if (itemSearchQuery.trim().length < 3) {
-      return [];
+    const query = itemSearchQuery.trim().toLowerCase();
+    if (query.length >= 3) {
+      return allItemOptions;
     }
-    return allItemOptions;
-  }, [allItemOptions, itemSearchQuery]);
+    return query
+      ? fullItemOptions.filter(option => option.name.toLowerCase().includes(query))
+      : fullItemOptions;
+  }, [allItemOptions, fullItemOptions, itemSearchQuery]);
 
   const openItemSearchModal = (rowId: string) => {
     setActiveItemRowId(rowId);
     setItemSearchQuery('');
     setAllItemOptions([]);
     setIsItemSearchModalOpen(true);
+    loadItemOptions('');
   };
 
   const handleItemOptionSelect = (option: ItemOption) => {
@@ -1909,7 +1984,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       LocDescription: taskLandmark.trim(),
       LocIsActive: true,
       LocName: '',
-      LocationId: taskCityId,
+      // existing customer -> that customer's location; new customer -> 0 (as Java)
+      LocationId: taskCustomerId ? taskLocationId : 0,
       Longitude: resolvedLongitude,
       ModelNumber: taskModelNumber.trim(),
       Email: taskEmail.trim(),
@@ -1935,7 +2011,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       PaymentMode: warrantyMode === 'out' ? 'Rate' : 'AMC',
       PaymentModeId: warrantyMode === 'out' ? 2 : 1,
       PinCode: taskPinCode.trim(),
-      QuotationId: selectedQuote?.id || 0,
+      // Java's Add Task dialog never posts the quote id (addTask.setQuotationId is commented out);
+      // the quote's customer and location ids carry the link instead.
+      QuotationId: 0,
       ServiceId: selectedTaskService?.id || 0,
       State: taskState.trim(),
       TaskDate: taskDate,
@@ -1958,6 +2036,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       TaskStatus: 4,
     };
 
+    if (__DEV__) {
+      // development aid: the exact request body, to compare with Java when the server rejects it
+      console.log('[AddTask] payload', JSON.stringify(payload));
+    }
     try {
       if (formMode === 'edit') {
         ensureSuccess(
@@ -1978,11 +2060,14 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         showSuccessMsg('Task re-assigned successfully.');
       } else {
         ensureSuccess(await addTask(payload));
-        showSuccessMsg('Task added successfully.');
+        showSuccessMsg('Task created successfully');
       }
       onSaved?.();
       onClose();
     } catch (error) {
+      if (__DEV__) {
+        console.log('[AddTask] failed', (error as any)?.response?.data ?? error);
+      }
       const message =
         error instanceof Error
           ? error.message
@@ -2480,6 +2565,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                           setTaskCustomerName(text);
                           setShowTaskCustomerSuggestions(true);
                           setShowTaskNumberSuggestions(false);
+                          if (!initialValues?.leadId && !initialValues?.customerId) {
+                            setTaskCustomerId(0);
+                            setTaskLocationId(0);
+                          }
                         }}
                         onFocus={() => {
                           setShowTaskCustomerSuggestions(true);
@@ -2533,6 +2622,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                             setTaskCustomerNumber(text);
                             setShowTaskNumberSuggestions(true);
                             setShowTaskCustomerSuggestions(false);
+                            if (!initialValues?.leadId && !initialValues?.customerId) {
+                              setTaskCustomerId(0);
+                              setTaskLocationId(0);
+                            }
                             // the customer list is fetched lazily; start it as soon as digits are typed
                             if (allCustomerOptions.length === 0 && text.replace(/\D/g, '').length >= 3) {
                               loadTaskCustomerSuggestions(text);
@@ -2903,8 +2996,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         title="Select Item"
         options={itemSearchResults.map(option => ({id: option.id, label: option.name}))}
         loading={isItemSearchLoading}
-        searchHint="Pls Enter Min 3 Characters."
-        minChars={3}
+        searchHint="Search Item"
         emptyText="No items found."
         onSearch={setItemSearchQuery}
         onSelect={picked => {
@@ -2968,7 +3060,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         onSelect={picked => {
           const option = quoteList.find(o => o.id === picked.id);
           if (option) {
-            setSelectedQuote(option);
+            handleQuoteSelect(option);
           }
           setIsQuoteModalOpen(false);
         }}
