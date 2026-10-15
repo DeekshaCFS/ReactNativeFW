@@ -144,6 +144,16 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
     }
   }, [route.params?.drawerSection, navigation]);
 
+  // This tab stays mounted and remembers the drawer section it was showing (AMC, Item Inventory,
+  // Leads...). Tapping the Home tab -- from a section, from another tab or from a pushed screen like
+  // AMC details -- must always land on the dashboard.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      setSelectedDrawerLabel('Dashboard');
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   useEffect(() => {
     const trigger = route.params?.addAmcTrigger;
     if (trigger) {
