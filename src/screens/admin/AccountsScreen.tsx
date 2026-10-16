@@ -2,9 +2,11 @@
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import TabStrip from '../../components/TabStrip';
+import UnderlineSearch from '../../components/UnderlineSearch';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -14,6 +16,8 @@ import {
   View,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {BackHandler} from 'react-native';
+import {useNavigation} from '@react-navigation/native';
 import {getQuotationList} from '../../api/quotation/quotationService';
 import type {QuotationListDTOResultData} from '../../api/quotation/quotation.types';
 import {getInvoiceList} from '../../api/accountManagement/accountManagementService';
@@ -30,6 +34,7 @@ const HEADER_PRIMARY = '#a80030';
 const BLUE_CODE = '#1877F2';
 const CORAL_NAME = '#E4574E';
 const GREEN_AMOUNT = '#1fb327';
+const GREEN_500 = '#4CAF50';
 const BADGE_PURPLE = '#6C4BA5';
 const BADGE_ORANGE = '#F4A62A';
 const BADGE_GREEN = '#2E7D32';
@@ -43,18 +48,20 @@ type StatusOption = {
 
 const QUOTATION_STATUS_OPTIONS: StatusOption[] = [
   {id: 0, label: 'Select Status'},
-  {id: 1, label: 'Not Assigned'},
-  {id: 2, label: 'Assigned'},
-  {id: 3, label: 'Task Completed'},
+  // Java AccountsQuotationFragment spinner -> StatusId mapping.
+  {id: 2, label: 'Not Assigned'},
+  {id: 1, label: 'Assigned'},
+  {id: 5, label: 'Task Completed'},
   {id: 4, label: 'Lost'},
 ];
 
 const INVOICE_STATUS_OPTIONS: StatusOption[] = [
   {id: 0, label: 'Select Status'},
-  {id: 7, label: 'Follow Up'},
-  {id: 8, label: 'Un-Paid'},
-  {id: 9, label: 'Partial-Paid'},
-  {id: 10, label: 'Paid'},
+  // Java AccountsInvoiceFragment spinner -> StatusId mapping.
+  {id: 3, label: 'Follow Up'},
+  {id: 6, label: 'Un-Paid'},
+  {id: 7, label: 'Partial-Paid'},
+  {id: 8, label: 'Paid'},
 ];
 
 const PAGE_START = 1;
@@ -62,7 +69,7 @@ const PAGE_START = 1;
 const getQuoteId = (item: QuotationListDTOResultData) => Number(item.Id ?? 0);
 
 const getQuoteCode = (item: QuotationListDTOResultData) =>
-  item.Id ? `Q${item.Id}` : '';
+  item.Id ? `QUO${item.Id}` : '';
 
 const getQuoteTitle = (item: QuotationListDTOResultData) =>
   String(item.QuoteName ?? '').trim() || 'Quote';
@@ -103,7 +110,7 @@ const getQuoteDate = (item: QuotationListDTOResultData) => {
 const getInvoiceId = (item: InvoiceListDTOResultData) => Number(item.Id ?? 0);
 
 const getInvoiceCode = (item: InvoiceListDTOResultData) =>
-  String(item.InvoiceCode ?? '').trim();
+  item.Id ? `INV${item.Id}` : String(item.InvoiceCode ?? '').trim();
 
 const getInvoiceTitle = (item: InvoiceListDTOResultData) =>
   String(item.QuoteTaskName ?? item.CustomerName ?? '').trim() || 'Invoice';
@@ -118,7 +125,7 @@ const getInvoiceAmount = (item: InvoiceListDTOResultData) =>
   Number(item.InvoiceAmount ?? 0);
 
 const getInvoiceDate = (item: InvoiceListDTOResultData) => {
-  const raw = String(item.InvoiceDate ?? '').trim();
+  const raw = String((item as any).CreatedDate ?? item.InvoiceDate ?? '').trim();
   if (!raw) {
     return '';
   }
@@ -132,15 +139,26 @@ const getInvoiceDate = (item: InvoiceListDTOResultData) => {
   return `${day}-${month}-${year}`;
 };
 
+// Java status backgrounds: Assigned #FBC02D, Not Assigned #6e41bf, Lost / UnPaid colorPrimaryDark,
+// Task Completed / Paid green, Partial Paid orange.
 const getBadgeColor = (statusLabel: string) => {
-  const normalized = statusLabel.trim().toLowerCase();
-  if (normalized === 'assigned' || normalized === 'paid') {
-    return normalized === 'paid' ? BADGE_GREEN : BADGE_ORANGE;
+  const normalized = statusLabel.trim().toLowerCase().replace(/[\s-]/g, '');
+  switch (normalized) {
+    case 'assigned':
+      return '#FBC02D';
+    case 'notassigned':
+      return '#6e41bf';
+    case 'lost':
+    case 'unpaid':
+      return '#c3002f';
+    case 'taskcompleted':
+    case 'paid':
+      return '#03de73';
+    case 'partialpaid':
+      return '#ff9b00';
+    default:
+      return '#6e41bf';
   }
-  if (normalized === 'partial paid') {
-    return BADGE_ORANGE;
-  }
-  return BADGE_PURPLE;
 };
 
 type AccountsScreenProps = {
@@ -154,6 +172,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
   const [submittedSearch, setSubmittedSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<StatusOption>(QUOTATION_STATUS_OPTIONS[0]);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [statusSelectorY, setStatusSelectorY] = useState(0);
 
   const [quotations, setQuotations] = useState<QuotationListDTOResultData[]>([]);
   const [invoices, setInvoices] = useState<InvoiceListDTOResultData[]>([]);
@@ -170,9 +189,36 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
   const [selectedInvoiceStatus, setSelectedInvoiceStatus] = useState<string>('');
   const [selectedInvoiceTaskName, setSelectedInvoiceTaskName] = useState<string>('');
 
+  const navigation = useNavigation<any>();
+  // Java toolbar titles on the detail pages.
+  useEffect(() => {
+    navigation.setParams({
+      currentSectionTitle: selectedQuotationId !== null ? 'Quotation Details' : selectedInvoiceId !== null ? 'Invoice Details' : 'Accounts',
+    });
+  }, [selectedQuotationId, selectedInvoiceId, navigation]);
+
+  // Back walks up one level: status picker -> list, details -> list. On the list itself
+  // no listener is registered, so back keeps its normal behaviour (go to Home).
+  const hasOverlay = isStatusModalOpen || selectedQuotationId !== null || selectedInvoiceId !== null;
+  useEffect(() => {
+    if (!hasOverlay) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isStatusModalOpen) {
+        setIsStatusModalOpen(false);
+      } else {
+        setSelectedQuotationId(null);
+        setSelectedInvoiceId(null);
+      }
+      return true;
+    });
+    return () => sub.remove();
+  }, [hasOverlay, isStatusModalOpen]);
+
   const statusOptions = activeTab === 'quotation' ? QUOTATION_STATUS_OPTIONS : INVOICE_STATUS_OPTIONS;
 
   useEffect(() => {
+    setSearchText('');
+    setSubmittedSearch('');
     setSelectedStatus(statusOptions[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -251,6 +297,25 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
     setSubmittedSearch('');
   };
 
+  // quotation_list.xml / invoice_list.xml: 8dp-margin card radius 10, flush top-left status ribbon (9sp),
+  // centred bold blue id, bold date at the right, 16sp bold title, 12dp detail rows.
+  const cardHeader = (statusLabel: string, code: string, date: string, idSize: number, dateSize: number) => (
+    <View>
+      <View style={[styles.badge, {backgroundColor: getBadgeColor(statusLabel)}]}>
+        <Text style={styles.badgeText} numberOfLines={1}>
+          {statusLabel.toUpperCase().replace('PARTIAL PAID', 'PARTIALPAID')}
+        </Text>
+      </View>
+      <Text style={[styles.quoteCode, {fontSize: sp(idSize)}]} numberOfLines={1}>
+        [{code}]
+      </Text>
+      <Text style={[styles.dateText, {fontSize: sp(dateSize)}]} numberOfLines={1}>
+        {date}
+      </Text>
+    </View>
+  );
+
+  // Java QuotationListAdapter: 0.65 column (title, "Customer :" row) + 0.35 column ("Amount :" bottom-right).
   const renderQuotationCard = ({item}: {item: QuotationListDTOResultData}) => {
     const statusLabel = getQuoteStatusName(item);
     return (
@@ -261,36 +326,40 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
           setSelectedQuotationStatus(statusLabel);
           setSelectedQuotationId(getQuoteId(item));
         }}>
-        <View style={styles.cardTopRow}>
-          <View style={[styles.badge, {backgroundColor: getBadgeColor(statusLabel)}]}>
-            <Text style={styles.badgeText} numberOfLines={1}>
-              {statusLabel.toUpperCase()}
+        {cardHeader(statusLabel, getQuoteCode(item), getQuoteDate(item), 11, 12)}
+        <View style={styles.cardBody}>
+          <View style={[styles.cardLeft, {flex: 0.65}]}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {getQuoteTitle(item)}
+            </Text>
+            <View style={styles.detailLine}>
+              <Text style={styles.detailLabel} numberOfLines={1}>
+                Customer :
+              </Text>
+              <Text style={[styles.detailValue, {color: THEME_PRIMARY}]} numberOfLines={1}>
+                {getQuoteCustomerName(item)}
+              </Text>
+            </View>
+          </View>
+          <View style={[styles.cardRight, {flex: 0.35, marginRight: scale(2)}]}>
+            <Text style={styles.detailLabel} numberOfLines={1}>
+              Amount :{' '}
+              <Text style={[styles.detailBold, {color: GREEN_500}]}>₹ {formatAmount(getQuoteAmount(item))}</Text>
             </Text>
           </View>
-          <Text style={styles.quoteCode} numberOfLines={1}>
-            [{getQuoteCode(item)}]
-          </Text>
-          <Text style={styles.dateText} numberOfLines={1}>
-            {getQuoteDate(item)}
-          </Text>
-        </View>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {getQuoteTitle(item)}
-        </Text>
-        <View style={styles.cardMetaRow}>
-          <Text style={[styles.metaLabel, styles.metaLabelCustomer]} numberOfLines={1}>
-            Customer: <Text style={styles.metaCustomer}>{getQuoteCustomerName(item)}</Text>
-          </Text>
-          <Text style={styles.metaLabel} numberOfLines={1}>
-            Amount: <Text style={styles.metaAmount}>Rs. {formatAmount(getQuoteAmount(item))}</Text>
-          </Text>
         </View>
       </TouchableOpacity>
     );
   };
 
+  // Java InvoiceListAdapter: 0.6 column (title, "Cust. Name :", amount row) + 0.4 column ("Pending Amt :", Partial Paid only).
   const renderInvoiceCard = ({item}: {item: InvoiceListDTOResultData}) => {
     const statusLabel = getInvoiceStatusName(item);
+    const norm = statusLabel.trim().toLowerCase().replace(/[\s-]/g, '');
+    const isPartial = norm === 'partialpaid';
+    const isPaid = norm === 'paid';
+    const isUnpaid = norm === 'unpaid';
+    const amountLabel = isPaid ? 'Paid Amount :' : isPartial ? 'Total Amount :' : 'Pending Amount :';
     return (
       <TouchableOpacity
         style={styles.card}
@@ -300,29 +369,39 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
           setSelectedInvoiceTaskName(getInvoiceTitle(item));
           setSelectedInvoiceId(getInvoiceId(item));
         }}>
-        <View style={styles.cardTopRow}>
-          <View style={[styles.badge, {backgroundColor: getBadgeColor(statusLabel)}]}>
-            <Text style={styles.badgeText} numberOfLines={1}>
-              {statusLabel.toUpperCase()}
+        {cardHeader(statusLabel, getInvoiceCode(item), getInvoiceDate(item), 12, 11)}
+        <View style={styles.cardBody}>
+          <View style={[styles.cardLeft, {flex: 0.6}]}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {getInvoiceTitle(item)}
             </Text>
+            <View style={styles.detailLine}>
+              <Text style={styles.detailLabel} numberOfLines={1}>
+                Cust. Name :
+              </Text>
+              <Text style={[styles.detailValue, {color: THEME_PRIMARY}]} numberOfLines={1}>
+                {getInvoiceCustomerName(item)}
+              </Text>
+            </View>
+            <View style={styles.detailLine}>
+              <Text style={[styles.detailLabel, isUnpaid && {color: '#ff4a4a'}]} numberOfLines={1}>
+                {amountLabel}
+              </Text>
+              <Text style={[styles.detailValue, styles.detailBold, {color: isUnpaid ? THEME_PRIMARY : GREEN_500}]} numberOfLines={1}>
+                ₹ {formatAmount(getInvoiceAmount(item))}
+              </Text>
+            </View>
           </View>
-          <Text style={styles.quoteCode} numberOfLines={1}>
-            [{getInvoiceCode(item)}]
-          </Text>
-          <Text style={styles.dateText} numberOfLines={1}>
-            {getInvoiceDate(item)}
-          </Text>
-        </View>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {getInvoiceTitle(item)}
-        </Text>
-        <View style={styles.cardMetaRow}>
-          <Text style={[styles.metaLabel, styles.metaLabelCustomer]} numberOfLines={1}>
-            Customer: <Text style={styles.metaCustomer}>{getInvoiceCustomerName(item)}</Text>
-          </Text>
-          <Text style={styles.metaLabel} numberOfLines={1}>
-            Amount: <Text style={styles.metaAmount}>Rs. {formatAmount(getInvoiceAmount(item))}</Text>
-          </Text>
+          <View style={[styles.cardRight, {flex: 0.4, alignItems: 'flex-start'}]}>
+            {isPartial ? (
+              <Text style={[styles.pendingText, {color: '#ff9b00'}]} numberOfLines={1}>
+                Pending Amt :{' '}
+                <Text style={[styles.detailBold, {color: THEME_PRIMARY, fontSize: sp(12)}]}>
+                  ₹ {formatAmount(Number((item as any).RemainingAmount ?? 0))}
+                </Text>
+              </Text>
+            ) : null}
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -332,10 +411,13 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
 
   const renderEmpty = () =>
     isInitialLoading ? null : (
+      // Java: ic_noresultfound, 200x200, centred.
       <View style={styles.emptyBox}>
-        <Text style={styles.emptyText}>
-          No {activeTab === 'quotation' ? 'quotations' : 'invoices'} found.
-        </Text>
+        <Image
+          source={require('../../../assets/images/noresultfound.png')}
+          style={styles.emptyImage}
+          resizeMode="contain"
+        />
       </View>
     );
 
@@ -347,6 +429,10 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
         initialStatusLabel={selectedQuotationStatus}
         onBack={() => setSelectedQuotationId(null)}
         onDeleted={() => {
+          setSelectedQuotationId(null);
+          fetchPage({nextPage: PAGE_START, replace: true});
+        }}
+        onUpdated={() => {
           setSelectedQuotationId(null);
           fetchPage({nextPage: PAGE_START, replace: true});
         }}
@@ -366,12 +452,16 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
           setSelectedInvoiceId(null);
           fetchPage({nextPage: PAGE_START, replace: true});
         }}
+        onUpdated={() => {
+          setSelectedInvoiceId(null);
+          fetchPage({nextPage: PAGE_START, replace: true});
+        }}
       />
     );
   }
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, {paddingTop: vs(11)}]}>
       {/* The menu/title/notification row used to be drawn here; it's now
           the shared AppHeader rendered once by AdminTabs, above
           AdminHomeScreen (which this screen is embedded in). */}
@@ -385,35 +475,29 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
       />
 
       <View style={styles.searchRow}>
-        <View style={styles.searchInputWrap}>
-          <Text style={styles.searchIcon}>{'\uD83D\uDD0D'}</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Customer Name,Quote Id"
-            placeholderTextColor="#9aa0a6"
-            value={searchText}
-            onChangeText={setSearchText}
-            onSubmitEditing={submitSearch}
-            returnKeyType="search"
-          />
-          {searchText ? (
-            <TouchableOpacity onPress={clearSearch}>
-              <Text style={styles.searchClearIcon}>{'\u2715'}</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-        {activeTab === 'quotation' ? (
-          <TouchableOpacity style={styles.addQuoteButton} onPress={() => setIsAddQuoteModalOpen(true)}>
-            <Text style={styles.addQuoteButtonText}>+ Quote</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.addQuoteButton} onPress={() => setIsAddInvoiceModalOpen(true)}>
-            <Text style={styles.addQuoteButtonText}>+ Invoice</Text>
-          </TouchableOpacity>
-        )}
+        <UnderlineSearch
+          value={searchText}
+          onChangeText={v => {
+            setSearchText(v);
+            if (!v.trim() && submittedSearch) setSubmittedSearch('');
+          }}
+          onSubmitEditing={submitSearch}
+          maxLength={10}
+          fontSize={sp(16)}
+          placeholder={activeTab === 'quotation' ? 'Customer Name,Quote Id' : 'Search By Invoice Id, Customer name'}
+          style={styles.searchFlex}
+        />
+        <TouchableOpacity
+          style={styles.addQuoteButton}
+          onPress={() => (activeTab === 'quotation' ? setIsAddQuoteModalOpen(true) : setIsAddInvoiceModalOpen(true))}>
+          <Text style={styles.addQuoteButtonText}>{activeTab === 'quotation' ? '+ Quote' : '+ Invoice'}</Text>
+        </TouchableOpacity>
       </View>
 
-      <Pressable style={styles.statusSelector} onPress={() => setIsStatusModalOpen(true)}>
+      <Pressable
+        style={styles.statusSelector}
+        onLayout={e => setStatusSelectorY(e.nativeEvent.layout.y)}
+        onPress={() => setIsStatusModalOpen(true)}>
         <Text style={styles.statusSelectorText} numberOfLines={1}>
           {selectedStatus.label}
         </Text>
@@ -464,27 +548,21 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
       )}
 
       {isStatusModalOpen ? (
+        // Java: a plain Spinner dropdown (simple_spinner_dropdown_item) anchored over the spinner,
+        // no title and no dimmed backdrop.
         <Pressable style={styles.statusModalOverlay} onPress={() => setIsStatusModalOpen(false)}>
-          <View style={styles.statusModalSheet}>
-            <Text style={styles.statusModalTitle}>{t('select_status')}</Text>
+          <View style={[styles.statusModalSheet, {top: statusSelectorY}]}>
             {statusOptions.map(option => (
               <TouchableOpacity
                 key={option.id}
-                style={[
-                  styles.statusModalItem,
-                  option.id === selectedStatus.id ? styles.statusModalItemActive : null,
-                ]}
+                style={styles.statusModalItem}
                 onPress={() => {
                   setSelectedStatus(option);
+                  setSearchText('');
+                  setSubmittedSearch('');
                   setIsStatusModalOpen(false);
                 }}>
-                <Text
-                  style={[
-                    styles.statusModalItemText,
-                    option.id === selectedStatus.id ? styles.statusModalItemTextActive : null,
-                  ]}>
-                  {option.label}
-                </Text>
+                <Text style={styles.statusModalItemText}>{option.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -563,12 +641,14 @@ const styles = StyleSheet.create({
     width: '60%',
     backgroundColor: THEME_PRIMARY,
   },
+  searchFlex: {flex: 1},
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: scale(12),
-    paddingVertical: vs(10),
-    gap: scale(8),
+    paddingLeft: scale(20),
+    paddingRight: scale(16),
+    paddingTop: vs(15.5),
+    gap: scale(12),
     backgroundColor: '#FFFFFF',
   },
   searchInputWrap: {
@@ -599,50 +679,47 @@ const styles = StyleSheet.create({
   },
   addQuoteButton: {
     backgroundColor: '#1c1c1e',
-    paddingHorizontal: scale(14),
-    height: vs(40),
-    minHeight: vs(36),
-    borderRadius: scale(20),
+    width: scale(60),
+    height: scale(30),
+    borderRadius: scale(10),
     alignItems: 'center',
     justifyContent: 'center',
   },
   addQuoteButtonText: {
     color: '#FFFFFF',
-    fontSize: sp(13),
-    fontWeight: '700',
+    fontSize: sp(12),
   },
   statusSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: scale(16),
+    paddingHorizontal: scale(20),
     paddingVertical: vs(10),
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eceef0',
   },
   statusSelectorText: {
-    fontSize: sp(13),
-    color: '#222',
-    fontWeight: '600',
-    marginRight: scale(6),
+    fontSize: sp(16),
+    color: '#000',
+    marginRight: scale(20),
     flexShrink: 1,
   },
   statusSelectorChevron: {
-    fontSize: sp(14),
-    color: '#8a8f98',
+    fontSize: sp(22),
+    color: THEME_PRIMARY,
   },
   listContent: {
     padding: scale(12),
-    paddingBottom: vs(24),
+    paddingTop: vs(4),
+    paddingBottom: vs(110),
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: scale(20),
-    padding: scale(12),
-    marginBottom: vs(10),
+    borderRadius: scale(10),
+    marginBottom: vs(14),
+    marginHorizontal: scale(4),
     borderWidth: 1,
-    borderColor: '#eceef0',
-    elevation: 2,
+    borderColor: '#eeeeee',
+    overflow: 'hidden',
+    elevation: 4,
   },
   cardTopRow: {
     flexDirection: 'row',
@@ -650,61 +727,83 @@ const styles = StyleSheet.create({
     marginBottom: vs(8),
   },
   badge: {
-    borderRadius: scale(4),
-    paddingHorizontal: scale(8),
+    borderBottomRightRadius: scale(10),
+    paddingHorizontal: scale(15),
     paddingVertical: vs(3),
     flexShrink: 0,
+    alignSelf: 'flex-start',
   },
   badgeText: {
     color: '#FFFFFF',
     fontSize: sp(9),
-    fontWeight: '700',
   },
   quoteCode: {
-    flex: 1,
-    textAlign: 'right',
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: vs(5),
+    textAlign: 'center',
     color: BLUE_CODE,
     fontSize: sp(12),
     fontWeight: '700',
-    marginRight: scale(8),
-    marginLeft: scale(6),
   },
   dateText: {
-    color: '#8a8f98',
+    position: 'absolute',
+    right: scale(8),
+    top: vs(5),
+    color: '#535353',
     fontSize: sp(11),
-    flexShrink: 0,
+    fontWeight: '700',
+  },
+  cardBody: {
+    flexDirection: 'row',
+    marginHorizontal: scale(10),
+  },
+  cardLeft: {
+    marginTop: vs(5),
+    marginBottom: vs(14),
+  },
+  cardRight: {
+    marginTop: vs(5),
+    marginBottom: vs(14),
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
   },
   cardTitle: {
-    color: '#111111',
-    fontSize: sp(15),
+    color: '#1d2536',
+    fontSize: sp(16),
     fontWeight: '700',
-    marginBottom: vs(6),
+    paddingLeft: scale(5),
+    marginBottom: vs(1),
   },
-  cardMetaRow: {
+  detailLine: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: scale(8),
+    alignItems: 'center',
+    marginTop: vs(5),
   },
-  metaLabel: {
-    color: '#6b7280',
+  detailLabel: {
+    color: '#1d2536',
     fontSize: sp(12),
-    flexShrink: 0,
+    paddingLeft: scale(5),
   },
-  metaLabelCustomer: {
-    flex: 1,
-    flexShrink: 1,
+  detailValue: {
+    fontSize: sp(12),
+    paddingLeft: scale(10),
   },
-  metaCustomer: {
-    color: CORAL_NAME,
-    fontWeight: '600',
-  },
-  metaAmount: {
-    color: GREEN_AMOUNT,
+  detailBold: {
     fontWeight: '700',
+  },
+  pendingText: {
+    fontSize: sp(12),
   },
   emptyBox: {
     paddingTop: vs(60),
     alignItems: 'center',
+  },
+  emptyImage: {
+    width: scale(200),
+    height: scale(200),
+    marginBottom: vs(30),
   },
   emptyText: {
     color: '#8a8f98',
@@ -725,37 +824,23 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'center',
-    paddingHorizontal: scale(40),
   },
   statusModalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: scale(10),
-    padding: scale(16),
-  },
-  statusModalTitle: {
-    fontSize: sp(15),
-    fontWeight: '700',
-    color: '#111111',
-    marginBottom: vs(12),
-    textAlign: 'center',
+    position: 'absolute',
+    left: scale(10),
+    minWidth: scale(150),
+    backgroundColor: '#FAFAFA',
+    borderRadius: 2,
+    elevation: 8,
   },
   statusModalItem: {
-    paddingVertical: vs(12),
-    borderRadius: scale(8),
-    paddingHorizontal: scale(12),
-  },
-  statusModalItemActive: {
-    backgroundColor: '#fdecef',
+    height: vs(48),
+    justifyContent: 'center',
+    paddingHorizontal: scale(8),
   },
   statusModalItemText: {
-    fontSize: sp(14),
-    color: '#222',
-  },
-  statusModalItemTextActive: {
-    color: THEME_PRIMARY,
-    fontWeight: '700',
+    fontSize: sp(16),
+    color: '#000',
   },
 });
 

@@ -16,6 +16,8 @@ import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {OutlinedInput} from '../../components/OutlinedInput';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
+import {FieldErrorDot, FieldErrorTip} from '../../components/BottomSheetDialog';
+import AddQuotePreview, {type QuotePreviewData} from '../../components/AddQuotePreview';
 import DateTimePicker, {type DateTimePickerChangeEvent} from '@react-native-community/datetimepicker';
 import {pick} from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
@@ -38,7 +40,7 @@ import {getCurrentUserId, isIndiaCountryDetailsId} from '../../state/session';
 import {getCustomerList} from '../../api/customerList/customerListService';
 import type {CustomerListResultData} from '../../api/customerList/customerList.types';
 import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
-import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
@@ -73,6 +75,8 @@ type ItemRow = {
   itemName: string;
   quantity: string;
   price: string;
+  /** Master sales price, so price (the row total) can follow the quantity (Java AddInvoiceItemsAdminAdapter). */
+  unitPrice: number;
 };
 
 const getTodayDateString = () => {
@@ -82,6 +86,9 @@ const getTodayDateString = () => {
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
+// Java String.valueOf(double): 1233 -> "1233.0", 12.5 -> "12.5".
+const javaDouble = (n: number) => (Number.isInteger(n) ? n.toFixed(1) : String(n));
 
 const makeRowId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -177,7 +184,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     {id: makeRowId(), serviceTypeId: null, serviceTypeName: '', quantity: '', price: ''},
   ]);
   const [itemRows, setItemRows] = useState<ItemRow[]>([
-    {id: makeRowId(), itemId: null, itemName: '', quantity: '', price: ''},
+    {id: makeRowId(), itemId: null, itemName: '', quantity: '', price: '', unitPrice: 0},
   ]);
 
   const [discountPercent, setDiscountPercent] = useState('');
@@ -204,6 +211,14 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Java EditText.setError: one field at a time carries the red "!" and tooltip until edited.
+  const [errorField, setErrorField] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  const showFieldError = (field: string, message: string) => {
+    setErrorField(field);
+    setErrorMsg(message);
+  };
+  const clearError = (field: string) => setErrorField(prev => (prev === field ? null : prev));
 
   const resetForm = useCallback(() => {
     setQuoteName('');
@@ -220,7 +235,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     setSuggestFor(null);
     setActiveSection('service');
     setServiceRows([{id: makeRowId(), serviceTypeId: null, serviceTypeName: '', quantity: '', price: ''}]);
-    setItemRows([{id: makeRowId(), itemId: null, itemName: '', quantity: '', price: ''}]);
+    setItemRows([{id: makeRowId(), itemId: null, itemName: '', quantity: '', price: '', unitPrice: 0}]);
     setDiscountPercent('');
     setTaxPercent('');
     setExtraName('');
@@ -231,6 +246,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     setTaxMode(0);
     setTaxName('');
     setIsPreviewOpen(false);
+    setErrorField(null);
     setReceivedAmount('');
     setSelectedPaymentType(null);
     setOpenDropdownKey(null);
@@ -323,8 +339,8 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   };
 
   const addServiceRow = () => {
-    if (technician && serviceRows.length >= TECH_MAX_ROWS) {
-      showFailureMsg('Not allowed');
+    if (serviceRows.length >= TECH_MAX_ROWS) {
+      showToast(t('not_allowed'));
       return;
     }
     setServiceRows(prev => [
@@ -341,19 +357,92 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     );
   };
 
+  // Java AddInvoiceItemsAdminAdapter.levelOneValidation: warns when no item is picked yet but still adds the row,
+  // unless the price is a literal zero.
   const addItemRow = () => {
-    if (technician && itemRows.length >= TECH_MAX_ROWS) {
-      showFailureMsg('Not allowed');
+    if (itemRows.length >= TECH_MAX_ROWS) {
+      showToast(t('not_allowed'));
       return;
     }
-    setItemRows(prev => [...prev, {id: makeRowId(), itemId: null, itemName: '', quantity: '', price: ''}]);
+    if (!technician) {
+      const last = itemRows[itemRows.length - 1];
+      if (!last?.itemId) {
+        showToast('Please Select an Item!!');
+      }
+      if (['0', '00', '000'].includes((last?.price ?? '').trim())) {
+        showToast('Price should not be Zero!!');
+        return;
+      }
+    }
+    setItemRows(prev => [...prev, {id: makeRowId(), itemId: null, itemName: '', quantity: '', price: '', unitPrice: 0}]);
   };
 
   const removeItemRow = (id: string) => {
+    if (!technician && itemRows.length === 1) {
+      showToast('At least one item is required');
+      return;
+    }
     setItemRows(prev =>
       prev.length > 1
         ? prev.filter(row => row.id !== id)
-        : prev.map(row => ({ ...row, itemId: null, itemName: '', quantity: '', price: '' })),
+        : prev.map(row => ({ ...row, itemId: null, itemName: '', quantity: '', price: '', unitPrice: 0 })),
+    );
+  };
+
+  // Java AddQuoteServiceAdapter: qty is a whole number (max 3 digits); typing it sets the row price to
+  // qty x the service's master price; the price box is a free decimal (max 3 places, 9 chars).
+  const onServiceQtyChange = (rowId: string, text: string) => {
+    const qty = text.replace(/[^0-9]/g, '').slice(0, 3);
+    if (qty && /^0+$/.test(qty)) {
+      showToast('Qty should not be zero!!');
+    }
+    setServiceRows(prev =>
+      prev.map(r => {
+        if (r.id !== rowId) {
+          return r;
+        }
+        if (!qty) {
+          return {...r, quantity: ''};
+        }
+        return r.serviceTypeId
+          ? {...r, quantity: qty, price: javaDouble(Number(qty) * masterServicePrice(r.serviceTypeId))}
+          : {...r, quantity: qty};
+      }),
+    );
+  };
+
+  const onServicePriceChange = (rowId: string, text: string) => {
+    if (!/^\d*(\.\d{0,3})?$/.test(text)) {
+      return;
+    }
+    setServiceRows(prev => prev.map(r => (r.id === rowId ? {...r, price: text.slice(0, 9)} : r)));
+  };
+
+  const onServicePriceBlur = (rowId: string) => {
+    setServiceRows(prev =>
+      prev.map(r => {
+        if (r.id !== rowId || !r.price.trim()) {
+          return r;
+        }
+        const d = Number(r.price);
+        return {...r, price: Number.isFinite(d) ? d.toFixed(3) : ''};
+      }),
+    );
+  };
+
+  // Java admin item row: qty (max 3 digits) x the item's sales price fills the disabled price box.
+  const onItemQtyChange = (rowId: string, text: string) => {
+    const qty = text.replace(/[^0-9]/g, '').slice(0, 3);
+    setItemRows(prev =>
+      prev.map(r => {
+        if (r.id !== rowId) {
+          return r;
+        }
+        if (!qty) {
+          return {...r, quantity: ''};
+        }
+        return r.itemId ? {...r, quantity: qty, price: javaDouble(Number(qty) * r.unitPrice)} : {...r, quantity: qty};
+      }),
     );
   };
 
@@ -363,7 +452,17 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
   const handlePickAttachment = async () => {
     try {
-      const [file] = await pick({type: ['*/*']});
+      const [file] = await pick({
+        type: [
+          'image/jpeg',
+          'image/png',
+          'application/pdf',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/zip',
+          'text/plain',
+        ],
+      });
       if (!file) {
         return;
       }
@@ -441,23 +540,27 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       .finally(() => setIsLoadingTaxes(false));
   };
 
+  // Java: only rows with a service and qty > 0 count; the price box already holds the row total.
   const serviceTotal = useMemo(
     () =>
       serviceRows.reduce(
-        // Technician: the price box holds the row total (qty x master price), as in Java's
-        // AddQuoteServiceAdapter; admin keeps a unit price.
-        (sum, row) => sum + (Number(row.price) || 0) * (technician ? 1 : Number(row.quantity) || 1),
+        (sum, row) => (row.serviceTypeId && Number(row.quantity) > 0 ? sum + (Number(row.price) || 0) : sum),
         0,
       ),
-    [serviceRows, technician],
+    [serviceRows],
   );
 
   const masterServicePrice = (serviceTypeId: number | null) =>
     Number(serviceTypes.find(s => getServiceTypeId(s) === serviceTypeId)?.Price) || 0;
 
   const itemTotal = useMemo(
-    () => itemRows.reduce((sum, row) => sum + (Number(row.price) || 0) * (Number(row.quantity) || 1), 0),
-    [itemRows],
+    () =>
+      itemRows.reduce(
+        (sum, row) =>
+          row.itemId ? sum + (Number(row.price) || 0) * (technician ? Number(row.quantity) || 1 : 1) : sum,
+        0,
+      ),
+    [itemRows, technician],
   );
 
   const extraTotal = Number(extraPrice) || 0;
@@ -514,99 +617,199 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     return null;
   };
 
-  const handleSave = async (confirmed = false) => {
-    if (technician) {
-      const problem = validateTechnician();
-      if (problem) {
-        showFailureMsg(problem);
-        return;
-      }
-    } else if (!quoteName.trim()) {
-      showFailureMsg(`Please enter ${docLabel} Name.`);
-      return;
+  // Java addQuote / addInvoice validation chain (strings.xml messages). Returns false after flagging the field.
+  const validateAdmin = (): boolean => {
+    const leadingSpace = (v: string) => /^\s/.test(v) || !v.trim();
+    if (!quoteName) {
+      showFieldError('name', t('please_enter_task_name'));
+      return false;
+    }
+    if (leadingSpace(quoteName)) {
+      showFieldError('name', t('space_is_not_allowed'));
+      return false;
+    }
+    if (customerName && leadingSpace(customerName)) {
+      showFieldError('customer', t('space_is_not_allowed'));
+      return false;
+    }
+    if (!address) {
+      showFieldError('address', t('please_enter_address'));
+      return false;
+    }
+    if (!landmark) {
+      showFieldError('landmark', t('please_enter_landmark'));
+      return false;
+    }
+    if (leadingSpace(landmark)) {
+      showFieldError('landmark', t('space_is_not_allowed'));
+      return false;
+    }
+    if (!quoteDate.trim()) {
+      showFieldError('date', t('please_enter_date'));
+      return false;
     }
     if (!validityDate.trim()) {
-      showFailureMsg('Please enter Validity Date.');
-      return;
+      showFieldError('validity', t('please_enter_date'));
+      return false;
     }
-    if (!customerName.trim()) {
-      showFailureMsg('Please enter Customer Name.');
-      return;
+    if (!(Number(customerLat) || 0) || !(Number(customerLng) || 0)) {
+      showFieldError('address', t('please_enter_address'));
+      showToast(t('please_enter_address_correctly'));
+      return false;
     }
-    if (!address.trim()) {
-      showFailureMsg('Please enter Address.');
-      return;
+    if (extraName && !extraPrice) {
+      showFieldError('extraPrice', 'Please Enter Price');
+      return false;
     }
-    if (!landmark.trim()) {
-      showFailureMsg('Please enter Landmark.');
-      return;
+    if (quoteDate.trim() > validityDate.trim()) {
+      showToast('Validity Date should not be less than Quote Date!');
+      return false;
     }
-    if (!phoneNumber.trim()) {
-      showFailureMsg('Please enter Phone Number.');
-      return;
+    if (!serviceRows.some(r => r.serviceTypeId && Number(r.quantity) > 0)) {
+      showToast('Please add a Service!', true);
+      return false;
     }
+    const phone = phoneNumber.trim();
+    const invalidPhone = () => {
+      showFieldError('phone', t('please_enter_valid_number'));
+      return false;
+    };
+    if (!phone || Number(phone) === 0) {
+      return invalidPhone();
+    }
+    if (isIndiaCountryDetailsId() ? !/^\d{10,12}$/.test(phone) : phone.length <= 6) {
+      return invalidPhone();
+    }
+    if (itemRows.some(r => r.itemId && !(Number(r.quantity) > 0))) {
+      showToast('Item Qty. cannot be zero');
+      return false;
+    }
+    return true;
+  };
 
-    const quoteServiceList: SaveQuotationServiceRequest[] = serviceRows
-      // Java (technician): only rows with a service and qty > 0 are kept.
-      .filter(row => row.serviceTypeId && (!technician || Number(row.quantity) > 0))
-      .map(row => ({
-        ServiceId: row.serviceTypeId ?? undefined,
-        ServiceName: row.serviceTypeName,
-        Quantity: Number(row.quantity) || 1,
-        Price: Number(row.price) || 0,
-        ...(technician ? {TotalPrice: Number(row.price) || 0} : {}),
-      }));
+  // Java viewAndSaveQuote / viewAndSaveSelfInvoice: the totals block of the preview.
+  const totals = useMemo(() => {
+    const subTotal = serviceTotal + itemTotal + extraTotal;
+    const discPct = Math.trunc(Number(discountPercent)) || 0;
+    const discAmt = subTotal * (discPct / 100);
+    const afterDisc = subTotal - discAmt;
+    const taxPct = taxMode === 1 ? Number(taxPercent) || 0 : 0;
+    const taxBase = afterDisc !== 0 ? afterDisc : subTotal;
+    const gst = taxMode === 1 ? taxBase * (taxPct / 100) : 0;
+    const grand = (taxMode === 1 ? taxBase : afterDisc) + gst;
+    return {subTotal, discPct, discAmt, afterDisc, taxPct, gst, grand};
+  }, [serviceTotal, itemTotal, extraTotal, discountPercent, taxMode, taxPercent]);
 
-    const quoteItemList: SaveQuotationItemRequest[] = itemRows
-      .filter(row => row.itemId)
-      .map(row => ({
-        ItemId: row.itemId ?? undefined,
-        ItemName: row.itemName,
-        Quantity: Number(row.quantity) || 1,
-        UnitPrice: Number(row.price) || 0,
-        ...(technician
-          ? {TotalPrice: (Number(row.quantity) || 1) * (Number(row.price) || 0)}
-          : {}),
-      }));
-
-    // Java's admin add-quote flow (AddUpdateServiceDialog#addQuote) always sends
-    // exactly one QuoteTaxList entry carrying discount % and tax %, even though
-    // the UI only exposes one pair of fields — mirror that here instead of
-    // dropping the values the user typed.
-    const quoteTaxList: SaveQuotationDTOQuoteTaxList[] = [
-      {
-        Discount: Math.trunc(Number(discountPercent)) || 0,
-        TaxAmount: taxMode === 1 ? Number(taxPercent) || 0 : 0,
-        TaxName: taxMode === 1 ? taxName : '',
-        WithoutTax: taxMode,
-        CreatedBy: ownerId,
-      },
+  const previewData: QuotePreviewData = useMemo(() => {
+    const lines = [
+      ...serviceRows
+        .filter(r => r.serviceTypeId && Number(r.quantity) > 0)
+        .map(r => {
+          const qty = Number(r.quantity);
+          const total = Number(r.price) || 0;
+          return {name: r.serviceTypeName, qty, unit: total / qty, total};
+        }),
+      ...itemRows
+        .filter(r => r.itemId)
+        .map(r => {
+          const qty = Number(r.quantity) || 0;
+          const total = technician ? qty * (Number(r.price) || 0) : Number(r.price) || 0;
+          return {name: r.itemName, qty, unit: technician ? Number(r.price) || 0 : r.unitPrice, total};
+        }),
+      ...(extraName.trim() && extraTotal !== 0
+        ? [{name: extraName.trim(), qty: 1, unit: extraTotal, total: extraTotal}]
+        : []),
     ];
+    const money = (n: number) => `₹ ${n.toFixed(3)}`;
+    return {
+      customerName: customerName.trim(),
+      mobile: phoneNumber.trim(),
+      address: address.trim(),
+      landmark: landmark.trim(),
+      flat: buildingFlatNumber.trim(),
+      createdDate: quoteDate,
+      validityDate: validityDate.trim(),
+      lines,
+      subTotal: money(totals.subTotal),
+      discount: totals.discPct !== 0 ? `${money(totals.discAmt)} (${javaDouble(totals.discPct)}%)` : '₹ 0.00',
+      amountAfterDiscount: money(totals.afterDisc),
+      taxName: taxMode === 1 ? taxName : '',
+      tax: taxMode === 1 ? `${money(totals.gst)} (${javaDouble(totals.taxPct)}%)` : '₹ 0.00',
+      grandTotal: money(totals.grand),
+      terms: termCondition.trim(),
+    };
+  }, [
+    serviceRows, itemRows, technician, extraName, extraTotal, customerName, phoneNumber, address, landmark,
+    buildingFlatNumber, quoteDate, validityDate, totals, taxMode, taxName, termCondition,
+  ]);
 
+  const [receivedError, setReceivedError] = useState('');
+
+  // Java preview Save for an invoice: amount received + payment transaction type checks.
+  const onPreviewSave = () => {
+    if (isInvoice) {
+      if (!receivedAmount.trim()) {
+        setReceivedError(t('please_enter_amount'));
+        return;
+      }
+      if (!selectedPaymentType) {
+        showToast('Please select Payment Transaction Type', true);
+        return;
+      }
+      if (Number(receivedAmount) > totals.grand) {
+        showToast('Entered Amount is greater than Grand Total Amount', true);
+        return;
+      }
+    }
+    handleSave(true);
+  };
+
+  const handleSave = async (confirmed = false) => {
     if (!confirmed) {
-      // Java's "Save & View": show the summary first, save from there.
+      if (technician) {
+        const problem = validateTechnician();
+        if (problem) {
+          showFailureMsg(problem);
+          return;
+        }
+      } else if (!validateAdmin()) {
+        return;
+      }
+      setReceivedError('');
       setIsPreviewOpen(true);
       return;
     }
 
-    if (isInvoice) {
-      // Same checks as Java's invoice preview dialog.
-      if (!receivedAmount.trim()) {
-        showFailureMsg('Please enter amount received.');
-        setIsPreviewOpen(true);
-        return;
-      }
-      if (!selectedPaymentType) {
-        showFailureMsg('Please select Payment Transaction Type');
-        setIsPreviewOpen(true);
-        return;
-      }
-      if (Number(receivedAmount) > grandTotal) {
-        showFailureMsg('Entered Amount is greater than Grand Total Amount');
-        setIsPreviewOpen(true);
-        return;
-      }
-    }
+    // Java: only rows with a service and qty > 0 are posted; price already holds the row total.
+    const quoteServiceList: SaveQuotationServiceRequest[] = serviceRows
+      .filter(row => row.serviceTypeId && Number(row.quantity) > 0)
+      .map(row => ({
+        ServiceId: row.serviceTypeId ?? undefined,
+        ServiceName: row.serviceTypeName,
+        Quantity: Number(row.quantity),
+        Price: Number(row.price) || 0,
+        TotalPrice: Number(row.price) || 0,
+      }));
+
+    const quoteItemList: SaveQuotationItemRequest[] = itemRows
+      .filter(row => row.itemId)
+      .map(row =>
+        technician
+          ? {
+              ItemId: row.itemId ?? undefined,
+              ItemName: row.itemName,
+              Quantity: Number(row.quantity) || 1,
+              UnitPrice: Number(row.price) || 0,
+              TotalPrice: (Number(row.quantity) || 1) * (Number(row.price) || 0),
+            }
+          : {
+              ItemId: row.itemId ?? undefined,
+              ItemName: row.itemName,
+              Quantity: Number(row.quantity) || 0,
+              UnitPrice: row.unitPrice,
+              TotalPrice: Number(row.price) || 0,
+            },
+      );
 
     const nowIso = new Date().toISOString().slice(0, 19);
 
@@ -714,45 +917,76 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         return;
       }
 
+      // Java viewAndSaveQuote / viewAndSaveSelfInvoice: CreatedDate / QuoteTime are the moment of saving
+      // (the picked quote date only feeds the validation), ValidityDate is the picked date.
+      const userId = ownerId;
+      const d = new Date();
+      const localNow =
+        `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T` +
+        `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+      const stamp = `${localNow}.701Z`;
       const requestBody = {
-        UserId: ownerId,
-        CreatedBy: ownerId,
-        UpdatedBy: ownerId,
+        IsActive: true,
+        UserId: userId,
+        CreatedBy: userId,
+        UpdatedBy: userId,
         StatusId: 2, // Not Assigned — matches the Java admin create-quote default
-        QuoteName: quoteName.trim(),
-        CreatedDate: `${quoteDate}T00:00:00`,
-        QuoteTime: nowIso,
-        ValidityDate: `${validityDate.trim()}T00:00:00`,
+        QuoteName: quoteName,
+        CreatedDate: stamp,
+        QuoteTime: stamp,
+        ValidityDate: `${validityDate.trim()}T00:00:00.701Z`,
+        CustomerId: customerId,
         Customer: {
-          CustomerName: customerName.trim(),
+          CustomerName: customerName,
+          CustomerDetailsid: customerId,
           MobileNumber: phoneNumber.trim(),
           IsActive: true,
           LocationList: {
-            Address: address.trim(),
-            BuildingNumber: buildingFlatNumber.trim(),
-            Description: landmark.trim(),
+            Name: '',
+            latitude: customerLat,
+            Longitude: customerLng,
+            Description: landmark,
+            Address: address,
+            BuildingNumber: buildingFlatNumber,
+            // Java: the invoice save sends 0 here, the quote save the user's ID.
+            CreatedBy: isInvoice ? 0 : userId,
+            CreatedDate: stamp,
             IsActive: true,
           },
         },
-        ExtraItem: extraName.trim(),
-        ExtraAmount: Number(extraPrice) || 0,
-        TermCondition: termCondition.trim(),
-        TotalAmount: serviceTotal + itemTotal + extraTotal,
-        GrandTotalAmount: grandTotal,
-        QuoteServiceList: quoteServiceList,
-        QuoteItemList: quoteItemList,
-        QuoteTaxList: quoteTaxList,
+        ExtraItem: extraName,
+        ExtraAmount: extraTotal,
+        TermCondition: termCondition,
+        TotalAmount: totals.subTotal,
+        GrandTotalAmount: totals.grand,
+        QuoteServiceList: quoteServiceList.map(sv => ({
+          ...sv,
+          CreatedBy: userId,
+          UpdatedBy: userId,
+          CreatedDate: stamp,
+          IsActive: true,
+        })),
+        QuoteItemList: quoteItemList.map(it => ({...it, CreatedDate: stamp, IsActive: true})),
+        // Java stores the amount after discount in DiscountAmounnt and the tax amount in TaxAmount.
+        QuoteTaxList: [
+          {
+            Discount: totals.discPct,
+            DiscountAmounnt: totals.afterDisc,
+            Tax: totals.taxPct,
+            TaxAmount: totals.gst,
+            WithoutTax: taxMode,
+            CreatedBy: userId,
+            CreatedDate: stamp,
+            UserId: userId,
+            IsActive: true,
+          },
+        ],
       };
 
       if (isInvoice) {
-        // Java's SelfInvoiceCreate: ".701Z" timestamps, received amount and
-        // payment transaction type; the SLA strings are quote-only.
         ensureSuccess(
           await selfInvoiceCreation({
             ...requestBody,
-            CreatedDate: `${nowIso}.701Z`,
-            QuoteTime: `${nowIso}.701Z`,
-            ValidityDate: `${validityDate.trim()}T00:00:00.701Z`,
             ReceivedAmount: Number(receivedAmount) || 0,
             PaymentTransactionTypeId: selectedPaymentType?.id ?? 0,
           } as unknown as Parameters<typeof selfInvoiceCreation>[0]),
@@ -763,11 +997,11 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
             ...requestBody,
             SLAAttachmentName: attachedFileName,
             SLAAttachmentBase64: attachedFileBase64,
-          }),
+          } as unknown as Parameters<typeof postQuotationDetails>[0]),
         );
       }
 
-      showSuccessMsg(`${docLabel} saved successfully.`);
+      showSuccessMsg(isInvoice ? 'Invoice Created Successfully.' : 'Quotation Created Successfully.');
       onSuccess?.();
       handleClose();
     } catch (error) {
@@ -831,11 +1065,8 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   const selectServiceType = (rowId: string, item: LeadServiceTypeItem) => {
     const typeId = getServiceTypeId(item);
     const typeName = getServiceTypeName(item);
-    if (
-      technician &&
-      serviceRows.some(r => r.id !== rowId && r.serviceTypeName.toLowerCase() === typeName.toLowerCase())
-    ) {
-      showFailureMsg('Same Service name not allowed!');
+    if (serviceRows.some(r => r.id !== rowId && r.serviceTypeName.toLowerCase() === typeName.toLowerCase())) {
+      showToast('Same Service name not allowed!');
       return;
     }
     setServiceRows(prev =>
@@ -845,8 +1076,8 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               ...r,
               serviceTypeId: typeId,
               serviceTypeName: typeName,
-              // Java (technician): picking a service fills its master price.
-              ...(technician ? {price: String(Number(item.Price) || 0)} : {}),
+              // A quantity already typed prices the row against the picked service.
+              ...(Number(r.quantity) > 0 ? {price: javaDouble(Number(r.quantity) * (Number(item.Price) || 0))} : {}),
             }
           : r,
       ),
@@ -857,14 +1088,26 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     const id = getItemId(item);
     const name = getItemName(item);
     const price = getItemPrice(item);
-    if (technician && itemRows.some(r => r.id !== rowId && r.itemName.toLowerCase() === name.toLowerCase())) {
-      showFailureMsg('Same Item name not allowed!');
+    if (itemRows.some(r => r.id !== rowId && r.itemName.toLowerCase() === name.toLowerCase())) {
+      showToast('Same Item name not allowed!');
       return;
     }
     setItemRows(prev =>
-      prev.map(r =>
-        r.id === rowId ? {...r, itemId: id, itemName: name, price: r.price ? r.price : String(price || '')} : r,
-      ),
+      prev.map(r => {
+        if (r.id !== rowId) {
+          return r;
+        }
+        if (technician) {
+          return {...r, itemId: id, itemName: name, unitPrice: price, price: r.price ? r.price : String(price || '')};
+        }
+        return {
+          ...r,
+          itemId: id,
+          itemName: name,
+          unitPrice: price,
+          price: Number(r.quantity) > 0 ? javaDouble(Number(r.quantity) * price) : r.price,
+        };
+      }),
     );
   };
 
@@ -873,206 +1116,225 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       <Text
         style={row.serviceTypeName ? styles.dropdownValueText : styles.dropdownPlaceholderText}
         numberOfLines={1}>
-        {isLoadingServiceTypes ? 'Loading...' : row.serviceTypeName || 'Select Service Type'}
+        {isLoadingServiceTypes ? 'Loading...' : row.serviceTypeName || t('select_service_type')}
       </Text>
       <Ionicons name="chevron-down" style={styles.dropdownChevron} />
     </Pressable>
   );
 
-  const renderItemDropdown = (row: ItemRow) => (
-    <Pressable style={styles.dropdownField} onPress={() => setOpenDropdownKey(`item-${row.id}`)}>
+  const renderItemDropdown = (row: ItemRow, flex = 3) => (
+    <Pressable style={[styles.dropdownField, {flex}]} onPress={() => setOpenDropdownKey(`item-${row.id}`)}>
       <Text style={row.itemName ? styles.dropdownValueText : styles.dropdownPlaceholderText} numberOfLines={1}>
-        {isLoadingItems ? 'Loading...' : row.itemName || 'Select Item'}
+        {isLoadingItems ? 'Loading...' : row.itemName || (technician ? 'Select Item' : 'Select')}
       </Text>
       <Ionicons name="chevron-down" style={styles.dropdownChevron} />
     </Pressable>
   );
+
+  // Java EditText.setError: red outline, red "!" in the field and a tooltip with the message.
+  const ErrorMark = () => (
+    <>
+      <View style={styles.errorDot}>
+        <Text style={styles.errorDotText}>!</Text>
+      </View>
+      <FieldErrorTip message={errorMsg} bottom={ms(66)} />
+    </>
+  );
+  const isErr = (field: string) => errorField === field;
 
   const pickerKind = openDropdownKey?.startsWith('service-') ? 'service' : openDropdownKey?.startsWith('item-') ? 'item' : null;
   const pickerRowId = openDropdownKey ? openDropdownKey.replace(/^(service|item)-/, '') : '';
 
+  const showAttach = !isInvoice && !technician;
+  const adminItems = !technician;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={() => (suggestFor ? setSuggestFor(null) : handleClose())}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>{docTitle}</Text>
-            <TouchableOpacity onPress={handleClose} hitSlop={12}>
-              <Ionicons name="close" size={ms(30)} color={COLORS.white} />
-            </TouchableOpacity>
-          </View>
-
           <KeyboardAvoidingView
             style={styles.flexShrink}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView
               contentContainerStyle={styles.scrollContent}
               keyboardShouldPersistTaps="handled">
-              <OutlinedInput
-                style={styles.pillInput}
-                placeholder={`${docLabel} Name *`}
-                placeholderTextColor={COLORS.lightGray}
-                value={quoteName}
-                onChangeText={setQuoteName}
-              />
+              <View style={styles.header}>
+                <Text style={styles.headerTitle}>{docTitle}</Text>
+                <TouchableOpacity onPress={handleClose} hitSlop={12}>
+                  <Ionicons name="close" size={ms(30)} color={COLORS.white} />
+                </TouchableOpacity>
+              </View>
 
-              <View style={styles.fieldRow}>
+              <View style={styles.formBody}>
+              <View>
+                <OutlinedInput
+                  style={[styles.pillInput, {marginBottom: ms(36)}, isErr('name') && styles.pillError]}
+                  placeholder={`${docLabel} Name *`}
+                  placeholderTextColor={COLORS.lightGray}
+                  maxLength={100}
+                  value={quoteName}
+                  onChangeText={v => {
+                    setQuoteName(v);
+                    clearError('name');
+                  }}
+                />
+                {isErr('name') && <ErrorMark />}
+              </View>
+
+              <View style={[styles.fieldRow, {gap: ms(9), marginBottom: ms(4)}]}>
                 <TouchableOpacity style={styles.halfInput} activeOpacity={0.7} onPress={() => openDatePicker('quote')}>
                   <View pointerEvents="none">
                     <OutlinedInput
-                      style={styles.pillInput}
+                      style={[styles.pillInput, isErr('date') && styles.pillError]}
                       placeholder={`${docLabel} Date*`}
                       value={quoteDate}
                       editable={false}
                     />
+                    {isErr('date') && <ErrorMark />}
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.halfInput} activeOpacity={0.7} onPress={() => openDatePicker('validity')}>
                   <View pointerEvents="none">
                     <OutlinedInput
-                      style={styles.pillInput}
+                      style={[styles.pillInput, isErr('validity') && styles.pillError]}
                       placeholder="Validity Date*"
                       value={validityDate}
                       editable={false}
                     />
+                    {isErr('validity') && <ErrorMark />}
                   </View>
                 </TouchableOpacity>
               </View>
 
-              <OutlinedInput
-                style={styles.pillInput}
-                placeholder={t('star_customer_name')}
-                placeholderTextColor={COLORS.lightGray}
-                value={customerName}
-                onChangeText={text => {
-                  setCustomerName(text);
-                  setSuggestFor('name');
-                  // Editing the name detaches it from a previously picked customer.
-                  setCustomerId(0);
-                }}
-              />
+              <View>
+                <OutlinedInput
+                  style={[styles.pillInput, {marginBottom: ms(20)}, isErr('customer') && styles.pillError]}
+                  placeholder={t('star_customer_name')}
+                  placeholderTextColor={COLORS.lightGray}
+                  value={customerName}
+                  onChangeText={text => {
+                    setCustomerName(text);
+                    setSuggestFor('name');
+                    clearError('customer');
+                    // Editing the name detaches it from a previously picked customer.
+                    setCustomerId(0);
+                  }}
+                />
+                {isErr('customer') && <ErrorMark />}
+              </View>
               {renderSuggestions('name')}
 
               {/* Java: tapping the address opens the full-screen Google Places search. */}
               <TouchableOpacity activeOpacity={0.7} onPress={() => setIsPlaceSearchOpen(true)}>
                 <View pointerEvents="none">
                   <OutlinedInput
-                    style={styles.pillInput}
+                    style={[styles.pillInput, isErr('address') && styles.pillError]}
                     placeholder={t('star_address')}
                     placeholderTextColor={COLORS.lightGray}
                     value={address}
                     editable={false}
                   />
+                  {isErr('address') && <ErrorMark />}
                 </View>
               </TouchableOpacity>
 
               <OutlinedInput
-                style={styles.pillInput}
+                style={[styles.pillInput, {marginBottom: ms(36)}]}
                 placeholder="Building / Flat Number"
                 placeholderTextColor={COLORS.lightGray}
+                maxLength={25}
                 value={buildingFlatNumber}
                 onChangeText={setBuildingFlatNumber}
               />
 
-              <View style={styles.fieldRow}>
-                <OutlinedInput
-                  style={[styles.pillInput, styles.halfInput]}
-                  placeholder={t('star_landmark')}
-                  placeholderTextColor={COLORS.lightGray}
-                  value={landmark}
-                  onChangeText={setLandmark}
-                />
-                <OutlinedInput
-                  style={[styles.pillInput, styles.halfInput]}
-                  placeholder={t('star_phone_number')}
-                  placeholderTextColor={COLORS.lightGray}
-                  keyboardType="phone-pad"
-                  value={phoneNumber}
-                  onChangeText={text => {
-                    setPhoneNumber(technician ? text.replace(/[^0-9]/g, '') : text);
-                    setSuggestFor('phone');
-                    setCustomerId(0);
-                  }}
-                />
+              <View style={[styles.fieldRow, {gap: ms(20)}]}>
+                <View style={styles.halfInput}>
+                  <OutlinedInput
+                    style={[styles.pillInput, isErr('landmark') && styles.pillError]}
+                    placeholder={t('star_landmark')}
+                    placeholderTextColor={COLORS.lightGray}
+                    value={landmark}
+                    onChangeText={v => {
+                      setLandmark(v);
+                      clearError('landmark');
+                    }}
+                  />
+                  {isErr('landmark') && <ErrorMark />}
+                </View>
+                <View style={styles.halfInput}>
+                  <OutlinedInput
+                    style={[styles.pillInput, isErr('phone') && styles.pillError]}
+                    placeholder={t('star_phone_number')}
+                    placeholderTextColor={COLORS.lightGray}
+                    keyboardType="phone-pad"
+                    maxLength={12}
+                    value={phoneNumber}
+                    onChangeText={text => {
+                      setPhoneNumber(technician ? text.replace(/[^0-9]/g, '') : text);
+                      setSuggestFor('phone');
+                      clearError('phone');
+                      setCustomerId(0);
+                    }}
+                  />
+                  {isErr('phone') && <ErrorMark />}
+                </View>
               </View>
               {renderSuggestions('phone')}
 
               <View style={styles.segmentRow}>
-                <TouchableOpacity
-                  style={[styles.segmentButton, styles.segmentDivider, activeSection === 'service' ? styles.segmentButtonActive : null]}
-                  onPress={() => setActiveSection('service')}>
-                  <Text
+                {(
+                  [
+                    ['service', 'Service'],
+                    ['items', 'Items'],
+                    ['discount', 'Discount & Tax'],
+                  ] as Array<[SectionKey, string]>
+                ).map(([key, label], index) => (
+                  <TouchableOpacity
+                    key={key}
                     style={[
-                      styles.segmentButtonText,
-                      activeSection === 'service' ? styles.segmentButtonTextActive : null,
-                    ]}>
-                    Service
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.segmentButton, styles.segmentDivider, activeSection === 'items' ? styles.segmentButtonActive : null]}
-                  onPress={() => setActiveSection('items')}>
-                  <Text
-                    style={[
-                      styles.segmentButtonText,
-                      activeSection === 'items' ? styles.segmentButtonTextActive : null,
-                    ]}>
-                    Items
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.segmentButton, activeSection === 'discount' ? styles.segmentButtonActive : null]}
-                  onPress={() => setActiveSection('discount')}>
-                  <Text
-                    style={[
-                      styles.segmentButtonText,
-                      activeSection === 'discount' ? styles.segmentButtonTextActive : null,
-                    ]}>
-                    Discount & Tax
-                  </Text>
-                </TouchableOpacity>
+                      styles.segmentButton,
+                      index < 2 && styles.segmentDivider,
+                      activeSection === key ? styles.segmentButtonActive : null,
+                    ]}
+                    onPress={() => setActiveSection(key)}>
+                    <Text style={[styles.segmentButtonText, activeSection === key ? styles.segmentButtonTextActive : null]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
               {activeSection === 'service'
                 ? serviceRows.map((row, index) => (
                     <View key={row.id} style={styles.rowCard}>
                       <View style={styles.rowCardHeader}>
-                        <Text style={styles.rowCardTitle}>Services #{index + 1}</Text>
+                        <Text style={styles.rowCardTitle}>{t('service')} #{index + 1}</Text>
                         <TouchableOpacity onPress={() => removeServiceRow(row.id)} hitSlop={10}>
                           <Ionicons name="close" size={ms(26)} color={RED} />
                         </TouchableOpacity>
                       </View>
                       <View style={styles.rowCardFields}>
                         {renderServiceTypeDropdown(row)}
-                        <DecimalInput
+                        <TextInput
                           style={styles.qtyInput}
                           value={row.quantity}
-                          onChangeText={value => {
-                            const qty = value;
-                            setServiceRows(prev =>
-                              prev.map(r => {
-                                if (r.id !== row.id) {
-                                  return r;
-                                }
-                                // Java (technician): price = qty x master price.
-                                const master = masterServicePrice(r.serviceTypeId);
-                                return technician && qty && r.serviceTypeId
-                                  ? {...r, quantity: qty, price: String(Number(qty) * master)}
-                                  : {...r, quantity: qty};
-                              }),
-                            );
-                          }}
+                          keyboardType="number-pad"
+                          maxLength={3}
+                          onChangeText={v => onServiceQtyChange(row.id, v)}
                         />
-                        <DecimalInput
-                          style={[styles.pillInput, styles.thirdInput, {flex: 2}]}
-                          label={t('price')}
+                        <OutlinedInput
+                          style={[styles.pillInput, styles.thirdInput, {flex: 2, marginBottom: 0}]}
+                          placeholder={t('price')}
                           placeholderTextColor={COLORS.lightGray}
+                          keyboardType="decimal-pad"
+                          maxLength={9}
                           value={row.price}
-                          onChangeText={value =>
-                            setServiceRows(prev =>
-                              prev.map(r => (r.id === row.id ? {...r, price: sanitizeDecimalInput(value)} : r)),
-                            )
-                          }
+                          onChangeText={v => onServicePriceChange(row.id, v)}
+                          onBlur={() => onServicePriceBlur(row.id)}
                         />
                       </View>
                     </View>
@@ -1087,33 +1349,57 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
               {activeSection === 'items'
                 ? itemRows.map((row, index) => (
-                    <View key={row.id} style={styles.rowCard}>
+                    <View key={row.id} style={[styles.rowCard, adminItems && {marginTop: ms(25)}]}>
                       <View style={styles.rowCardHeader}>
-                        <Text style={styles.rowCardTitle}>Item #{index + 1}</Text>
+                        <Text style={styles.rowCardTitle}>{t('item')} #{index + 1}</Text>
                         <TouchableOpacity onPress={() => removeItemRow(row.id)} hitSlop={10}>
                           <Ionicons name="close" size={ms(26)} color={RED} />
                         </TouchableOpacity>
                       </View>
                       <View style={styles.rowCardFields}>
-                        {renderItemDropdown(row)}
-                        <DecimalInput
-                          style={[styles.pillInput, styles.thirdInput]}
-                          label="Qty."
-                          placeholderTextColor={COLORS.lightGray}
-                          value={row.quantity}
-                          onChangeText={value =>
-                            setItemRows(prev => prev.map(r => (r.id === row.id ? {...r, quantity: value} : r)))
-                          }
-                        />
-                        <DecimalInput
-                          style={[styles.pillInput, styles.thirdInput, {flex: 2}]}
-                          label={t('price')}
-                          placeholderTextColor={COLORS.lightGray}
-                          value={row.price}
-                          onChangeText={value =>
-                            setItemRows(prev => prev.map(r => (r.id === row.id ? {...r, price: sanitizeDecimalInput(value)} : r)))
-                          }
-                        />
+                        {adminItems ? (
+                          <>
+                            {renderItemDropdown(row, 5)}
+                            <TextInput
+                              style={[styles.qtyInput, {flex: 2}]}
+                              placeholder="Qty."
+                              placeholderTextColor={COLORS.lightGray}
+                              value={row.quantity}
+                              keyboardType="number-pad"
+                              maxLength={3}
+                              onChangeText={v => onItemQtyChange(row.id, v)}
+                            />
+                            <OutlinedInput
+                              style={[styles.pillInput, styles.thirdInput, {flex: 5, marginBottom: 0}]}
+                              placeholder={t('price')}
+                              placeholderTextColor={COLORS.lightGray}
+                              editable={false}
+                              value={row.price}
+                            />
+                          </>
+                        ) : (
+                          <>
+                            {renderItemDropdown(row)}
+                            <DecimalInput
+                              style={[styles.pillInput, styles.thirdInput]}
+                              label="Qty."
+                              placeholderTextColor={COLORS.lightGray}
+                              value={row.quantity}
+                              onChangeText={value =>
+                                setItemRows(prev => prev.map(r => (r.id === row.id ? {...r, quantity: value} : r)))
+                              }
+                            />
+                            <DecimalInput
+                              style={[styles.pillInput, styles.thirdInput, {flex: 2}]}
+                              label={t('price')}
+                              placeholderTextColor={COLORS.lightGray}
+                              value={row.price}
+                              onChangeText={value =>
+                                setItemRows(prev => prev.map(r => (r.id === row.id ? {...r, price: sanitizeDecimalInput(value)} : r)))
+                              }
+                            />
+                          </>
+                        )}
                       </View>
                     </View>
                   ))
@@ -1127,15 +1413,14 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
               {activeSection === 'discount' ? (
                 <View>
-                  <DecimalInput
+                  <OutlinedInput
                     style={styles.pillInput}
-                    label="Discount %"
+                    placeholder="Discount %"
                     placeholderTextColor={COLORS.lightGray}
+                    keyboardType="number-pad"
+                    maxLength={2}
                     value={discountPercent}
-                    onChangeText={t =>
-                      // Java's technician discount is a whole number (Integer.parseInt).
-                      setDiscountPercent(sanitizeDecimalInput(t))
-                    }
+                    onChangeText={v => setDiscountPercent(v.replace(/[^0-9]/g, ''))}
                   />
                   <View style={[styles.fieldRow, styles.taxRow]}>
                     {/* Java spin_tax + spin_percent: two 50/50 spinners; the second is invisible unless "With Tax". */}
@@ -1166,7 +1451,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               ) : null}
 
               <Text style={styles.extraLabel}>Extra</Text>
-              <View style={styles.fieldRow}>
+              <View style={[styles.fieldRow, {gap: ms(20), marginBottom: ms(4)}]}>
                 <OutlinedInput
                   style={[styles.pillInput, styles.halfInput, {flex: 1.5}]}
                   placeholder={t('name')}
@@ -1174,32 +1459,45 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                   value={extraName}
                   onChangeText={setExtraName}
                 />
-                <DecimalInput
-                  style={[styles.pillInput, styles.halfInput]}
-                  label={t('price')}
-                  placeholderTextColor={COLORS.lightGray}
-                  value={extraPrice}
-                  onChangeText={t => setExtraPrice(sanitizeDecimalInput(t))}
-                />
+                <View style={styles.halfInput}>
+                  <OutlinedInput
+                    style={[styles.pillInput, isErr('extraPrice') && styles.pillError]}
+                    placeholder={t('price')}
+                    placeholderTextColor={COLORS.lightGray}
+                    keyboardType="decimal-pad"
+                    maxLength={10}
+                    value={extraPrice}
+                    onChangeText={v => {
+                      clearError('extraPrice');
+                      setExtraPrice(sanitizeDecimalInput(v));
+                    }}
+                    onBlur={() => {
+                      const d = Number(extraPrice);
+                      setExtraPrice(extraPrice.trim() && Number.isFinite(d) ? d.toFixed(3) : '');
+                    }}
+                  />
+                  {isErr('extraPrice') && <ErrorMark />}
+                </View>
               </View>
 
-              {/* Attach File exists only on dialog_add_quote.xml; dialog_add_invoice.xml has none. */}
-              {/* {isInvoice ? null : (
+              {/* Java: lnlAttachFile is made visible by the admin addQuote only (never invoice / technician). */}
+              {showAttach ? (
                 <>
-                  <Text style={styles.extraLabel}>Attach File</Text>
-                  <TouchableOpacity style={styles.attachBox} onPress={handlePickAttachment}>
-                    <Text style={styles.attachBoxText} numberOfLines={2}>
+                  <Text style={[styles.extraLabel, {marginTop: 0, marginBottom: ms(10)}]}>Attach File</Text>
+                  <TouchableOpacity style={styles.attachBox} activeOpacity={0.7} onPress={handlePickAttachment}>
+                    <Text style={styles.attachBoxText}>
                       {attachedFileName ||
                         'Choose .pdf, .jpeg, .jpg, .png, .xlsx, .txt, .zip, etc. max file size is 6 MB'}
                     </Text>
                   </TouchableOpacity>
                 </>
-              )} */}
+              ) : null}
 
               <OutlinedInput
                 style={[styles.pillInput, styles.termInput]}
                 placeholder={t('terms_and_condition')}
                 placeholderTextColor={COLORS.lightGray}
+                maxLength={100}
                 value={termCondition}
                 onChangeText={setTermCondition}
               />
@@ -1208,14 +1506,13 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                 style={styles.saveButton}
                 onPress={() => handleSave()}
                 disabled={isSubmitting}>
-                <Text style={styles.saveButtonText}>
-                  {isSubmitting ? 'SAVING...' : 'SAVE & VIEW'}
-                </Text>
+                <Text style={styles.saveButtonText}>{isSubmitting ? 'SAVING...' : 'SAVE & VIEW'}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={handleClose}>
+              <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
                 <Text style={styles.cancelText}>{t('cancel')}</Text>
               </TouchableOpacity>
+              </View>
             </ScrollView>
           </KeyboardAvoidingView>
         </View>
@@ -1347,79 +1644,22 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         )
       )}
 
-      <Modal
+      <AddQuotePreview
         visible={isPreviewOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsPreviewOpen(false)}>
-        <View style={styles.overlay}>
-          <View style={styles.sheet}>
-            <ScrollView contentContainerStyle={{padding: ms(16)}}>
-              <Text style={styles.extraLabel}>Quote Preview</Text>
-              <Text>{quoteName.trim()}</Text>
-              <Text>
-                {quoteDate} → {validityDate.trim()}
-              </Text>
-              <Text>
-                {customerName.trim()} · {phoneNumber.trim()}
-              </Text>
-              <Text>{address.trim()}</Text>
-              {serviceRows
-                .filter(row => row.serviceTypeId)
-                .map(row => (
-                  <Text key={row.id}>
-                    {row.serviceTypeName} × {Number(row.quantity) || 1} {technician ? '=' : '@'} {Number(row.price) || 0}
-                  </Text>
-                ))}
-              {itemRows
-                .filter(row => row.itemId)
-                .map(row => (
-                  <Text key={row.id}>
-                    {row.itemName} × {Number(row.quantity) || 1} @ {Number(row.price) || 0}
-                  </Text>
-                ))}
-              {extraName.trim() ? (
-                <Text>
-                  {extraName.trim()}: {extraTotal}
-                </Text>
-              ) : null}
-              <Text>Discount: {Number(discountPercent) || 0}%</Text>
-              <Text>
-                Tax: {taxMode === 1 ? `${taxName} ${Number(taxPercent) || 0}%` : taxMode === 2 ? 'Without Tax' : '-'}
-              </Text>
-              <Text style={styles.extraLabel}>Total: {formatAmount(grandTotal)}</Text>
-              {isInvoice ? (
-                <View>
-                  <DecimalInput
-                    style={styles.pillInput}
-                    label="Amount Received"
-                    placeholderTextColor={COLORS.lightGray}
-                    value={receivedAmount}
-                    onChangeText={t => setReceivedAmount(sanitizeDecimalInput(t))}
-                  />
-                  <TouchableOpacity style={styles.pillInput} onPress={openPaymentTypePicker}>
-                    <Text style={{color: selectedPaymentType ? '#222' : '#9aa0a6'}}>
-                      {selectedPaymentType ? selectedPaymentType.label : 'Select Payment Transaction Type'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={() => {
-                  setIsPreviewOpen(false);
-                  handleSave(true);
-                }}
-                disabled={isSubmitting}>
-                <Text style={styles.saveButtonText}>SAVE</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setIsPreviewOpen(false)}>
-                <Text style={styles.cancelText}>Back</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        isInvoice={isInvoice}
+        data={previewData}
+        saving={isSubmitting}
+        onClose={() => setIsPreviewOpen(false)}
+        onSave={onPreviewSave}
+        receivedAmount={receivedAmount}
+        onReceivedChange={v => {
+          setReceivedAmount(sanitizeDecimalInput(v));
+          setReceivedError('');
+        }}
+        receivedError={receivedError}
+        paymentTypeLabel={selectedPaymentType?.label ?? ''}
+        onPickPaymentType={openPaymentTypePicker}
+      />
     </Modal>
   );
 };
@@ -1461,10 +1701,30 @@ const styles = StyleSheet.create({
   flexShrink: {
     flexShrink: 1,
   },
+  // Java: 20dp side margins on every field, 20dp + label space above the first one.
+  // Java: the title bar is part of the scrolling dialog; fields keep 20dp side margins.
   scrollContent: {
-    padding: ms(16),
-    paddingBottom: ms(30),
+    paddingBottom: ms(0),
   },
+  formBody: {
+    paddingHorizontal: ms(20),
+    paddingTop: ms(25),
+  },
+  pillError: {
+    borderColor: '#B00020',
+  },
+  errorDot: {
+    position: 'absolute',
+    right: ms(14),
+    top: ms(8),
+    width: ms(24),
+    height: ms(24),
+    borderRadius: ms(12),
+    backgroundColor: '#E4002B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorDotText: {color: '#fff', fontWeight: 'bold', fontSize: sp(16), lineHeight: ms(20)},
   fieldRow: {
     flexDirection: 'row',
     gap: ms(12),
@@ -1510,6 +1770,7 @@ const styles = StyleSheet.create({
   },
   termInput: {
     marginTop: ms(4),
+    marginBottom: ms(21),
   },
   outsideLabel: {
     fontSize: sp(12),
@@ -1590,7 +1851,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: ms(25),
     overflow: 'hidden',
-    marginBottom: ms(16),
+    marginBottom: ms(21),
     borderWidth: 1,
     borderColor: SEGMENT_DARK,
   },
@@ -1598,7 +1859,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: ms(39),
+    height: ms(38),
     backgroundColor: '#FFFFFF',
   },
   // Java SegmentedGroup: one 1dp outer border (25dp corners) with 1dp dividers between segments.
@@ -1621,11 +1882,11 @@ const styles = StyleSheet.create({
     borderWidth: ms(1),
     borderColor: '#eceef0',
     borderRadius: ms(24),
-    paddingHorizontal: ms(14),
-    paddingTop: ms(8),
-    paddingBottom: ms(14),
-    marginHorizontal: ms(10),
-    marginBottom: ms(12),
+    paddingHorizontal: ms(10),
+    paddingTop: ms(4),
+    paddingBottom: ms(36),
+    marginHorizontal: ms(7),
+    marginBottom: ms(5),
     backgroundColor: '#FFFFFF',
     elevation: 2,
     shadowColor: '#000',
@@ -1637,7 +1898,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: ms(8),
+    marginBottom: ms(18),
   },
   rowCardTitle: {
     color: RED,
@@ -1682,19 +1943,20 @@ const styles = StyleSheet.create({
     marginRight: ms(5),
   },
   dropdownPlaceholderText: {
-    fontSize: sp(13),
+    fontSize: sp(14),
     color: COLORS.ink,
     flex: 1,
   },
   dropdownValueText: {
-    fontSize: sp(13),
+    fontSize: sp(14),
     color: COLORS.ink,
     flex: 1,
   },
   dropdownChevron: {
-    fontSize: sp(12),
-    color: '#8a8f98',
-    marginLeft: ms(6),
+    position: 'absolute',
+    right: ms(8),
+    fontSize: sp(20),
+    color: COLORS.ink,
   },
   dropdownList: {
     position: 'absolute',
@@ -1731,7 +1993,7 @@ const styles = StyleSheet.create({
   },
   addMoreButton: {
     alignItems: 'center',
-    marginBottom: ms(18),
+    marginBottom: ms(10),
   },
   addMoreText: {
     color: RED,
@@ -1742,38 +2004,50 @@ const styles = StyleSheet.create({
     marginLeft: ms(2),
     fontSize: sp(16),
     color: COLORS.textBlack,
-    marginBottom: ms(10),
+    marginBottom: ms(14),
   },
+  // Java dashed_border: 1dp dashed #A9A9A9, white, 16sp black centred text with 10dp padding.
   attachBox: {
     borderWidth: ms(1),
     borderStyle: 'dashed',
-    borderColor: '#c7c9cc',
-    borderRadius: ms(6),
-    paddingHorizontal: ms(14),
-    paddingVertical: ms(16),
-    marginBottom: ms(18),
+    borderColor: '#A9A9A9',
+    backgroundColor: '#FFFFFF',
+    padding: ms(10),
+    marginTop: 0,
+    marginBottom: ms(10),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   attachBoxText: {
-    fontSize: sp(12),
-    color: '#9aa0a6',
+    fontSize: sp(15.5),
+    color: '#000000',
   },
   saveButton: {
     backgroundColor: COLORS.statusOnHold, // Java rounded_button_new #353935
     borderRadius: ms(34),
-    height: ms(52),
+    height: ms(48),
     elevation: 4,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: ms(6),
-    marginBottom: ms(16),
+    marginTop: ms(10),
+    marginBottom: ms(20),
   },
   saveButtonText: {
     color: '#FFFFFF',
-    fontSize: sp(20),
+    fontSize: sp(18),
+    fontWeight: '500',
+  },
+  cancelButton: {
+    alignSelf: 'center',
+    minHeight: ms(48),
+    justifyContent: 'center',
+    paddingHorizontal: ms(16),
+    marginBottom: ms(20),
   },
   cancelText: {
     color: RED,
     fontSize: sp(18),
+    fontWeight: '500',
     textAlign: 'center',
   },
 });

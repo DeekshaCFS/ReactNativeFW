@@ -50,10 +50,29 @@ import PlaceSearchModal from '../../components/PlaceSearchModal';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+/** Java AMCDialog.addAMCFromQuoteDialog: the Add AMC form opened from a quotation, pre-filled from it. */
+export type AddAmcPrefill = {
+  name: string;
+  customerName: string;
+  customerNumber: string;
+  address: string;
+  landmark: string;
+  latitude: string;
+  longitude: string;
+  /** Grand total, shown as the AMC amount. */
+  amount: number;
+  /** Quote CreatedDate (ISO): becomes the activation date and service time. */
+  createdDate: string;
+  customerId?: number;
+};
+
 type AMCDashboardScreenProps = {
   ownerId: number;
   openAddAmcTrigger?: number;
   onAddAmcModalClose?: () => void;
+  /** Render only the Add AMC form (no list / header), used from Quotation Details. */
+  modalOnly?: boolean;
+  addAmcPrefill?: AddAmcPrefill;
 };
 
 type AMCTypeOption = {
@@ -712,6 +731,8 @@ const AMCDashboardScreen = ({
   ownerId,
   openAddAmcTrigger,
   onAddAmcModalClose,
+  modalOnly = false,
+  addAmcPrefill,
 }: AMCDashboardScreenProps) => {
   const {t} = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<AdminStackParamList>>();
@@ -1214,8 +1235,11 @@ const AMCDashboardScreen = ({
   }, [loadAMCFormLookups]);
 
   useEffect(() => {
+    if (modalOnly) {
+      return;
+    }
     loadAMCList();
-  }, [loadAMCList]);
+  }, [loadAMCList, modalOnly]);
 
   useEffect(() => {
     if (addModalVisible) {
@@ -1226,6 +1250,25 @@ const AMCDashboardScreen = ({
   useEffect(() => {
     if (openAddAmcTrigger) {
       setAddModalVisible(true);
+      if (addAmcPrefill) {
+        // Java addAMCFromQuoteDialog: customer block, AMC name = quote name, amount = grand total
+        // (paid AMC, so the amount fields show), activation date / time = the quote's created date.
+        setAmcName(addAmcPrefill.name);
+        setCustomerName(addAmcPrefill.customerName);
+        setCustomerNumber(addAmcPrefill.customerNumber);
+        setCustomerAddress(addAmcPrefill.address);
+        setCustomerLandmark(addAmcPrefill.landmark);
+        setCustomerLat(addAmcPrefill.latitude);
+        setCustomerLng(addAmcPrefill.longitude);
+        setSelectedCustomerId(addAmcPrefill.customerId ?? 0);
+        setAmcAmount(String(Math.round(addAmcPrefill.amount)));
+        setUnderWarranty(false);
+        const created = new Date(addAmcPrefill.createdDate);
+        if (!Number.isNaN(created.getTime())) {
+          setActivationDate(created);
+          setServiceTime(created);
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openAddAmcTrigger]);
@@ -2137,6 +2180,10 @@ const AMCDashboardScreen = ({
       </KeyboardAvoidingView>
     </Modal>
   );
+
+  if (modalOnly) {
+    return renderAddAMCModal();
+  }
 
   return (
     <View style={styles.container}>

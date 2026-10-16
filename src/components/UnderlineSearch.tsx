@@ -12,10 +12,12 @@ type Props = {
   onChangeText: (text: string) => void;
   placeholder?: string;
   onSubmitEditing?: () => void;
+  maxLength?: number;
+  fontSize?: number;
   style?: StyleProp<ViewStyle>;
 };
 
-const UnderlineSearch = ({value, onChangeText, placeholder = 'Search', onSubmitEditing, style}: Props) => (
+const UnderlineSearch = ({value, onChangeText, placeholder = 'Search', onSubmitEditing, maxLength, fontSize, style}: Props) => (
   <View style={[styles.box, style]}>
     <Ionicons name="search" style={styles.icon} />
     <TextInput
@@ -24,8 +26,9 @@ const UnderlineSearch = ({value, onChangeText, placeholder = 'Search', onSubmitE
       onSubmitEditing={onSubmitEditing}
       placeholder={placeholder}
       placeholderTextColor={COLORS.lightGray}
-      style={styles.input}
+      style={[styles.input, fontSize ? {fontSize} : null]}
       returnKeyType="search"
+      maxLength={maxLength}
     />
     {value ? (
       <Pressable hitSlop={10} onPress={() => onChangeText('')}>
