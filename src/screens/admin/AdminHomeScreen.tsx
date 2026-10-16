@@ -178,7 +178,7 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
     () =>
       // Java leaves the toolbar on "FieldWeb" while Passbook is open.
       selectedDrawerLabel !== 'Dashboard' && selectedDrawerLabel !== 'Passbook'
-        ? selectedDrawerLabel
+        ? (selectedDrawerLabel === 'Brand Management' ? 'Brand Config' : selectedDrawerLabel)
         : 'FieldWeb',
     [selectedDrawerLabel],
   );

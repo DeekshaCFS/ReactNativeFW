@@ -14,6 +14,7 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   FlatList,
   Image,
   Pressable,
@@ -22,7 +23,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import {useNavigation} from '@react-navigation/native';
+import UnderlineSearch from '../../components/UnderlineSearch';
+import {DefaultItemIcon, DeleteAccIcon, EditProfileIcon, ItemOptionIcon} from '../../components/JavaIcons';
 import {COLORS} from '../../theme/theme';
 import {ms, scale, sp, vs} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
@@ -51,7 +54,7 @@ type ViewState =
   | {level: 'model'; brand: BrandItem}
   | {level: 'serial'; brand: BrandItem; model: ModelItem};
 
-const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
+const BrandModelInner: React.FC<Props> = ({ownerId}) => {
   const [view, setView] = useState<ViewState>({level: 'brand'});
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -62,7 +65,8 @@ const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
 
   const [brandModal, setBrandModal] = useState<{editing: BrandItem | null} | null>(null);
   const [modelModal, setModelModal] = useState<{editing: ModelItem | null} | null>(null);
-  const [serialModal, setSerialModal] = useState<{editing: SerialNoItem | null} | null>(null);
+  const [serialModal, setSerialModal] = useState<{editing: SerialNoItem | null; model?: ModelItem} | null>(null);
+  const [modelFor, setModelFor] = useState<{brand: BrandItem; editing: ModelItem | null} | null>(null);
 
   const fetchBrands = useCallback(async () => {
     setLoading(true);
@@ -108,6 +112,14 @@ const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
     setSearch('');
   }, [view.level]);
 
+  // Java toolbar titles: Brand Config / Model Config / Serial Config.
+  const navigation = useNavigation<any>();
+  useEffect(() => {
+    navigation.setParams({
+      currentSectionTitle: view.level === 'brand' ? 'Brand Config' : view.level === 'model' ? 'Model Config' : 'Serial Config',
+    });
+  }, [view.level, navigation]);
+
   const goBack = () => {
     if (view.level === 'serial') {
       setView({level: 'model', brand: view.brand});
@@ -115,6 +127,18 @@ const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
       setView({level: 'brand'});
     }
   };
+
+  // Hardware back walks up one level (serial -> model -> brand), like Java's fragment back stack.
+  // An open add/edit dialog handles back itself first (its Modal onRequestClose).
+  useEffect(() => {
+    if (view.level === 'brand') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      goBack();
+      return true;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   const goToModelLevel = (brand: BrandItem) => {
     setView({level: 'model', brand});
@@ -190,47 +214,36 @@ const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
     ]);
   };
 
-  const renderHeader = () => {
-    const title =
-      view.level === 'brand' ? 'Brand Management' : view.level === 'model' ? view.brand.BrandName ?? 'Brand' : view.model.ModelName ?? 'Model';
+  // ---- Java brand_management_fragment / model_management_fragment / brand_list / model_list ----
+  const noResult = (
+    <View style={styles.noResult}>
+      <Image source={require('../../../assets/images/noresultfound.png')} style={styles.noResultImg} resizeMode="contain" />
+    </View>
+  );
 
-    const onAddPress = () => {
-      if (view.level === 'brand') {
-        setBrandModal({editing: null});
-      } else if (view.level === 'model') {
-        setModelModal({editing: null});
-      } else {
-        setSerialModal({editing: null});
-      }
-    };
-
-    return (
-      <View style={styles.headerRow}>
-        {view.level !== 'brand' ? (
-          <Pressable hitSlop={10} onPress={goBack} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={sp(22)} color={COLORS.primary} />
-          </Pressable>
-        ) : (
-          <View style={styles.backButtonPlaceholder} />
-        )}
-        <Text numberOfLines={1} style={styles.headerTitle}>
-          {title}
-        </Text>
-        <Pressable hitSlop={10} onPress={onAddPress} style={styles.addButton}>
-          <Ionicons name="add" size={sp(22)} color={COLORS.white} />
-        </Pressable>
+  const avatar = (uri?: string | null) =>
+    uri ? (
+      <Image source={{uri}} style={styles.avatar} />
+    ) : (
+      <View style={[styles.avatar, styles.avatarDefault]}>
+        <DefaultItemIcon size={ms(75)} color="#3a3d3a" />
       </View>
     );
-  };
 
-  const renderSearch = () => (
-    <TextInput
-      style={styles.searchInput}
-      placeholder="Search"
-      placeholderTextColor={COLORS.textMuted}
-      value={search}
-      onChangeText={setSearch}
-    />
+  const actions = (onEdit: () => void, onBox: (() => void) | null, onDelete: () => void) => (
+    <View style={styles.actions}>
+      <Pressable hitSlop={8} onPress={onEdit}>
+        <EditProfileIcon size={ms(22)} color="#000" />
+      </Pressable>
+      {onBox ? (
+        <Pressable hitSlop={8} onPress={onBox} style={styles.actionGap}>
+          <ItemOptionIcon size={ms(22)} color="#000" />
+        </Pressable>
+      ) : null}
+      <Pressable hitSlop={8} onPress={onDelete} style={styles.actionGap}>
+        <DeleteAccIcon size={ms(22)} color={COLORS.primary} />
+      </Pressable>
+    </View>
   );
 
   if (loading) {
@@ -241,42 +254,41 @@ const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
     );
   }
 
+  const q = search.trim().toLowerCase();
+
   if (view.level === 'brand') {
-    const filtered = brands.filter(b => String(b.BrandName ?? '').toLowerCase().includes(search.trim().toLowerCase()));
+    const filtered = brands.filter(b => String(b.BrandName ?? '').toLowerCase().includes(q));
     return (
       <View style={styles.root}>
-        {renderHeader()}
-        {renderSearch()}
+        <View style={styles.searchRow}>
+          <UnderlineSearch value={search} onChangeText={setSearch} placeholder="Search Brand by Name.." style={styles.searchFlex} />
+          <Pressable style={styles.addPill} onPress={() => setBrandModal({editing: null})}>
+            <Text style={styles.addPillText}>+ Brand</Text>
+          </Pressable>
+        </View>
         <FlatList
           data={filtered}
           keyExtractor={(item, index) => `${item.BrandId ?? index}`}
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<Text style={styles.emptyText}>No brands yet.</Text>}
+          ListEmptyComponent={noResult}
           renderItem={({item}) => (
             <Pressable style={styles.card} onPress={() => goToModelLevel(item)}>
-              {item.ImagePath ? (
-                <Image source={{uri: item.ImagePath}} style={styles.thumb} />
-              ) : (
-                <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                  <Ionicons name="pricetags-outline" size={sp(20)} color={COLORS.primary} />
-                </View>
-              )}
+              {avatar(item.ImagePath)}
               <View style={styles.cardBody}>
                 <Text numberOfLines={1} style={styles.cardTitle}>
                   {item.BrandName}
                 </Text>
                 {item.Description ? (
-                  <Text numberOfLines={1} style={styles.cardSubtitle}>
+                  <Text numberOfLines={2} style={styles.cardSubtitle}>
                     {item.Description}
                   </Text>
                 ) : null}
               </View>
-              <Pressable hitSlop={8} onPress={() => setBrandModal({editing: item})}>
-                <Text style={styles.iconText}>✎</Text>
-              </Pressable>
-              <Pressable hitSlop={8} onPress={() => handleDeleteBrand(item)}>
-                <Text style={styles.iconText}>🗑</Text>
-              </Pressable>
+              {actions(
+                () => setBrandModal({editing: item}),
+                () => setModelFor({brand: item, editing: null}),
+                () => handleDeleteBrand(item),
+              )}
             </Pressable>
           )}
         />
@@ -291,46 +303,61 @@ const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
             fetchBrands();
           }}
         />
+        <AddEditModelModal
+          visible={!!modelFor}
+          ownerId={ownerId}
+          brandId={modelFor?.brand.BrandId ?? 0}
+          brandName={modelFor?.brand.BrandName ?? ''}
+          editing={null}
+          onClose={() => setModelFor(null)}
+          onSaved={() => {
+            setModelFor(null);
+          }}
+        />
       </View>
     );
   }
 
+  const brandLine = (name?: string) => (
+    <Text style={styles.brandLine}>
+      Brand Name : <Text style={styles.brandLineRed}>{name}</Text>
+    </Text>
+  );
+
   if (view.level === 'model') {
-    const filtered = models.filter(m => String(m.ModelName ?? '').toLowerCase().includes(search.trim().toLowerCase()));
+    const filtered = models.filter(m => String(m.ModelName ?? '').toLowerCase().includes(q));
     return (
       <View style={styles.root}>
-        {renderHeader()}
-        {renderSearch()}
+        <View style={styles.searchRow}>
+          <UnderlineSearch value={search} onChangeText={setSearch} placeholder="Search Model by Name.." style={styles.searchFlex} />
+        </View>
+        {brandLine(view.brand.BrandName)}
         <FlatList
           data={filtered}
           keyExtractor={(item, index) => `${item.ModelId ?? index}`}
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<Text style={styles.emptyText}>No models yet.</Text>}
-          renderItem={({item}) => (
+          ListEmptyComponent={noResult}
+          renderItem={({item, index}) => (
             <Pressable style={styles.card} onPress={() => goToSerialLevel(view.brand, item)}>
-              {item.ImagePath ? (
-                <Image source={{uri: item.ImagePath}} style={styles.thumb} />
-              ) : (
-                <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                  <Ionicons name="cube-outline" size={sp(20)} color={COLORS.primary} />
-                </View>
-              )}
+              <View style={styles.ribbon}>
+                <Text style={styles.ribbonText}>#{index + 1}</Text>
+              </View>
+              {avatar(item.ImagePath)}
               <View style={styles.cardBody}>
                 <Text numberOfLines={1} style={styles.cardTitle}>
                   {item.ModelName}
                 </Text>
                 {item.Description ? (
-                  <Text numberOfLines={1} style={styles.cardSubtitle}>
+                  <Text numberOfLines={2} style={styles.cardSubtitle}>
                     {item.Description}
                   </Text>
                 ) : null}
               </View>
-              <Pressable hitSlop={8} onPress={() => setModelModal({editing: item})}>
-                <Text style={styles.iconText}>✎</Text>
-              </Pressable>
-              <Pressable hitSlop={8} onPress={() => handleDeleteModel(item)}>
-                <Text style={styles.iconText}>🗑</Text>
-              </Pressable>
+              {actions(
+                () => setModelModal({editing: item}),
+                () => setSerialModal({editing: null, model: item}),
+                () => handleDeleteModel(item),
+              )}
             </Pressable>
           )}
         />
@@ -347,36 +374,52 @@ const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
             fetchModels(view.brand.BrandId ?? 0);
           }}
         />
+        <AddEditSerialNoModal
+          visible={!!serialModal}
+          ownerId={ownerId}
+          brandId={view.brand.BrandId ?? 0}
+          modelId={serialModal?.model?.ModelId ?? 0}
+          brandName={view.brand.BrandName ?? ''}
+          modelName={serialModal?.model?.ModelName ?? ''}
+          editing={null}
+          onClose={() => setSerialModal(null)}
+          onSaved={() => setSerialModal(null)}
+        />
       </View>
     );
   }
 
-  const filteredSerials = serials.filter(s => String(s.SerialNo ?? '').toLowerCase().includes(search.trim().toLowerCase()));
+  const filteredSerials = serials.filter(s => String(s.SerialNo ?? '').toLowerCase().includes(q));
 
   return (
     <View style={styles.root}>
-      {renderHeader()}
-      {renderSearch()}
+      <View style={styles.searchRow}>
+        <UnderlineSearch value={search} onChangeText={setSearch} placeholder="Search Serial Number.." style={styles.searchFlex} />
+        <Pressable style={styles.addPill} onPress={() => setSerialModal({editing: null, model: view.model})}>
+          <Text style={styles.addPillText}>+ Serial</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.brandLine}> Brand/Model Name : 
+        <Text style={styles.brandLineRed}>
+          {view.brand.BrandName}/{view.model.ModelName}
+        </Text>
+      </Text>
       <FlatList
         data={filteredSerials}
         keyExtractor={(item, index) => `${item.SerialNoId ?? index}`}
         contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Text style={styles.emptyText}>No serial numbers yet.</Text>}
-        renderItem={({item}) => (
-          <View style={styles.card}>
-            <View style={[styles.thumb, styles.thumbPlaceholder]}>
-              <Ionicons name="barcode-outline" size={sp(20)} color={COLORS.primary} />
-            </View>
-            <View style={styles.cardBody}>
-              <Text numberOfLines={1} style={styles.cardTitle}>
-                {item.SerialNo}
-              </Text>
-            </View>
-            <Pressable hitSlop={8} onPress={() => setSerialModal({editing: item})}>
-              <Text style={styles.iconText}>✎</Text>
+        ListEmptyComponent={noResult}
+        renderItem={({item, index}) => (
+          <View style={[styles.card, styles.serialCard]}>
+            <Text style={styles.serialHash}>#{index + 1}</Text>
+            <Text numberOfLines={1} style={[styles.cardTitle, {flex: 1, marginLeft: ms(16)}]}>
+              {item.SerialNo}
+            </Text>
+            <Pressable hitSlop={8} onPress={() => setSerialModal({editing: item, model: view.model})}>
+              <EditProfileIcon size={ms(22)} color="#000" />
             </Pressable>
-            <Pressable hitSlop={8} onPress={() => handleDeleteSerial(item)}>
-              <Text style={styles.iconText}>🗑</Text>
+            <Pressable hitSlop={8} onPress={() => handleDeleteSerial(item)} style={{marginLeft: ms(20)}}>
+              <DeleteAccIcon size={ms(22)} color={COLORS.primary} />
             </Pressable>
           </View>
         )}
@@ -403,106 +446,86 @@ const BrandModelTabHost: React.FC<Props> = ({ownerId}) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    marginTop: ms(11),
     backgroundColor: COLORS.white,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    overflow: 'hidden',
   },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerRow: {
+  loadingContainer: {flex: 1, alignItems: 'center', justifyContent: 'center'},
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: ms(14),
-    paddingVertical: vs(10),
+    paddingHorizontal: ms(15),
+    paddingTop: ms(10),
+    gap: ms(12),
   },
-  backButton: {
-    width: ms(32),
-    height: ms(32),
+  searchFlex: {flex: 1},
+  addPill: {
+    width: ms(60),
+    height: ms(30),
+    borderRadius: ms(15),
+    backgroundColor: COLORS.textBlack,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backButtonPlaceholder: {
-    width: ms(32),
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: sp(17),
-    fontWeight: '700',
-    color: '#111827',
-    marginHorizontal: ms(6),
-  },
-  addButton: {
-    width: ms(32),
-    height: ms(32),
-    borderRadius: ms(16),
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchInput: {
-    marginHorizontal: ms(14),
-    marginBottom: vs(8),
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: scale(10),
-    paddingHorizontal: scale(14),
-    paddingVertical: vs(8),
-    fontSize: sp(14),
-    color: '#111827',
-  },
-  listContent: {
-    paddingHorizontal: ms(14),
-    paddingBottom: vs(24),
-  },
-  emptyText: {
+  addPillText: {color: '#fff', fontSize: sp(12)},
+  brandLine: {
     textAlign: 'center',
-    color: COLORS.textMuted,
-    marginTop: vs(40),
-    fontSize: sp(14),
+    fontSize: sp(18),
+    fontWeight: '700',
+    color: '#000',
+    marginTop: ms(8),
+    marginBottom: ms(8),
   },
+  brandLineRed: {color: COLORS.primary, fontWeight: '400'},
+  listContent: {paddingHorizontal: ms(10), paddingTop: ms(8), paddingBottom: ms(110), flexGrow: 1},
   card: {
+    minHeight: ms(130),
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: scale(12),
-    padding: scale(10),
-    marginBottom: vs(10),
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    gap: scale(10),
-  },
-  thumb: {
-    width: ms(44),
-    height: ms(44),
+    backgroundColor: '#fff',
     borderRadius: ms(10),
+    padding: ms(10),
+    marginVertical: ms(5),
+    marginHorizontal: ms(5),
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: {width: 0, height: 1},
+    overflow: 'hidden',
   },
-  thumbPlaceholder: {
-    backgroundColor: '#fdecec',
-    alignItems: 'center',
+  serialCard: {minHeight: ms(70), paddingHorizontal: ms(16)},
+  serialHash: {fontSize: sp(18), color: COLORS.primary},
+  avatar: {width: ms(75), height: ms(75), borderRadius: ms(37.5)},
+  avatarDefault: {alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff'},
+  cardBody: {flex: 1, marginHorizontal: ms(10), justifyContent: 'center'},
+  cardTitle: {fontSize: sp(16), fontWeight: '700', color: COLORS.ink},
+  cardSubtitle: {fontSize: sp(14), color: COLORS.lightGray, marginTop: ms(6)},
+  actions: {width: ms(30), alignItems: 'center', alignSelf: 'flex-start', marginTop: ms(2)},
+  actionGap: {marginTop: ms(12)},
+  ribbon: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    paddingHorizontal: ms(20),
+    height: ms(25),
     justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderBottomRightRadius: ms(10),
+    zIndex: 2,
   },
-  cardBody: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: sp(15),
-    fontWeight: '700',
-    color: '#111827',
-  },
-  cardSubtitle: {
-    fontSize: sp(12),
-    color: COLORS.textMuted,
-    marginTop: vs(2),
-  },
-  iconText: {
-    color: COLORS.primary,
-    fontSize: sp(16),
-    paddingHorizontal: scale(4),
-  },
+  ribbonText: {color: '#fff', fontSize: sp(14)},
+  noResult: {alignItems: 'center', justifyContent: 'center', marginTop: ms(60)},
+  noResultImg: {width: ms(200), height: ms(200)},
 });
+
+// Java: red page with a 30dp-rounded white sheet (CardView) under the toolbar.
+const BrandModelTabHost: React.FC<Props> = props => (
+  <View style={{flex: 1, backgroundColor: COLORS.primary}}>
+    <BrandModelInner {...props} />
+  </View>
+);
 
 export default BrandModelTabHost;
