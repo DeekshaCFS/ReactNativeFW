@@ -3,7 +3,9 @@ import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {COLORS} from '../../theme/theme';
-import {InvoiceIcon, DeleteIcon} from '../../components/FabIcons';
+import {InvoiceIcon, DeleteIcon, EnquiryIcon} from '../../components/FabIcons';
+import SearchPickerModal from '../../components/SearchPickerModal';
+import {OutlinedInput, OutlinedSelect} from '../../components/OutlinedInput';
 import {getCurrentCountryCode, getCurrentUserId, getCurrentUserProfile} from '../../state/session';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AddTaskModal, {type AddTaskInitialValues} from './AddTaskModal';
@@ -32,6 +34,7 @@ import { getLeadstatusList, getLeadetailsByLeadId, updateLeadStatus as updateLea
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
 type LeadDetailsScreenProps = {
   /** Technician view: no Update Status / delete (Java LeadDetailsFragment). */
   technician?: boolean;
@@ -138,6 +141,7 @@ const LeadDetailsScreen = ({
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [statusOptions, setStatusOptions] = useState<LeadStatusItem[]>([]);
   const [selectedStatusId, setSelectedStatusId] = useState<number | null>(null);
+  const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [updateNotes, setUpdateNotes] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
@@ -652,7 +656,7 @@ const LeadDetailsScreen = ({
     getStringValue(lead, ['PhotoPath1', 'photopath1', 'photoPath1']),
     getStringValue(lead, ['PhotoPath2', 'photopath2', 'photoPath2']),
   ];
-  const hasPhotos = photoPaths.some(path => Boolean(path && path.trim()));
+  const hasPhotos = photoPaths.some(path => Boolean(path && path.trim() && path.trim().toUpperCase() !== 'NA'));
   const photoUrl = (path: string) =>
     path.startsWith('http')
       ? path
@@ -666,11 +670,21 @@ const LeadDetailsScreen = ({
         {/* Java: 200dp map inside the card, 30dp rounded top corners */}
         <View style={styles.mapMock}>
           {lat && lng ? (
-            <Image
-              source={{uri: `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=600x300&markers=color:red%7C${lat},${lng}`}}
+            <MapView
               style={styles.mapImage}
-              resizeMode="cover"
-            />
+              provider={PROVIDER_GOOGLE}
+              initialRegion={{latitude: lat, longitude: lng, latitudeDelta: 0.1, longitudeDelta: 0.1}}
+              toolbarEnabled={false}
+            >
+              <Marker
+                coordinate={{latitude: lat, longitude: lng}}
+                title={getLeadTitle(lead)}
+                description={getServiceType(lead)}
+                ref={m => {
+                  setTimeout(() => m?.showCallout(), 600);
+                }}
+              />
+            </MapView>
           ) : (
             <View style={styles.mapPlaceholder}>
               <Text style={styles.mapPlaceholderText}>Map location not available</Text>
@@ -695,7 +709,7 @@ const LeadDetailsScreen = ({
               </TouchableOpacity>
               {!technician && (
                 <TouchableOpacity style={styles.iconBtn} onPress={() => onDelete?.(lead)}>
-                  <DeleteIcon size={ms(20)} />
+                  <DeleteIcon size={ms(20)} color={COLORS.primary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -740,7 +754,7 @@ const LeadDetailsScreen = ({
               <View style={styles.photoRow}>
                 {photoPaths.map((path, index) => (
                   <View key={index} style={{flex: 1}}>
-                    <PhotoSlot url={path && path.trim() ? photoUrl(path) : null} />
+                    <PhotoSlot url={path && path.trim() && path.trim().toUpperCase() !== 'NA' ? photoUrl(path) : null} />
                   </View>
                 ))}
               </View>
@@ -748,6 +762,7 @@ const LeadDetailsScreen = ({
           )}
 
           <Text style={[styles.sectionTitle, {marginTop: ms(10), marginBottom: ms(5)}]}>Follow up History</Text>
+          <ScrollView style={{height: ms(100)}} nestedScrollEnabled showsVerticalScrollIndicator={false}>
           {(history && history.length > 0
             ? history
             : [{LeadStatusName: status, LeadDate: undefined, LeadNotes: undefined}]
@@ -786,8 +801,9 @@ const LeadDetailsScreen = ({
               </View>
             );
           })}
+          </ScrollView>
 
-          <Text style={[styles.sectionTitle, {marginTop: ms(30), marginBottom: ms(12)}]}>{t('notes')}</Text>
+          <Text style={[styles.sectionTitle, {marginTop: ms(10), marginBottom: ms(12)}]}>{t('notes')}</Text>
           <Text style={styles.notesText}>{notes}</Text>
         </View>
         </ScrollView>
@@ -800,7 +816,8 @@ const LeadDetailsScreen = ({
         initialValues={addTaskValues}
       />
 
-      {/* Update Lead Status Modal */}
+      {/* Update Lead Status sheet -- Java update_lead_status.xml (gradient_addtask header, spinner pill,
+          100dp notes pill, rounded_button_new Update, red Cancel) */}
       <Modal
         visible={statusModalVisible}
         transparent={true}
@@ -811,61 +828,30 @@ const LeadDetailsScreen = ({
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('update_lead_status')}</Text>
-              <TouchableOpacity onPress={() => setStatusModalVisible(false)}>
-                <Text style={styles.modalCloseText}>✕</Text>
-              </TouchableOpacity>
+              <Pressable onPress={() => setStatusModalVisible(false)} hitSlop={12}>
+                <Ionicons name="close" size={ms(30)} color="#fff" />
+              </Pressable>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.inputLabel}>Select Lead Status</Text>
-              <View style={styles.pickerContainer}>
-                <ScrollView style={styles.statusOptionsList} nestedScrollEnabled={true}>
-                  {statusOptions.map((item, index) => {
-                    const sId = getNumberValue(item, [
-                      'Id',
-                      'id',
-                      'LeadStatusId',
-                      'leadStatusId',
-                    ]);
-                    const sName = getStringValue(item, [
-                      'LeadStatusName',
-                      'leadStatusName',
-                      'Name',
-                      'name',
-                      'statusName',
-                      'StatusName',
-                    ]);
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalBody}>
+              <OutlinedSelect
+                style={styles.statusPill}
+                label="Select Lead Status"
+                value={statusOptions
+                  .map(item => ({
+                    id: getNumberValue(item, ['Id', 'id', 'LeadStatusId', 'leadStatusId']),
+                    name: getStringValue(item, ['LeadStatusName', 'leadStatusName', 'Name', 'name', 'statusName', 'StatusName']),
+                  }))
+                  .find(o => o.id === selectedStatusId)?.name ?? 'Select Lead Status'}
+                chevron
+                onPress={() => setStatusPickerOpen(true)}
+              />
 
-                    return (
-                      <TouchableOpacity
-                        key={sId || index}
-                        style={[
-                          styles.statusOptionItem,
-                          selectedStatusId === sId && styles.statusOptionItemSelected,
-                        ]}
-                        onPress={() => setSelectedStatusId(sId)}
-                      >
-                        <Text
-                          style={[
-                            styles.statusOptionText,
-                            selectedStatusId === sId && styles.statusOptionTextSelected,
-                          ]}
-                        >
-                          {sName || 'Unknown Status'}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              <Text style={styles.inputLabel}>{t('notes')}</Text>
-              <TextInput
-                style={styles.notesInput}
+              <OutlinedInput
+                style={styles.notesPill}
                 placeholder={t('notes')}
-                placeholderTextColor="#999"
+                placeholderTextColor={COLORS.lightGray}
                 multiline={true}
-                numberOfLines={4}
                 value={updateNotes}
                 onChangeText={setUpdateNotes}
               />
@@ -873,28 +859,47 @@ const LeadDetailsScreen = ({
               <TouchableOpacity
                 style={[
                   styles.updateBtn,
-                  (!selectedStatusId || isUpdatingStatus) && styles.updateBtnDisabled,
+                  isUpdatingStatus && styles.updateBtnDisabled,
                 ]}
                 onPress={handleStatusUpdate}
-                disabled={!selectedStatusId || isUpdatingStatus}
+                disabled={isUpdatingStatus}
               >
                 {isUpdatingStatus ? (
                   <ActivityIndicator color="#FFF" size="small" />
                 ) : (
-                  <Text style={styles.updateBtnText}>{t('update')}</Text>
+                  <>
+                    <View style={styles.updateBtnIcon}>
+                      <EnquiryIcon size={ms(30)} color="#fff" />
+                    </View>
+                    <Text style={styles.updateBtnText}>{t('update')}</Text>
+                  </>
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setStatusModalVisible(false)}
-              >
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setStatusModalVisible(false)}>
                 <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
+
+      <SearchPickerModal
+        visible={statusPickerOpen}
+        title="Select Lead Status"
+        hideSearch
+        options={statusOptions.map((item, index) => ({
+          id: getNumberValue(item, ['Id', 'id', 'LeadStatusId', 'leadStatusId']) || index,
+          label:
+            getStringValue(item, ['LeadStatusName', 'leadStatusName', 'Name', 'name', 'statusName', 'StatusName']) ||
+            'Unknown Status',
+        }))}
+        onSelect={o => {
+          setSelectedStatusId(o.id);
+          setStatusPickerOpen(false);
+        }}
+        onClose={() => setStatusPickerOpen(false)}
+      />
     </View>
   );
 };
@@ -948,6 +953,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    marginTop: ms(11),
     backgroundColor: COLORS.white,
     borderTopLeftRadius: ms(30),
     borderTopRightRadius: ms(30),
@@ -988,7 +994,7 @@ const styles = StyleSheet.create({
     marginBottom: ms(10),
   },
   statusLabel: {
-    fontSize: sp(16),
+    fontSize: sp(14),
     fontWeight: '700',
   },
   actionRow: {
@@ -998,7 +1004,7 @@ const styles = StyleSheet.create({
   updateStatusBtn: {
     backgroundColor: COLORS.statusOnHold,
     height: ms(25),
-    paddingHorizontal: ms(12),
+    paddingHorizontal: ms(10),
     borderRadius: ms(34),
     marginRight: ms(10),
     alignItems: 'center',
@@ -1006,10 +1012,10 @@ const styles = StyleSheet.create({
   },
   updateStatusBtnText: {
     color: COLORS.white,
-    fontSize: sp(12),
+    fontSize: sp(11.4),
   },
   iconBtn: {
-    marginLeft: ms(30),
+    marginLeft: ms(20),
   },
   phoneIcon: {
     width: ms(24),
@@ -1017,7 +1023,7 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   sectionTitle: {
-    fontSize: sp(16),
+    fontSize: sp(13.3),
     fontWeight: '700',
     color: COLORS.ink,
   },
@@ -1031,12 +1037,12 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     flex: 0.4,
-    fontSize: sp(15),
+    fontSize: sp(14.2),
     color: COLORS.ink,
   },
   fieldValue: {
     flex: 0.6,
-    fontSize: sp(15),
+    fontSize: sp(14.2),
     color: COLORS.lightGray,
   },
   photoRow: {
@@ -1069,23 +1075,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   historyIndex: {
-    fontSize: sp(13),
+    fontSize: sp(12.3),
     fontWeight: '700',
   },
   historyDate: {
-    fontSize: sp(12),
+    fontSize: sp(11.4),
   },
   historyNotes: {
-    fontSize: sp(13),
+    fontSize: sp(12.3),
     color: COLORS.lightGray,
   },
   notesText: {
-    fontSize: sp(15),
+    fontSize: sp(14.2),
     color: COLORS.lightGray,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'flex-end',
     alignItems: 'center',
   },
@@ -1093,99 +1099,83 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     width: '100%',
     maxWidth: ms(560),
-    borderTopLeftRadius: ms(24),
-    borderTopRightRadius: ms(24),
-    paddingHorizontal: ms(20),
-    paddingTop: ms(20),
-    paddingBottom: Platform.OS === 'ios' ? ms(40) : ms(20),
-    maxHeight: '80%',
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
+    overflow: 'hidden',
+    maxHeight: '90%',
   },
+  // gradient_addtask header: #353935, 20dp corners, 60dp tall, 22sp white title
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: ms(20),
+    backgroundColor: COLORS.statusOnHold,
+    height: ms(60),
+    paddingHorizontal: ms(20),
+    borderRadius: ms(20),
   },
   modalTitle: {
-    fontSize: sp(18),
-    fontWeight: '800',
-    color: '#111827',
-  },
-  modalCloseText: {
-    fontSize: sp(20),
-    color: '#6B7280',
-    fontWeight: '600',
-    padding: ms(4),
+    fontSize: sp(21),
+    color: '#FFFFFF',
   },
   modalBody: {
-    gap: ms(12),
+    paddingHorizontal: ms(20),
+    paddingTop: ms(20),
+    paddingBottom: ms(10),
   },
-  inputLabel: {
-    fontSize: sp(14),
-    fontWeight: '600',
-    color: '#4B5563',
-    marginBottom: ms(4),
+  // Java bg_spinner / TextInputLayoutStyle: outlined pill, light-gray stroke
+  statusPill: {
+    height: ms(40),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    marginBottom: ms(16),
+    justifyContent: 'center',
+    backgroundColor: '#fff',
   },
-  pickerContainer: {
-    borderWidth: ms(1),
-    borderColor: '#D1D5DB',
-    borderRadius: ms(8),
-    maxHeight: ms(200),
-    overflow: 'hidden',
-  },
-  statusOptionsList: {
-    width: '100%',
-  },
-  statusOptionItem: {
-    paddingVertical: ms(12),
-    paddingHorizontal: ms(16),
-    borderBottomWidth: ms(1),
-    borderBottomColor: '#F3F4F6',
-  },
-  statusOptionItemSelected: {
-    backgroundColor: '#F3F4F6',
-  },
-  statusOptionText: {
-    fontSize: sp(14),
-    color: '#374151',
-  },
-  statusOptionTextSelected: {
-    fontWeight: '700',
-    color: THEME_PRIMARY,
-  },
-  notesInput: {
-    borderWidth: ms(1),
-    borderColor: '#D1D5DB',
-    borderRadius: ms(8),
-    padding: ms(12),
-    fontSize: sp(14),
-    color: '#374151',
-    minHeight: ms(100),
+  notesPill: {
+    height: ms(100),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    paddingTop: ms(14),
+    fontSize: sp(15),
+    color: COLORS.ink,
     textAlignVertical: 'top',
+    marginBottom: ms(16),
+    backgroundColor: '#fff',
   },
   updateBtn: {
-    backgroundColor: '#374151',
-    borderRadius: ms(8),
-    paddingVertical: ms(14),
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: ms(8),
+    justifyContent: 'center',
+    height: ms(52),
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(34),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
+  },
+  updateBtnIcon: {
+    position: 'absolute',
+    left: ms(15),
   },
   updateBtnDisabled: {
     opacity: 0.6,
   },
   updateBtnText: {
     color: '#FFFFFF',
-    fontSize: sp(16),
-    fontWeight: '700',
+    fontSize: sp(17),
   },
   cancelBtn: {
-    paddingVertical: ms(12),
     alignItems: 'center',
+    marginBottom: ms(20),
   },
   cancelBtnText: {
-    color: '#DC2626',
-    fontSize: sp(14),
-    fontWeight: '600',
+    color: COLORS.primary,
+    fontSize: sp(17),
   },
 });
 

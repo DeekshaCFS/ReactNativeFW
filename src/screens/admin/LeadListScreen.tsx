@@ -589,13 +589,13 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
             hitSlop={10}
             style={styles.actionButton}
             onPress={() => openWhatsapp(phone)}>
-            <Ionicons name="logo-whatsapp" size={ms(24)} color={COLORS.ink} />
+            <Ionicons name="logo-whatsapp" size={ms(20)} color={COLORS.ink} />
           </Pressable>
           <Pressable
             hitSlop={10}
             style={styles.actionButton}
             onPress={() => openCall(phone)}>
-            <Ionicons name="call-outline" size={ms(24)} color={COLORS.ink} />
+            <Ionicons name="call-outline" size={ms(20)} color={COLORS.ink} />
           </Pressable>
         </View>
       </TouchableOpacity>
@@ -698,11 +698,9 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
               placeholderTextColor="#8f8f8f"
               style={styles.searchInput}
             />
-            {searchText ? (
-              <Pressable hitSlop={12} onPress={clearSearch}>
-                <Ionicons name="close" size={ms(24)} color={COLORS.lightGray} />
-              </Pressable>
-            ) : null}
+            <Pressable hitSlop={12} onPress={clearSearch}>
+              <Ionicons name="close" size={ms(24)} color={COLORS.lightGray} />
+            </Pressable>
           </View>
 
           <Pressable style={styles.addButton} onPress={openAddLeadModal}>
@@ -847,7 +845,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: ms(12),
-    paddingBottom: ms(6),
+    paddingTop: ms(8),
   },
   statusSelectorText: {
     color: '#FFFFFF',
@@ -871,9 +869,10 @@ const styles = StyleSheet.create({
     minHeight: ms(52),
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: ms(15),
+    paddingLeft: ms(23),
+    paddingRight: ms(16),
     paddingTop: ms(10),
-    gap: ms(8),
+    gap: ms(12),
   },
   searchBox: {
     flex: 1,
@@ -941,11 +940,13 @@ const styles = StyleSheet.create({
   listContent: {
     flexGrow: 1,
     paddingHorizontal: ms(18),
-    paddingTop: ms(8),
+    paddingTop: ms(13),
     paddingBottom: ms(110),
   },
+  // lead_list_owner.xml: 8dp-margin CardView radius 10; 9sp ribbon (15/3dp padding), 11sp date,
+  // 16sp bold name in a 105dp box + 12sp bold id, 12sp description, 20dp whatsapp/phone icons.
   leadCard: {
-    minHeight: ms(90),
+    minHeight: ms(82),
     borderWidth: ms(1),
     borderColor: '#ededed',
     borderRadius: ms(10),
@@ -962,33 +963,31 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    minWidth: ms(100),
-    maxWidth: '42%',
-    height: ms(24),
     borderBottomRightRadius: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: ms(12),
+    paddingHorizontal: ms(15),
+    paddingVertical: ms(3),
     zIndex: 2,
   },
   statusRibbonText: {
     color: '#FFFFFF',
-    fontSize: sp(12),
+    fontSize: sp(9),
   },
   leadDateText: {
     position: 'absolute',
     top: ms(5),
     right: ms(8),
     maxWidth: ms(200),
-    color: COLORS.darkGray,
-    fontSize: sp(12),
+    color: COLORS.ink,
+    fontSize: sp(11),
     textAlign: 'right',
   },
   leadBody: {
-    paddingTop: ms(34),
-    paddingLeft: ms(15),
+    paddingTop: ms(26),
+    paddingLeft: ms(10),
     paddingRight: ms(100),
-    paddingBottom: ms(14),
+    paddingBottom: ms(9),
   },
   leadTitleRow: {
     flexDirection: 'row',
@@ -996,34 +995,33 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   leadTitle: {
-    maxWidth: ms(150),
+    width: ms(112),
+    paddingLeft: ms(5),
     color: COLORS.ink,
-    fontSize: sp(16),
+    fontSize: sp(15),
     fontWeight: '700',
   },
   leadIdText: {
-    marginLeft: ms(10),
+    paddingLeft: ms(10),
     color: COLORS.linkBlue,
     fontSize: sp(12),
     fontWeight: '700',
   },
   leadDescription: {
-    marginTop: ms(8),
+    marginTop: ms(5),
+    paddingLeft: ms(5),
     color: COLORS.darkGray,
     fontSize: sp(12),
   },
   leadActions: {
     position: 'absolute',
     right: ms(18),
-    bottom: ms(18),
-    width: ms(136),
+    bottom: ms(13),
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: ms(36),
   },
   actionButton: {
-    minWidth: ms(52),
-    height: ms(38),
     alignItems: 'center',
     justifyContent: 'center',
   },
