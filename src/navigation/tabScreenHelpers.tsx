@@ -13,6 +13,9 @@ import { tr } from '../i18n/tr';
 import { COLORS } from '../theme/theme';
 import { ms, HEADER_BAR_HEIGHT } from '../utils/responsive';
 
+/** Screens opened from the Settings screen; back returns there instead of Home. */
+const SETTINGS_SUBSCREENS = ['TermsAndConditions', 'PrivacyPolicy', 'RefundPolicy', 'AboutFieldweb', 'Feedback', 'BankDetailsTax'];
+
 /**
  * Stack screens unmount when popped; tab screens stay mounted once visited.
  * Rendering nothing while blurred gives these screens the same fresh state on
@@ -44,6 +47,15 @@ export function unmountOnBlur<P extends object>(
       });
       return () => sub.remove();
     }, [focused, returnTo, navigation]);
+    const routeName = useRoute<any>().name;
+    useEffect(() => {
+      if (!focused || returnTo || !SETTINGS_SUBSCREENS.includes(routeName)) return;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        navigation.navigate('Settings');
+        return true;
+      });
+      return () => sub.remove();
+    }, [focused, returnTo, routeName, navigation]);
     const focusedName = useNavigationState(state => state.routes[state.index]?.name);
     const keep = !focused && keepMountedWhileOn.includes(focusedName);
     return focused || keep ? <Screen {...props} /> : null;
@@ -78,6 +90,7 @@ export const pushedScreenOptions = (title: string, navigation: any, route?: any,
         const returnTo = route?.params?.returnTo;
         if (returnTo) navigation.navigate(returnTo.name, returnTo.params);
         else if (backTo) navigation.navigate(backTo);
+        else if (SETTINGS_SUBSCREENS.includes(route?.name)) navigation.navigate('Settings');
         else navigation.goBack();
       }}
       hitSlop={10}

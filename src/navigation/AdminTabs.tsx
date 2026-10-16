@@ -408,10 +408,10 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
             name={name}
             component={component}
             initialParams={initialParams}
-            options={({ navigation }: any) =>
+            options={({ navigation, route }: any) =>
               MAIN_HEADER_SCREENS.includes(name)
                 ? { headerShown: false }
-                : pushedScreenOptions(title, navigation)}
+                : pushedScreenOptions(title, navigation, route)}
           />
         ))}
       </Tab.Navigator>

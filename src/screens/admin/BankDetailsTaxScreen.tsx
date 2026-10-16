@@ -38,6 +38,7 @@ import type {
 } from '../../api/users/users.types';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import TabStrip from '../../components/TabStrip';
 import {OutlinedInput} from '../../components/OutlinedInput';
 
@@ -351,7 +352,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
               {savingBank ? (
                 <ActivityIndicator color={COLORS.white} />
               ) : (
-                <Text style={styles.saveButtonText}>{t('update')}</Text>
+                <Text style={styles.saveButtonText}>{t('update').toUpperCase()}</Text>
               )}
             </Pressable>
           </View>
@@ -359,38 +360,36 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.heading}>Tax Details</Text>
+          {/* add_bulk_dynamic_tax.xml: one rounded card per tax -- red "Tax #N", red cross, name +
+              percent pills; "Add More" lives in the last card. */}
           {taxRows.map((row, index) => (
-            <View key={index} style={styles.taxRow}>
-              <OutlinedInput
-                style={[styles.pill, styles.taxNameInput]}
-                placeholder="Tax Name"
-                placeholderTextColor={COLORS.lightGray}
-                value={row.TaxName}
-                onChangeText={t => updateTaxRow(index, 'TaxName', t)}
-              />
-              <DecimalInput
-                style={[styles.pill, styles.taxPercentInput]}
-                label="Percent %"
-                placeholderTextColor={COLORS.lightGray}
-                value={row.TaxPercentage}
-                onChangeText={t => updateTaxRow(index, 'TaxPercentage', sanitizeDecimalInput(t))}
-              />
-              <Pressable
-                hitSlop={8}
-                onPress={() => removeTaxRow(index)}
-                disabled={taxRows.length <= 1}
-                style={styles.removeTaxButton}>
-                <Text style={[styles.removeTaxButtonText, taxRows.length <= 1 && styles.removeTaxButtonTextDisabled]}>
-                  ✕
-                </Text>
-              </Pressable>
+            <View key={index} style={styles.taxCard}>
+              <View style={styles.taxCardHeader}>
+                <Text style={styles.taxCardTitle}>{`Tax #${index + 1}`}</Text>
+                <Pressable hitSlop={8} onPress={() => (index === 0 ? showFailureMsg(t('not_allowed')) : removeTaxRow(index))}>
+                  <Ionicons name="close" size={ms(26)} color={THEME_PRIMARY} />
+                </Pressable>
+              </View>
+              <View style={styles.taxRow}>
+                <OutlinedInput
+                  style={[styles.pill, styles.taxNameInput]}
+                  placeholder="Tax Name"
+                  placeholderTextColor={COLORS.lightGray}
+                  value={row.TaxName}
+                  onChangeText={v => updateTaxRow(index, 'TaxName', v)}
+                />
+                <DecimalInput
+                  style={[styles.pill, styles.taxPercentInput]}
+                  label="Percent %"
+                  placeholderTextColor={COLORS.lightGray}
+                  value={row.TaxPercentage}
+                  onChangeText={v => updateTaxRow(index, 'TaxPercentage', sanitizeDecimalInput(v))}
+                />
+              </View>
             </View>
           ))}
 
-          <Pressable
-            style={[styles.addTaxButton, !canAddTaxRow && styles.addTaxButtonDisabled]}
-            onPress={addTaxRow}
-            disabled={!canAddTaxRow}>
+          <Pressable onPress={addTaxRow} hitSlop={8}>
             <Text style={styles.addTaxButtonText}>{t('add_more')}</Text>
           </Pressable>
 
@@ -401,7 +400,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
             {savingTax ? (
               <ActivityIndicator color={COLORS.white} />
             ) : (
-              <Text style={styles.saveButtonText}>{t('update')}</Text>
+              <Text style={styles.saveButtonText}>{t('update').toUpperCase()}</Text>
             )}
           </Pressable>
         </ScrollView>
@@ -538,46 +537,54 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   fullWidthSaveButton: {
-    marginTop: vs(10),
+    marginTop: ms(20),
   },
   saveButtonDisabled: {
     opacity: 0.5,
   },
   saveButtonText: {color: '#fff', fontSize: sp(18)},
-  taxRow: {
+  taxCard: {
+    backgroundColor: '#fff',
+    borderRadius: ms(20),
+    margin: ms(5),
+    marginHorizontal: -ms(15),
+    marginBottom: ms(10),
+    paddingBottom: ms(10),
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    shadowOffset: {width: 0, height: 2},
+  },
+  taxCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: scale(10),
+    justifyContent: 'space-between',
+    paddingLeft: ms(18),
+    paddingRight: ms(14),
+    paddingTop: ms(8),
+    paddingBottom: ms(4),
   },
-  taxNameInput: {
-    flex: 2,
+  taxCardTitle: {
+    color: THEME_PRIMARY,
+    fontSize: sp(15),
+    fontWeight: '700',
   },
-  taxPercentInput: {
-    flex: 1,
+  taxRow: {
+    flexDirection: 'row',
+    marginLeft: ms(16),
+    marginRight: ms(16),
+    marginTop: ms(12),
+    gap: ms(15),
   },
-  removeTaxButton: {
-    paddingHorizontal: scale(6),
-    paddingBottom: vs(14),
-  },
-  removeTaxButtonText: {
+  taxNameInput: {flex: 1, marginBottom: ms(10)},
+  taxPercentInput: {flex: 1, marginBottom: ms(10)},
+  addTaxButtonText: {
     color: THEME_PRIMARY,
     fontSize: sp(18),
     fontWeight: '700',
-  },
-  removeTaxButtonTextDisabled: {
-    color: '#d1d5db',
-  },
-  addTaxButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: vs(8),
-  },
-  addTaxButtonDisabled: {
-    opacity: 0.4,
-  },
-  addTaxButtonText: {
-    color: THEME_PRIMARY,
-    fontSize: sp(14),
-    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: ms(5),
   },
 });
 

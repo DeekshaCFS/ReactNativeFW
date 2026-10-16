@@ -35,7 +35,7 @@ export default function RateUsModal({visible, onClose}: Props) {
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          <Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
+          <Image source={require('../../assets/images/icon.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>{t('rateAppTitle')}</Text>
           <Text style={styles.description}>{t('rateAppDesc')}</Text>
 
@@ -75,6 +75,7 @@ const styles = StyleSheet.create({
   logo: {
     width: ms(50),
     height: ms(50),
+    borderRadius: ms(25),
     marginVertical: ms(5),
   },
   title: {
