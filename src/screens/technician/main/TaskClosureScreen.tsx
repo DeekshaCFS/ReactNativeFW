@@ -44,6 +44,7 @@ import RNFS from 'react-native-fs';
 import { showFailureMsg } from '../../../utils/toast';
 import DecimalInput from '../../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 // ─── Local Types ──────────────────────────────────────────────────────────────
 
 interface PhotoAsset {
@@ -353,6 +354,7 @@ const snapshotToPngBase64 = (ref: React.RefObject<any>): Promise<string | undefi
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TaskClosure({ navigation, route }: any) {
+  const {t} = useTranslation();
   const { task: routeTask, elapsedSeconds = 0 } = route.params as {
     task: Task;
     elapsedSeconds?: number;
@@ -1052,8 +1054,8 @@ export default function TaskClosure({ navigation, route }: any) {
 
         {/* ── FIELD PHOTO ─────────────────────────────────────────────── */}
         <View style={[styles.card, { marginTop: 0 }]}>
-          <Text style={styles.cardTitle}>Field Photo</Text>
-          <Text style={styles.cardSubtitle}>Where the task is performed</Text>
+          <Text style={styles.cardTitle}>{t('field_photo')}</Text>
+          <Text style={styles.cardSubtitle}>{t('where_the_task_is_performed')}</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1092,7 +1094,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
         {/* ── WORK MODE ───────────────────────────────────────────────── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Work Mode</Text>
+          <Text style={styles.cardTitle}>{t('work_mode_without_colon')}</Text>
           <View style={styles.workModeRow}>
             {WORK_MODES.map(mode => (
               <Pressable
@@ -1119,7 +1121,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
         {/* ── TECHNICAL NOTES ─────────────────────────────────────────── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Technical Notes</Text>
+          <Text style={styles.cardTitle}>{t('technical_note')}</Text>
           <Pressable
             style={styles.addRow}
             onPress={() => {
@@ -1132,7 +1134,7 @@ export default function TaskClosure({ navigation, route }: any) {
               setTechnicalNotes(prev => [...prev, { text: '' }]);
             }}
           >
-            <Text style={styles.addRowPlaceholder}>Add Notes</Text>
+            <Text style={styles.addRowPlaceholder}>{t('add_new_notes')}</Text>
             <Text style={styles.plusBtn}>+</Text>
           </Pressable>
           {notAllowedVisible && (
@@ -1180,10 +1182,10 @@ export default function TaskClosure({ navigation, route }: any) {
               style={styles.sheetContainer}
             >
               <View style={styles.sheetContent}>
-                <Text style={styles.sheetTitle}>Technical Notes</Text>
+                <Text style={styles.sheetTitle}>{t('technical_note')}</Text>
                 <View style={styles.sheetField}>
                   {(noteFocused || noteInputValue.length > 0) && (
-                    <Text style={styles.sheetFieldLabel}>Click here to add note</Text>
+                    <Text style={styles.sheetFieldLabel}>{t('click_here_to_add_note')}</Text>
                   )}
                   <TextInput
                     value={noteInputValue}
@@ -1217,7 +1219,7 @@ export default function TaskClosure({ navigation, route }: any) {
                   <Text style={styles.sheetSaveBtnText}>SAVE</Text>
                 </Pressable>
                 <Pressable onPress={() => setNoteSheetVisible(false)}>
-                  <Text style={styles.sheetCancelText}>Cancel</Text>
+                  <Text style={styles.sheetCancelText}>{t('cancel')}</Text>
                 </Pressable>
               </View>
             </KeyboardAvoidingView>
@@ -1226,7 +1228,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
         {/* ── DEVICE LIST ─────────────────────────────────────────────── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Device List</Text>
+          <Text style={styles.cardTitle}>{t('device_list')}</Text>
           <Pressable
             style={styles.addRow}
             onPress={() => {
@@ -1243,7 +1245,7 @@ export default function TaskClosure({ navigation, route }: any) {
               setExpandedDeviceIndex(newIndex);
             }}
           >
-            <Text style={styles.addRowPlaceholder}>Add New Device</Text>
+            <Text style={styles.addRowPlaceholder}>{t('add_new_device')}</Text>
             <Text style={styles.plusBtn}>+</Text>
           </Pressable>
           {deviceNotAllowed && (
@@ -1288,7 +1290,7 @@ export default function TaskClosure({ navigation, route }: any) {
                           prev.map((d, i) => (i === idx ? { ...d, DeviceName: val } : d))
                         )
                       }
-                      placeholder="Device"
+                      placeholder={t('device')}
                       placeholderTextColor="#ABABAB"
                       style={styles.deviceInput}
                     />
@@ -1299,7 +1301,7 @@ export default function TaskClosure({ navigation, route }: any) {
                           prev.map((d, i) => (i === idx ? { ...d, ModelNumber: val } : d))
                         )
                       }
-                      placeholder="Company/Model"
+                      placeholder={t('company_model')}
                       placeholderTextColor="#ABABAB"
                       style={styles.deviceInput}
                     />
@@ -1318,7 +1320,7 @@ export default function TaskClosure({ navigation, route }: any) {
                           )
                         );
                       }}
-                      label="Device Reading"
+                      label={t('device_reading')}
                       placeholderTextColor="#ABABAB"
                       style={styles.deviceInput}
                     />
@@ -1420,7 +1422,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
         {/* ── SIGNATURE & RATING ──────────────────────────────────────── */}
         <View style={[styles.card, styles.boxCard, { backgroundColor: '#FFF0F3' }]}>
-          <Text style={styles.cardTitle}>Signature & Rating</Text>
+          <Text style={styles.cardTitle}>{t('signature_and_rating')}</Text>
           <Pressable
             style={styles.signatureArea}
             onPress={() => setShowSignatureSheet(true)}
@@ -1440,7 +1442,7 @@ export default function TaskClosure({ navigation, route }: any) {
                 ))}
               </Svg>
             ) : (
-              <Text style={styles.signaturePlaceholder}>Click Here For Signature</Text>
+              <Text style={styles.signaturePlaceholder}>{t('click_below_customer_signature')}</Text>
             )}
           </Pressable>
         </View>
@@ -1448,7 +1450,7 @@ export default function TaskClosure({ navigation, route }: any) {
         {/* ── SATISFACTION CODE (only when task has a HappyCode) ─────── */}
         {hasHappyCode && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Satisfaction Code</Text>
+            <Text style={styles.cardTitle}>{t('enter_satisfaction_code')}</Text>
             <TextInput
               value={satisfactionCode}
               onChangeText={setSatisfactionCode}
@@ -1462,7 +1464,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
         {/* ── UPLOAD ATTACHMENT ───────────────────────────────────────── */}
         <View style={[styles.card, styles.boxCard, styles.boxGrey]}>
-          <Text style={styles.cardTitle}>* Upload Attachment Here [Upto 5 MB Limit]</Text>
+          <Text style={styles.cardTitle}>{t('attach_file')}</Text>
           <Pressable
             style={styles.dashedBox}
             onPress={pickAttachment}
@@ -1479,7 +1481,7 @@ export default function TaskClosure({ navigation, route }: any) {
             ) : (
               <View style={styles.dashedInner}>
                 <Ionicons name="share-outline" size={ms(26)} color={COLORS.primary} />
-                <Text style={styles.attachLabel}>Attachment</Text>
+                <Text style={styles.attachLabel}>{t('attachment')}</Text>
               </View>
             )}
           </Pressable>
@@ -1519,7 +1521,7 @@ export default function TaskClosure({ navigation, route }: any) {
       >
         <View style={styles.bottomSheetOverlay}>
           <View style={styles.signatureSheet}>
-            <Text style={styles.signatureSheetTitle}>Signature & Rating</Text>
+            <Text style={styles.signatureSheetTitle}>{t('signature_and_rating')}</Text>
 
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -1545,14 +1547,14 @@ export default function TaskClosure({ navigation, route }: any) {
                       <TextInput
                         value={customerName}
                         onChangeText={setCustomerName}
-                        placeholder="Customer Name"
+                        placeholder={t('customer_name')}
                         placeholderTextColor="#a6a6a6"
                         style={sigModalStyles.roundedInput}
                       />
                       <TextInput
                         value={customerNumber}
                         onChangeText={setCustomerNumber}
-                        placeholder="Customer Number"
+                        placeholder={t('customer_number')}
                         placeholderTextColor="#a6a6a6"
                         keyboardType="phone-pad"
                         style={[sigModalStyles.roundedInput, { marginTop: vs(20) }]}
@@ -1580,7 +1582,7 @@ export default function TaskClosure({ navigation, route }: any) {
                   </View>
 
                   <View style={sigModalStyles.signatureRow}>
-                    <Text style={sigModalStyles.signatureLabel}>Signature</Text>
+                    <Text style={sigModalStyles.signatureLabel}>{t('customer_signature')}</Text>
                     <Pressable onPress={() => setCustomerSignPaths([])}>
                       <Text style={sigModalStyles.clearText}>CLEAR</Text>
                     </Pressable>
@@ -1654,7 +1656,7 @@ export default function TaskClosure({ navigation, route }: any) {
                   </Pressable>
 
                   <View style={sigModalStyles.signatureRow}>
-                    <Text style={sigModalStyles.signatureLabel}>Signature</Text>
+                    <Text style={sigModalStyles.signatureLabel}>{t('customer_signature')}</Text>
                     <Pressable onPress={() => setTechSignPaths([])}>
                       <Text style={sigModalStyles.clearText}>CLEAR</Text>
                     </Pressable>
@@ -1676,7 +1678,7 @@ export default function TaskClosure({ navigation, route }: any) {
               <Text style={styles.signatureSaveText}>SAVE</Text>
             </Pressable>
             <Pressable onPress={() => setShowSignatureSheet(false)}>
-              <Text style={styles.signatureCancelText}>Cancel</Text>
+              <Text style={styles.signatureCancelText}>{t('cancel')}</Text>
             </Pressable>
           </View>
         </View>
@@ -1708,7 +1710,7 @@ export default function TaskClosure({ navigation, route }: any) {
           >
             {/* Dark header */}
             <View style={usedItemStyles.header}>
-              <Text style={usedItemStyles.headerTitle}>Update Used Items</Text>
+              <Text style={usedItemStyles.headerTitle}>{t('update_used_items')}</Text>
               <Pressable onPress={() => setShowUsedItemSheet(false)} hitSlop={10}>
                 <Ionicons name="close" size={ms(30)} color={COLORS.white} />
               </Pressable>
@@ -1741,7 +1743,7 @@ export default function TaskClosure({ navigation, route }: any) {
                             prev.map((s, i) => (i === idx ? { ...s, usedQty: val } : s))
                           );
                         }}
-                        label="Used Qty"
+                        label={t('used_qty')}
                         placeholderTextColor="#ABABAB"
                         style={usedItemStyles.usedQtyInput}
                       />
@@ -1834,7 +1836,7 @@ export default function TaskClosure({ navigation, route }: any) {
                   {/* + Add More */}
                   {visibleSlotCount < MAX_ADHOC_SLOTS && (
                     <Pressable style={usedItemStyles.addMoreBtn} onPress={handleAddMoreSlot}>
-                      <Text style={usedItemStyles.addMoreText}>+ Add More</Text>
+                      <Text style={usedItemStyles.addMoreText}>{t('add_more')}</Text>
                     </Pressable>
                   )}
                 </>
@@ -1845,7 +1847,7 @@ export default function TaskClosure({ navigation, route }: any) {
               <Text style={usedItemStyles.updateBtnText}>UPDATE</Text>
             </Pressable>
             <Pressable onPress={() => setShowUsedItemSheet(false)}>
-              <Text style={usedItemStyles.cancelText}>Cancel</Text>
+              <Text style={usedItemStyles.cancelText}>{t('cancel')}</Text>
             </Pressable>
 
           </KeyboardAvoidingView>
@@ -1972,7 +1974,7 @@ export default function TaskClosure({ navigation, route }: any) {
       {/* Java UpdateUsedItems_FW: dialog_searchable_spinner_item -- the shared dialog. */}
       <SearchPickerModal
         visible={showItemPicker}
-        title="Select Item"
+        title={t('select_item')}
         options={issueList.map(i => ({ id: i.Id, label: i.Name }))}
         loading={issueListLoading}
         onSelect={option => {

@@ -38,6 +38,7 @@ import { unmountOnBlur, pushedScreenOptions } from './tabScreenHelpers';
 import { COLORS } from '../theme/theme';
 import type { AdminStackParamList } from './AdminStack';
 
+import {useTranslation} from 'react-i18next';
 export type AdminTabParamList = {
   // Optional `drawerSection` lets CustomDrawerContent open a specific
   // internal section of HomeActivityNewScreen (Leads, AMC, etc.) directly,
@@ -127,6 +128,7 @@ const MAIN_HEADER_SCREENS = ['notification', 'help', 'TaskDetails', 'Profile'];
 // action modal) — otherwise React Navigation sees a "new" render prop each
 // time and remounts the active tab's whole screen subtree.
 export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
+  const {t} = useTranslation();
   const insets = useSafeAreaInsets();
   const headerOffset = insets.top + HEADER_CONTENT_HEIGHT;
   // Parent stack navigator — used to push TaskDetails from the Task tab,
@@ -234,14 +236,14 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
       },
       {
         name: 'notification',
-        title: 'Notification',
+        title: t('title_notification'),
         component: unmountOnBlur(() => (
           <AdminNotificationScreen ownerId={ownerId as number} />
         )),
       },
       {
         name: 'TaskDetails',
-        title: 'Task Details',
+        title: t('task_details_title'),
         component: unmountOnBlur(({ route, navigation }: any) => (
           <TaskDetailsScreen
             ownerId={ownerId as number}
@@ -273,27 +275,27 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
   const quickActions: QuickAction[] = [
     {
       icon: 'fab-fieldworker',
-      label: 'Add Fieldworker',
+      label: t('title_add_tech'),
       onPress: () => setIsAddFieldworkerModalOpen(true),
     },
     {
       icon: 'fab-invoice',
-      label: 'Add Task',
+      label: t('title_add_task'),
       onPress: () => setIsAddTaskModalOpen(true),
     },
     {
       icon: 'fab-quote',
-      label: 'Add Item',
+      label: t('add_item'),
       onPress: () => setIsAddItemModalOpen(true),
     },
     {
       icon: 'fab-assign-item',
-      label: 'Assign Item',
+      label: t('assign_item'),
       onPress: () => setIsAssignItemModalOpen(true),
     },
     {
       icon: 'fab-enquiry',
-      label: 'Add Enquiry',
+      label: t('title_add_enquiry'),
       onPress: () =>
         rootNavigation.navigate('AdminTabsRoot', {
           screen: 'CRM',
@@ -302,7 +304,7 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
     },
     {
       icon: 'fab-amc',
-      label: 'Add AMC',
+      label: t('add_amc'),
       // No hidden-mount trick from here: AMC's add-flow only exists inside
       // AdminHomeScreen's AMC section, so this jumps there directly (same
       // as tapping AMC in the drawer) instead of opening an overlay over
@@ -315,7 +317,7 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
     },
     {
       icon: 'fab-balance',
-      label: 'Manage Balance',
+      label: t('managebal'),
       onPress: () => setIsManageBalanceModalOpen(true),
     },
   ];

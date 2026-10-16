@@ -7,6 +7,9 @@ import React, { useEffect } from 'react';
 import { BackHandler, Pressable } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useIsFocused, useNavigation, useNavigationState, useRoute } from '@react-navigation/native';
+import { HeaderTitle } from '@react-navigation/elements';
+import { useTranslation } from 'react-i18next';
+import { tr } from '../i18n/tr';
 import { COLORS } from '../theme/theme';
 import { ms, HEADER_BAR_HEIGHT } from '../utils/responsive';
 
@@ -49,6 +52,11 @@ export function unmountOnBlur<P extends object>(
   return Wrapped;
 }
 
+const TranslatedHeaderTitle = ({ text, color }: { text: string; color?: string }) => {
+  useTranslation();
+  return <HeaderTitle tintColor={color} style={{ fontWeight: '600' }}>{tr(text)}</HeaderTitle>;
+};
+
 /** Red back-arrow header matching the native stack header these screens had. */
 /**
  * `backTo` is the tab the arrow returns to when the screen was not opened from another screen
@@ -57,6 +65,9 @@ export function unmountOnBlur<P extends object>(
 export const pushedScreenOptions = (title: string, navigation: any, route?: any, backTo?: string) => ({
   headerShown: true,
   title,
+  headerTitle: ({ children, tintColor }: { children: string; tintColor?: string }) => (
+    <TranslatedHeaderTitle text={children} color={tintColor} />
+  ),
   headerStyle: { backgroundColor: COLORS.primary, height: HEADER_BAR_HEIGHT },
   headerTintColor: '#fff',
   headerTitleStyle: { fontWeight: '600' as const },

@@ -39,6 +39,7 @@ import type {
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 type Props = {
   ownerId: number;
 };
@@ -76,6 +77,7 @@ const emptyBankFields: BankFields = {
 };
 
 const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
+  const {t} = useTranslation();
   const [activeTab, setActiveTab] = useState<'bank' | 'tax'>('bank');
   const [loading, setLoading] = useState(true);
   const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
@@ -342,7 +344,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
               {savingBank ? (
                 <ActivityIndicator color={COLORS.white} />
               ) : (
-                <Text style={styles.saveButtonText}>Update</Text>
+                <Text style={styles.saveButtonText}>{t('update')}</Text>
               )}
             </Pressable>
           </View>
@@ -381,7 +383,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
             style={[styles.addTaxButton, !canAddTaxRow && styles.addTaxButtonDisabled]}
             onPress={addTaxRow}
             disabled={!canAddTaxRow}>
-            <Text style={styles.addTaxButtonText}>+ Add More</Text>
+            <Text style={styles.addTaxButtonText}>{t('add_more')}</Text>
           </Pressable>
 
           <Pressable
@@ -391,7 +393,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
             {savingTax ? (
               <ActivityIndicator color={COLORS.white} />
             ) : (
-              <Text style={styles.saveButtonText}>Update</Text>
+              <Text style={styles.saveButtonText}>{t('update')}</Text>
             )}
           </Pressable>
         </ScrollView>

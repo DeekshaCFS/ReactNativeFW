@@ -19,6 +19,7 @@ import { sp, dp } from '../../utils/responsive';
 import { AuthBackButton } from '../../components/AuthExtras';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type AuthStackParamList = {
   CompanyDetails: {
     emailOrContactNo: string;   // mobile or email captured at signup
@@ -35,6 +36,7 @@ const MAX_WORKERS = 100;
 const CENTER_CONTENT = { justifyContent: 'center' as const };
 
 export default function CompanyDetailsScreen() {
+  const {t} = useTranslation();
   const route = useRoute<RouteProp<AuthStackParamList, 'CompanyDetails'>>();
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const { emailOrContactNo, touchlessSignupId, countryDetailsId, displayName } = route.params;
@@ -162,12 +164,12 @@ export default function CompanyDetailsScreen() {
             <Image source={require('../../../assets/images/logo.png')} style={GlobalStyles.logo} resizeMode="contain" />
           </View>
 
-          <Text style={GlobalStyles.title}>Glad to Meet You!</Text>
-          <Text style={styles.subtitle}>Please Enter Your Details</Text>
+          <Text style={GlobalStyles.title}>{t('glad_to_meet')}</Text>
+          <Text style={styles.subtitle}>{t('please_enter_details')}</Text>
 
           <View style={[GlobalStyles.form, { marginTop: dp(10) }]}>
             <TextInput
-              placeholder="First Name"
+              placeholder={t('first_name')}
               placeholderTextColor={COLORS.authText}
               style={[styles.input, !!errors.firstName && GlobalStyles.inputError]}
               value={firstName}
@@ -180,7 +182,7 @@ export default function CompanyDetailsScreen() {
             {!!errors.firstName && <Text style={GlobalStyles.errorText}>{errors.firstName}</Text>}
 
             <TextInput
-              placeholder="Last Name"
+              placeholder={t('last_name')}
               placeholderTextColor={COLORS.authText}
               style={[styles.input, !!errors.lastName && GlobalStyles.inputError]}
               value={lastName}
@@ -193,7 +195,7 @@ export default function CompanyDetailsScreen() {
             {!!errors.lastName && <Text style={GlobalStyles.errorText}>{errors.lastName}</Text>}
 
             <TextInput
-              placeholder="Company Name"
+              placeholder={t('company_name')}
               placeholderTextColor={COLORS.authText}
               style={[styles.input, !!errors.companyName && GlobalStyles.inputError]}
               value={companyName}
@@ -206,7 +208,7 @@ export default function CompanyDetailsScreen() {
             {!!errors.companyName && <Text style={GlobalStyles.errorText}>{errors.companyName}</Text>}
 
             <View style={styles.workersBox}>
-              <Text style={styles.workersLabel}>Select No. of Field Workers (1-100)</Text>
+              <Text style={styles.workersLabel}>{t('please_select_no_of_worker')}</Text>
 
               <Slider
                 style={styles.slider}

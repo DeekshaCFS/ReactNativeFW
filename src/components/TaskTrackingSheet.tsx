@@ -20,6 +20,7 @@ import { scale, vs, sp, ms } from '../utils/responsive';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { showFailureMsg, showToast } from '../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 const REJECTION_REASONS = [
   'Not available', 'Wrong area', 'Personal reason', 'Equipment issue', 'Other',
 ];
@@ -97,6 +98,7 @@ type Props = {
 export default function TaskTrackingSheet({
   task, autoReject = false, resumeOnHold = false, navigation, onClose, onFinished, onRejected,
 }: Props) {
+  const {t} = useTranslation();
   const [sheetStep, setSheetStep] = useState<'actions' | 'reject'>(autoReject ? 'reject' : 'actions');
   const [sheetVisible, setSheetVisible] = useState(true);
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
@@ -322,7 +324,7 @@ export default function TaskTrackingSheet({
               </TouchableOpacity>
               <View style={styles.photoSourceDivider} />
               <TouchableOpacity style={[styles.photoSourceOption, { justifyContent: 'center' }]} onPress={() => setShowPhotoSourceModal(false)}>
-                <Text style={[styles.photoSourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>Cancel</Text>
+                <Text style={[styles.photoSourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>{t('cancel')}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -335,6 +337,7 @@ export default function TaskTrackingSheet({
 // The shared header of the accept / resume dialogs: close icon pinned top-right (50dp view,
 // 40dp icon), task name, description (hidden when empty), customer + address + landmark.
 function TaskDetailsBlock({ task, onClose, resumeDefaults = false }: { task: Task; onClose: () => void; resumeDefaults?: boolean }) {
+  const {t} = useTranslation();
   const isAmc = (task.PaymentMode ?? '').toLowerCase() === 'amc';
   const description = task.Description || (resumeDefaults ? 'Special Instruction' : '');
   return (
@@ -345,7 +348,7 @@ function TaskDetailsBlock({ task, onClose, resumeDefaults = false }: { task: Tas
       <View style={styles.content}>
         <Text style={styles.taskName}>{task.Name || 'Task'}</Text>
         {description ? <Text style={styles.taskDesc}>{description}</Text> : null}
-        <Text style={styles.sectionLabel}>Customer Details</Text>
+        <Text style={styles.sectionLabel}>{t('customer_details')}</Text>
         <Text style={styles.valueText}>{task.CustomerName || 'NA'}</Text>
         <View style={styles.addressRow}>
           <Text style={styles.addressText}>{task.FullAddress || task.LocationName}</Text>
@@ -357,7 +360,7 @@ function TaskDetailsBlock({ task, onClose, resumeDefaults = false }: { task: Tas
             <Image source={require('../../assets/images/ic_phone.png')} style={styles.callIcon} />
           </Pressable>
         </View>
-        <Text style={[styles.sectionLabel, { marginTop: ms(10) }]}>Landmark</Text>
+        <Text style={[styles.sectionLabel, { marginTop: ms(10) }]}>{t('landmark')}</Text>
         <Text style={[styles.landmarkText]}>{task.LocationDesc || (resumeDefaults ? 'NA' : '')}</Text>
       </View>
     </View>
@@ -366,10 +369,11 @@ function TaskDetailsBlock({ task, onClose, resumeDefaults = false }: { task: Tas
 
 // OtpView: 4 line-style boxes (lineColor light_gray, 2dp, 10dp spacing, colorPrimary bold digits).
 function ResponseCodeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const {t} = useTranslation();
   const inputRef = useRef<TextInput>(null);
   return (
     <View style={styles.codeBox}>
-      <Text style={styles.codeLabel}>Response Code</Text>
+      <Text style={styles.codeLabel}>{t('enter_response_code')}</Text>
       <Pressable style={styles.codeCells} onPress={() => inputRef.current?.focus()}>
         {[0, 1, 2, 3].map(i => (
           <View key={i} style={styles.codeCell}>
@@ -401,6 +405,7 @@ function ActionSheet({
   photos: { uri: string; base64?: string }[];
   onOpenPhotoPicker: (index: number) => void;
 }) {
+  const {t} = useTranslation();
   const requiresResponseCode = !!task.ResponseCode && Number(task.ResponseCode) !== 0;
   const [responseCode, setResponseCode] = useState('');
   const codeReady = !requiresResponseCode || responseCode.trim().length > 0;
@@ -451,7 +456,7 @@ function ActionSheet({
               {rejectNoteError && (
                 <View style={styles.errorTip} pointerEvents="none">
                   <View style={styles.errorTipBox}>
-                    <Text style={styles.errorTipText}>Enter Reason for Reject</Text>
+                    <Text style={styles.errorTipText}>{t('enter_reject_reason')}</Text>
                   </View>
                   <View style={styles.errorTipArrow} />
                 </View>
@@ -482,7 +487,7 @@ function ActionSheet({
                   reasonFocused && { color: REASON_FOCUS_GREEN },
                 ]}
               >
-                Reason for Reject
+                {t('reject_reason')}
               </Text>
             </View>
           </>
@@ -495,6 +500,7 @@ function ActionSheet({
 function OnHoldResumeSheet({ task, onClose, onResume, isLoading }: {
   task: Task; onClose: () => void; onResume: () => void; isLoading: boolean;
 }) {
+  const {t} = useTranslation();
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
       <TaskDetailsBlock task={task} onClose={onClose} resumeDefaults />
@@ -502,7 +508,7 @@ function OnHoldResumeSheet({ task, onClose, onResume, isLoading }: {
         <Text style={styles.resumePrompt}>Do you want to Resume this Task?</Text>
         <View style={styles.btnRow}>
           <Pressable style={[styles.pillBtn, { backgroundColor: '#E5E7EB' }]} onPress={onClose}>
-            <Text style={[styles.pillBtnLabel, { color: '#9CA3AF' }]}>NO</Text>
+            <Text style={[styles.pillBtnLabel, { color: '#9CA3AF' }]}>{t('no')}</Text>
           </Pressable>
           <Pressable style={[styles.pillBtn, styles.acceptPillBtn, isLoading && styles.btnDisabled]} onPress={() => onResume()} disabled={isLoading}>
             <Text style={styles.pillBtnLabel}>{isLoading ? 'Please wait…' : 'YES'}</Text>

@@ -41,6 +41,7 @@ import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 type LeadServiceTypeItem = EnquiryServiceTypeDTOResultData;
 type ItemInventoryListItem = ItemsListResultData;
 type SaveQuotationServiceRequest = SaveQuotationDTOQuoteServiceList;
@@ -142,6 +143,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
 const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', technician = false}: AddQuoteModalProps) => {
+  const {t} = useTranslation();
   const isInvoice = mode === 'invoice';
   const docLabel = isInvoice ? 'Invoice' : 'Quote';
   const docTitle = `Add ${docLabel}`;
@@ -939,7 +941,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
               <OutlinedInput
                 style={styles.pillInput}
-                placeholder="Customer Name *"
+                placeholder={t('star_customer_name')}
                 placeholderTextColor={COLORS.lightGray}
                 value={customerName}
                 onChangeText={text => {
@@ -956,7 +958,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                 <View pointerEvents="none">
                   <OutlinedInput
                     style={styles.pillInput}
-                    placeholder="Address *"
+                    placeholder={t('star_address')}
                     placeholderTextColor={COLORS.lightGray}
                     value={address}
                     editable={false}
@@ -975,14 +977,14 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               <View style={styles.fieldRow}>
                 <OutlinedInput
                   style={[styles.pillInput, styles.halfInput]}
-                  placeholder="Landmark *"
+                  placeholder={t('star_landmark')}
                   placeholderTextColor={COLORS.lightGray}
                   value={landmark}
                   onChangeText={setLandmark}
                 />
                 <OutlinedInput
                   style={[styles.pillInput, styles.halfInput]}
-                  placeholder="Phone Number *"
+                  placeholder={t('star_phone_number')}
                   placeholderTextColor={COLORS.lightGray}
                   keyboardType="phone-pad"
                   value={phoneNumber}
@@ -1063,7 +1065,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                         />
                         <DecimalInput
                           style={[styles.pillInput, styles.thirdInput, {flex: 2}]}
-                          label="Price"
+                          label={t('price')}
                           placeholderTextColor={COLORS.lightGray}
                           value={row.price}
                           onChangeText={value =>
@@ -1079,7 +1081,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
               {activeSection === 'service' ? (
                 <TouchableOpacity onPress={addServiceRow} style={styles.addMoreButton}>
-                  <Text style={styles.addMoreText}>+ Add More</Text>
+                  <Text style={styles.addMoreText}>{t('add_more')}</Text>
                 </TouchableOpacity>
               ) : null}
 
@@ -1105,7 +1107,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                         />
                         <DecimalInput
                           style={[styles.pillInput, styles.thirdInput, {flex: 2}]}
-                          label="Price"
+                          label={t('price')}
                           placeholderTextColor={COLORS.lightGray}
                           value={row.price}
                           onChangeText={value =>
@@ -1119,7 +1121,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
               {activeSection === 'items' ? (
                 <TouchableOpacity onPress={addItemRow} style={styles.addMoreButton}>
-                  <Text style={styles.addMoreText}>+ Add More</Text>
+                  <Text style={styles.addMoreText}>{t('add_more')}</Text>
                 </TouchableOpacity>
               ) : null}
 
@@ -1167,14 +1169,14 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               <View style={styles.fieldRow}>
                 <OutlinedInput
                   style={[styles.pillInput, styles.halfInput, {flex: 1.5}]}
-                  placeholder="Name"
+                  placeholder={t('name')}
                   placeholderTextColor={COLORS.lightGray}
                   value={extraName}
                   onChangeText={setExtraName}
                 />
                 <DecimalInput
                   style={[styles.pillInput, styles.halfInput]}
-                  label="Price"
+                  label={t('price')}
                   placeholderTextColor={COLORS.lightGray}
                   value={extraPrice}
                   onChangeText={t => setExtraPrice(sanitizeDecimalInput(t))}
@@ -1196,7 +1198,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
               <OutlinedInput
                 style={[styles.pillInput, styles.termInput]}
-                placeholder="Terms & Condition"
+                placeholder={t('terms_and_condition')}
                 placeholderTextColor={COLORS.lightGray}
                 value={termCondition}
                 onChangeText={setTermCondition}
@@ -1212,7 +1214,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               </TouchableOpacity>
 
               <TouchableOpacity onPress={handleClose}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('cancel')}</Text>
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -1315,7 +1317,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                 />
                 <View style={styles.dateSheetActions}>
                   <TouchableOpacity style={styles.dateCancelBtn} onPress={() => setDatePickerField(null)}>
-                    <Text style={styles.dateCancelText}>Cancel</Text>
+                    <Text style={styles.dateCancelText}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.dateConfirmBtn}
@@ -1323,7 +1325,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                       applyPickedDate(datePickerValue);
                       setDatePickerField(null);
                     }}>
-                    <Text style={styles.dateConfirmText}>Confirm</Text>
+                    <Text style={styles.dateConfirmText}>{t('qr_code_positive_button_confirm')}</Text>
                   </TouchableOpacity>
                 </View>
               </Pressable>
@@ -1339,7 +1341,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               setDatePickerField(null);
             }}
             onDismiss={() => setDatePickerField(null)}
-            positiveButton={{label: 'OK', textColor: COLORS.primary}}
+            positiveButton={{label: t('qr_code_positive_button_know'), textColor: COLORS.primary}}
             negativeButton={{label: 'CANCEL', textColor: COLORS.primary}}
           />
         )

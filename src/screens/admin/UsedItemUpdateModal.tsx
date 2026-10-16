@@ -25,6 +25,7 @@ import {ms, sp} from '../../utils/responsive';
 import {showFailureMsg} from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 type Props = {
   row: GetUsedItemListResultData | null;
   onClose: () => void;
@@ -35,6 +36,7 @@ const GREEN_500 = '#4CAF50';
 const BACKGROUND_GRAY = '#1d2536';
 
 const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
+  const {t} = useTranslation();
   const [mode, setMode] = useState<'add' | 'deduct'>('add');
   const [qty, setQty] = useState('0');
   const [note, setNote] = useState('');
@@ -144,8 +146,8 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
 
             <View style={styles.qtyRow}>
               <Text style={styles.qtyLabel}>Task Assigned Qty</Text>
-              <Text style={styles.qtyLabel}>Issued Qty</Text>
-              <Text style={styles.qtyLabel}>Used Qty</Text>
+              <Text style={styles.qtyLabel}>{t('issued_qty')}</Text>
+              <Text style={styles.qtyLabel}>{t('used_qty')}</Text>
             </View>
             <View style={[styles.qtyRow, styles.qtyValueRow]}>
               <Text style={[styles.qtyValue, {color: '#2F61D5'}]}>{String(row.AssignedQty ?? 0)}</Text>
@@ -175,7 +177,7 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
 
             <TextInput
               style={styles.note}
-              placeholder="Note"
+              placeholder={t('note')}
               placeholderTextColor={COLORS.lightGray}
               value={note}
               onChangeText={setNote}
@@ -186,7 +188,7 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
               {submitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Update</Text>
+                <Text style={styles.buttonText}>{t('update')}</Text>
               )}
             </Pressable>
           </ScrollView>

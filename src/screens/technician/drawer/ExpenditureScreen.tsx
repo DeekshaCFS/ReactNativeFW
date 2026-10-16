@@ -37,6 +37,7 @@ import ExpenseDetailsBody, {
 import { showFailureMsg, showToast } from '../../../utils/toast';
 import DecimalInput from '../../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 type NavigationProp = NativeStackNavigationProp<TechnicianStackParamList, 'Expenditure'>;
 
 const toApiDate = toExpenseApiDate;
@@ -44,6 +45,7 @@ const toLabel = toExpenseLabel;
 const minSelectableDate = minExpenseDate;
 
 export default function ExpenditureScreen() {
+  const {t} = useTranslation();
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [date, setDate] = useState(() => new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -146,7 +148,7 @@ export default function ExpenditureScreen() {
   };
 
   const choosePhotoSource = () => {
-    Alert.alert('Add/Capture Image', 'Choose an option', [
+    Alert.alert(t('add_capture_image'), 'Choose an option', [
       { text: 'Camera', onPress: () => captureImageFromCamera() },
       { text: 'Gallery', onPress: () => pickImageFromGallery() },
       { text: 'Cancel', style: 'cancel' },
@@ -240,7 +242,7 @@ export default function ExpenditureScreen() {
       <Modal transparent visible={showAddExpenseModal} animationType="slide" onRequestClose={closeAddExpenseModal}>
         <View style={styles.modalOverlay}>
           <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + ms(16) }]}>
-            <Text style={styles.modalTitle}>Add Expense</Text>
+            <Text style={styles.modalTitle}>{t('add_expense')}</Text>
 
             {/* Photo Upload */}
             <Pressable style={styles.expImage} onPress={choosePhotoSource}>
@@ -249,13 +251,13 @@ export default function ExpenditureScreen() {
               ) : (
                 <>
                   <Ionicons name="image-outline" size={scale(42)} color={COLORS.lightGray} />
-                  <Text style={styles.uploadHint}>Upload Expense Photo</Text>
+                  <Text style={styles.uploadHint}>{t('upload_expense_photo')}</Text>
                 </>
               )}
             </Pressable>
 
             <TextInput
-              placeholder="Expense Name"
+              placeholder={t('expense_name')}
               placeholderTextColor={COLORS.lightGray}
               style={styles.expInput}
               returnKeyType="next"
@@ -280,7 +282,7 @@ export default function ExpenditureScreen() {
             </Pressable>
 
             <Pressable onPress={closeAddExpenseModal}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('cancel')}</Text>
             </Pressable>
           </View>
         </View>
@@ -305,10 +307,10 @@ export default function ExpenditureScreen() {
             />
             <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: '#eee', marginTop: ms(12) }}>
               <Pressable style={{ flex: 1, paddingVertical: ms(14), alignItems: 'center' }} onPress={() => setShowDatePicker(false)}>
-                <Text style={{ fontSize: sp(15), color: '#888' }}>Cancel</Text>
+                <Text style={{ fontSize: sp(15), color: '#888' }}>{t('cancel')}</Text>
               </Pressable>
               <Pressable style={{ flex: 1, paddingVertical: ms(14), alignItems: 'center' }} onPress={confirmDatePicker}>
-                <Text style={{ fontSize: sp(15), color: COLORS.primary, fontWeight: '600' }}>OK</Text>
+                <Text style={{ fontSize: sp(15), color: COLORS.primary, fontWeight: '600' }}>{t('qr_code_positive_button_know')}</Text>
               </Pressable>
             </View>
           </View>

@@ -43,6 +43,7 @@ import { getEnquiryServiceTypeList } from '../../api/services/servicesService';
 import { postExternalLeadForm, postExternalLeadFormByTech } from '../../api/leadForm/leadFormService';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type Photo = { base64: string; uri: string; fileName: string };
 
 const MAX_SUGGESTIONS = 6;
@@ -65,6 +66,7 @@ type AddLeadModalProps = {
 };
 
 export default function AddLeadModal({ visible, onClose, onSuccess, technician = false }: AddLeadModalProps) {
+  const {t} = useTranslation();
   const { isStateEnable, isCityEnable, isPincodeEnable } = getCurrentUserProfile().taskConfiguration;
 
   const [customers, setCustomers] = useState<CustomerListResultData[]>([]);
@@ -211,7 +213,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
       const asset = result.assets?.[0];
       if (asset) setPhoto(slot, asset);
     };
-    Alert.alert('Add/Capture Image', 'Choose an option', [
+    Alert.alert(t('add_capture_image'), 'Choose an option', [
       { text: 'Camera', onPress: async () => handle(await launchCameraWithPermission(options), 'Camera') },
       {
         text: 'Gallery',
@@ -309,7 +311,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Lead Form</Text>
+            <Text style={styles.headerTitle}>{t('lead_form')}</Text>
             <Pressable onPress={onClose} hitSlop={12}>
               <Ionicons name="close" size={scale(30)} color={COLORS.white} />
             </Pressable>
@@ -328,7 +330,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
           style={styles.input}
           value={name}
           onChangeText={onNameChange}
-          placeholder="Customer Name *"
+          placeholder={t('star_customer_name')}
           placeholderTextColor={COLORS.lightGray}
         />
         {suggestions.length > 0 && (
@@ -362,7 +364,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
           }}
           keyboardType="number-pad"
           maxLength={15}
-          placeholder="Phone Number *"
+          placeholder={t('star_phone_number')}
           placeholderTextColor={COLORS.lightGray}
         />
         {numberSuggestions.length > 0 && (
@@ -387,7 +389,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
               style={styles.input}
               value={address}
               editable={false}
-              placeholder="Customer Address *"
+              placeholder={t('star_customer_address')}
               placeholderTextColor={COLORS.lightGray}
             />
           </View>
@@ -425,13 +427,13 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
           style={styles.input}
           value={landmark}
           onChangeText={setLandmark}
-          placeholder="Landmark *"
+          placeholder={t('star_landmark')}
           placeholderTextColor={COLORS.lightGray}
         />
 
         <OutlinedSelect
           style={[styles.input, styles.serviceInput]}
-          label="Select Service Type"
+          label={t('select_service_type')}
           value={service?.label}
           chevron
           onPress={() => setPicker('service')}
@@ -467,7 +469,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
           value={notes}
           onChangeText={setNotes}
           multiline
-          placeholder="Notes"
+          placeholder={t('notes')}
           placeholderTextColor={COLORS.lightGray}
         />
 
@@ -484,7 +486,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
             )}
           </Pressable>
           <Pressable style={[styles.btn]} onPress={onClose}>
-            <Text style={styles.btnGhostText}>Cancel</Text>
+            <Text style={styles.btnGhostText}>{t('cancel')}</Text>
           </Pressable>
         </View>
             </ScrollView>
@@ -502,7 +504,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
           />
           <SearchPickerModal
             visible={picker === 'service'}
-            title="Select Service Type"
+            title={t('select_service_type')}
             options={services}
             onSelect={o => {
               setService(o);

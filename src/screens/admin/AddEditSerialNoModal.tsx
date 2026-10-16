@@ -22,6 +22,7 @@ import {ensureSuccess} from '../../utils/apiResponse';
 import {addSerialNo, updateSerialNo} from '../../api/brandModel/brandModelService';
 import type {SerialNoItem} from '../../api/brandModel/brandModelService';
 
+import {useTranslation} from 'react-i18next';
 type Props = {
   visible: boolean;
   ownerId: number;
@@ -36,6 +37,7 @@ type Props = {
 };
 
 const AddEditSerialNoModal: React.FC<Props> = ({visible, ownerId, brandId, modelId, brandName, modelName, editing, onClose, onSaved}) => {
+  const {t} = useTranslation();
   const [serialNo, setSerialNo] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,10 +86,10 @@ const AddEditSerialNoModal: React.FC<Props> = ({visible, ownerId, brandId, model
             <Text style={styles.subtitle}>{`${brandName ?? ''}/${modelName ?? ''}`}</Text>
           ) : null}
 
-          <Text style={styles.label}>Serial Number *</Text>
+          <Text style={styles.label}>{t('serial_number_config')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="Serial Number"
+            placeholder={t('serial_number')}
             placeholderTextColor={COLORS.textMuted}
             value={serialNo}
             onChangeText={setSerialNo}
@@ -98,7 +100,7 @@ const AddEditSerialNoModal: React.FC<Props> = ({visible, ownerId, brandId, model
 
           <View style={styles.buttonRow}>
             <Pressable style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
             </Pressable>
             <Pressable
               style={[styles.submitButton, (!isValid || submitting) && styles.submitButtonDisabled]}
@@ -107,7 +109,7 @@ const AddEditSerialNoModal: React.FC<Props> = ({visible, ownerId, brandId, model
               {submitting ? (
                 <ActivityIndicator color={COLORS.white} />
               ) : (
-                <Text style={styles.submitButtonText}>Save</Text>
+                <Text style={styles.submitButtonText}>{t('save')}</Text>
               )}
             </Pressable>
           </View>

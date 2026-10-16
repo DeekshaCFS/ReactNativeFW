@@ -49,6 +49,7 @@ import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
 import DecimalInput from '../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 type AMCDashboardScreenProps = {
   ownerId: number;
   openAddAmcTrigger?: number;
@@ -712,6 +713,7 @@ const AMCDashboardScreen = ({
   openAddAmcTrigger,
   onAddAmcModalClose,
 }: AMCDashboardScreenProps) => {
+  const {t} = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<AdminStackParamList>>();
   const today = useMemo(() => new Date(), []);
   const monthOptions = useMemo(buildMonthOptions, []);
@@ -1325,7 +1327,7 @@ const AMCDashboardScreen = ({
                 {getAMCTitle(item)}
               </Text>
               <View style={styles.serviceRow}>
-                <Text style={styles.serviceLabel}>Service Type</Text>
+                <Text style={styles.serviceLabel}>{t('service_type')}</Text>
                 <Text numberOfLines={1} style={styles.serviceValue}>
                   {serviceType ? `  ${serviceType}` : ''}
                 </Text>
@@ -1345,7 +1347,7 @@ const AMCDashboardScreen = ({
             <View style={styles.metaRow}>
               {fieldWorker ? (
                 <>
-                  <Text style={styles.metaLabel}>Fieldworker :</Text>
+                  <Text style={styles.metaLabel}>{t('technician_title')}</Text>
                   <Text numberOfLines={1} style={styles.metaValue}>
                     {fieldWorker}
                   </Text>
@@ -1353,7 +1355,7 @@ const AMCDashboardScreen = ({
               ) : null}
               {taskId ? (
                 <>
-                  <Text style={styles.taskLabel}>Task ID :</Text>
+                  <Text style={styles.taskLabel}>{t('task_id_title')}</Text>
                   <Text numberOfLines={1} style={styles.taskValue}>
                     {taskId}
                   </Text>
@@ -1777,7 +1779,7 @@ const AMCDashboardScreen = ({
                   <Text style={styles.dialogActionText}>CANCEL</Text>
                 </Pressable>
                 <Pressable onPress={confirmDatePicker}>
-                  <Text style={styles.dialogActionText}>OK</Text>
+                  <Text style={styles.dialogActionText}>{t('qr_code_positive_button_know')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -1815,7 +1817,7 @@ const AMCDashboardScreen = ({
                       period === 'AM' ? styles.periodTextActive : null,
                     ]}
                   >
-                    AM
+                    {t('am')}
                   </Text>
                 </Pressable>
                 <Pressable onPress={() => toggleClockPeriod('PM')}>
@@ -1825,7 +1827,7 @@ const AMCDashboardScreen = ({
                       period === 'PM' ? styles.periodTextActive : null,
                     ]}
                   >
-                    PM
+                    {t('pm')}
                   </Text>
                 </Pressable>
               </View>
@@ -1875,7 +1877,7 @@ const AMCDashboardScreen = ({
                     <Text style={styles.dialogActionText}>CANCEL</Text>
                   </Pressable>
                   <Pressable onPress={confirmTimePicker}>
-                    <Text style={styles.dialogActionText}>OK</Text>
+                    <Text style={styles.dialogActionText}>{t('qr_code_positive_button_know')}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1902,7 +1904,7 @@ const AMCDashboardScreen = ({
       >
         <View style={styles.addModalPanel}>
           <View style={styles.addModalHeader}>
-            <Text style={styles.addModalTitle}>Add AMC</Text>
+            <Text style={styles.addModalTitle}>{t('add_amc')}</Text>
             <Pressable
               hitSlop={10}
               onPress={() => {
@@ -1991,7 +1993,7 @@ const AMCDashboardScreen = ({
             })}
 
             <View style={styles.warrantyRow}>
-              <Text style={styles.warrantyLabel}>Under Warranty</Text>
+              <Text style={styles.warrantyLabel}>{t('under_warranty')}</Text>
               <View style={styles.warrantyControl}>
                 <Pressable
                   style={[
@@ -2006,7 +2008,7 @@ const AMCDashboardScreen = ({
                       !underWarranty ? styles.warrantyTextActive : null,
                     ]}
                   >
-                    NO
+                    {t('no')}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -2022,7 +2024,7 @@ const AMCDashboardScreen = ({
                       underWarranty ? styles.warrantyTextActive : null,
                     ]}
                   >
-                    Yes
+                    {t('yes')}
                   </Text>
                 </Pressable>
               </View>
@@ -2118,7 +2120,7 @@ const AMCDashboardScreen = ({
                 resetAddAMCForm();
               }}
             >
-              <Text style={styles.cancelAMCText}>Cancel</Text>
+              <Text style={styles.cancelAMCText}>{t('cancel')}</Text>
             </Pressable>
           </ScrollView>
         </View>

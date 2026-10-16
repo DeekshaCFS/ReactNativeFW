@@ -31,6 +31,7 @@ import LeadDetailsScreen from './LeadDetailsScreen';
 import AddLeadModal from './AddLeadModal';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type LeadListScreenProps = {
   userId: number;
   // Technician's own leads (Java: LeadsFragmentForTechnician) submit through
@@ -372,6 +373,7 @@ const uniqueStatuses = (statuses: LeadStatusOption[]) => {
 };
 
 const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
+  const {t} = useTranslation();
   const [leads, setLeads] = useState<LeadListItem[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
 
@@ -637,7 +639,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
           // LeadDetailsFragment.deleteLeadDetailsDialog (delete_leaddetails_dialog).
           Alert.alert(
             '',
-            'Do you want to delete this Lead ? It will delete all customer history.',
+            t('delete_leaddetails'),
             [
               { text: 'NO', style: 'cancel' },
               {

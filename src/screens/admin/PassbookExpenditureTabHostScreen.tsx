@@ -32,6 +32,7 @@ import { getExpenseUserList } from '../../api/expenditure/expenditureService';
 import ManageBalanceModal from './ManageBalanceModal';
 import TechnicianExpenseDetails from './TechnicianExpenseDetailsModal';
 
+import {useTranslation} from 'react-i18next';
 type PassbookExpenditureTabHostScreenProps = {
   userId: number;
 };
@@ -138,6 +139,7 @@ const getTechnicianPhoto = (item: ExpenseTechnicianItem) =>
 const PassbookExpenditureTabHostScreen = ({
   userId,
 }: PassbookExpenditureTabHostScreenProps) => {
+  const {t} = useTranslation();
   const [activeTab, setActiveTab] = useState<MainTab>('passbook');
   const [expenseTechnician, setExpenseTechnician] = useState<{id: number; name: string} | null>(null);
   const passbook = usePassbook(userId);
@@ -296,7 +298,7 @@ const PassbookExpenditureTabHostScreen = ({
         <Pressable
           style={styles.balanceButton}
           onPress={() => openBalanceModal('add')}>
-          <Text style={styles.balanceButtonText}>+ Balance</Text>
+          <Text style={styles.balanceButtonText}>{t('plus_balance')}</Text>
         </Pressable>
       </View>
 

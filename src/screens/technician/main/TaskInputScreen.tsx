@@ -28,6 +28,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showToast } from '../../../utils/toast';
 import DecimalInput from '../../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 const FIELD_TYPE = {
   NUMBER: 1,
   TEXT: 2,
@@ -46,6 +47,7 @@ const formatDate = (date: Date): string => {
 const toast = (msg: string) => showToast(msg);
 
 export default function TaskInputScreen({ navigation, route }: any) {
+  const {t} = useTranslation();
   const { routeTask, returnTo } = route.params as {
     routeTask: { Id: number; [key: string]: any };
     returnTo?: { name: string; params?: any };
@@ -238,7 +240,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
                 </Text>
                 <Ionicons name="calendar" size={ms(20)} color={COLORS.primary} />
               </View>
-              {!!values[id] && <Text style={styles.floatLabel}>Date</Text>}
+              {!!values[id] && <Text style={styles.floatLabel}>{t('date')}</Text>}
             </Pressable>
             {activeDatePicker === id && (
               <DateTimePicker

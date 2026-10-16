@@ -23,6 +23,7 @@ import type { GetCountryListResultData } from '../../api/countryDetails/countryD
 import { showFailureMsg } from '../../utils/toast';
 import { isBiometricAvailable, promptBiometric } from '../../utils/biometricAuth';
 
+import {useTranslation} from 'react-i18next';
 type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
@@ -55,6 +56,7 @@ GoogleSignin.configure({});
 const CENTER_CONTENT = { justifyContent: 'center' as const };
 
 export default function SignupScreen() {
+  const {t} = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const [countries, setCountries] = useState<GetCountryListResultData[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<GetCountryListResultData | null>(null);
@@ -221,7 +223,7 @@ export default function SignupScreen() {
             />
           </View>
 
-          <Text style={GlobalStyles.title}>Signup</Text>
+          <Text style={GlobalStyles.title}>{t('sign_up')}</Text>
           <Text style={GlobalStyles.subtitle}>
             Please enter your details{'\n'}to signup
           </Text>
@@ -253,7 +255,7 @@ export default function SignupScreen() {
 
             {useEmail ? (
               <TextInput
-                placeholder="Enter Email Id"
+                placeholder={t('enter_email_id')}
                 placeholderTextColor={COLORS.authText}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -268,7 +270,7 @@ export default function SignupScreen() {
               />
             ) : (
               <TextInput
-                placeholder="Enter Your Mobile Number"
+                placeholder={t('enter_your_mobile_number')}
                 placeholderTextColor={COLORS.authText}
                 keyboardType="number-pad"
                 maxLength={15}
@@ -312,7 +314,7 @@ export default function SignupScreen() {
             <View style={styles.googleWrap}>
               <View style={styles.orRow}>
                 <View style={styles.orLine} />
-                <Text style={styles.orText}>or Sign in with Google</Text>
+                <Text style={styles.orText}>{t('sign_in_with_google')}</Text>
                 <View style={styles.orLine} />
               </View>
               <Pressable style={styles.googleBtn} onPress={googleSignup} disabled={loading}>
@@ -323,8 +325,8 @@ export default function SignupScreen() {
           )}
 
           <View style={GlobalStyles.footerRow}>
-            <Text style={GlobalStyles.footerText}>Already Registered?</Text>
-            <Text style={GlobalStyles.link} onPress={() => navigation.navigate('Login')}>Login</Text>
+            <Text style={GlobalStyles.footerText}>{t('already_registered')}</Text>
+            <Text style={GlobalStyles.link} onPress={() => navigation.navigate('Login')}>{t('login')}</Text>
           </View>
 
           <AuthHelp topic="signing up" />

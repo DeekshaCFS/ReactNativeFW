@@ -10,6 +10,7 @@ import Modal from './AppModal';
 import { COLORS } from '../theme/theme';
 import { scale, sp, vs } from '../utils/responsive';
 
+import {useTranslation} from 'react-i18next';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const ITEM_H = vs(60);
 const WHEEL_W = scale(64);
@@ -88,6 +89,7 @@ export default function MonthYearPickerDialog({
   visible, yearOnly = false, minYear, maxYear, activatedMonth, activatedYear,
   title = 'Select Month & Year', variant = 'default', onConfirm, onCancel,
 }: Props) {
+  const {t} = useTranslation();
   const holo = variant === 'holo';
   const years: string[] = [];
   for (let y = minYear; y <= maxYear; y++) years.push(String(y));
@@ -122,25 +124,25 @@ export default function MonthYearPickerDialog({
           {holo ? (
             <View style={styles.holoButtons}>
               <Pressable style={styles.holoBtn} onPress={onCancel}>
-                <Text style={styles.holoBtnText}>Cancel</Text>
+                <Text style={styles.holoBtnText}>{t('cancel')}</Text>
               </Pressable>
               <View style={styles.holoDivider} />
               <Pressable
                 style={styles.holoBtn}
                 onPress={() => onConfirm(yearOnly ? 0 : monthIdx, Number(years[yearIdx]))}>
-                <Text style={styles.holoBtnText}>OK</Text>
+                <Text style={styles.holoBtnText}>{t('qr_code_positive_button_know')}</Text>
               </Pressable>
             </View>
           ) : (
           <View style={styles.buttons}>
             <Pressable style={[styles.btn, { backgroundColor: COLORS.pickerCancel }]} onPress={onCancel}>
-              <Text style={[styles.btnText, { color: COLORS.textBlack }]}>Cancel</Text>
+              <Text style={[styles.btnText, { color: COLORS.textBlack }]}>{t('cancel')}</Text>
             </Pressable>
             <Pressable
               style={[styles.btn, { backgroundColor: COLORS.primary }]}
               onPress={() => onConfirm(yearOnly ? 0 : monthIdx, Number(years[yearIdx]))}
             >
-              <Text style={[styles.btnText, { color: COLORS.white }]}>OK</Text>
+              <Text style={[styles.btnText, { color: COLORS.white }]}>{t('qr_code_positive_button_know')}</Text>
             </Pressable>
           </View>
           )}

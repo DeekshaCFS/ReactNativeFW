@@ -22,9 +22,11 @@ import { FieldWebLocationPin, FieldWebTechMarker } from '../../../components/Map
 import { FIELDWEB_MAP_STYLE } from '../../../config/mapStyle';
 import { showToast } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type Props = NativeStackScreenProps<TechnicianStackParamList, 'TaskRouteMap'>;
 
 export default function TaskRouteMapScreen({ navigation, route }: Props) {
+  const {t} = useTranslation();
   const { task: initialTask } = route.params;
   const headerHeight = useAppHeaderHeight();
 
@@ -264,19 +266,19 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
         {cardExpanded && (
           <View>
             <View style={styles.block}>
-              <Text style={styles.label}>Address</Text>
+              <Text style={styles.label}>{t('address')}</Text>
               <Text style={styles.value}>{address}</Text>
             </View>
 
             <View style={[styles.block, { marginBottom: ms(10) }]}>
-              <Text style={styles.label}>Landmark</Text>
+              <Text style={styles.label}>{t('landmark')}</Text>
               <Text style={styles.value}>{task.LocationDesc || 'NA'}</Text>
             </View>
 
             <View style={styles.distanceBlock}>
               <View style={styles.distanceRow}>
-                <Text style={[styles.label, styles.distanceCol]}>Distance</Text>
-                <Text style={[styles.label, styles.distanceCol]}>Time</Text>
+                <Text style={[styles.label, styles.distanceCol]}>{t('distance')}</Text>
+                <Text style={[styles.label, styles.distanceCol]}>{t('time')}</Text>
               </View>
               <View style={styles.distanceRow}>
                 <Text style={[styles.distanceValue, styles.distanceCol]}>
@@ -288,15 +290,15 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
               </View>
             </View>
 
-            <Text style={styles.label}>Instructions</Text>
+            <Text style={styles.label}>{t('instructions')}</Text>
             <Text style={styles.description}>{task.Description || 'NA'}</Text>
 
-            <Text style={styles.label}>Customer Name</Text>
+            <Text style={styles.label}>{t('customer_name')}</Text>
             <Text style={styles.value}>{task.CustomerName || 'NA'}</Text>
 
             <View style={styles.mobileRow}>
               <View>
-                <Text style={[styles.label, { marginTop: ms(10) }]}>Mobile Number</Text>
+                <Text style={[styles.label, { marginTop: ms(10) }]}>{t('mobile_number')}</Text>
                 <Text style={styles.value}>{masked ? 'XXXXXXXXXX' : customerNumber}</Text>
               </View>
               <Pressable style={styles.callBtn} onPress={handleCall}>
@@ -314,7 +316,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
             <Text style={styles.startBtnText}>START NAVIGATION</Text>
           </Pressable>
           <Pressable style={styles.skipBtn} onPress={handleSkip}>
-            <Text style={styles.skipBtnText}>Skip</Text>
+            <Text style={styles.skipBtnText}>{t('skip')}</Text>
           </Pressable>
         </>
       )}
@@ -322,13 +324,13 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
       {/* linear_destination: 30dp-radius card at the bottom */}
       {showPrompt && (
         <View style={styles.promptCard}>
-          <Text style={styles.promptText}>Have you reached your destination?</Text>
+          <Text style={styles.promptText}>{t('have_you_reached_your_destination')}</Text>
           <View style={styles.promptBtns}>
             <Pressable style={styles.yesBtn} onPress={handleYes}>
               <Text style={styles.yesBtnText}>YES</Text>
             </Pressable>
             <Pressable style={styles.noBtn} onPress={() => setShowPrompt(false)}>
-              <Text style={styles.noBtnText}>NO</Text>
+              <Text style={styles.noBtnText}>{t('no')}</Text>
             </Pressable>
           </View>
         </View>

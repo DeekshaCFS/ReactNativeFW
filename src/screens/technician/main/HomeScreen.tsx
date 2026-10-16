@@ -36,11 +36,13 @@ import {
 import { getCurrentLocationAndAddress } from '../../../utils/locationPermision';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 // ── component ─────────────────────────────────────────────────────────────────
 
 export default function HomeScreen({ navigation }: any) {
+  const {t} = useTranslation();
   const headerHeight = useAppHeaderHeight();
   const [filter, setFilter] = useState<'Today' | 'Week' | 'Month' | 'Year'>('Today');
   const [dropdownVisible, setDropdownVisible] = useState(false);
@@ -379,6 +381,7 @@ export default function HomeScreen({ navigation }: any) {
     total: number; completed: number; ongoing: number;
     inactive: number; rejected: number; onHold: number;
   }) {
+  const {t} = useTranslation();
     const counts = [completed, ongoing, inactive, rejected, onHold];
     const safe   = total || 1;
     let offset   = 0;
@@ -399,7 +402,7 @@ export default function HomeScreen({ navigation }: any) {
         </Svg>
         <View style={styles.circleLabelBox} pointerEvents="none">
           <Text style={styles.circleValue}>{total}</Text>
-          <Text style={styles.circleLabel}>Total Task</Text>
+          <Text style={styles.circleLabel}>{t('total_task')}</Text>
         </View>
       </View>
     );
@@ -517,8 +520,8 @@ export default function HomeScreen({ navigation }: any) {
             <TourTarget tourKey="profileCompletion">
               <View style={styles.profileRow}>
                 <Pressable onPress={() => navigation.navigate('Profile')} style={styles.profileLeft}>
-                  <Text style={styles.profileTitle}>Profile Completion</Text>
-                  {profilePercent !== 100 && <Text style={styles.profileUpdate}>Update</Text>}
+                  <Text style={styles.profileTitle}>{t('profile_completion')}</Text>
+                  {profilePercent !== 100 && <Text style={styles.profileUpdate}>{t('update')}</Text>}
                 </Pressable>
                 {profilePercent !== 100 && (
                   <Text style={styles.profilePercentText}>{profilePercent.toFixed(1)}%</Text>
@@ -533,7 +536,7 @@ export default function HomeScreen({ navigation }: any) {
 
             {/* Date label */}
             <View style={styles.dateRow}>
-              <Text style={styles.dateLabelText}>Showing data for</Text>
+              <Text style={styles.dateLabelText}>{t('showing_data_for')}</Text>
               <Text style={styles.dateValueText}>{dateLabel}</Text>
             </View>
 
@@ -551,11 +554,11 @@ export default function HomeScreen({ navigation }: any) {
               </View>
               <View style={styles.stats}>
                 {[
-                  { count: completedCount, label: 'Completed', color: COLORS.statusCompleted },
-                  { count: ongoingCount,   label: 'Ongoing',   color: COLORS.statusOngoing },
-                  { count: inactiveCount,  label: 'InActive',  color: COLORS.lightGray },
-                  { count: rejectedCount,  label: 'Rejected',  color: COLORS.statusRejected },
-                  { count: onHoldCount,    label: 'OnHold',    color: COLORS.statusOnHold },
+                  { count: completedCount, label: t('completed'), color: COLORS.statusCompleted },
+                  { count: ongoingCount,   label: t('ongoing'),   color: COLORS.statusOngoing },
+                  { count: inactiveCount,  label: t('inactive'),  color: COLORS.lightGray },
+                  { count: rejectedCount,  label: t('rejected'),  color: COLORS.statusRejected },
+                  { count: onHoldCount,    label: t('onhold'),    color: COLORS.statusOnHold },
                 ].map((row, i) => (
                   <View key={row.label} style={[styles.statRow, i > 0 && styles.statGap]}>
                     <Text style={[styles.statCount, { color: row.color }]}>
@@ -620,7 +623,7 @@ export default function HomeScreen({ navigation }: any) {
       <Modal transparent visible={showCheckInModal} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.bottomSheet}>
-            <Text style={styles.modalTitle}>Check-in for</Text>
+            <Text style={styles.modalTitle}>{t('check_in_for')}</Text>
             <Text style={styles.modalDate}>
               {new Date().toLocaleDateString('en-GB', {
                 day: '2-digit', month: 'long', year: 'numeric',

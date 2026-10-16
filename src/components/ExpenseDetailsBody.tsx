@@ -16,6 +16,7 @@ import type {
   ExpenseDetailsResultData,
 } from '../api/expenditure/expenditure.types';
 
+import {useTranslation} from 'react-i18next';
 export const EXPENSE_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // Java: mDate = year + "-" + (month + 1) + "-" + day (no zero padding).
 export const toExpenseApiDate = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -37,15 +38,16 @@ type Props = {
 };
 
 const ExpenseDetailsBody = ({details, loading, onAdd, showCurrency = false}: Props) => {
+  const {t} = useTranslation();
   const money = (v?: number) => (showCurrency ? '₹ ' : '') + formatAmount(v);
   const [fullScreenPhoto, setFullScreenPhoto] = useState<string | null>(null);
 
   const rows = [
-    {label: 'Credited Amount :', value: details?.CreditedAmonut},
-    {label: 'Opening Amount :', value: details?.OpeningBalance},
-    {label: 'Earned Amount :', value: details?.EarnedAmount},
-    {label: 'Total Expense :', value: details?.Expenses},
-    {label: 'Return :', value: details?.ReturnAmount},
+    {label: t('credited_amount'), value: details?.CreditedAmonut},
+    {label: t('opening_amount'), value: details?.OpeningBalance},
+    {label: t('earned_amount'), value: details?.EarnedAmount},
+    {label: t('total_expense'), value: details?.Expenses},
+    {label: t('return_title'), value: details?.ReturnAmount},
   ];
   const expenses: ExpenseDetailsExpenseList[] = Array.isArray(details?.ExpenseList)
     ? (details?.ExpenseList as ExpenseDetailsExpenseList[])
@@ -68,13 +70,13 @@ const ExpenseDetailsBody = ({details, loading, onAdd, showCurrency = false}: Pro
         </View>
         <View style={styles.divider} />
         <View style={styles.remainingRow}>
-          <Text style={styles.value}>Remaining Amount :</Text>
+          <Text style={styles.value}>{t('remaining_amount')}</Text>
           <Text style={styles.value}>{money(details?.RemainingBalance)}</Text>
         </View>
       </View>
 
       <View style={styles.lowerRow}>
-        <Text style={styles.lowerTitle}>Expense List</Text>
+        <Text style={styles.lowerTitle}>{t('expense_list')}</Text>
         {onAdd ? (
           <Pressable onPress={onAdd} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
             <Ionicons name="add" size={scale(30)} color={COLORS.primary} />
@@ -84,7 +86,7 @@ const ExpenseDetailsBody = ({details, loading, onAdd, showCurrency = false}: Pro
 
       {expenses.length === 0 ? (
         <View style={styles.naCard}>
-          <Text style={styles.naText}>NA</Text>
+          <Text style={styles.naText}>{t('na')}</Text>
         </View>
       ) : (
         expenses.map((item, index) => (

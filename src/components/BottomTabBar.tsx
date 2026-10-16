@@ -5,6 +5,8 @@ import { View, Text, Pressable, StyleSheet, Platform, Keyboard } from 'react-nat
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/theme';
+import { useTranslation } from 'react-i18next';
+import { tr } from '../i18n/tr';
 import { FabIcon, isFabIcon } from './FabIcons';
 import { setPassbookTabOrder } from '../state/passbookTabOrder';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -40,6 +42,7 @@ type Props = BottomTabBarProps & {
 };
 
 const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activeAlias }: Props) => {
+  useTranslation();
   const [fabOpen, setFabOpen] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const insets = useSafeAreaInsets();
@@ -97,7 +100,7 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
           style={[styles.label, { color: active ? COLORS.primary : '#484a4e' }]}
           numberOfLines={1}
         >
-          {name}
+          {tr(name)}
         </Text>
       </Pressable>
     );

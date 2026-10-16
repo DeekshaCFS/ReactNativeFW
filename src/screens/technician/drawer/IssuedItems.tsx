@@ -13,6 +13,7 @@ import { getItemIssueListByUserid } from '../../../api/item/itemService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ItemIssueListResultData } from '../../../api/item/item.types';
 
+import {useTranslation} from 'react-i18next';
 // Java's R.drawable.ic_default_item vector
 function DefaultItemIcon({ size }: { size: number }) {
   return (
@@ -44,6 +45,7 @@ function ItemThumb({ uri }: { uri?: string }) {
 }
 
 export default function IssuedItems() {
+  const {t} = useTranslation();
   const navigation = useNavigation<any>();
 
   const [items, setItems] = useState<ItemIssueListResultData[]>([]);
@@ -138,7 +140,7 @@ export default function IssuedItems() {
                       <Text style={[styles.itemSub, { flex: 0.7 }]}>{item.Quantity}</Text>
                     </View>
                     <View style={styles.noteRow}>
-                      <Text style={styles.itemSub}>Note :</Text>
+                      <Text style={styles.itemSub}>{t('note_title')}</Text>
                       <Text style={[styles.itemSub, { marginLeft: ms(5), flexShrink: 1 }]} numberOfLines={2}>
                         {item.Description ?? ''}
                       </Text>

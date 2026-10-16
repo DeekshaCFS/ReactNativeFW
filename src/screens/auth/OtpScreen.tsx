@@ -21,6 +21,7 @@ import { sp, dp } from '../../utils/responsive';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import { SHOW_QA_OTP } from '../../config/qa';
 
+import {useTranslation} from 'react-i18next';
 type AuthStackParamList = {
   Otp: {
     mobile: string; serverOtp: number; token: string;
@@ -41,6 +42,7 @@ const OTP_EXPIRY_SECONDS = 270;
 const RESEND_COOLDOWN = 60;
 
 export default function OtpScreen() {
+  const {t} = useTranslation();
   const route = useRoute<RouteProp<AuthStackParamList, 'Otp'>>();
   const navigation = useNavigation<any>();
   const {
@@ -211,7 +213,7 @@ export default function OtpScreen() {
             />
           </View>
 
-          <Text style={GlobalStyles.title}>Verify</Text>
+          <Text style={GlobalStyles.title}>{t('get_otp_touchless')}</Text>
           <Text style={GlobalStyles.subtitle}>
             You will receive a {OTP_LENGTH} digit OTP{'\n'}for verification
           </Text>
@@ -247,7 +249,7 @@ export default function OtpScreen() {
 
           <View style={styles.resendRow}>
             {!otpExpired && <Text style={styles.timerText}>{formatTime(expiryTimer)}</Text>}
-            <Text style={styles.resendText}>Did not get the code?</Text>
+            <Text style={styles.resendText}>{t('please_enter_4_digit_otp_touchless')}</Text>
             <Pressable onPress={resendOtp} disabled={resendTimer > 0} hitSlop={8}>
               <Text style={[styles.resendLink, resendTimer > 0 && { color: 'gray' }]}>
                 {resendTimer > 0 ? `Resend in ${formatTime(resendTimer)}` : 'Resend'}

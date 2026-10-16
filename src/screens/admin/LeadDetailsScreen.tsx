@@ -31,6 +31,7 @@ import {
 import { getLeadstatusList, getLeadetailsByLeadId, updateLeadStatus as updateLeadStatusApi } from '../../api/lead/leadService';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type LeadDetailsScreenProps = {
   /** Technician view: no Update Status / delete (Java LeadDetailsFragment). */
   technician?: boolean;
@@ -94,6 +95,7 @@ const LeadDetailsScreen = ({
   onEdit,
   onDelete,
 }: LeadDetailsScreenProps) => {
+  const {t} = useTranslation();
   const [lead, setLead] = useState<LeadListItem | null>(null);
   // Java: the terms icon opens Add Task prefilled from the lead (TaskDialogNew.addTaskFromLeadDetailsTech).
   const [addTaskValues, setAddTaskValues] = useState<AddTaskInitialValues | null>(null);
@@ -705,7 +707,7 @@ const LeadDetailsScreen = ({
           <Text style={styles.sectionTitle}>Lead Details</Text>
           <View style={styles.details}>
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Customer Name</Text>
+              <Text style={styles.fieldLabel}>{t('customer_name')}</Text>
               <Text style={styles.fieldValue}>{getLeadTitle(lead)}</Text>
             </View>
             <View style={styles.fieldRow}>
@@ -713,22 +715,22 @@ const LeadDetailsScreen = ({
               <Text style={styles.fieldValue}>{dateTime}</Text>
             </View>
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Customer Number</Text>
+              <Text style={styles.fieldLabel}>{t('customer_number')}</Text>
               <Text style={styles.fieldValue}>{numberLabel}</Text>
             </View>
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Customer Address</Text>
+              <Text style={styles.fieldLabel}>{t('customer_address')}</Text>
               <Text style={styles.fieldValue}>{getLeadAddress(lead)}</Text>
             </View>
             <View style={[styles.fieldRow, {marginBottom: ms(10)}]}>
-              <Text style={styles.fieldLabel}>Landmark</Text>
+              <Text style={styles.fieldLabel}>{t('landmark')}</Text>
               <Text style={styles.fieldValue}>{getLeadLandmark(lead)}</Text>
             </View>
           </View>
 
-          <Text style={[styles.sectionTitle, {marginTop: ms(10), marginBottom: ms(12)}]}>Services Details</Text>
+          <Text style={[styles.sectionTitle, {marginTop: ms(10), marginBottom: ms(12)}]}>{t('services_details')}</Text>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Service Type</Text>
+            <Text style={styles.fieldLabel}>{t('service_type')}</Text>
             <Text style={styles.fieldValue}>{getServiceType(lead)}</Text>
           </View>
 
@@ -785,7 +787,7 @@ const LeadDetailsScreen = ({
             );
           })}
 
-          <Text style={[styles.sectionTitle, {marginTop: ms(30), marginBottom: ms(12)}]}>Notes</Text>
+          <Text style={[styles.sectionTitle, {marginTop: ms(30), marginBottom: ms(12)}]}>{t('notes')}</Text>
           <Text style={styles.notesText}>{notes}</Text>
         </View>
         </ScrollView>
@@ -808,7 +810,7 @@ const LeadDetailsScreen = ({
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Update Lead Status</Text>
+              <Text style={styles.modalTitle}>{t('update_lead_status')}</Text>
               <TouchableOpacity onPress={() => setStatusModalVisible(false)}>
                 <Text style={styles.modalCloseText}>✕</Text>
               </TouchableOpacity>
@@ -857,10 +859,10 @@ const LeadDetailsScreen = ({
                 </ScrollView>
               </View>
 
-              <Text style={styles.inputLabel}>Notes</Text>
+              <Text style={styles.inputLabel}>{t('notes')}</Text>
               <TextInput
                 style={styles.notesInput}
-                placeholder="Notes"
+                placeholder={t('notes')}
                 placeholderTextColor="#999"
                 multiline={true}
                 numberOfLines={4}
@@ -879,7 +881,7 @@ const LeadDetailsScreen = ({
                 {isUpdatingStatus ? (
                   <ActivityIndicator color="#FFF" size="small" />
                 ) : (
-                  <Text style={styles.updateBtnText}>Update</Text>
+                  <Text style={styles.updateBtnText}>{t('update')}</Text>
                 )}
               </TouchableOpacity>
 
@@ -887,7 +889,7 @@ const LeadDetailsScreen = ({
                 style={styles.cancelBtn}
                 onPress={() => setStatusModalVisible(false)}
               >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
               </TouchableOpacity>
             </View>
           </View>

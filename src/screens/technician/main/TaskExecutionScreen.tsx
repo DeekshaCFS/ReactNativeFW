@@ -44,6 +44,7 @@ import { nowAsJavaTime } from '../../../utils/taskStatus.utils';
 import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
 import { showFailureMsg, showToast } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type Task = TasksListResultData;
 type AssignedItem = TasksListMultipleItemAssigned;
 
@@ -58,6 +59,7 @@ const PHOTO_BOX_SIZE =
   );
 
 export default function TaskExecutionScreen({ navigation, route }: any) {
+  const {t} = useTranslation();
   const { task: routeTask } = route.params as { task: Task };
 
   const [uid, setUid] = useState<string | null>(null);
@@ -588,7 +590,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         </View>
 
         <View style={styles.infoSection}>
-          <Text style={styles.sectionTitle}>Instructions</Text>
+          <Text style={styles.sectionTitle}>{t('instructions')}</Text>
           <Text style={styles.description}>
             {taskDetail?.Description && taskDetail.Description !== 'undefined' && taskDetail.Description.trim() !== ''
               ? taskDetail.Description
@@ -609,7 +611,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             </>
           )}
 
-          <Text style={styles.sectionTitle}>Item Assigned</Text>
+          <Text style={styles.sectionTitle}>{t('item_assigned')}</Text>
           {taskDetail?.MultipleItemAssigned && taskDetail.MultipleItemAssigned.length > 0 ? (
             <View style={styles.itemsCard}>
               {taskDetail.MultipleItemAssigned
@@ -621,13 +623,13 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
                 ))}
             </View>
           ) : (
-            <Text style={styles.sectionValue}>NA</Text>
+            <Text style={styles.sectionValue}>{t('na')}</Text>
           )}
 
           {(isRunning || showContinue || photos.some(p => p?.uri)) && (
             <>
               <Text style={[styles.sectionTitle, { marginTop: ms(10) }]}>
-                Picture Before Start Task
+                {t('before_task')}
               </Text>
               {renderPhotoSlots(photos, setPhotos)}
             </>
@@ -637,7 +639,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             routeTask?.PreDeviceInfoDto?.DeviceInfoNotes ||
             note) ? (
             <>
-              <Text style={[styles.sectionTitle, { marginTop: ms(15) }]}>Note</Text>
+              <Text style={[styles.sectionTitle, { marginTop: ms(15) }]}>{t('note')}</Text>
               <Text style={styles.sectionValue}>
                 {trackingDetail?.PreDeviceInfoDto?.DeviceInfoNotes ||
                   routeTask?.PreDeviceInfoDto?.DeviceInfoNotes ||
@@ -715,7 +717,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
               </TouchableOpacity>
               <View style={styles.photoSourceDivider} />
               <TouchableOpacity style={[styles.photoSourceOption, { justifyContent: 'center' }]} onPress={() => setShowPhotoSourceModal(false)}>
-                <Text style={[styles.photoSourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>Cancel</Text>
+                <Text style={[styles.photoSourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>{t('cancel')}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -728,8 +730,8 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         <View style={styles.dlgHeader}>
           <UploadPhotoIcon size={ms(36)} />
           <View style={styles.dlgHeaderText}>
-            <Text style={styles.dlgTitle}>Upload Photo</Text>
-            <Text style={styles.dlgSub}>Please take the picture before starting the task</Text>
+            <Text style={styles.dlgTitle}>{t('upload_photo')}</Text>
+            <Text style={styles.dlgSub}>{t('please_take_the_picture_before_starting_the_task')}</Text>
           </View>
         </View>
         {renderPhotoSlots(photos, setPhotos)}
@@ -737,7 +739,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
           <TextInput
             value={note}
             onChangeText={setNote}
-            placeholder="Note"
+            placeholder={t('note')}
             placeholderTextColor={COLORS.lightGray}
             style={styles.noteInput}
           />
@@ -756,8 +758,8 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         <View style={styles.dlgHeader}>
           <UploadPhotoIcon size={ms(36)} />
           <View style={styles.dlgHeaderText}>
-            <Text style={styles.dlgTitle}>Reject</Text>
-            <Text style={styles.dlgSub}>Please take the picture before Rejecting the task</Text>
+            <Text style={styles.dlgTitle}>{t('reject_task')}</Text>
+            <Text style={styles.dlgSub}>{t('please_take_the_picture_before_rejecting_the_task')}</Text>
           </View>
         </View>
         <View style={styles.rejectPhotos}>
@@ -776,12 +778,12 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
           ))}
         </View>
         <View style={styles.noteFieldWrap}>
-          {rejectReasonError && <FieldErrorTip message="Enter Reason for Reject" bottom={ms(43)} />}
+          {rejectReasonError && <FieldErrorTip message={t('enter_reject_reason')} bottom={ms(43)} />}
           <View style={styles.noteField}>
             <TextInput
               value={rejectReason}
               onChangeText={t => { setRejectReason(t); if (t) setRejectReasonError(false); }}
-              placeholder="Reason for Reject"
+              placeholder={t('reject_reason')}
               placeholderTextColor={COLORS.lightGray}
               style={styles.noteInput}
               maxLength={100}
@@ -796,7 +798,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
           style={styles.dlgCancel}
           onPress={() => { setShowRejectSheet(false); setRejectPhotos([]); setRejectReasonError(false); }}
         >
-          <Text style={styles.dlgCancelText}>Cancel</Text>
+          <Text style={styles.dlgCancelText}>{t('cancel')}</Text>
         </Pressable>
       </BottomSheetDialog>
 
@@ -813,7 +815,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             <TextInput
               value={onHoldReason}
               onChangeText={t => { setOnHoldReason(t); if (t) setOnHoldReasonError(false); }}
-              placeholder="Note"
+              placeholder={t('note')}
               placeholderTextColor={COLORS.lightGray}
               style={styles.noteInput}
               multiline

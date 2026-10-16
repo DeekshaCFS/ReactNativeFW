@@ -29,6 +29,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showToast } from '../../../utils/toast';
 import DecimalInput from '../../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 // Local request-body shapes for FOC_Item_Request/Add_FOC_Request_Details — kept
 // inline since the generated DTO (AddFocDTOResultData) is missing several
 // fields the live endpoint expects (ProductID, ItemDescription, etc).
@@ -152,6 +153,7 @@ const MAX_ITEMS = 5;
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ItemRequestScreen({ navigation, route }: any) {
+  const {t} = useTranslation();
   const routeTask = route?.params?.routeTask ?? null;
   const returnTo = route?.params?.returnTo as { name: string; params?: any } | undefined;
   const headerHeight = useAppHeaderHeight();
@@ -528,11 +530,11 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                         value={item.quantity}
                         onChangeText={val => updateItem(item.id, { quantity: val })}
                         editable={!locked}
-                        label="Quantity"
+                        label={t('quantity')}
                         placeholderTextColor={COLORS.lightGray}
                         style={styles.qtyInput}
                       />
-                      {!!item.quantity && <Text style={styles.floatLabel}>Quantity</Text>}
+                      {!!item.quantity && <Text style={styles.floatLabel}>{t('quantity')}</Text>}
                     </View>
                   </View>
                 </View>
@@ -542,14 +544,14 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                   <TextInput
                     value={item.itemDescription}
                     onChangeText={val => updateItem(item.id, { itemDescription: val })}
-                    placeholder="Item Description"
+                    placeholder={t('item_description')}
                     placeholderTextColor={COLORS.lightGray}
                     maxLength={50}
                     autoCapitalize="words"
                     editable={!(item.itemNameId && item.itemDescription)}
                     style={styles.box}
                   />
-                  {!!item.itemDescription && <Text style={styles.floatLabel}>Item Description</Text>}
+                  {!!item.itemDescription && <Text style={styles.floatLabel}>{t('item_description')}</Text>}
                 </View>
 
                 {/* ── Product Id ── */}
@@ -568,14 +570,14 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                   <TextInput
                     value={item.productDescription}
                     onChangeText={val => updateItem(item.id, { productDescription: val })}
-                    placeholder="Product Description"
+                    placeholder={t('product_description')}
                     placeholderTextColor={COLORS.lightGray}
                     maxLength={50}
                     autoCapitalize="words"
                     editable={!(item.productIdValue && item.productDescription)}
                     style={styles.box}
                   />
-                  {!!item.productDescription && <Text style={styles.floatLabel}>Product Description</Text>}
+                  {!!item.productDescription && <Text style={styles.floatLabel}>{t('product_description')}</Text>}
                 </View>
 
                 {/* ── Invoice Date + Install Date ── */}
@@ -649,7 +651,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                         <View style={styles.attachIcon}>
                           <UploadAttachmentIcon size={ms(50)} />
                         </View>
-                        <Text style={styles.attachLabel} numberOfLines={2}>Attachment</Text>
+                        <Text style={styles.attachLabel} numberOfLines={2}>{t('attachment')}</Text>
                       </View>
                     )}
                   </Pressable>
@@ -708,10 +710,10 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                       pendingDateRef.current = null;
                     }}
                   >
-                    <Text style={styles.dateCancelText}>Cancel</Text>
+                    <Text style={styles.dateCancelText}>{t('cancel')}</Text>
                   </Pressable>
                   <Pressable style={styles.dateConfirmBtn} onPress={confirmIOSDate}>
-                    <Text style={styles.dateConfirmText}>Confirm</Text>
+                    <Text style={styles.dateConfirmText}>{t('qr_code_positive_button_confirm')}</Text>
                   </Pressable>
                 </View>
               </Pressable>
@@ -734,7 +736,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
               setDatePickerVisible(false);
               pendingDateRef.current = null;
             }}
-            positiveButton={{ label: 'OK', textColor: COLORS.primary }}
+            positiveButton={{ label: t('qr_code_positive_button_know'), textColor: COLORS.primary }}
             negativeButton={{ label: 'CANCEL', textColor: COLORS.primary }}
           />
         )

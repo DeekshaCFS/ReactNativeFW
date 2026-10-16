@@ -28,6 +28,7 @@ import { PencilEditIcon, EditFieldIcon } from '../../components/DialogIcons';
 import { getServiceType } from '../../api/customerInquiry/customerInquiryService';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type UserResultData = UserDetailsResultData;
 
 // ─── Field Component (identical to TechProfileScreen's) ─────────────────────
@@ -130,6 +131,7 @@ const fieldStyles = StyleSheet.create({
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
 export default function AdminProfileScreen() {
+  const {t} = useTranslation();
   const navigation = useNavigation<any>();
   const headerHeight = useAppHeaderHeight();
 
@@ -537,7 +539,7 @@ export default function AdminProfileScreen() {
       <Pressable
         style={[styles.segment, styles.segmentRight, value && { backgroundColor: COLORS.green500 }]}
         onPress={() => onChange(true)}>
-        <Text style={[styles.segmentText, value && styles.segmentTextOn]}>Yes</Text>
+        <Text style={[styles.segmentText, value && styles.segmentTextOn]}>{t('yes')}</Text>
       </Pressable>
     </View>
   );
@@ -568,14 +570,14 @@ export default function AdminProfileScreen() {
           </Pressable>
         </View>
 
-        <Field label="First Name" value={profile?.FirstName} maxLength={16}
+        <Field label={t('first_name')} value={profile?.FirstName} maxLength={16}
           onChange={(v) => setProfile(prev => prev ? { ...prev, FirstName: v.replace(/[^A-Za-z]/g, '') } : prev)} />
-        <Field label="Last Name" value={profile?.LastName} maxLength={16}
+        <Field label={t('last_name')} value={profile?.LastName} maxLength={16}
           onChange={(v) => setProfile(prev => prev ? { ...prev, LastName: v.replace(/[^A-Za-z]/g, '') } : prev)} />
 
         {/* Contact No — read-only once set, edit via OTP (imageView_editMobile) */}
         <Field
-          label="Contact No"
+          label={t('contact_no_hint')}
           value={profile?.ContactNo}
           keyboard="phone-pad"
           maxLength={12}
@@ -586,12 +588,12 @@ export default function AdminProfileScreen() {
         />
 
         {/* Address — read-only, opens the Google Places search (Java's AutocompleteActivity) */}
-        <Field label="Address" value={profile?.Address}
+        <Field label={t('address')} value={profile?.Address}
           onPress={() => setPlaceSearchFor('address')} />
 
         {/* E-Mail — Java always disables this field and always shows the pencil icon. */}
         <Field
-          label="E-Mail ID"
+          label={t('e_mail_id')}
           value={profile?.Email}
           keyboard="email-address"
           editable={false}
@@ -600,7 +602,7 @@ export default function AdminProfileScreen() {
         />
 
         <View style={fieldStyles.wrapper}>
-          <Text style={fieldStyles.floatingLabel}>Date of Birth</Text>
+          <Text style={fieldStyles.floatingLabel}>{t('date_of_birth')}</Text>
           <Pressable style={fieldStyles.inputBox} onPress={() => setShowDobPicker(true)}>
             <Text style={{ fontSize: sp(16), color: profile?.DOB ? COLORS.textBlack : COLORS.lightGray }}>
               {profile?.DOB ? new Date(profile.DOB).toLocaleDateString('en-GB').replace(/\//g, '-') : 'Select...'}
@@ -621,8 +623,8 @@ export default function AdminProfileScreen() {
 
         {/* Owner-only block of ProfileFragmentNew (company name … number of employees). The
             Reporting Manager row, Aadhar card and KYC section are technician-only in Java. */}
-        <Field label="Company Name" value={companyName} maxLength={40} onChange={setCompanyName} />
-        <Field label="Company Display Name" value={companyDisplayName} maxLength={4}
+        <Field label={t('company_name')} value={companyName} maxLength={40} onChange={setCompanyName} />
+        <Field label={t('company_disp_name')} value={companyDisplayName} maxLength={4}
           onChange={setCompanyDisplayName} />
 
         {/* enquiry_spin_services: bg_spinner pill (40dp, 34dp radius, light_gray stroke, arrow). */}
@@ -635,11 +637,11 @@ export default function AdminProfileScreen() {
           <Ionicons name="chevron-down" size={scale(18)} color={COLORS.textBlack} />
         </Pressable>
 
-        <Field label="Number Of Employee" keyboard="number-pad" maxLength={3}
+        <Field label={t('number_of_emp')} keyboard="number-pad" maxLength={3}
           value={noOfEmployees} onChange={setNoOfEmployees} />
 
         {/* linear_company_details */}
-        <Text style={styles.sectionTitle}>Company Details</Text>
+        <Text style={styles.sectionTitle}>{t('title_change_company_name')}</Text>
 
         <View style={styles.logoBox}>
           {hasLogo ? (
@@ -661,24 +663,24 @@ export default function AdminProfileScreen() {
           ) : (
             <Pressable style={styles.logoHintRow} onPress={() => openPhotoSource('logo')}>
               <Ionicons name="add-circle" size={ms(24)} color={COLORS.primary} />
-              <Text style={styles.logoHintText}>Add Company Logo</Text>
+              <Text style={styles.logoHintText}>{t('company_logo_hint')}</Text>
             </Pressable>
           )}
         </View>
 
-        <Field label="Company Address" value={companyAddress}
+        <Field label={t('company_address_hint')} value={companyAddress}
           onPress={() => setPlaceSearchFor('companyAddress')} />
-        <Field label="City" value={companyCity} maxLength={200} onChange={setCompanyCity} />
+        <Field label={t('city')} value={companyCity} maxLength={200} onChange={setCompanyCity} />
         <Field label="GST/PAN No." value={gstOrPan} maxLength={15}
           onChange={(v) => setGstOrPan(v.replace(/[^0-9A-Za-z]/g, '').toUpperCase())} />
-        <Field label="Company Contact No." keyboard="number-pad" maxLength={12}
+        <Field label={t('company_cont_no_hint')} keyboard="number-pad" maxLength={12}
           value={companyContactNo} onChange={setCompanyContactNo} />
-        <Field label="Company Website" keyboard="url" maxLength={50}
+        <Field label={t('company_website_hint')} keyboard="url" maxLength={50}
           value={companyWebsite} onChange={setCompanyWebsite} />
 
         {/* edtTinyUrl + imgviewTinyUrl (share): read-only CRM login link. */}
         <View>
-          <Field label="Link" value={profile?.CRMLoginURL} editable={false} maxLength={50} />
+          <Field label={t('tiny_url')} value={profile?.CRMLoginURL} editable={false} maxLength={50} />
           <Pressable
             style={styles.linkShare}
             hitSlop={8}
@@ -737,7 +739,7 @@ export default function AdminProfileScreen() {
         </Pressable>
 
         <Pressable onPress={() => navigation.navigate('Home')}>
-          <Text style={styles.cancelText}>Cancel</Text>
+          <Text style={styles.cancelText}>{t('cancel')}</Text>
         </Pressable>
       </ScrollView>
 
@@ -763,7 +765,7 @@ export default function AdminProfileScreen() {
               </TouchableOpacity>
               <View style={styles.photoSourceDivider} />
               <TouchableOpacity style={[styles.photoSourceOption, { justifyContent: 'center' }]} onPress={() => setShowPhotoSourceModal(false)}>
-                <Text style={[styles.photoSourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>Cancel</Text>
+                <Text style={[styles.photoSourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>{t('cancel')}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -807,7 +809,7 @@ export default function AdminProfileScreen() {
                     onChangeText={(v) => setOtpModal(prev => ({ ...prev, newValue: v }))}
                   />
                   <Pressable style={styles.otpActionBtn} onPress={handleSendOtp}>
-                    <Text style={styles.otpActionText}>Send OTP</Text>
+                    <Text style={styles.otpActionText}>{t('send_otp')}</Text>
                   </Pressable>
                 </>
               ) : (
@@ -836,7 +838,7 @@ export default function AdminProfileScreen() {
       {/* Java: com.corefield.fieldweb.Util.SearchableSpinner (enquiry_spin_services). */}
       <SearchPickerModal
         visible={isServicePickerOpen}
-        title="Select Service Type"
+        title={t('select_service_type')}
         options={serviceTypeOptions}
         onSelect={option => {
           setServiceType(option);

@@ -36,6 +36,7 @@ import { getCurrentCurrencySymbol } from '../../../state/session';
 import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
 import DecimalInput from '../../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 // Java (TechPaymentReceivedFragmentNew): first spinner is the mode, the type spinner only
 // appears for Offline.
 const PAYMENT_MODES = ['Select Payment Mode', 'Online', 'Offline'] as const;
@@ -58,6 +59,7 @@ interface AdjustmentRow {
 }
 
 export default function PaymentReceivedScreen({ navigation, route }: any) {
+  const {t} = useTranslation();
   const { task: routeTask, elapsedSeconds = 0 } = route.params as {
     task: Task;
     elapsedSeconds?: number;
@@ -391,7 +393,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
         {/* ── Task details ── */}
         <View style={[styles.card, styles.taskCard]}>
           <Text style={styles.taskName}>{routeTask.Name}</Text>
-          <Text style={[styles.sectionTitle, { marginTop: vs(14) }]}>Task Details :</Text>
+          <Text style={[styles.sectionTitle, { marginTop: vs(14) }]}>{t('task_details')}</Text>
 
           <View style={styles.itemLine}>
             <Text style={styles.taskname}>{routeTask.Name}</Text>
@@ -415,7 +417,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
 
         {/* ── Services (Java: "+ Add Services", up to 5 description/amount rows) ── */}
         <View style={[styles.card, styles.tintedCard]}>
-          <Text style={styles.sectionTitle}>Services</Text>
+          <Text style={styles.sectionTitle}>{t('title_add_services')}</Text>
 
           {adjustments.map((row, index) => (
             <View key={index} style={{ marginTop: vs(6) }}>
@@ -428,14 +430,14 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
               <View style={styles.adjustmentRow}>
                 <TextInput
                   style={[styles.pillInput, { flex: 1.3 }]}
-                  placeholder="Description"
+                  placeholder={t('description')}
                   placeholderTextColor="#9CA3AF"
                   value={row.description}
                   onChangeText={v => updateAdjustmentRow(index, 'description', v)}
                 />
                 <DecimalInput
                   style={[styles.pillInput, { flex: 0.7 }]}
-                  label="Amount"
+                  label={t('amount')}
                   placeholderTextColor="#9CA3AF"
                   value={row.amount}
                   onChangeText={v => updateAdjustmentRow(index, 'amount', sanitizeDecimalInput(v))}
@@ -488,7 +490,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
 
         {/* ── Payment Details ── */}
         <View style={[styles.card, styles.tintedCard, { marginTop: vs(10) }]}>
-          <Text style={[styles.sectionTitle, { marginTop: vs(5) }]}>Payment Details</Text>
+          <Text style={[styles.sectionTitle, { marginTop: vs(5) }]}>{t('payment_details')}</Text>
           <View style={styles.detailsBox}>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total Task Amount</Text>
@@ -500,7 +502,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
               <Text style={styles.amountReceivedLabel}>Amount Received</Text>
               <DecimalInput
                 style={styles.amountReceivedInput}
-                label="Amount"
+                label={t('amount')}
                 placeholderTextColor="#9CA3AF"
                 value={earnedAmount}
                 onChangeText={t => setEarnedAmount(sanitizeDecimalInput(t))}
@@ -513,10 +515,10 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
             </View>
 
             <View style={styles.amountReceivedRow}>
-              <Text style={styles.amountReceivedLabel}>Discount</Text>
+              <Text style={styles.amountReceivedLabel}>{t('discount')}</Text>
               <DecimalInput
                 style={styles.amountReceivedInput}
-                label="Discount"
+                label={t('discount')}
                 placeholderTextColor="#9CA3AF"
                 value={discount}
                 onChangeText={t => setDiscount(t)}
@@ -560,7 +562,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
         )}
         {paymentMode === MODE_ONLINE && (
           <Pressable style={styles.actionButton} onPress={handlePayViaGateway}>
-            <Text style={styles.actionButtonText}>Make Payment</Text>
+            <Text style={styles.actionButtonText}>{t('make_payment')}</Text>
           </Pressable>
         )}
       </ScrollView>

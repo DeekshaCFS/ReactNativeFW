@@ -51,6 +51,7 @@ import {
 import { showFailureMsg } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 type ItemInventoryTabHostScreenProps = {
   ownerId: number;
   isFieldWorker?: boolean;
@@ -525,6 +526,7 @@ const ItemInventoryTabHostScreen = ({
   ownerId,
   isFieldWorker = false,
 }: ItemInventoryTabHostScreenProps) => {
+  const {t} = useTranslation();
   const [activeTab, setActiveTab] = useState<InventoryTabKey>('primary');
   // Row actions (Java ItemListAdapterNew): edit, assign, delete; plus return
   // on an assigned row (ItemInventoryAdapter -> ItemDialog.updateReturnItem).
@@ -659,7 +661,7 @@ const ItemInventoryTabHostScreen = ({
       },
       {
         key: 'requested',
-        label: 'Requested Items',
+        label: t('requested_items'),
       },
     ],
     [isFieldWorker],
@@ -1042,7 +1044,7 @@ const ItemInventoryTabHostScreen = ({
               }
             }}
             onSubmitEditing={submitItemSearch}
-            placeholder="Search Item"
+            placeholder={t('search_item')}
             placeholderTextColor={COLORS.lightGray}
             style={styles.searchInput}
             returnKeyType="search"
@@ -1179,7 +1181,7 @@ const ItemInventoryTabHostScreen = ({
               <Text style={styles.detailId}>[{selectedItemId || '-'}]</Text>
             </View>
 
-            <Text style={[styles.detailSectionTitle, {marginTop: ms(20)}]}>Item Details</Text>
+            <Text style={[styles.detailSectionTitle, {marginTop: ms(20)}]}>{t('item_details')}</Text>
             {renderDetailRow('Create Date', formatItemDate(selectedItem), undefined, 15)}
             {renderDetailRow('Item Code', getItemCodeValue(selectedItem))}
             {renderDetailRow('HSN Code', getItemHsnCode(selectedItem))}
@@ -1207,7 +1209,7 @@ const ItemInventoryTabHostScreen = ({
   const renderAssignedItemRow = ({item}: {item: AssignedItemListItem}) => (
     <View style={styles.assignedCard}>
       <View style={styles.assignedCardTopRow}>
-        <Text style={[styles.assignedLabel, styles.assignedCol, {paddingLeft: ms(15)}]}>Task ID :</Text>
+        <Text style={[styles.assignedLabel, styles.assignedCol, {paddingLeft: ms(15)}]}>{t('task_id_title')}</Text>
         <Text numberOfLines={1} style={[styles.assignedValue, styles.assignedCol]}>
           {getAssignedTaskId(item)}
         </Text>
@@ -1242,8 +1244,8 @@ const ItemInventoryTabHostScreen = ({
       </View>
       <View style={styles.usedQtyRow}>
         <Text style={styles.usedQtyLabel}>Assigned Qty</Text>
-        <Text style={styles.usedQtyLabel}>Issued Qty</Text>
-        <Text style={styles.usedQtyLabel}>Used Qty</Text>
+        <Text style={styles.usedQtyLabel}>{t('issued_qty')}</Text>
+        <Text style={styles.usedQtyLabel}>{t('used_qty')}</Text>
       </View>
       <View style={[styles.usedQtyRow, {marginTop: ms(5)}]}>
         <Text style={[styles.usedQtyValue, {color: '#2F61D5'}]}>
@@ -1266,7 +1268,7 @@ const ItemInventoryTabHostScreen = ({
             (navigation as any).navigate('TaskDetails', {
               taskId: num('TaskId', 'taskId'),
               sheet: true,
-              headerTitle: 'Item Inventory',
+              headerTitle: t('item_inventory'),
               fallbackTask: {Id: num('TaskId', 'taskId'), NewTaskId: String(u.NewTaskID ?? u.newTaskID ?? u.NewTaskId ?? '') || undefined},
               // Java opens CRMTaskDetailsFragmentNew (downloadReport + allowToReassign) from here.
               source: 'crm',
@@ -1564,7 +1566,7 @@ const ItemInventoryTabHostScreen = ({
             </View>
             <TextInput
               style={{borderWidth: 1, borderColor: '#d5d7db', borderRadius: ms(8), padding: ms(8), minHeight: ms(70), textAlignVertical: 'top', marginBottom: ms(12)}}
-              placeholder="Note"
+              placeholder={t('note')}
               placeholderTextColor="#9aa0a6"
               multiline
               value={returnNotes}
@@ -1577,7 +1579,7 @@ const ItemInventoryTabHostScreen = ({
               <Text style={{color: '#FFFFFF', fontWeight: '700'}}>{isReturning ? 'RETURNING...' : 'RETURN'}</Text>
             </Pressable>
             <Pressable onPress={() => setReturningRow(null)} style={{alignItems: 'center', padding: ms(6)}}>
-              <Text style={{color: '#6B7280'}}>Cancel</Text>
+              <Text style={{color: '#6B7280'}}>{t('cancel')}</Text>
             </Pressable>
           </View>
         </View>

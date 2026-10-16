@@ -20,6 +20,7 @@ import {formatAmount} from '../../utils/decimal';
 import {getCurrentCurrencySymbol} from '../../state/session';
 import { showFailureMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 export type DayFilter = 'Today' | 'Week' | 'Month' | 'Year';
 
 const RING_SIZE = ms(170);
@@ -74,6 +75,7 @@ const OwnerDashboardScreen = ({
   onAmcStatusPress,
   onAttendancePress,
 }: OwnerDashboardScreenProps) => {
+  const {t} = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [taskStats, setTaskStats] = useState({
     complete: 0,
@@ -334,7 +336,7 @@ const OwnerDashboardScreen = ({
           <Text style={styles.valueStrong}> {filter}</Text>
           <View style={styles.flex1} />
           <Pressable style={styles.ctaButton} onPress={onCreateTask}>
-            <Text style={styles.ctaButtonText}>Create Task</Text>
+            <Text style={styles.ctaButtonText}>{t('app_tour_3_title')}</Text>
           </Pressable>
         </View>
 
@@ -357,7 +359,7 @@ const OwnerDashboardScreen = ({
                 />
               ))}
               <Text style={styles.taskChartTotal}>{totalTasks}</Text>
-              <Text style={styles.taskChartTotalLabel}>Total Task</Text>
+              <Text style={styles.taskChartTotalLabel}>{'Total Task'}</Text>
             </View>
           </View>
           <View style={styles.taskChartLegend}>
@@ -377,7 +379,7 @@ const OwnerDashboardScreen = ({
         <View style={styles.metricsRow}>
           <Pressable style={styles.earningsBlock} onPress={onEarningsPress}>
             <View style={styles.metricLabelRow}>
-              <Text style={styles.metricLabel}>Earnings</Text>
+              <Text style={styles.metricLabel}>{'Earnings'}</Text>
               <View style={styles.infoGap}>{renderInfo()}</View>
             </View>
             <Text style={styles.metricValueGreen}>
@@ -386,7 +388,7 @@ const OwnerDashboardScreen = ({
           </Pressable>
           <Pressable style={styles.amcBlock} onPress={onAmcStatusPress}>
             <View style={styles.metricLabelRow}>
-              <Text style={styles.metricLabel}>AMC Status</Text>
+              <Text style={styles.metricLabel}>{'AMC Status'}</Text>
               <View style={styles.infoGap}>{renderInfo()}</View>
             </View>
             <View style={styles.amcRow}>
@@ -435,7 +437,7 @@ const OwnerDashboardScreen = ({
 
       <Pressable style={[styles.card, styles.attendanceCard]} onPress={onAttendancePress}>
         <View style={styles.attendanceHeader}>
-          <Text style={styles.sectionTitle}>Today's Attendance</Text>
+          <Text style={styles.sectionTitle}>{t('today_s_attendance')}</Text>
           <View style={styles.infoGap}>{renderInfo()}</View>
         </View>
         <View style={styles.attendanceRow}>

@@ -10,6 +10,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { COLORS } from '../../theme/theme';
 import { scale, vs, sp, ms, hp, wp } from '../../utils/responsive';
 
+import {useTranslation} from 'react-i18next';
 const APP_ICON = ms(50);
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export default function AddFirstFieldworkerSheet({ visible, onClose, onSubmit }: Props) {
+  const {t} = useTranslation();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -69,14 +71,14 @@ export default function AddFirstFieldworkerSheet({ visible, onClose, onSubmit }:
           </View>
 
           <Text style={styles.message}>
-            Add your first Fieldworker to activate all services
+            {t('add_first_tech')}
           </Text>
 
           <View style={styles.inputCard}>
             <View style={styles.nameRow}>
               <TextInput
                 style={styles.nameInput}
-                placeholder="First Name"
+                placeholder={t('first_name')}
                 placeholderTextColor={COLORS.textMuted}
                 value={firstName}
                 onChangeText={(t) => setFirstName(t.replace(/[^a-zA-Z ]/g, ''))}
@@ -85,7 +87,7 @@ export default function AddFirstFieldworkerSheet({ visible, onClose, onSubmit }:
               />
               <TextInput
                 style={styles.nameInput}
-                placeholder="Last Name"
+                placeholder={t('last_name')}
                 placeholderTextColor={COLORS.textMuted}
                 value={lastName}
                 onChangeText={(t) => setLastName(t.replace(/[^a-zA-Z ]/g, ''))}
@@ -96,7 +98,7 @@ export default function AddFirstFieldworkerSheet({ visible, onClose, onSubmit }:
 
             <TextInput
               style={styles.phoneInput}
-              placeholder="Phone Number"
+              placeholder={t('phone_number')}
               placeholderTextColor={COLORS.textMuted}
               value={phoneNumber}
               onChangeText={(t) => setPhoneNumber(t.replace(/[^0-9]/g, ''))}
@@ -113,7 +115,7 @@ export default function AddFirstFieldworkerSheet({ visible, onClose, onSubmit }:
             {submitting ? (
               <ActivityIndicator color={COLORS.white} />
             ) : (
-              <Text style={styles.submitText}>Submit</Text>
+              <Text style={styles.submitText}>{t('submit')}</Text>
             )}
           </Pressable>
 

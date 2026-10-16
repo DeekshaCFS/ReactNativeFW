@@ -10,6 +10,8 @@ import {useState} from 'react';
 import {Share} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {useTranslation} from 'react-i18next';
+import {AppTourIcon, RateUsIcon, ShareFeedbackIcon, LanguageIcon2, InviteFriendIcon, TermsIcon, PrivacyIcon, RefundIcon, AboutUsIcon, AccountsRowIcon} from '../../components/SettingsIcons';
+import {DeleteAccIcon} from '../../components/JavaIcons';
 import SettingsScreenBase, {type SettingsRow} from '../../components/SettingsScreenBase';
 import LanguagePickerModal from '../../components/LanguagePickerModal';
 import RateUsModal from '../../components/RateUsModal';
@@ -53,31 +55,31 @@ export default function AdminSettingScreen() {
   };
 
   const topCards: SettingsRow[] = [
-    {icon: 'phone-portrait-outline', title: t('appTour'), onPress: handleAppTour},
-    {icon: 'star-outline', title: t('rateUs'), onPress: handleRateUs},
-    {icon: 'thumbs-up-outline', title: t('feedback'), onPress: handleFeedback},
+    {icon: AppTourIcon, iconSize: 30, title: t('appTour'), onPress: handleAppTour},
+    {icon: RateUsIcon, iconSize: 30, title: t('rateUs'), onPress: handleRateUs},
+    {icon: ShareFeedbackIcon, iconSize: 40, title: t('feedback'), onPress: handleFeedback},
   ];
 
   // Order matches Java fragment_settings.xml: change lang, invite friends,
   // delete account, terms, privacy, refund, about, then the bank/accounts
   // row last.
   const listItems: SettingsRow[] = [
-    {icon: 'language-outline', title: t('changeLanguage'), onPress: () => setLangModalVisible(true)},
-    {icon: 'people-outline', title: t('inviteFriends'), onPress: handleInviteFriends},
+    {icon: LanguageIcon2, iconSize: 30, title: t('changeLanguage'), onPress: () => setLangModalVisible(true)},
+    {icon: InviteFriendIcon, iconSize: 30, title: t('inviteFriends'), onPress: handleInviteFriends},
     // Java: cardViewDeleteAccount has a click listener but its onClick case
     // body is empty (commented out) -- the row is a silent dead tap there
     // too, so no onPress here either.
-    {icon: 'trash-outline', title: t('deleteAccount')},
-    {icon: 'document-text-outline', title: t('termsCondition'), route: 'TermsAndConditions'},
-    {icon: 'shield-checkmark-outline', title: t('privacyPolicy'), route: 'PrivacyPolicy'},
-    {icon: 'cash-outline', title: t('refundPolicy'), route: 'RefundPolicy'},
-    {icon: 'information-circle-outline', title: t('aboutFieldweb'), route: 'AboutFieldweb'},
+    {icon: DeleteAccIcon, iconSize: 30, title: t('deleteAccount')},
+    {icon: TermsIcon, iconSize: 30, title: t('termsCondition'), route: 'TermsAndConditions'},
+    {icon: PrivacyIcon, iconSize: 30, title: t('privacyPolicy'), route: 'PrivacyPolicy'},
+    {icon: RefundIcon, iconSize: 30, title: t('refundPolicy'), route: 'RefundPolicy'},
+    {icon: AboutUsIcon, iconSize: 30, title: t('aboutFieldweb'), route: 'AboutFieldweb'},
     // Java: cardView_bank row's label is hardcoded "Accounts" in the layout
     // XML (not a @string resource), so unlike every other row it does NOT
     // change with the selected language -- stays "Accounts" in every
     // locale, matching Java exactly. Icon is ic_miscellaneous_settings (a
     // bank/columns glyph); same BankDetailsAndTaxFragmentTabHost target.
-    {icon: 'business-outline', title: 'Accounts', route: 'BankDetailsTax'},
+    {icon: AccountsRowIcon, iconSize: 28, title: 'Accounts', route: 'BankDetailsTax'},
   ];
 
   return (

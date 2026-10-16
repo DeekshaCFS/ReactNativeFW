@@ -34,6 +34,7 @@ import AddTaskModal, {
 } from './AddTaskModal';
 import { showFailureMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 // TasksListAdapter's textView_reassign_from_list: edit icon for InActive,
 // re-assign icon for Completed / Rejected / OnHold, nothing for Ongoing.
 // MainTaskFragmentNew then opens updateTaskDialog / reAssignCompletedTaskDialog /
@@ -309,6 +310,7 @@ const MainTaskFragmentNewScreen = ({
   onTaskSelect,
   onAddTask,
 }: MainTaskFragmentNewScreenProps) => {
+  const {t} = useTranslation();
   // Controlled (legacy embedded) only when BOTH are supplied by the parent.
   const isControlled =
     controlledMonth !== undefined && controlledYear !== undefined;
@@ -801,7 +803,7 @@ const MainTaskFragmentNewScreen = ({
             }}
             onSubmitEditing={submitSearch}
             returnKeyType="search"
-            placeholder="Customer Or Task Id Number"
+            placeholder={t('customer_number_taskid')}
             placeholderTextColor={COLORS.lightGray}
             style={styles.searchInput}
           />
@@ -818,7 +820,7 @@ const MainTaskFragmentNewScreen = ({
         </View>
         {onAddTask ? (
           <Pressable style={styles.addTaskButton} onPress={onAddTask}>
-            <Text style={styles.addTaskText}>+ Task</Text>
+            <Text style={styles.addTaskText}>{t('plus_task')}</Text>
           </Pressable>
         ) : null}
         </View>
@@ -881,7 +883,7 @@ const MainTaskFragmentNewScreen = ({
 
       <SearchPickerModal
         visible={tagModalVisible}
-        title="Select Task Tag"
+        title={t('select_task_tag')}
         options={tags.map(tag => ({id: tag.id, label: tag.name}))}
         emptyText="No task tags returned."
         onClose={() => setTagModalVisible(false)}
@@ -893,7 +895,7 @@ const MainTaskFragmentNewScreen = ({
 
       <SearchPickerModal
         visible={statusModalVisible}
-        title="Status"
+        title={t('status')}
         options={TASK_STATUSES.filter(status => status.id !== 0).map(status => ({
           id: status.id,
           label: status.label,

@@ -27,6 +27,7 @@ import {formatAmount} from '../../utils/decimal';
 import BackBar from '../../components/BackBar';
 import { showFailureMsg, showToast } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
 const STATUS_BLUE = '#5b6bd9';
@@ -96,6 +97,7 @@ const QuotationDetailsScreen = ({
   onBack,
   onDeleted,
 }: QuotationDetailsScreenProps) => {
+  const {t} = useTranslation();
   const [details, setDetails] = useState<QuotationDetailsDTOResultData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -252,24 +254,24 @@ const QuotationDetailsScreen = ({
                 value={formatDateTime(details?.ValidityDate)}
               />
 
-              <Text style={styles.sectionTitle}>Customer Details</Text>
+              <Text style={styles.sectionTitle}>{t('customer_details')}</Text>
               <DetailRow
-                label="Customer Name"
+                label={t('customer_name')}
                 value={customer?.CustomerName ?? '-'}
               />
               <DetailRow
-                label="Customer Number"
+                label={t('customer_number')}
                 value={customer?.MobileNumber ?? '-'}
               />
-              <DetailRow label="Address" value={location?.Address ?? '-'} />
+              <DetailRow label={t('address')} value={location?.Address ?? '-'} />
               <DetailRow
                 label="Flat/Building/Parcel"
                 value={location?.BuildingNumber ?? '-'}
               />
-              <DetailRow label="Landmark" value={location?.Description ?? '-'} />
+              <DetailRow label={t('landmark')} value={location?.Description ?? '-'} />
 
               <View style={styles.tableHeaderRow}>
-                <Text style={[styles.tableHeaderCell, styles.colName]}>Item Details</Text>
+                <Text style={[styles.tableHeaderCell, styles.colName]}>{t('item_details')}</Text>
                 <Text style={[styles.tableHeaderCell, styles.colQty]}>Qty</Text>
                 <Text style={[styles.tableHeaderCell, styles.colPrice]}>Unit Price</Text>
                 <Text style={[styles.tableHeaderCell, styles.colPrice]}>Total Price</Text>
@@ -292,7 +294,7 @@ const QuotationDetailsScreen = ({
               ))}
 
               <View style={styles.tableHeaderRow}>
-                <Text style={[styles.tableHeaderCell, styles.colName]}>Service Name</Text>
+                <Text style={[styles.tableHeaderCell, styles.colName]}>{t('service_name_add_task')}</Text>
                 <Text style={[styles.tableHeaderCell, styles.colQty]}>Qty</Text>
                 <Text style={[styles.tableHeaderCell, styles.colPrice]}>Service Price</Text>
               </View>
@@ -325,7 +327,7 @@ const QuotationDetailsScreen = ({
                 value={`Rs. ${formatAmount(details?.TotalAmount)}`}
               />
               <DetailRow
-                label="Discount"
+                label={t('discount')}
                 value={`Rs. ${formatAmount(taxInfo?.DiscountAmounnt)}(${formatPercent(
                   taxInfo?.Discount,
                 )}%)`}
@@ -376,7 +378,7 @@ const QuotationDetailsScreen = ({
                 style={[styles.modalButton, styles.modalButtonSecondary]}
                 onPress={() => setIsStatusModalOpen(false)}
                 disabled={isUpdatingStatus}>
-                <Text style={styles.modalButtonSecondaryText}>Cancel</Text>
+                <Text style={styles.modalButtonSecondaryText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonPrimary]}

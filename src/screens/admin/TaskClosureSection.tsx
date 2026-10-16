@@ -29,6 +29,7 @@ import {formatAmount} from '../../utils/decimal';
 import {ms, sp, vs} from '../../utils/responsive';
 import { showToast } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type AnyRecord = Record<string, unknown>;
 
 export type TaskClosureSectionHandle = {
@@ -81,6 +82,7 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
     },
     ref,
   ) => {
+  const {t} = useTranslation();
     const [closure, setClosure] = useState<AnyRecord | null>(null);
     const [loading, setLoading] = useState(true);
     const [chkPoint, setChkPoint] = useState<AnyRecord | null>(null);
@@ -204,7 +206,7 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
       <View>
         {warranty ? (
           <>
-            <Text style={styles.heading}>Warranty Details</Text>
+            <Text style={styles.heading}>{t('warranty_details')}</Text>
             {(
               [
                 ['Warranty Type', str(warranty.WarrantyTypeName)],
@@ -223,18 +225,18 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
           </>
         ) : null}
 
-        <Text style={styles.heading}>Field Photo</Text>
+        <Text style={styles.heading}>{t('field_photo')}</Text>
         {photoRow('Before', beforePhotos)}
         {photoRow('After', afterPhotos)}
 
         <View style={styles.row}>
-          <Text style={styles.label}>Work Mode</Text>
+          <Text style={styles.label}>{t('work_mode_without_colon')}</Text>
           <Text style={styles.value}>: {str(closure.WorkModeType) || NA}</Text>
         </View>
 
         {notes.length ? (
           <>
-            <Text style={styles.heading}>Technical Notes</Text>
+            <Text style={styles.heading}>{t('technical_note')}</Text>
             {notes.map((note, i) => (
               <Text key={i} style={styles.listText}>
                 {i + 1}. {str(note.TechnicalNote1)}
@@ -245,7 +247,7 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
 
         {devices.length ? (
           <>
-            <Text style={styles.heading}>Device List</Text>
+            <Text style={styles.heading}>{t('device_list')}</Text>
             {devices.map((device, i) => (
               <View key={i} style={styles.deviceCard}>
                 <Text style={styles.listText}>{str(device.DeviceName)}</Text>
@@ -281,14 +283,14 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
             ) : (
               <View style={styles.sign} />
             )}
-            <Text style={styles.subText}>Name : {str(closure.SignedBy) || NA}</Text>
+            <Text style={styles.subText}>{t('name_title')} {str(closure.SignedBy) || NA}</Text>
           </View>
           <View style={styles.signCol}>
             <Text style={styles.subLabel}>Tech. Sign</Text>
             {str(closure.TechSignatureImage) ? (
               <>
                 <Image source={{uri: str(closure.TechSignatureImage)}} style={styles.sign} resizeMode="contain" />
-                <Text style={styles.subText}>Name : {assignedTo || NA}</Text>
+                <Text style={styles.subText}>{t('name_title')} {assignedTo || NA}</Text>
               </>
             ) : (
               <View style={styles.sign} />
@@ -296,7 +298,7 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
           </View>
         </View>
         <View style={styles.row}>
-          <Text style={styles.label}>Mobile No.</Text>
+          <Text style={styles.label}>{t('mobile_no_title')}</Text>
           <Text style={styles.value}>{mobileNo ? String(mobileNo) : NA}</Text>
         </View>
         <View style={styles.row}>
@@ -315,11 +317,11 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
 
         {isRate ? (
           <>
-            <Text style={styles.heading}>Payment Details</Text>
+            <Text style={styles.heading}>{t('payment_details')}</Text>
             <View style={styles.tableHead}>
               <Text style={[styles.cellSr, styles.bold]}>Sr.No </Text>
-              <Text style={[styles.cellDesc, styles.bold]}>Description</Text>
-              <Text style={[styles.cellAmt, styles.bold]}>Amount</Text>
+              <Text style={[styles.cellDesc, styles.bold]}>{t('description')}</Text>
+              <Text style={[styles.cellAmt, styles.bold]}>{t('amount')}</Text>
             </View>
             {excess.map((e, i) => (
               <View key={i} style={styles.tableRow}>
@@ -393,7 +395,7 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
               <ScrollView>
                 {qrScans.map(scan => (
                   <View key={scan.no} style={styles.qrScan}>
-                    <Text style={styles.bold}>Scan {scan.no}</Text>
+                    <Text style={styles.bold}>{t('title_activity_scan_qr_code')} {scan.no}</Text>
                     {scan.fields.map((f, i) => (
                       <View key={i} style={styles.row}>
                         <Text style={styles.label}>{f.name}</Text>

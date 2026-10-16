@@ -10,6 +10,7 @@ import { COLORS } from '../../../theme/theme';
 import { ms, sp, scale, hp, vs } from '../../../utils/responsive';
 import { getAIAnswer } from '../../../api';
 
+import {useTranslation} from 'react-i18next';
 const SAMPLE_QUESTIONS = [
   'How to change capacitor in motor ?',
   'How to change gas in AC ?',
@@ -23,6 +24,7 @@ interface ChatEntry {
 }
 
 export default function AIScreen() {
+  const {t} = useTranslation();
   const insets = useSafeAreaInsets();
   const [inputText, setInputText] = useState('');
   const [chat, setChat] = useState<ChatEntry[]>([]);
@@ -90,7 +92,7 @@ export default function AIScreen() {
 
           {chat.length === 0 && !sending && (
             <>
-              <Text style={styles.sampleTitle}>Some sample questions you can ask ...</Text>
+              <Text style={styles.sampleTitle}>{t('samplequestion')}</Text>
               {SAMPLE_QUESTIONS.map(renderQuestion)}
             </>
           )}
@@ -140,7 +142,7 @@ export default function AIScreen() {
         >
           <View style={[styles.inputContainer, { marginBottom: inputBarBottom }]}>
             <TextInput
-              placeholder="Ask your question..."
+              placeholder={t('hinttext')}
               placeholderTextColor="#888"
               style={styles.input}
               cursorColor={COLORS.primary}

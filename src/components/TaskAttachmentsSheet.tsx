@@ -11,6 +11,7 @@ import { COLORS } from '../theme/theme';
 import { ms, sp } from '../utils/responsive';
 import type { GetPostedTaskDocFile } from '../api/taskList/taskList.types';
 
+import {useTranslation} from 'react-i18next';
 // FileListAdapter: DocumnetTypeId -> label.
 const DOC_TYPE_LABEL: Record<number, string> = {
   0: 'NA',
@@ -31,6 +32,7 @@ type Props = {
 };
 
 export default function TaskAttachmentsSheet({ visible, taskName, files, onClose, onDownload }: Props) {
+  const {t} = useTranslation();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose} />
@@ -58,7 +60,7 @@ export default function TaskAttachmentsSheet({ visible, taskName, files, onClose
                   {DOC_TYPE_LABEL[file.DocumnetTypeId ?? 0] ?? ''}
                 </Text>
                 <Pressable style={styles.download} onPress={() => onDownload(url)}>
-                  <Text style={styles.downloadText}>Download</Text>
+                  <Text style={styles.downloadText}>{t('download')}</Text>
                 </Pressable>
               </View>
             );

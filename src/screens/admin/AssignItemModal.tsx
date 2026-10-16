@@ -35,6 +35,7 @@ import {COLORS} from '../../theme/theme';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 // Same Java dialog sheet / header / spinner metrics as the Add Task form.
 const styles = {...sharedStyles, ...taskStyles};
 
@@ -93,6 +94,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
   initialItem = null,
   onAssigned,
 }) => {
+  const {t} = useTranslation();
   const [selectedItem, setSelectedItem] = useState<ItemOption | null>(null);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [itemSearchQuery, setItemSearchQuery] = useState('');
@@ -271,7 +273,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalHeaderTitle}>Assign Item</Text>
+              <Text style={styles.modalHeaderTitle}>{t('assign_item')}</Text>
               <TouchableOpacity onPress={handleClose}>
                 <Ionicons name="close" style={styles.modalCloseIcon} />
               </TouchableOpacity>
@@ -285,7 +287,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                 <View style={assignStyles.howToPlayIcon}>
                   <Ionicons name="play" size={ms(11)} color="#FFFFFF" />
                 </View>
-                <Text style={assignStyles.howToText}>How to assign item ?</Text>
+                <Text style={assignStyles.howToText}>{t('hassignitem')}</Text>
               </View>
 
               {initialItem ? (
@@ -334,7 +336,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                 <Ionicons name="chevron-down" style={styles.dropdownChevron} />
               </TouchableOpacity>
 
-              <Text style={assignStyles.quantityLabel}>Quantity</Text>
+              <Text style={assignStyles.quantityLabel}>{t('quantity')}</Text>
               <View style={assignStyles.quantityPill}>
                 <TouchableOpacity
                   style={assignStyles.quantityButton}
@@ -374,7 +376,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
 
               {initialItem ? null : (
                 <TouchableOpacity onPress={handleClose}>
-                  <Text style={styles.cancelText}>Cancel</Text>
+                  <Text style={styles.cancelText}>{t('cancel')}</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
@@ -385,7 +387,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
       {/* Java ItemDialog: dialog_searchable_spinner_item / _technician -- the shared dialog. */}
       <SearchPickerModal
         visible={isItemModalOpen}
-        title="Select Item"
+        title={t('select_item')}
         options={itemOptions.map(option => ({id: option.id, label: option.name}))}
         loading={isItemLoading}
         searchHint="Pls Enter Min 3 Characters."
@@ -403,7 +405,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
 
       <SearchPickerModal
         visible={isFieldworkerModalOpen}
-        title="Select Fieldworkers"
+        title={t('select_technicians')}
         options={allFieldworkers.map(item => ({
           id: getFieldworkerId(item),
           label: getFieldworkerName(item),

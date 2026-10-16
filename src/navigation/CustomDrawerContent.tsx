@@ -30,6 +30,7 @@ import { checkedInTodayKey } from '../utils/attendanceKey';
 import { setPassbookTabOrder } from '../state/passbookTabOrder';
 import { showFailureMsg, showSuccessMsg } from '../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 // Same local-date key Home writes on check-in (see utils/attendanceKey.ts).
 const todayKey = checkedInTodayKey;
 
@@ -56,6 +57,7 @@ const getCurrentPosition = (): Promise<{ latitude: number; longitude: number }> 
   });
 
 export default function CustomDrawerContent({ navigation }: DrawerContentComponentProps) {
+  const {t} = useTranslation();
   const insets = useSafeAreaInsets();
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -211,24 +213,24 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
             // sections (not their own stack screens), so they're opened via
             // a `drawerSection` param on the Home tab. `screen` items are
             // AdminStack routes.
-            { icon: 'ItemInventory',                   label: 'Item Inventory',   section: 'Item Inventory' },
-            { icon: 'Passbook',                 label: 'Passbook',         section: 'Passbook' },
-            { icon: 'Amc',              label: 'AMC',              section: 'AMC' },
-            { icon: 'Services',                 label: 'Services',         section: 'Services' },
+            { icon: 'ItemInventory',                   label: t('item_inventory'),   section: 'Item Inventory' },
+            { icon: 'Passbook',                 label: t('title_passbook'),         section: 'Passbook' },
+            { icon: 'Amc',              label: t('title_amc'),              section: 'AMC' },
+            { icon: 'Services',                 label: t('title_add_services'),         section: 'Services' },
             { icon: 'Accounts',          label: 'Accounts',         section: 'Accounts' },
             { icon: 'Leads',                 label: 'Leads',            section: 'Leads' },
             { icon: 'BrandPng',              label: 'Brand Management', section: 'Brand Management' },
-            { icon: 'FieldwebAi',       label: 'FieldWeb AI',      screen: 'FieldWeb AI' },
+            { icon: 'FieldwebAi',       label: t('AI'),      screen: 'FieldWeb AI' },
             { icon: 'DemoPng',         label: 'Book App Demo',    screen: 'Book App Demo' },
-            { icon: 'Settings',               label: 'Settings',         screen: 'Settings' },
+            { icon: 'Settings',               label: t('settings'),         screen: 'Settings' },
           ]
         : [
-            { icon: 'ItemInventory',                   label: 'Item Inventory',  screen: 'Issued Items' },
-            { icon: 'Passbook',                   label: 'Expenditure',     screen: 'Expenditure' },
+            { icon: 'ItemInventory',                   label: t('item_inventory'),  screen: 'Issued Items' },
+            { icon: 'Passbook',                   label: t('expenditure'),     screen: 'Expenditure' },
             { icon: 'RoutineService',                   label: 'Routine Service', screen: 'Routine Service' },
-            { icon: 'FieldwebAi',       label: 'FieldWeb AI',     screen: 'FieldWeb AI' },
-            { icon: 'Settings',               label: 'Settings',        screen: 'Settings' },
-            { icon: 'CheckOut',   label: 'Check-Out',       screen: null },
+            { icon: 'FieldwebAi',       label: t('AI'),     screen: 'FieldWeb AI' },
+            { icon: 'Settings',               label: t('settings'),        screen: 'Settings' },
+            { icon: 'CheckOut',   label: t('title_check_out'),       screen: null },
           ]
       ).map(({ icon, label, screen, section }: any) => (
         <DrawerItem
@@ -275,7 +277,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
               <Text style={styles.confirmText}>LOGOUT</Text>
             </Pressable>
             <Pressable onPress={() => setShowLogoutModal(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('cancel')}</Text>
             </Pressable>
           </View>
         </View>
@@ -290,7 +292,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
               <Text style={styles.confirmText}>CHECK-OUT</Text>
             </Pressable>
             <Pressable onPress={() => setShowCheckOutModal(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('cancel')}</Text>
             </Pressable>
           </View>
         </View>

@@ -43,6 +43,7 @@ import TabStrip from '../../components/TabStrip';
 import SearchPickerModal from '../../components/SearchPickerModal';
 import { showFailureMsg, showToast } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type EmployeeManagementScreenProps = {
   ownerId: number;
   // Non-zero only when mounted under the shared AppHeader (the Employee tab
@@ -210,6 +211,7 @@ const EmployeeManagementScreen = ({
   onAddEmployee,
   onActiveTabChange,
 }: EmployeeManagementScreenProps) => {
+  const {t} = useTranslation();
   const [activeTab, setActiveTab] = useState<EmployeeTab>('employee');
 
   // `onActiveTabChange` is intentionally excluded from the deps: AdminTabs
@@ -235,11 +237,11 @@ const EmployeeManagementScreen = ({
   });
   const [selectedZone, setSelectedZone] = useState<FilterOption>({
     id: 0,
-    label: 'Select Zone',
+    label: t('select_zone'),
   });
   const [selectedStatus, setSelectedStatus] = useState<FilterOption>({
     id: 0,
-    label: 'Status',
+    label: t('status'),
   });
   const [leaveSearchText, setLeaveSearchText] = useState('');
   const [submittedLeaveSearch, setSubmittedLeaveSearch] = useState('');
@@ -248,7 +250,7 @@ const EmployeeManagementScreen = ({
   // real options above -- LEAVE_STATUS_OPTIONS[0] was "Approved", which both
   // mislabeled the idle state and silently filtered every first load.
   const [selectedLeaveStatus, setSelectedLeaveStatus] = useState<FilterOption>(
-    {id: 0, label: 'Status'},
+    {id: 0, label: t('status')},
   );
   const [leaveMonthYear, setLeaveMonthYear] = useState(getDefaultMonthYear);
   const [pendingLeaveMonth, setPendingLeaveMonth] = useState(
@@ -295,7 +297,7 @@ const EmployeeManagementScreen = ({
   const modalConfig = useMemo(() => {
     if (filterModal === 'type') {
       return {
-        title: 'Select Employee Type',
+        title: t('select_emp_type'),
         options: employeeTypes,
         selectedId: selectedType.id,
       };
@@ -303,14 +305,14 @@ const EmployeeManagementScreen = ({
 
     if (filterModal === 'zone') {
       return {
-        title: 'Select Zone',
+        title: t('select_zone'),
         options: zones,
         selectedId: selectedZone.id,
       };
     }
 
     return {
-      title: 'Status',
+      title: t('status'),
       options: statuses,
       selectedId: selectedStatus.id,
     };
@@ -566,8 +568,8 @@ const EmployeeManagementScreen = ({
     setSearchText('');
     setSubmittedSearch('');
     setSelectedType({id: 0, label: 'Select Emp Type'});
-    setSelectedZone({id: 0, label: 'Select Zone'});
-    setSelectedStatus({id: 0, label: 'Status'});
+    setSelectedZone({id: 0, label: t('select_zone')});
+    setSelectedStatus({id: 0, label: t('status')});
     fetchEmployeePage({
       nextPage: PAGE_START,
       replace: true,
@@ -704,7 +706,7 @@ const EmployeeManagementScreen = ({
     // delete_tech_account.xml wording.
     Alert.alert(
       `Do you wish to Delete ${getEmployeeName(item)}`,
-      'It will completely remove all the data associated with this account.',
+      t('delete_tech_acc_desc_one'),
       [
         {text: 'Nope. Not Now', style: 'cancel'},
         {
@@ -830,7 +832,7 @@ const EmployeeManagementScreen = ({
                 }
                 setTrackingEmployee(item);
               }}>
-              <Text style={styles.trackButtonText}>Track</Text>
+              <Text style={styles.trackButtonText}>{t('track')}</Text>
             </Pressable>
           </View>
         </View>
@@ -916,7 +918,7 @@ const EmployeeManagementScreen = ({
             </Text>
           </View>
           <View style={styles.leaveStatusGroup}>
-            <Text style={styles.leaveStatusLabel}>Status :</Text>
+            <Text style={styles.leaveStatusLabel}>{t('status_title')}</Text>
             <Text style={[styles.leaveStatusValue, {color: statusColor}]}>
               {status}
             </Text>
@@ -986,7 +988,7 @@ const EmployeeManagementScreen = ({
             ) : null}
           </View>
           <Pressable style={styles.addButton} onPress={onAddEmployee}>
-            <Text style={styles.addButtonText}>+ Emp</Text>
+            <Text style={styles.addButtonText}>{t('plus_emp')}</Text>
           </Pressable>
           <Pressable onPress={handleDownloadEmployees}>
             <Ionicons name="download-outline" size={25} style={{ color: COLORS.primary }} />
@@ -1194,7 +1196,7 @@ const EmployeeManagementScreen = ({
 
       <SearchPickerModal
         visible={leaveFilterModal === 'leaveStatus'}
-        title="Status"
+        title={t('status')}
         options={LEAVE_STATUS_OPTIONS}
         onSelect={selectLeaveStatus}
         onClose={() => setLeaveFilterModal(null)}
@@ -1213,7 +1215,7 @@ const EmployeeManagementScreen = ({
                 <Text style={styles.modalTitle}>Select month</Text>
                 <View style={styles.monthPickerBody}>
                   <ScrollView style={styles.monthPickerColumn}>
-                    <Text style={styles.monthPickerColumnTitle}>Month</Text>
+                    <Text style={styles.monthPickerColumnTitle}>{t('month')}</Text>
                     {MONTH_LABELS.map((label, index) => {
                       const value = index + 1;
                       const selected = value === pendingLeaveMonth;
@@ -1237,7 +1239,7 @@ const EmployeeManagementScreen = ({
                     })}
                   </ScrollView>
                   <ScrollView style={styles.monthPickerColumn}>
-                    <Text style={styles.monthPickerColumnTitle}>Year</Text>
+                    <Text style={styles.monthPickerColumnTitle}>{t('year')}</Text>
                     {leaveYearOptions.map(value => {
                       const selected = value === pendingLeaveYear;
                       return (
@@ -1264,7 +1266,7 @@ const EmployeeManagementScreen = ({
                   <Pressable
                     style={styles.monthPickerButton}
                     onPress={() => setLeaveFilterModal(null)}>
-                    <Text style={styles.monthPickerButtonText}>Cancel</Text>
+                    <Text style={styles.monthPickerButtonText}>{t('cancel')}</Text>
                   </Pressable>
                   <Pressable
                     style={[styles.monthPickerButton, styles.monthPickerButtonPrimary]}
@@ -1274,7 +1276,7 @@ const EmployeeManagementScreen = ({
                         styles.monthPickerButtonText,
                         styles.monthPickerButtonTextPrimary,
                       ]}>
-                      OK
+                      {t('qr_code_positive_button_know')}
                     </Text>
                   </Pressable>
                 </View>
@@ -1295,7 +1297,7 @@ const EmployeeManagementScreen = ({
             {selectedEmployee ? (
               <ScrollView contentContainerStyle={styles.detailsContent}>
                 <View style={styles.detailsHeaderRow}>
-                  <Text style={styles.detailsTitle}>Employee Details</Text>
+                  <Text style={styles.detailsTitle}>{t('emp_details_title')}</Text>
                   <View style={styles.detailsHeaderIcons}>
                     <Pressable
                       hitSlop={10}
@@ -1331,11 +1333,11 @@ const EmployeeManagementScreen = ({
                 </View>
 
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Employee Name</Text>
+                  <Text style={styles.detailsLabel}>{t('technician_name')}</Text>
                   <Text style={styles.detailsValue}>{getEmployeeName(selectedEmployee)}</Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Mobile Number</Text>
+                  <Text style={styles.detailsLabel}>{t('mobile_number')}</Text>
                   <Text style={styles.detailsValue}>
                     {getFieldOrNA(selectedEmployeeExtra?.contact || selectedEmployee.ContactM)}
                   </Text>
@@ -1349,25 +1351,25 @@ const EmployeeManagementScreen = ({
                   <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployee.DesignationName)}</Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Zone</Text>
+                  <Text style={styles.detailsLabel}>{t('zone')}</Text>
                   <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployee.ZoneName)}</Text>
                 </View>
                 {/* Java gives the e-mail row a 1 : 2 weight split with the value centred. */}
                 <View style={styles.detailsFieldRow}>
-                  <Text style={[styles.detailsLabel, styles.detailsLabelThird]}>Email ID</Text>
+                  <Text style={[styles.detailsLabel, styles.detailsLabelThird]}>{t('email_id')}</Text>
                   <Text style={[styles.detailsValue, styles.detailsValueEmail]}>
                     {getFieldOrNA(selectedEmployee.EmailId)}
                   </Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Address</Text>
+                  <Text style={styles.detailsLabel}>{t('address')}</Text>
                   <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployeeExtra?.address)}</Text>
                 </View>
 
                 <Pressable
                   style={styles.detailsCancelButton}
                   onPress={() => setSelectedEmployee(null)}>
-                  <Text style={styles.detailsCancelText}>Cancel</Text>
+                  <Text style={styles.detailsCancelText}>{t('cancel')}</Text>
                 </Pressable>
               </ScrollView>
             ) : null}

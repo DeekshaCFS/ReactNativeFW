@@ -32,6 +32,7 @@ import {
 } from '../../api/services/servicesService';
 import { showToast } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 export type ServiceGroupKind = 'category' | 'subcategory';
 
 export type EditingServiceGroup = {
@@ -66,6 +67,7 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
   onClose,
   onSaved,
 }) => {
+  const {t} = useTranslation();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState<PickedImage | null>(null);
@@ -182,7 +184,7 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
             <Text style={styles.label}>{kind === 'category' ? 'Category Name *' : 'SUB Category Name *'}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Name"
+              placeholder={t('name')}
               placeholderTextColor={COLORS.textMuted}
               value={name}
               onChangeText={setName}
@@ -201,7 +203,7 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
             <Text style={styles.label}>Service Description *</Text>
             <TextInput
               style={[styles.input, styles.multilineInput]}
-              placeholder="Description"
+              placeholder={t('description')}
               placeholderTextColor={COLORS.textMuted}
               value={description}
               onChangeText={setDescription}
@@ -212,7 +214,7 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
 
             <View style={styles.buttonRow}>
               <Pressable style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
               </Pressable>
               <Pressable
                 style={[styles.submitButton, (!isValid || submitting) && styles.submitButtonDisabled]}
@@ -221,7 +223,7 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
                 {submitting ? (
                   <ActivityIndicator color={COLORS.white} />
                 ) : (
-                  <Text style={styles.submitButtonText}>Save</Text>
+                  <Text style={styles.submitButtonText}>{t('save')}</Text>
                 )}
               </Pressable>
             </View>

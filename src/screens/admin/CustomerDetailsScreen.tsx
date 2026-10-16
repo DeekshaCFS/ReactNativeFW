@@ -52,6 +52,7 @@ import {
 } from './crmShared';
 import TaskDetailsScreen from './TaskDetailsScreen';
 
+import {useTranslation} from 'react-i18next';
 type CustomerDetailsScreenProps = {
   ownerId: number;
   customer: Record<string, unknown>;
@@ -252,6 +253,7 @@ const CustomerDetailsScreen = ({
   onEdit,
   onDelete,
 }: CustomerDetailsScreenProps) => {
+  const {t} = useTranslation();
   const customerName = getStringField(customer, CUSTOMER_NAME_KEYS) || 'Customer';
   const customerPhone = getStringField(customer, CUSTOMER_PHONE_KEYS);
   const customerAddress = getStringField(customer, CUSTOMER_ADDRESS_KEYS) || 'NA';
@@ -476,18 +478,18 @@ const CustomerDetailsScreen = ({
             <Text style={[styles.amcText, {flex: 1.5}]}>Acti. Date</Text>
             <Text style={[styles.amcText, {flex: 1.2}]}>{activation ? toListDate(activation) : ''}</Text>
             <View style={{flex: 0.5}} />
-            <Text style={[styles.amcText, {flex: 1.5}]}>No. of Services</Text>
+            <Text style={[styles.amcText, {flex: 1.5}]}>{t('no_of_services')}</Text>
             <Text style={[styles.amcText, {flex: 0.5, textAlign: 'right'}]}>
               {getStringField(record, ['totalServices', 'TotalServices'])}
             </Text>
           </View>
           <View style={styles.amcRow}>
-            <Text style={[styles.amcText, {flex: 1.5}]}>Occurrence</Text>
+            <Text style={[styles.amcText, {flex: 1.5}]}>{t('service_occurrence')}</Text>
             <Text style={[styles.amcText, {flex: 1.2}]}>
               {getStringField(record, ['serviceOccuranceType', 'ServiceOccuranceType'])}
             </Text>
             <View style={{flex: 0.5}} />
-            <Text style={[styles.amcText, {flex: 1.5}]}>Service left</Text>
+            <Text style={[styles.amcText, {flex: 1.5}]}>{t('service_left')}</Text>
             <Text style={[styles.amcText, {flex: 0.5, textAlign: 'right'}]}>
               {getStringField(record, ['amcServicesLeftCount', 'AMCServicesLeftCount'])}
             </Text>
@@ -753,7 +755,7 @@ const CustomerDetailsScreen = ({
         </TouchableOpacity>
       </View>
       <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Mobile No.</Text>
+        <Text style={styles.infoLabel}>{t('mobile_no_title')}</Text>
         <Text style={styles.infoValue}>{formatPhoneWithCountryCode(customerPhone) || 'NA'}</Text>
         <TouchableOpacity style={styles.infoAction} onPress={() => onDelete?.(customer)}>
           <DeleteIcon size={ms(20)} color={THEME_PRIMARY} />
@@ -892,7 +894,7 @@ const CustomerDetailsScreen = ({
           onPress={() => setStatusModalVisible(false)}
         >
           <Pressable style={styles.modalPanel}>
-            <Text style={styles.modalTitle}>Select Status</Text>
+            <Text style={styles.modalTitle}>{t('select_status')}</Text>
             <ScrollView>
               {STATUS_OPTIONS.map(option => (
                 <TouchableOpacity

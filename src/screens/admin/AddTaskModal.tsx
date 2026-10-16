@@ -78,6 +78,7 @@ import {
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 Sound.setCategory('Playback');
 
 const BORDER = COLORS.lightGray; // TextInputLayoutStyle boxStrokeColor
@@ -693,6 +694,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   initialValues,
   onSaved,
 }) => {
+  const {t} = useTranslation();
   const formMode: TaskFormMode = initialValues?.mode ?? 'add';
   // Java titles/buttons: addTaskDialog "Add Task"/Add, updateTaskDialog
   // "Edit Task"/Update, the re-assign dialogs "Re-Assign"/Re-Assign.
@@ -2106,7 +2108,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 <View style={styles.fieldWrap}>
                   <OutlinedInput
                     style={styles.pillInput}
-                    placeholder="Task Title *"
+                    placeholder={t('star_task_title')}
                     placeholderTextColor={COLORS.lightGray}
                     value={taskTitle}
                     onChangeText={setTaskTitle}
@@ -2123,7 +2125,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   >
                     <OutlinedInput
                       style={styles.pillInput}
-                      placeholder="Date *"
+                      placeholder={t('star_date')}
                       placeholderTextColor={COLORS.lightGray}
                       value={taskDate}
                       editable={false}
@@ -2137,7 +2139,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   >
                     <OutlinedInput
                       style={styles.pillInput}
-                      placeholder="Time *"
+                      placeholder={t('star_time')}
                       placeholderTextColor={COLORS.lightGray}
                       value={taskTime}
                       editable={false}
@@ -2256,7 +2258,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                         ellipsizeMode="tail"
                         pointerEvents="none"
                       >
-                        Not Applicable In AMC Mode
+                        {t('not_applicable_in_amc_mode')}
                       </Text>
                     ) : null}
                   </View>
@@ -2290,7 +2292,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   >
                     <OutlinedInput
                       style={styles.pillInput}
-                      placeholder="Start Date"
+                      placeholder={t('task_start_date')}
                       placeholderTextColor={COLORS.lightGray}
                       value={warrantyStartDate}
                       editable={false}
@@ -2304,7 +2306,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   >
                     <OutlinedInput
                       style={styles.pillInput}
-                      placeholder="End Date"
+                      placeholder={t('task_end_date')}
                       placeholderTextColor={COLORS.lightGray}
                       value={warrantyEndDate}
                       editable={false}
@@ -2319,7 +2321,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     <View pointerEvents="none">
                       <OutlinedInput
                         style={styles.pillInput}
-                        placeholder="Customer Address *"
+                        placeholder={t('star_customer_address')}
                         placeholderTextColor={COLORS.lightGray}
                         value={taskAddress}
                         editable={false}
@@ -2332,7 +2334,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   <View style={[styles.halfField, styles.stateFieldWrap]}>
                     <OutlinedInput
                       style={styles.pillInput}
-                      placeholder="State *"
+                      placeholder={t('state')}
                       placeholderTextColor={COLORS.lightGray}
                       value={taskState}
                       onChangeText={text => {
@@ -2383,7 +2385,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   <View style={[styles.halfField, styles.cityFieldWrap]}>
                     <OutlinedInput
                       style={styles.pillInput}
-                      placeholder="City *"
+                      placeholder={t('cityy')}
                       placeholderTextColor={COLORS.lightGray}
                       value={taskCity}
                       onChangeText={text => {
@@ -2442,7 +2444,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   <View style={styles.halfField}>
                     <OutlinedInput
                       style={styles.pillInput}
-                      placeholder="Pin Code *"
+                      placeholder={t('pincode')}
                       placeholderTextColor={COLORS.lightGray}
                       value={taskPinCode}
                       onChangeText={text =>
@@ -2458,7 +2460,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 <View style={styles.fieldWrap}>
                   <OutlinedInput
                     style={styles.pillInput}
-                    placeholder="Landmark *"
+                    placeholder={t('star_landmark')}
                     placeholderTextColor={COLORS.lightGray}
                     value={taskLandmark}
                     onChangeText={setTaskLandmark}
@@ -2557,7 +2559,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     <View style={[styles.customerNameWrap, styles.customerFieldWrap]}>
                       <TextInput
                         style={[styles.pillInput, styles.pillInputMuted]}
-                        placeholder="Customer Name"
+                        placeholder={t('customer_name')}
                         placeholderTextColor={COLORS.lightGray}
                         editable={!initialValues?.leadId}
                         value={taskCustomerName}
@@ -2615,7 +2617,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       <View>
                         <OutlinedInput
                           style={[styles.pillInput, styles.pillInputMuted, {paddingRight: ms(52)}]}
-                          placeholder="Customer Number"
+                          placeholder={t('customer_number')}
                           placeholderTextColor={COLORS.lightGray}
                           value={taskCustomerNumber}
                           onChangeText={text => {
@@ -2668,7 +2670,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     <View style={styles.fieldWrap}>
                       <OutlinedInput
                         style={styles.pillInput}
-                        placeholder="Email ID"
+                        placeholder={t('email_id')}
                         placeholderTextColor={COLORS.lightGray}
                         value={taskEmail}
                         onChangeText={setTaskEmail}
@@ -2777,7 +2779,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                           </View>
                           <DecimalInput
                             style={[styles.pillInput, styles.itemQuantityInput]}
-                            label="Item Quantity"
+                            label={t('item_quantity')}
                             placeholderTextColor="#9aa0a6"
                             value={row.quantity}
                             onChangeText={text =>
@@ -2792,7 +2794,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     ))}
                     {taskItemRows.length < MAX_TASK_ITEM_ROWS ? (
                       <TouchableOpacity onPress={addItemRow}>
-                        <Text style={styles.addMoreText}>+ Add More</Text>
+                        <Text style={styles.addMoreText}>{t('add_more')}</Text>
                       </TouchableOpacity>
                     ) : null}
                   </View>
@@ -2856,7 +2858,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     <View style={styles.fieldWrap}>
                       <TextInput
                         style={styles.instructionsInput}
-                        placeholder="Special Instructions"
+                        placeholder={t('special_instructions')}
                         placeholderTextColor="#9aa0a6"
                         value={taskSpecialInstructions}
                         onChangeText={text =>
@@ -2897,7 +2899,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={onClose} disabled={isSubmittingTask}>
-                  <Text style={styles.cancelText}>Cancel</Text>
+                  <Text style={styles.cancelText}>{t('cancel')}</Text>
                 </TouchableOpacity>
               </ScrollView>
             </KeyboardAvoidingView>
@@ -2928,7 +2930,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             setTaskPicker(null);
           }}
           onDismiss={() => setTaskPicker(null)}
-          positiveButton={{label: 'OK', textColor: COLORS.primary}}
+          positiveButton={{label: t('qr_code_positive_button_know'), textColor: COLORS.primary}}
           negativeButton={{label: 'CANCEL', textColor: COLORS.primary}}
         />
       ) : null}
@@ -2936,7 +2938,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       {/* Java TaskDialogNew: dialog_searchable_spinner_technician -- the shared dialog. */}
       <SearchPickerModal
         visible={isFieldworkerModalOpen}
-        title="Select Fieldworkers"
+        title={t('select_technicians')}
         options={allFieldworkers.map(item => ({
           id: getFieldworkerId(item),
           label: getFieldworkerName(item),
@@ -2977,7 +2979,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
       <SearchPickerModal
         visible={isAddTaskTagModalOpen}
-        title="Select Task Tag"
+        title={t('select_task_tag')}
         options={taskTags}
         loading={isTaskTagLoading}
         emptyText="No task tags found."
@@ -2993,7 +2995,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
       <SearchPickerModal
         visible={isItemSearchModalOpen}
-        title="Select Item"
+        title={t('select_item')}
         options={itemSearchResults.map(option => ({id: option.id, label: option.name}))}
         loading={isItemSearchLoading}
         searchHint="Search Item"

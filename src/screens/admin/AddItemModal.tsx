@@ -42,6 +42,7 @@ import {requestLocationPermission} from '../../utils/locationPermision';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 // Same Java dialog sheet / header / outlined-field metrics as the Add Task form.
 const styles = {...sharedStyles, ...taskStyles};
 
@@ -113,6 +114,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
   item = null,
   onSaved,
 }) => {
+  const {t} = useTranslation();
   const isEditMode = item !== null;
   const [itemName, setItemName] = useState('');
   const [itemCode, setItemCode] = useState('');
@@ -319,7 +321,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
   };
 
   const handleImageBoxPress = () => {
-    Alert.alert('Add/Capture Image', 'Choose an option', [
+    Alert.alert(t('add_capture_image'), 'Choose an option', [
       {text: 'Camera', onPress: () => captureImageFromCamera()},
       {text: 'Gallery', onPress: () => pickImageFromGallery()},
       {text: 'Cancel', style: 'cancel'},
@@ -455,7 +457,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   <View style={styles.fieldWrap}>
                     <OutlinedInput
                       style={styles.pillInput}
-                      placeholder="Item Name"
+                      placeholder={t('item_name')}
                       placeholderTextColor={COLORS.lightGray}
                       value={itemName}
                       onChangeText={setItemName}
@@ -467,7 +469,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                 <View style={styles.fieldRow}>
                   <OutlinedInput
                     style={[styles.pillInput, itemStyles.halfInput]}
-                    placeholder="Item Code"
+                    placeholder={t('item_code')}
                     placeholderTextColor={COLORS.lightGray}
                     value={itemCode}
                     onChangeText={setItemCode}
@@ -476,7 +478,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   />
                   <OutlinedInput
                     style={[styles.pillInput, itemStyles.halfInput]}
-                    placeholder="HSN Code"
+                    placeholder={t('hsn_code')}
                     placeholderTextColor={COLORS.lightGray}
                     value={hsnCode}
                     onChangeText={setHsnCode}
@@ -508,8 +510,8 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                 </TouchableOpacity>
 
                 <View style={itemStyles.labelRow}>
-                  <Text style={itemStyles.blockLabel}>Quantity</Text>
-                  <Text style={itemStyles.blockLabel}>Unit</Text>
+                  <Text style={itemStyles.blockLabel}>{t('quantity')}</Text>
+                  <Text style={itemStyles.blockLabel}>{t('unit')}</Text>
                 </View>
                 <View style={styles.fieldRow}>
                   {/* dialog_add_item: rounded_border stepper; the "-" TextView is clipped to an
@@ -560,7 +562,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   <View style={styles.fieldRow}>
                     <OutlinedInput
                       style={[styles.pillInput, itemStyles.halfInput]}
-                      placeholder="Serial No"
+                      placeholder={t('label_serial_no')}
                       placeholderTextColor={COLORS.lightGray}
                       value={serialNo}
                       onChangeText={setSerialNo}
@@ -574,14 +576,14 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                 <View style={styles.fieldRow}>
                   <DecimalInput
                     style={[styles.pillInput, itemStyles.halfInput]}
-                    label="Purchase Price"
+                    label={t('purchaseprice')}
                     placeholderTextColor={COLORS.lightGray}
                     value={purchasePrice}
                     onChangeText={t => setPurchasePrice(sanitizeDecimalInput(t))}
                   />
                   <DecimalInput
                     style={[styles.pillInput, itemStyles.halfInput]}
-                    label="Sales Price"
+                    label={t('salesprice')}
                     placeholderTextColor={COLORS.lightGray}
                     value={salesPrice}
                     onChangeText={t => setSalesPrice(sanitizeDecimalInput(t))}
@@ -605,7 +607,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                         color={COLORS.lightGray}
                       />
                       <Text style={itemStyles.imageBoxText}>
-                        Add/Capture Image
+                        {t('add_capture_image')}
                       </Text>
                     </>
                   )}
@@ -614,7 +616,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                 <View style={styles.fieldWrap}>
                   <OutlinedInput
                     style={styles.pillInput}
-                    placeholder="Description"
+                    placeholder={t('description')}
                     placeholderTextColor={COLORS.lightGray}
                     value={description}
                     onChangeText={setDescription}
@@ -642,7 +644,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={handleClose}>
-                  <Text style={styles.cancelText}>Cancel</Text>
+                  <Text style={styles.cancelText}>{t('cancel')}</Text>
                 </TouchableOpacity>
               </ScrollView>
             </KeyboardAvoidingView>
@@ -653,7 +655,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
       {/* Java ItemDialog: dialog_searchable_itemgroup / _spinner_unit -- the shared dialog. */}
       <SearchPickerModal
         visible={isItemGroupModalOpen}
-        title="Select Item Group"
+        title={t('select_item_group')}
         wrapContent
         options={itemGroups.map(option => ({id: option.id, label: option.name}))}
         loading={isItemGroupLoading}

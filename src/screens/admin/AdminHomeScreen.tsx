@@ -45,6 +45,7 @@ import ServiceCategoryTabHost from './ServiceCategoryTabHost';
 import BrandModelTabHost from './BrandModelTabHost';
 import { showFailureMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 const LANGUAGE_GREETINGS: Record<string, string> = {
   English: 'Hello',
   Hindi: 'नमस्ते',
@@ -58,6 +59,7 @@ const LANGUAGE_GREETINGS: Record<string, string> = {
   Arabic: 'مرحبا',
 };
 
+const CODE_TO_NAME: Record<string, string> = {en: 'English', hi: 'Hindi', pa: 'Punjabi', bn: 'Bengali', mr: 'Marathi', kn: 'Kannada', ta: 'Tamil', te: 'Telugu', ml: 'Malayalam', ar: 'Arabic'};
 const THEME_PRIMARY = '#c3002f';
 const OwnerDashboard = OwnerDashboardScreen as React.ComponentType<{
   ownerId: number;
@@ -118,6 +120,7 @@ type AdminHomeScreenProps = {
 // but this component previously took no props at all, so that handler was
 // silently dropped -- the dashboard's "Create Task" button called nothing.
 const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
+  const {t, i18n} = useTranslation();
   const navigation =
     useNavigation<BottomTabNavigationProp<AdminTabParamList, 'Home'>>();
   const insets = useSafeAreaInsets();
@@ -254,8 +257,8 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
   }, [userDetails]);
 
   const greetingText = useMemo(() => {
-    return `${getGreetingPrefix(preferredLanguage)}, ${firstName}`;
-  }, [firstName, preferredLanguage]);
+    return `${LANGUAGE_GREETINGS[CODE_TO_NAME[i18n.language] ?? "English"]}, ${firstName}`;
+  }, [firstName, i18n.language]);
 
   const primaryContact = useMemo(() => {
     return formatPrimaryContact(userDetails);
@@ -477,12 +480,12 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
                 />
               </View>
               <Text style={styles.profileCompletionText}>
-                Profile {Math.round(profileCompletionPercent)}%
+                {t('title_profile')} {Math.round(profileCompletionPercent)}%
               </Text>
               <Pressable
                 onPress={() => (navigation as any).navigate('Profile')}
               >
-                <Text style={styles.profileCompletionUpdate}>Update</Text>
+                <Text style={styles.profileCompletionUpdate}>{t('update')}</Text>
               </Pressable>
             </View>
           ) : null}

@@ -35,6 +35,7 @@ import BottomSheetDialog from '../../components/BottomSheetDialog';
 import DecimalInput from '../../components/DecimalInput';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
 
+import {useTranslation} from 'react-i18next';
 type AMCDetailsScreenProps = NativeStackScreenProps<AdminStackParamList, 'AMCDetails'>;
 
 const THEME_PRIMARY = '#d30035';
@@ -631,6 +632,7 @@ const DetailRow = ({label, value, first}: {label: string; value?: string | numbe
 );
 
 const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }) => {
+  const {t} = useTranslation();
   const { amcItem, amcServiceDetailsId, amcsId, ownerId } = route.params || {};
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1409,11 +1411,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
 
   const editPickerConfig =
     editPicker === 'services'
-      ? {title: 'No. of Services', options: SERVICE_COUNT_OPTIONS}
+      ? {title: t('no_of_services'), options: SERVICE_COUNT_OPTIONS}
       : editPicker === 'occurrence'
-        ? {title: 'Occurrence', options: occurrenceOptions}
+        ? {title: t('service_occurrence'), options: occurrenceOptions}
         : editPicker === 'reminder'
-          ? {title: 'Reminder', options: reminderOptions}
+          ? {title: t('reminder'), options: reminderOptions}
           : null;
 
   if (loading) {
@@ -1485,45 +1487,45 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         {/* AMC name / contact card (bg_amc_title). */}
         <View style={styles.titleCard}>
           <View style={[styles.titleRow, {marginTop: 10}]}>
-            <Text style={styles.titleLabel}>AMC Name</Text>
+            <Text style={styles.titleLabel}>{t('amc_name')}</Text>
             <Text style={styles.titleValue}>{details.amcName}</Text>
           </View>
           <View style={[styles.titleRow, {marginTop: 5, marginBottom: 10}]}>
-            <Text style={styles.titleLabel}>Contact No</Text>
+            <Text style={styles.titleLabel}>{t('contact_no_hint')}</Text>
             <Text style={styles.titleValue}>{details.contactNoDisplay}</Text>
           </View>
         </View>
 
-        <Text style={[styles.sectionTitle, {paddingTop: 5}]}>Customer Details</Text>
+        <Text style={[styles.sectionTitle, {paddingTop: 5}]}>{t('customer_details')}</Text>
         <View style={styles.sectionBody}>
-        <DetailRow label="Customer Name" value={details.customerName} first />
-        <DetailRow label="Customer Number" value={details.customerNumber} />
-        <DetailRow label="Customer Email" value={details.customerEmail} />
-        <DetailRow label="Address" value={details.address} />
-        <DetailRow label="Landmark" value={details.landmark} />
+        <DetailRow label={t('customer_name')} value={details.customerName} first />
+        <DetailRow label={t('customer_number')} value={details.customerNumber} />
+        <DetailRow label={t('customer_email')} value={details.customerEmail} />
+        <DetailRow label={t('address')} value={details.address} />
+        <DetailRow label={t('landmark')} value={details.landmark} />
         </View>
 
-        <Text style={[styles.sectionTitle, {marginTop: 20}]}>Product Details</Text>
+        <Text style={[styles.sectionTitle, {marginTop: 20}]}>{t('product_details')}</Text>
         <View style={styles.sectionBody}>
-        <DetailRow label="Product Brand" value={details.productBrand} first />
-        <DetailRow label="Product Name" value={details.productName} />
-        <DetailRow label="Serial Number" value={details.serialNumber} />
-        <DetailRow label="Service Amount" value={details.serviceAmount} />
-        <DetailRow label="Remaining Amount" value={details.remainingAmount} />
-        <DetailRow label="Under Warranty" value={details.underWarranty} />
+        <DetailRow label={t('product_brand')} value={details.productBrand} first />
+        <DetailRow label={t('product_name')} value={details.productName} />
+        <DetailRow label={t('serial_number')} value={details.serialNumber} />
+        <DetailRow label={t('service_amount')} value={details.serviceAmount} />
+        <DetailRow label={t('remaining_amt')} value={details.remainingAmount} />
+        <DetailRow label={t('under_warranty')} value={details.underWarranty} />
         </View>
 
-        <Text style={[styles.sectionTitle, {marginTop: 20}]}>AMC Details</Text>
+        <Text style={[styles.sectionTitle, {marginTop: 20}]}>{t('amc_details')}</Text>
         <View style={styles.sectionBody}>
-        <DetailRow label="Activation Date" value={details.activationDate} first />
-        <DetailRow label="Contract Date" value={details.contractDate} />
-        <DetailRow label="Expiry Date" value={details.expiryDate} />
-        <DetailRow label="No. of Services" value={details.noOfServices} />
-        <DetailRow label="Service Completed" value={details.serviceCompleted} />
-        <DetailRow label="Reminder" value={details.reminder} />
-        <DetailRow label="Occurrence" value={details.occurrence} />
-        <DetailRow label="Status" value={details.status} />
-        <DetailRow label="Note" value={details.note} />
+        <DetailRow label={t('activation_date')} value={details.activationDate} first />
+        <DetailRow label={t('contract_date')} value={details.contractDate} />
+        <DetailRow label={t('expiry_date')} value={details.expiryDate} />
+        <DetailRow label={t('no_of_services')} value={details.noOfServices} />
+        <DetailRow label={t('service_completed')} value={details.serviceCompleted} />
+        <DetailRow label={t('reminder')} value={details.reminder} />
+        <DetailRow label={t('service_occurrence')} value={details.occurrence} />
+        <DetailRow label={t('status')} value={details.status} />
+        <DetailRow label={t('note')} value={details.note} />
         </View>
 
         {/* Services Details (Java ServiceListAdapter -- service_details_custom.xml). */}
@@ -1533,10 +1535,10 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         {details.serviceTasks.map((task, index) => (
           <View key={index} style={styles.serviceBlock}>
             <Text style={styles.serviceTitle}>{`Service ${index + 1}`}</Text>
-            <DetailRow label="Fieldworker Name" value={task.TechnicianName || 'NA'} first />
-            <DetailRow label="Date" value={String(task.TaskDate ?? '').split('T')[0] || 'NA'} />
-            <DetailRow label="Time" value={task.TaskTime || 'NA'} />
-            <DetailRow label="Status" value={SERVICE_STATUS_LABELS[Number(task.TaskStatus)] ?? 'NA'} />
+            <DetailRow label={t('tech_name')} value={task.TechnicianName || 'NA'} first />
+            <DetailRow label={t('date')} value={String(task.TaskDate ?? '').split('T')[0] || 'NA'} />
+            <DetailRow label={t('time')} value={task.TaskTime || 'NA'} />
+            <DetailRow label={t('status')} value={SERVICE_STATUS_LABELS[Number(task.TaskStatus)] ?? 'NA'} />
           </View>
         ))}
       </ScrollView>
@@ -1683,19 +1685,19 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 {renderEditInput('Serial No. *', editFormData.serialNumber, value => updateEditField('serialNumber', value))}
 
                 <View style={styles.editToggleRow}>
-                  <Text style={styles.editWarrantyLabel}>Under Warranty</Text>
+                  <Text style={styles.editWarrantyLabel}>{t('under_warranty')}</Text>
                   <View style={styles.editToggle}>
                     <Pressable
                       style={[styles.editToggleOption, !editFormData.underWarranty ? styles.editToggleOptionActive : null]}
                       onPress={() => updateEditField('underWarranty', false)}
                     >
-                      <Text style={[styles.editToggleText, !editFormData.underWarranty ? styles.editToggleTextActive : null]}>NO</Text>
+                      <Text style={[styles.editToggleText, !editFormData.underWarranty ? styles.editToggleTextActive : null]}>{t('no')}</Text>
                     </Pressable>
                     <Pressable
                       style={[styles.editToggleOption, editFormData.underWarranty ? styles.editToggleOptionActive : null]}
                       onPress={() => updateEditField('underWarranty', true)}
                     >
-                      <Text style={[styles.editToggleText, editFormData.underWarranty ? styles.editToggleTextActive : null]}>Yes</Text>
+                      <Text style={[styles.editToggleText, editFormData.underWarranty ? styles.editToggleTextActive : null]}>{t('yes')}</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -1750,7 +1752,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                   onPress={() => setEditModalVisible(false)}
                   disabled={editLoading}
                 >
-                  <Text style={styles.editCancelButtonText}>Cancel</Text>
+                  <Text style={styles.editCancelButtonText}>{t('cancel')}</Text>
                 </Pressable>
               </ScrollView>
             ) : (

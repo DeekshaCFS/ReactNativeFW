@@ -35,6 +35,7 @@ import PlaceSearchModal from '../../../components/PlaceSearchModal';
 import SearchPickerModal from '../../../components/SearchPickerModal';
 import { showFailureMsg, showToast } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 // `UserResultData` / `KycDocType` are just local aliases for the api-layer
 // DTO shapes, kept so the rest of this screen reads the same as before.
 // DocTypeId/DocTypeName are narrowed back to required — every entry the KYC
@@ -155,6 +156,7 @@ const fieldStyles = StyleSheet.create({
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
 export default function TechProfileScreen() {
+  const {t} = useTranslation();
   const navigation = useNavigation<any>();
   const headerHeight = useAppHeaderHeight();
 
@@ -414,7 +416,7 @@ export default function TechProfileScreen() {
   const handleVerifyOtp = () => {
     const { from, newValue, otpValue, sentOtp } = otpModal;
     if (sentOtp == null || Number(otpValue) !== sentOtp) {
-      toast('Invalid OTP');
+      toast(t('invalid_otp'));
       return;
     }
 
@@ -425,7 +427,7 @@ export default function TechProfileScreen() {
       setProfile(prev => prev ? { ...prev, Email: newValue } : prev);
       setIsEmailIdUpdate(true);
     }
-    toast('OTP Verified');
+    toast(t('otp_verified'));
     closeOtpFlow();
   };
 
@@ -545,19 +547,19 @@ export default function TechProfileScreen() {
           </Pressable>
         </View>
 
-        <Field label="First Name" value={profile?.FirstName} maxLength={16}
+        <Field label={t('first_name')} value={profile?.FirstName} maxLength={16}
           onChange={(v) => setProfile(prev => prev ? { ...prev, FirstName: stripToLetters(v) } : prev)} />
-        <Field label="Last Name" value={profile?.LastName} maxLength={16}
+        <Field label={t('last_name')} value={profile?.LastName} maxLength={16}
           onChange={(v) => setProfile(prev => prev ? { ...prev, LastName: stripToLetters(v) } : prev)} />
 
         <View style={styles.managerRow}>
-          <Text style={styles.managerLabel}>Reporting Manager : </Text>
+          <Text style={styles.managerLabel}>{t('reporting_manager')} </Text>
           <Text style={styles.managerValue} numberOfLines={1}>{manager}</Text>
         </View>
 
         {/* Contact No — read-only once set, edit via OTP (imageView_editMobile) */}
         <Field
-          label="Contact No"
+          label={t('contact_no_hint')}
           value={profile?.ContactNo}
           keyboard="phone-pad"
           editable={!profile?.ContactNo}
@@ -568,7 +570,7 @@ export default function TechProfileScreen() {
 
         {/* Address — read-only, opens the Google Places search (Java's AutocompleteActivity) */}
         <Field
-          label="Address"
+          label={t('address')}
           value={profile?.Address}
           onPress={() => setShowPlaceSearch(true)}
         />
@@ -578,7 +580,7 @@ export default function TechProfileScreen() {
             visibility toggle at all, so both are unconditional -- unlike Contact No below,
             which is only read-only/iconed once a value exists. */}
         <Field
-          label="E-Mail ID"
+          label={t('e_mail_id')}
           value={profile?.Email}
           keyboard="email-address"
           editable={false}
@@ -587,7 +589,7 @@ export default function TechProfileScreen() {
         />
 
         <View style={fieldStyles.wrapper}>
-          <Text style={fieldStyles.floatingLabel}>Date of Birth</Text>
+          <Text style={fieldStyles.floatingLabel}>{t('date_of_birth')}</Text>
           <Pressable
             style={fieldStyles.inputBox}
             onPress={() => setShowDobPicker(true)}
@@ -610,7 +612,7 @@ export default function TechProfileScreen() {
         )}
 
         <Field
-          label="Aadhar Card"
+          label={t('aadhar_card')}
           value={docNumber}
           keyboard="phone-pad"
           maxLength={14}
@@ -622,7 +624,7 @@ export default function TechProfileScreen() {
 
         {/* Document Picker — populated from the KYC list API, falls back to static list */}
         <View style={fieldStyles.wrapper}>
-          <Text style={fieldStyles.floatingLabel}>Please Select Document</Text>
+          <Text style={fieldStyles.floatingLabel}>{t('select_document')}</Text>
           <Pressable
             style={[fieldStyles.inputBox, styles.selectRow]}
             onPress={() => setShowDocDropdown(!showDocDropdown)}
@@ -667,7 +669,7 @@ export default function TechProfileScreen() {
         </Pressable>
 
         <Pressable onPress={() => navigation.navigate('TechnicianTabsRoot', { screen: 'Home' })}>
-          <Text style={styles.cancelText}>Cancel</Text>
+          <Text style={styles.cancelText}>{t('cancel')}</Text>
         </Pressable>
       </ScrollView>
 
@@ -693,7 +695,7 @@ export default function TechProfileScreen() {
               </TouchableOpacity>
               <View style={styles.photoSourceDivider} />
               <TouchableOpacity style={[styles.photoSourceOption, { justifyContent: 'center' }]} onPress={() => setShowPhotoSourceModal(false)}>
-                <Text style={[styles.photoSourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>Cancel</Text>
+                <Text style={[styles.photoSourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>{t('cancel')}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -772,7 +774,7 @@ export default function TechProfileScreen() {
 
               <View style={styles.otpActionsRow}>
                 <Pressable style={styles.otpValidateBtn} onPress={handleSendOtp}>
-                  <Text style={styles.otpActionText}>Send OTP</Text>
+                  <Text style={styles.otpActionText}>{t('send_otp')}</Text>
                 </Pressable>
                 <Pressable
                   style={[
@@ -782,7 +784,7 @@ export default function TechProfileScreen() {
                   onPress={handleVerifyOtp}
                   disabled={otpModal.otpValue.length !== 4}
                 >
-                  <Text style={styles.otpActionText}>Submit</Text>
+                  <Text style={styles.otpActionText}>{t('submit')}</Text>
                 </Pressable>
               </View>
             </View>

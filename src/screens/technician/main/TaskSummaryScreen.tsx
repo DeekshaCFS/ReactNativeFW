@@ -23,6 +23,7 @@ import { resetToTabsThen, finishTaskFlowToHome } from '../../../navigation/taskF
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 interface SignaturePath {
   points: { x: number; y: number }[];
 }
@@ -98,6 +99,7 @@ function StarsReadOnly({ value }: { value: number }) {
 }
 
 export default function TaskSummaryScreen({ navigation, route }: any) {
+  const {t} = useTranslation();
   const { task, elapsedSeconds = 0, payload, preview, returnTo } = route.params as {
     returnTo?: { name: string; params?: any };
     task: Task;
@@ -213,8 +215,8 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
       <View style={styles.card}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-          <Text style={styles.heading}>Field Photo</Text>
-          <Text style={styles.subLabel}>Before</Text>
+          <Text style={styles.heading}>{t('field_photo')}</Text>
+          <Text style={styles.subLabel}>{t('before')}</Text>
           <View style={styles.photoRow}>
             {beforePhotoUris.length > 0 ? (
               beforePhotoUris.map((uri, i) => (
@@ -224,7 +226,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
               <View style={[styles.photoThumb, styles.photoEmpty]} />
             )}
           </View>
-          <Text style={styles.subLabel}>After</Text>
+          <Text style={styles.subLabel}>{t('after')}</Text>
           <View style={styles.photoRow}>
             {preview.fieldPhotoUris.length > 0 ? (
               preview.fieldPhotoUris.map((uri, i) => (
@@ -243,10 +245,10 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
             <>
               <Text style={styles.heading}>Items</Text>
               <View style={styles.itemRow}>
-                <Text style={[styles.tableHead, { flex: 2 }]}>Item</Text>
-                <Text style={[styles.tableHead, styles.tableNum]}>Assigned</Text>
+                <Text style={[styles.tableHead, { flex: 2 }]}>{t('item')}</Text>
+                <Text style={[styles.tableHead, styles.tableNum]}>{t('assigned')}</Text>
                 <Text style={[styles.tableHead, styles.tableNum]}>Used</Text>
-                <Text style={[styles.tableHead, styles.tableNum]}>Price</Text>
+                <Text style={[styles.tableHead, styles.tableNum]}>{t('price')}</Text>
               </View>
               {items.map((it, i) => (
                 <View key={i} style={styles.itemRow}>
@@ -263,7 +265,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
 
           {notes.length > 0 && (
             <>
-              <Text style={styles.heading}>Technical Notes</Text>
+              <Text style={styles.heading}>{t('technical_note')}</Text>
               {notes.map((n, i) => (
                 <Text key={i} style={styles.noteText}>
                   {i + 1}. {n.TechnicalNote1}
@@ -274,7 +276,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
 
           {devices.length > 0 && (
             <>
-              <Text style={styles.heading}>Device List</Text>
+              <Text style={styles.heading}>{t('device_list')}</Text>
               {devices.map((d, i) => (
                 <View key={i} style={styles.deviceBlock}>
                   <Text style={styles.greyText}>Device: {d.DeviceName}</Text>
@@ -330,10 +332,10 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
               <Text style={styles.signTitle}>Cust. Sign</Text>
               <SignaturePreview paths={preview.customerSignPaths} />
               <Text style={styles.greyText}>
-                Name :   <Text style={styles.darkText}>{preview.customerName || 'NA'}</Text>
+                {t('name_title')}   <Text style={styles.darkText}>{preview.customerName || 'NA'}</Text>
               </Text>
               <Text style={styles.greyText}>
-                Mobile No.  <Text style={styles.mobileText}>
+                {t('mobile_no_title')}  <Text style={styles.mobileText}>
                   {preview.customerNumber ? `+${countryCode} ${preview.customerNumber}` : 'NA'}
                 </Text>
               </Text>
@@ -347,7 +349,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
               <Text style={styles.signTitle}>Tech. Sign</Text>
               <SignaturePreview paths={preview.techSignPaths} />
                 <Text style={styles.greyText}>
-                  Name :   <Text style={styles.darkText}>{techName}</Text>
+                  {t('name_title')}   <Text style={styles.darkText}>{techName}</Text>
                 </Text>
             </View>
           </View>

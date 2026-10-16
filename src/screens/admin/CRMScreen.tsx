@@ -222,6 +222,7 @@ import {
 import TabStrip from '../../components/TabStrip';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 // Enquiry form: same Java dialog sheet / header / outlined-field metrics as the Add Task form
 // (dialog_enquiry_new), layered over the CRM-wide styles.
 const eq = {...styles, ...taskStyles};
@@ -452,6 +453,7 @@ const CRMScreen = ({
   ownerId,
   openAddEnquiryTrigger,
 }: CRMScreenProps) => {
+  const {t} = useTranslation();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<CRMTabKey>('enquiries');
 
@@ -1825,7 +1827,7 @@ const CRMScreen = ({
               style={styles.addEnquiryButton}
               onPress={openAddEnquiryModal}
             >
-              <Text style={styles.addEnquiryButtonText}>+ Enquiry</Text>
+              <Text style={styles.addEnquiryButtonText}>{t('plus_enq')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.linkIconButton}
@@ -1988,13 +1990,13 @@ const CRMScreen = ({
                   <View style={enquiryStyles.howToPlayIcon}>
                     <Ionicons name="play" size={ms(11)} color="#FFFFFF" />
                   </View>
-                  <Text style={enquiryStyles.howToText}>How to add enquiry ?</Text>
+                  <Text style={enquiryStyles.howToText}>{t('haddenquiry')}</Text>
                 </View>
 
                 <View style={[eq.fieldWrap, eq.customerFieldWrap]}>
                   <OutlinedInput
                     style={eq.pillInput}
-                    placeholder="Customer Name"
+                    placeholder={t('customer_name')}
                     placeholderTextColor={COLORS.lightGray}
                     value={customerName}
                     onChangeText={text => {
@@ -2046,7 +2048,7 @@ const CRMScreen = ({
                   <View>
                     <OutlinedInput
                       style={[eq.pillInput, {paddingRight: ms(52)}]}
-                      placeholder="Phone Number *"
+                      placeholder={t('star_phone_number')}
                       placeholderTextColor={COLORS.lightGray}
                       value={phone}
                       onChangeText={text => {
@@ -2094,7 +2096,7 @@ const CRMScreen = ({
                   <View style={eq.halfField}>
                     <OutlinedInput
                       style={eq.pillInput}
-                      placeholder="Date *"
+                      placeholder={t('star_date')}
                       placeholderTextColor={COLORS.lightGray}
                       value={enquiryDate}
                       onChangeText={setEnquiryDate}
@@ -2103,7 +2105,7 @@ const CRMScreen = ({
                   <View style={eq.halfField}>
                     <OutlinedInput
                       style={eq.pillInput}
-                      placeholder="Time *"
+                      placeholder={t('star_time')}
                       placeholderTextColor={COLORS.lightGray}
                       value={enquiryTime}
                       onChangeText={setEnquiryTime}
@@ -2117,7 +2119,7 @@ const CRMScreen = ({
                     <View pointerEvents="none">
                       <OutlinedInput
                         style={eq.pillInput}
-                        placeholder="Customer Address *"
+                        placeholder={t('star_customer_address')}
                         placeholderTextColor={COLORS.lightGray}
                         value={address}
                         editable={false}
@@ -2130,7 +2132,7 @@ const CRMScreen = ({
                   <View style={[eq.halfField, eq.stateFieldWrap]}>
                     <OutlinedInput
                       style={eq.pillInput}
-                      placeholder="State *"
+                      placeholder={t('state')}
                       placeholderTextColor={COLORS.lightGray}
                       value={state}
                       onChangeText={text => {
@@ -2181,7 +2183,7 @@ const CRMScreen = ({
                   <View style={[eq.halfField, eq.cityFieldWrap]}>
                     <OutlinedInput
                       style={eq.pillInput}
-                      placeholder="City *"
+                      placeholder={t('cityy')}
                       placeholderTextColor={COLORS.lightGray}
                       value={city}
                       onChangeText={text => {
@@ -2239,7 +2241,7 @@ const CRMScreen = ({
                   <View style={eq.halfField}>
                     <OutlinedInput
                       style={eq.pillInput}
-                      placeholder="Pin Code *"
+                      placeholder={t('pincode')}
                       placeholderTextColor={COLORS.lightGray}
                       value={pinCode}
                       onChangeText={text =>
@@ -2255,7 +2257,7 @@ const CRMScreen = ({
                 <View style={eq.fieldWrap}>
                   <OutlinedInput
                     style={eq.pillInput}
-                    placeholder="Landmark *"
+                    placeholder={t('star_landmark')}
                     placeholderTextColor={COLORS.lightGray}
                     value={landmark}
                     onChangeText={setLandmark}
@@ -2305,7 +2307,7 @@ const CRMScreen = ({
                 <View style={eq.fieldWrap}>
                   <OutlinedInput
                     style={eq.pillInput}
-                    placeholder="Technical Problem"
+                    placeholder={t('technical_problem')}
                     placeholderTextColor={COLORS.lightGray}
                     value={technicalProblem}
                     onChangeText={setTechnicalProblem}
@@ -2315,7 +2317,7 @@ const CRMScreen = ({
                 <View style={eq.fieldWrap}>
                   <OutlinedInput
                     style={eq.pillInput}
-                    placeholder="Special Instructions"
+                    placeholder={t('special_instructions')}
                     placeholderTextColor={COLORS.lightGray}
                     value={specialInstructions}
                     onChangeText={setSpecialInstructions}
@@ -2363,7 +2365,7 @@ const CRMScreen = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={closeAddEnquiryModal}>
-                  <Text style={eq.cancelText}>Cancel</Text>
+                  <Text style={eq.cancelText}>{t('cancel')}</Text>
                 </TouchableOpacity>
               </ScrollView>
             </KeyboardAvoidingView>
@@ -2419,37 +2421,37 @@ const CRMScreen = ({
                     </Text>
                   </View>
                   <View style={enquiryDetailStyles.row}>
-                    <Text style={enquiryDetailStyles.label}>Pref. Date</Text>
+                    <Text style={enquiryDetailStyles.label}>{t('pref_date')}</Text>
                     <Text style={enquiryDetailStyles.value}>
                       {getEnquiryDate(selectedEnquiry) || 'NA'}
                     </Text>
                   </View>
                   <View style={enquiryDetailStyles.row}>
-                    <Text style={enquiryDetailStyles.label}>Customer Name</Text>
+                    <Text style={enquiryDetailStyles.label}>{t('customer_name')}</Text>
                     <Text style={enquiryDetailStyles.value}>
                       {getEnquiryCustomerName(selectedEnquiry)}
                     </Text>
                   </View>
                   <View style={enquiryDetailStyles.row}>
-                    <Text style={enquiryDetailStyles.label}>Contact Number</Text>
+                    <Text style={enquiryDetailStyles.label}>{t('contact_number')}</Text>
                     <Text style={enquiryDetailStyles.value}>
                       {formatPhoneWithCountryCode(getEnquiryPhone(selectedEnquiry)) || 'NA'}
                     </Text>
                   </View>
                   <View style={enquiryDetailStyles.row}>
-                    <Text style={enquiryDetailStyles.label}>Address</Text>
+                    <Text style={enquiryDetailStyles.label}>{t('address')}</Text>
                     <Text style={enquiryDetailStyles.value}>
                       {getEnquiryAddress(selectedEnquiry) || 'NA'}
                     </Text>
                   </View>
                   <View style={enquiryDetailStyles.row}>
-                    <Text style={enquiryDetailStyles.label}>Technical Problem</Text>
+                    <Text style={enquiryDetailStyles.label}>{t('technical_problem')}</Text>
                     <Text style={enquiryDetailStyles.value}>
                       {getEnquiryTechnicalProblem(selectedEnquiry) || 'NA'}
                     </Text>
                   </View>
                   <View style={enquiryDetailStyles.row}>
-                    <Text style={enquiryDetailStyles.label}>Special Instructions</Text>
+                    <Text style={enquiryDetailStyles.label}>{t('special_instructions')}</Text>
                     <Text style={enquiryDetailStyles.value}>
                       {getEnquirySpecialInstruction(selectedEnquiry) || 'NA'}
                     </Text>
@@ -2463,7 +2465,7 @@ const CRMScreen = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={closeEnquiryDetailModal}>
-                  <Text style={eq.cancelText}>Cancel</Text>
+                  <Text style={eq.cancelText}>{t('cancel')}</Text>
                 </TouchableOpacity>
               </ScrollView>
             ) : null}
@@ -2482,9 +2484,9 @@ const CRMScreen = ({
             <View style={styles.shareModalIconBadge}>
               <Text style={styles.shareModalIconText}>▶</Text>
             </View>
-            <Text style={styles.shareModalTitle}>How to share enquiry URL ?</Text>
+            <Text style={styles.shareModalTitle}>{t('hgetlink')}</Text>
             <Text style={styles.shareModalSubtitle}>
-              Click on below button to Copy or Share the Enquiry Form link
+              {t('click_to_copy_share')}
             </Text>
 
             <TouchableOpacity
@@ -2511,7 +2513,7 @@ const CRMScreen = ({
             </TouchableOpacity>
 
             <TouchableOpacity onPress={closeShareEnquiryModal}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('cancel')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2552,7 +2554,7 @@ const CRMScreen = ({
               <Text style={styles.shareModalPrimaryButtonText}>SHARE</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setQrPreviewPath(null)}>
-              <Text style={styles.cancelText}>Close</Text>
+              <Text style={styles.cancelText}>{t('close')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2602,7 +2604,7 @@ const CRMScreen = ({
       {/* Java: dialog_searchable_spinner_tasktag -- the shared searchable dialog. */}
       <SearchPickerModal
         visible={isTaskTagModalOpen}
-        title="Select Task Tag"
+        title={t('select_task_tag')}
         options={taskTags}
         loading={isTaskTagLoading}
         emptyText="No task tags found."

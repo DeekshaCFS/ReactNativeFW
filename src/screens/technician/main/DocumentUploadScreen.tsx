@@ -40,6 +40,7 @@ import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { finishTaskFlowToHome } from '../../../navigation/taskFlowNavigation';
 import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 // Java: DocumentUploadFragment limits.
 const MAX_TOTAL_MB = 5;
 const MAX_FILES = 10;
@@ -68,6 +69,7 @@ const toMB = (bytes: number) => bytes / (1024 * 1024);
 const formatMB = (mb: number) => mb.toFixed(2);
 
 export default function DocumentUploadScreen({ navigation, route }: any) {
+  const {t} = useTranslation();
   const { task } = route.params as { task: Task };
   const insets = useSafeAreaInsets();
 
@@ -306,23 +308,23 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
               style={[styles.segmentHalf, styles.segmentLeft, mode === 'attach' ? styles.attachOn : styles.attachOff]}
               onPress={() => switchMode('attach')}
             >
-              <Text style={[styles.segmentText, mode === 'attach' && styles.segmentTextOn]}>Attach</Text>
+              <Text style={[styles.segmentText, mode === 'attach' && styles.segmentTextOn]}>{t('attach_doc')}</Text>
             </Pressable>
             <Pressable
               style={[styles.segmentHalf, styles.segmentRight, mode === 'capture' ? styles.captureOn : styles.captureOff]}
               onPress={() => switchMode('capture')}
             >
-              <Text style={[styles.segmentText, mode === 'capture' && styles.segmentTextOn]}>Capture</Text>
+              <Text style={[styles.segmentText, mode === 'capture' && styles.segmentTextOn]}>{t('capture_img')}</Text>
             </Pressable>
           </View>
         </View>
 
         {mode === 'attach' ? (
           <View style={styles.panelAttach}>
-            <Text style={styles.panelText}>* Upload Attachment Here [Upto 5 MB Limit]</Text>
+            <Text style={styles.panelText}>{t('attach_file')}</Text>
             <Pressable style={styles.attachBox} onPress={attachFiles}>
               <Ionicons name="share-outline" size={sp(24)} color={COLORS.primary} style={styles.attachIcon} />
-              <Text style={styles.attachLabel}>Attachment</Text>
+              <Text style={styles.attachLabel}>{t('attachment')}</Text>
             </Pressable>
 
             <ScrollView

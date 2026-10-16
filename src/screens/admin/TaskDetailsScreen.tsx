@@ -38,6 +38,7 @@ import {getCurrentCountryCode, getCurrentCurrencySymbol} from '../../state/sessi
 import {getTaskClosureDetails} from '../../api/taskList/taskListService';
 import { showFailureMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type TaskDetailsTask = TasksListResultData | TaskListItem;
 
 type TaskDetailsScreenProps = {
@@ -190,6 +191,7 @@ const TaskDetailsScreen = ({
   source = 'crm',
   sheetStyle = false,
 }: TaskDetailsScreenProps) => {
+  const {t} = useTranslation();
   const closureRef = useRef<TaskClosureSectionHandle>(null);
   const insets = useSafeAreaInsets();
   // With the shared (absolute) AppHeader above and no back bar, push the whole screen below it.
@@ -556,7 +558,7 @@ const TaskDetailsScreen = ({
             </View>
           </View>
           <View style={styles.titleRow}>
-            <Text style={styles.sectionHeading}>Task Details</Text>
+            <Text style={styles.sectionHeading}>{t('task_details_title')}</Text>
             {displayTaskId ? <Text style={styles.taskIdText}> [{displayTaskId}]</Text> : null}
           </View>
           {renderRows([
@@ -575,9 +577,9 @@ const TaskDetailsScreen = ({
           ])}
 
           <View style={styles.itemDetailsHeaderRow}>
-            <Text style={[styles.sectionHeading, styles.itemNameHeading]}>Item Details</Text>
-            <Text style={styles.itemColumnHeading}>Issued Qty</Text>
-            <Text style={styles.itemColumnHeading}>Used Qty</Text>
+            <Text style={[styles.sectionHeading, styles.itemNameHeading]}>{t('item_details')}</Text>
+            <Text style={styles.itemColumnHeading}>{t('issued_qty')}</Text>
+            <Text style={styles.itemColumnHeading}>{t('used_qty')}</Text>
           </View>
           {itemDetails.map((item, index) => (
             <View key={index} style={styles.itemDetailsRow}>
@@ -587,7 +589,7 @@ const TaskDetailsScreen = ({
             </View>
           ))}
 
-          <Text style={[styles.sectionHeading, styles.sectionSpacing]}>Customer Details</Text>
+          <Text style={[styles.sectionHeading, styles.sectionSpacing]}>{t('customer_details')}</Text>
           {renderRows([
             ['Customer Name', valueOrNA(custName)],
             ['Customer Number', valueOrNA(custPhoneDisplay)],
@@ -597,7 +599,7 @@ const TaskDetailsScreen = ({
 
           {serviceName ? (
             <>
-              <Text style={[styles.sectionHeading, styles.sectionSpacing]}>Service Details</Text>
+              <Text style={[styles.sectionHeading, styles.sectionSpacing]}>{t('service_details')}</Text>
               {renderRows([['Service Name', serviceName]])}
             </>
           ) : null}
@@ -610,7 +612,7 @@ const TaskDetailsScreen = ({
 
           {hasWarranty ? (
             <>
-              <Text style={[styles.sectionHeading, styles.sectionSpacing]}>Warranty Details</Text>
+              <Text style={[styles.sectionHeading, styles.sectionSpacing]}>{t('warranty_details')}</Text>
               {renderRows([
                 ['Warranty Type', warrantyTypeName || '-NA-'],
                 ['Start Date', warrantyStartDate || '-NA-'],
@@ -624,7 +626,7 @@ const TaskDetailsScreen = ({
 
           {isOnHold && onHoldPhotos.length > 0 ? (
             <>
-              <Text style={[styles.sectionHeading, styles.sectionSpacing]}>OnHold Photos</Text>
+              <Text style={[styles.sectionHeading, styles.sectionSpacing]}>{t('on_hold_photos')}</Text>
               <View style={styles.onHoldPhotoRow}>
                 {onHoldPhotos.map(uri => (
                   <Image key={uri} source={{uri}} style={styles.onHoldPhoto} />
@@ -668,7 +670,7 @@ const TaskDetailsScreen = ({
           </View>
 
           <View style={styles.titleRow}>
-            <Text style={styles.sectionHeading}>Task Details</Text>
+            <Text style={styles.sectionHeading}>{t('task_details_title')}</Text>
             {displayTaskId ? <Text style={styles.taskIdText}> [{displayTaskId}]</Text> : null}
           </View>
           {(
@@ -694,16 +696,16 @@ const TaskDetailsScreen = ({
             </View>
           ))}
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Attachment</Text>
+            <Text style={styles.fieldLabel}>{t('attachment')}</Text>
             <Text style={[styles.fieldValue, styles.linkText]} onPress={() => closureRef.current?.openDocuments()}>
-              View Document
+              {t('view_attachment')}
             </Text>
           </View>
 
           <View style={styles.itemDetailsHeaderRow}>
-            <Text style={[styles.sectionHeading, styles.itemNameHeading]}>Item Details</Text>
-            <Text style={styles.itemColumnHeading}>Issued Qty</Text>
-            <Text style={styles.itemColumnHeading}>Used Qty</Text>
+            <Text style={[styles.sectionHeading, styles.itemNameHeading]}>{t('item_details')}</Text>
+            <Text style={styles.itemColumnHeading}>{t('issued_qty')}</Text>
+            <Text style={styles.itemColumnHeading}>{t('used_qty')}</Text>
           </View>
           {itemDetails.map((item, index) => (
             <View key={index} style={styles.itemDetailsRow}>
@@ -713,7 +715,7 @@ const TaskDetailsScreen = ({
             </View>
           ))}
 
-          <Text style={[styles.sectionHeading, styles.sectionSpacing]}>Customer Details</Text>
+          <Text style={[styles.sectionHeading, styles.sectionSpacing]}>{t('customer_details')}</Text>
           {(
             [
               ['Customer Name', valueOrNA(custName)],
@@ -796,14 +798,14 @@ const TaskDetailsScreen = ({
           </View>
 
           <View style={styles.titleRow}>
-            <Text style={styles.sectionHeading}>Task Details</Text>
+            <Text style={styles.sectionHeading}>{t('task_details_title')}</Text>
             {displayTaskId ? (
               <Text style={styles.taskIdText}> [{displayTaskId}]</Text>
             ) : null}
           </View>
 
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Task Name</Text>
+            <Text style={styles.fieldLabel}>{t('task_name')}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(taskName)}</Text>
           </View>
           <View style={styles.fieldRow}>
@@ -813,37 +815,37 @@ const TaskDetailsScreen = ({
           {/* Row order follows dialog_crm_task_details.xml. Task Type is
               'gone' there, so it isn't shown here either. */}
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Estimated Amount</Text>
+            <Text style={styles.fieldLabel}>{t('estimated_amount')}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(estimatedAmount)}</Text>
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Payment Mode</Text>
+            <Text style={styles.fieldLabel}>{t('payment_mode')}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(paymentMode)}</Text>
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Employee Name</Text>
+            <Text style={styles.fieldLabel}>{t('technician_name')}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(employeeName)}</Text>
           </View>
           {isOnHold ? (
             <>
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>OnHold Date & Time</Text>
+                <Text style={styles.fieldLabel}>{t('on_hold_date_time')}</Text>
                 <Text style={styles.fieldValue}>{valueOrNA(onHoldDateTime)}</Text>
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>OnHold Reason</Text>
+                <Text style={styles.fieldLabel}>{t('on_hold_reason')}</Text>
                 <Text style={styles.fieldValue}>{valueOrNA(onHoldReason)}</Text>
               </View>
             </>
           ) : null}
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Earned Amount</Text>
+            <Text style={styles.fieldLabel}>{t('earned_amount_title')}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(earnedAmount)}</Text>
           </View>
           {discountText ? (
             <>
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Discount</Text>
+                <Text style={styles.fieldLabel}>{t('discount')}</Text>
                 <Text style={styles.fieldValue}>{discountText}</Text>
               </View>
               {netEarnedAmount ? (
@@ -855,20 +857,20 @@ const TaskDetailsScreen = ({
             </>
           ) : null}
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Start Date & Time</Text>
+            <Text style={styles.fieldLabel}>{t('start_date_amp_time')}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(startDateTime)}</Text>
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>End Date & Time</Text>
+            <Text style={styles.fieldLabel}>{t('end_date_amp_time')}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(endDateTime)}</Text>
           </View>
 
           <View style={styles.itemDetailsHeaderRow}>
             <Text style={[styles.sectionHeading, styles.itemNameHeading]}>
-              Item Details
+              {t('item_details')}
             </Text>
-            <Text style={styles.itemColumnHeading}>Issued Qty</Text>
-            <Text style={styles.itemColumnHeading}>Used Qty</Text>
+            <Text style={styles.itemColumnHeading}>{t('issued_qty')}</Text>
+            <Text style={styles.itemColumnHeading}>{t('used_qty')}</Text>
           </View>
           {itemDetails.length > 0 ? (
             itemDetails.map((item, index) => (
@@ -884,22 +886,22 @@ const TaskDetailsScreen = ({
 
 
           <Text style={[styles.sectionHeading, styles.sectionSpacing]}>
-            Customer Details
+            {t('customer_details')}
           </Text>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Customer Name</Text>
+            <Text style={styles.fieldLabel}>{t('customer_name')}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(custName)}</Text>
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Customer Number</Text>
+            <Text style={styles.fieldLabel}>{t('customer_number')}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(custPhoneDisplay)}</Text>
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Address</Text>
+            <Text style={styles.fieldLabel}>{t('address')}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(custAddress)}</Text>
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Landmark</Text>
+            <Text style={styles.fieldLabel}>{t('landmark')}</Text>
             <Text style={styles.fieldValue}>
               {landmark ? landmark : 'na'}
             </Text>
@@ -909,30 +911,30 @@ const TaskDetailsScreen = ({
           {(
             <>
               <Text style={[styles.sectionHeading, styles.sectionSpacing]}>
-                Warranty Details
+                {t('warranty_details')}
               </Text>
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Warranty Type</Text>
+                <Text style={styles.fieldLabel}>{t('warranty_type')}</Text>
                 <Text style={styles.fieldValue}>{valueOrNA(warrantyTypeName)}</Text>
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Start Date</Text>
+                <Text style={styles.fieldLabel}>{t('task_start_date')}</Text>
                 <Text style={styles.fieldValue}>{valueOrNA(warrantyStartDate)}</Text>
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>End Date</Text>
+                <Text style={styles.fieldLabel}>{t('task_end_date')}</Text>
                 <Text style={styles.fieldValue}>{valueOrNA(warrantyEndDate)}</Text>
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Brand Name</Text>
+                <Text style={styles.fieldLabel}>{t('label_brand_name')}</Text>
                 <Text style={styles.fieldValue}>{valueOrNA(warrantyBrandName)}</Text>
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Model Name</Text>
+                <Text style={styles.fieldLabel}>{t('label_model_name')}</Text>
                 <Text style={styles.fieldValue}>{valueOrNA(warrantyModelName)}</Text>
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>Serial No</Text>
+                <Text style={styles.fieldLabel}>{t('label_serial_no')}</Text>
                 <Text style={styles.fieldValue}>{valueOrNA(warrantySerialNo)}</Text>
               </View>
             </>
@@ -955,7 +957,7 @@ const TaskDetailsScreen = ({
           {isOnHold && onHoldPhotos.length > 0 ? (
             <>
               <Text style={[styles.sectionHeading, styles.sectionSpacing]}>
-                OnHold Photos
+                {t('on_hold_photos')}
               </Text>
               <View style={styles.onHoldPhotoRow}>
                 {onHoldPhotos.map(uri => (

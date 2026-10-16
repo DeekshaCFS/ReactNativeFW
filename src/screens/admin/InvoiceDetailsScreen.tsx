@@ -31,6 +31,7 @@ import BackBar from '../../components/BackBar';
 import { showFailureMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
 const STATUS_ORANGE = '#F4A62A';
@@ -97,6 +98,7 @@ const InvoiceDetailsScreen = ({
   onBack,
   onDeleted,
 }: InvoiceDetailsScreenProps) => {
+  const {t} = useTranslation();
   const [details, setDetails] = useState<InvoiceDetailsDTOResultData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -341,9 +343,9 @@ const InvoiceDetailsScreen = ({
                 </View>
               </View>
 
-              <Text style={styles.sectionTitle}>Invoice Details</Text>
+              <Text style={styles.sectionTitle}>{t('invoice_details')}</Text>
               <DetailRow
-                label="Task Name"
+                label={t('task_name')}
                 value={
                   details?.QuotationCode ??
                   initialTaskName ??
@@ -356,24 +358,24 @@ const InvoiceDetailsScreen = ({
               />
               <DetailRow label="Invoice ID" value={details?.InvoiceCode ?? '-'} />
 
-              <Text style={styles.sectionTitle}>Customer Details</Text>
+              <Text style={styles.sectionTitle}>{t('customer_details')}</Text>
               <DetailRow
-                label="Customer Name"
+                label={t('customer_name')}
                 value={details?.CustomerName ?? '-'}
               />
               <DetailRow
-                label="Customer Number"
+                label={t('customer_number')}
                 value={details?.MobileNumber ?? '-'}
               />
-              <DetailRow label="Address" value={details?.CustAddress ?? '-'} />
+              <DetailRow label={t('address')} value={details?.CustAddress ?? '-'} />
               <DetailRow
                 label="Flat/Building/Parcel"
                 value={details?.BuildingNumber ?? '-'}
               />
-              <DetailRow label="Landmark" value={details?.Landmark ?? '-'} />
+              <DetailRow label={t('landmark')} value={details?.Landmark ?? '-'} />
 
               <View style={styles.tableHeaderRow}>
-                <Text style={[styles.tableHeaderCell, styles.colName]}>Item Details</Text>
+                <Text style={[styles.tableHeaderCell, styles.colName]}>{t('item_details')}</Text>
                 <Text style={[styles.tableHeaderCell, styles.colQty]}>Qty</Text>
                 <Text style={[styles.tableHeaderCell, styles.colPrice]}>Unit Price</Text>
                 <Text style={[styles.tableHeaderCell, styles.colPrice]}>Total Price</Text>
@@ -396,7 +398,7 @@ const InvoiceDetailsScreen = ({
               ))}
 
               <View style={styles.tableHeaderRow}>
-                <Text style={[styles.tableHeaderCell, styles.colName]}>Service Name</Text>
+                <Text style={[styles.tableHeaderCell, styles.colName]}>{t('service_name_add_task')}</Text>
                 <Text style={[styles.tableHeaderCell, styles.colQty]}>Qty</Text>
                 <Text style={[styles.tableHeaderCell, styles.colPrice]}>Service Price</Text>
               </View>
@@ -420,7 +422,7 @@ const InvoiceDetailsScreen = ({
                 value={`Rs. ${formatAmount(details?.SubTotalAmount)}`}
               />
               <DetailRow
-                label="Discount"
+                label={t('discount')}
                 value={`Rs. ${formatAmount(details?.DiscountAmounnt)}(${formatPercent(
                   details?.Discount,
                 )}%)`}
@@ -440,9 +442,9 @@ const InvoiceDetailsScreen = ({
 
               <Text style={styles.sectionTitle}>Payment History</Text>
               <View style={styles.tableHeaderRow}>
-                <Text style={[styles.tableHeaderCell, styles.colName]}>Date</Text>
+                <Text style={[styles.tableHeaderCell, styles.colName]}>{t('date')}</Text>
                 <Text style={[styles.tableHeaderCell, styles.colName]}>Payment Type</Text>
-                <Text style={[styles.tableHeaderCell, styles.colPrice]}>Received Amount</Text>
+                <Text style={[styles.tableHeaderCell, styles.colPrice]}>{t('received_amount')}</Text>
               </View>
               {paymentList.map((payment, index) => (
                 <View key={`payment-${index}`} style={styles.tableRow}>
@@ -523,7 +525,7 @@ const InvoiceDetailsScreen = ({
                 style={[styles.modalButton, styles.modalButtonSecondary]}
                 onPress={() => setIsPaymentModalOpen(false)}
                 disabled={isSavingPayment}>
-                <Text style={styles.modalButtonSecondaryText}>Cancel</Text>
+                <Text style={styles.modalButtonSecondaryText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonPrimary]}
@@ -566,7 +568,7 @@ const InvoiceDetailsScreen = ({
                 style={[styles.modalButton, styles.modalButtonSecondary]}
                 onPress={() => setIsFollowUpModalOpen(false)}
                 disabled={isSavingFollowUp}>
-                <Text style={styles.modalButtonSecondaryText}>Cancel</Text>
+                <Text style={styles.modalButtonSecondaryText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonPrimary]}

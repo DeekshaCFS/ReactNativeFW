@@ -25,6 +25,7 @@ import { getCurrentUserId } from '../../../state/session';
 import DeleteFocDialog from '../../../components/DeleteFocDialog';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 const formatDate = (iso?: string): string => {
   if (!iso) return 'NA';
   const d = new Date(iso);
@@ -71,6 +72,7 @@ const AttachIcon = ({ size }: { size: number }) => (
 function YesNoSegment({ value, onChange, disabled, width }: {
   value: boolean | null; onChange: (v: boolean) => void; disabled?: boolean; width: number;
 }) {
+  const {t} = useTranslation();
   const isYes = value === true;
   return (
     <View style={[styles.segment, { width }]}>
@@ -79,14 +81,14 @@ function YesNoSegment({ value, onChange, disabled, width }: {
         onPress={() => onChange(false)}
         style={[styles.segBtn, styles.segLeft, { borderColor: RED }, !isYes && { backgroundColor: RED }]}
       >
-        <Text style={[styles.segText, !isYes && styles.segTextOn]}>NO</Text>
+        <Text style={[styles.segText, !isYes && styles.segTextOn]}>{t('no')}</Text>
       </Pressable>
       <Pressable
         disabled={disabled}
         onPress={() => onChange(true)}
         style={[styles.segBtn, styles.segRight, { borderColor: GREEN }, isYes && { backgroundColor: GREEN }]}
       >
-        <Text style={[styles.segText, isYes && styles.segTextOn]}>Yes</Text>
+        <Text style={[styles.segText, isYes && styles.segTextOn]}>{t('yes')}</Text>
       </Pressable>
     </View>
   );
@@ -96,6 +98,7 @@ function YesNoSegment({ value, onChange, disabled, width }: {
 // Issues are read-only text, and the page sits on a red root with a white 30dp-radius sheet.
 // Hosted inline by the admin Item Inventory screen via focRequest / onClose.
 export default function FOCDetailsScreen({ navigation, route, focRequest: focRequestProp, admin = false, onClose }: any) {
+  const {t} = useTranslation();
   const focRequest = (focRequestProp ?? route?.params?.focRequest) as GetFOCListResultData;
   const goBack = () => (onClose ? onClose() : navigation?.goBack());
 
@@ -267,7 +270,7 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
             </View>
 
             <View style={styles.statusRow}>
-              <Text style={[styles.lblBlack, { flex: 1.3 }]}>Status : </Text>
+              <Text style={[styles.lblBlack, { flex: 1.3 }]}>{t('status_title')} </Text>
               <Text style={[styles.statusValue, { flex: 1 }]} numberOfLines={1}>
                 {it.ItemRequestStatusTagName || 'NA'}
               </Text>

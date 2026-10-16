@@ -33,6 +33,7 @@ import type {ServiceTypeListDTOResultData} from '../../api/services/services.typ
 import { showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 type Props = {
   visible: boolean;
   ownerId: number;
@@ -56,6 +57,7 @@ const AddEditServiceModal: React.FC<Props> = ({
   onClose,
   onSaved,
 }) => {
+  const {t} = useTranslation();
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
@@ -199,7 +201,7 @@ const AddEditServiceModal: React.FC<Props> = ({
             <Text style={styles.label}>Service Name *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Service Name"
+              placeholder={t('service_name_add_task')}
               placeholderTextColor={COLORS.textMuted}
               value={name}
               onChangeText={setName}
@@ -264,7 +266,7 @@ const AddEditServiceModal: React.FC<Props> = ({
 
             <View style={styles.buttonRow}>
               <Pressable style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
               </Pressable>
               <Pressable
                 style={[styles.submitButton, (!isValid || submitting) && styles.submitButtonDisabled]}
@@ -273,7 +275,7 @@ const AddEditServiceModal: React.FC<Props> = ({
                 {submitting ? (
                   <ActivityIndicator color={COLORS.white} />
                 ) : (
-                  <Text style={styles.submitButtonText}>Save</Text>
+                  <Text style={styles.submitButtonText}>{t('save')}</Text>
                 )}
               </Pressable>
             </View>

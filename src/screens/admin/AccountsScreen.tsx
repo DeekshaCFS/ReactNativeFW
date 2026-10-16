@@ -24,6 +24,7 @@ import InvoiceDetailsScreen from './InvoiceDetailsScreen';
 import {scale, sp, vs} from '../../utils/responsive';
 import {formatAmount} from '../../utils/decimal';
 
+import {useTranslation} from 'react-i18next';
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
 const BLUE_CODE = '#1877F2';
@@ -147,6 +148,7 @@ type AccountsScreenProps = {
 };
 
 const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
+  const {t} = useTranslation();
   const [activeTab, setActiveTab] = useState<AccountsTab>('quotation');
   const [searchText, setSearchText] = useState('');
   const [submittedSearch, setSubmittedSearch] = useState('');
@@ -464,7 +466,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
       {isStatusModalOpen ? (
         <Pressable style={styles.statusModalOverlay} onPress={() => setIsStatusModalOpen(false)}>
           <View style={styles.statusModalSheet}>
-            <Text style={styles.statusModalTitle}>Select Status</Text>
+            <Text style={styles.statusModalTitle}>{t('select_status')}</Text>
             {statusOptions.map(option => (
               <TouchableOpacity
                 key={option.id}

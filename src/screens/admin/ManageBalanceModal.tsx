@@ -22,6 +22,7 @@ import { getExpenseUserList, updateAddCredit, updateDeductBalance } from '../../
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 const GREEN_500 = '#4CAF50'; // @color/green_500
 
 const getCode = (response: {code?: string; Code?: string}) =>
@@ -115,6 +116,7 @@ const ManageBalanceModal = ({
   onClose,
   onSuccess,
 }: ManageBalanceModalProps) => {
+  const {t} = useTranslation();
   const [technicians, setTechnicians] = useState<ExpenseTechnicianItem[]>([]);
   const [isLoadingTechnicians, setIsLoadingTechnicians] = useState(false);
   const [balanceMode, setBalanceMode] = useState<'add' | 'deduct'>(initialMode);
@@ -233,7 +235,7 @@ const ManageBalanceModal = ({
               <View style={styles.howToPlayIcon}>
                 <Ionicons name="play" size={ms(11)} color="#FFFFFF" />
               </View>
-              <Text style={styles.howToText}>How to add / deduct balance ?</Text>
+              <Text style={styles.howToText}>{t('hadddecbal')}</Text>
             </View>
 
             <View style={styles.segmentGroup}>
@@ -248,7 +250,7 @@ const ManageBalanceModal = ({
                     styles.segmentText,
                     balanceMode === 'add' ? styles.segmentTextSelected : null,
                   ]}>
-                  Add Balance
+                  {t('add_balance')}
                 </Text>
               </Pressable>
               <Pressable
@@ -262,7 +264,7 @@ const ManageBalanceModal = ({
                     styles.segmentText,
                     balanceMode === 'deduct' ? styles.segmentTextSelected : null,
                   ]}>
-                  Deduct Balance
+                  {t('deduct_balance')}
                 </Text>
               </Pressable>
             </View>
@@ -300,7 +302,7 @@ const ManageBalanceModal = ({
             ) : null}
 
             <View style={styles.currentBalanceRow}>
-              <Text style={styles.currentBalanceLabel}>Current Balance:</Text>
+              <Text style={styles.currentBalanceLabel}>{t('current_balance')}</Text>
               <Text style={styles.currentBalanceValue}>
                 {selectedTechnician
                   ? formatMoney(selectedTechnicianBalance ?? getTechnicianBalance(selectedTechnician))
@@ -320,7 +322,7 @@ const ManageBalanceModal = ({
               <OutlinedInput
                 value={balanceDescription}
                 onChangeText={setBalanceDescription}
-                placeholder="Enter Description"
+                placeholder={t('enter_description')}
                 placeholderTextColor={COLORS.lightGray}
                 autoCapitalize="words"
                 maxLength={100}
@@ -336,7 +338,7 @@ const ManageBalanceModal = ({
             </Pressable>
 
             <Pressable onPress={handleClose}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('cancel')}</Text>
             </Pressable>
           </ScrollView>
         </Pressable>

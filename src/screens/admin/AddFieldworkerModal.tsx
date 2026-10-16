@@ -23,6 +23,7 @@ import {scale, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type FieldworkerBulkInsertItem = {
   AE_FW_Contact: string;
   AE_FW_Firstname: string;
@@ -66,6 +67,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
   ownerId,
   onAdded,
 }) => {
+  const {t} = useTranslation();
   const [rows, setRows] = useState<FieldworkerRow[]>([createEmptyRow(0)]);
   const [rowErrors, setRowErrors] = useState<Record<number, RowErrors>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -278,7 +280,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
             <TouchableOpacity onPress={handleClose} hitSlop={12}>
               <Ionicons name="arrow-back" size={scale(26)} color="#FFFFFF" />
             </TouchableOpacity>
-            <Text style={headerTitleStyle}>Employee List</Text>
+            <Text style={headerTitleStyle}>{t('empList')}</Text>
           </View>
         </View>
 
@@ -290,7 +292,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
               <View style={playIconStyle}>
                 <Ionicons name="play" size={scale(11)} color="#FFFFFF" />
               </View>
-              <Text style={howToTextStyle}>How to add Fieldworker ?</Text>
+              <Text style={howToTextStyle}>{t('haddtech')}</Text>
             </View>
             <TouchableOpacity
               style={submitPillStyle}
@@ -299,7 +301,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
               {isSubmitting ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={submitPillTextStyle}>Submit</Text>
+                <Text style={submitPillTextStyle}>{t('submit')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -333,7 +335,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
                           firstName: value.replace(/[^A-Za-z]/g, ''),
                         })
                       }
-                      placeholder="First Name"
+                      placeholder={t('first_name')}
                       placeholderTextColor={COLORS.lightGray}
                       autoCapitalize="words"
                       maxLength={16}
@@ -346,7 +348,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
                           lastName: value.replace(/[^A-Za-z]/g, ''),
                         })
                       }
-                      placeholder="Last Name"
+                      placeholder={t('last_name')}
                       placeholderTextColor={COLORS.lightGray}
                       autoCapitalize="words"
                       maxLength={16}
@@ -375,7 +377,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
 
                 {index === rows.length - 1 ? (
                   <TouchableOpacity onPress={handleAddMore}>
-                    <Text style={addMoreTextStyle}>+ Add More</Text>
+                    <Text style={addMoreTextStyle}>{t('add_more')}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>

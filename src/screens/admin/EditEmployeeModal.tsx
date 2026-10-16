@@ -37,6 +37,7 @@ import {getDesignationType} from '../../api/umDesignations/umDesignationsService
 import {getAllZoneList, getManagerListByServzone} from '../../api/umServiceZone/umServiceZoneService';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type Props = {
   visible: boolean;
   ownerId: number;
@@ -80,6 +81,7 @@ const EditEmployeeModal: React.FC<Props> = ({
   onClose,
   onUpdated,
 }) => {
+  const {t} = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -343,7 +345,7 @@ const EditEmployeeModal: React.FC<Props> = ({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.screen}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Edit Profile</Text>
+          <Text style={styles.headerTitle}>{t('edit_profile')}</Text>
           <TouchableOpacity onPress={onClose} hitSlop={12}>
             <Ionicons name="close" size={sp(24)} color="#fff" />
           </TouchableOpacity>
@@ -353,7 +355,7 @@ const EditEmployeeModal: React.FC<Props> = ({
         ) : (
           <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-              <Text style={styles.section}>Employee Details</Text>
+              <Text style={styles.section}>{t('emp_details_title')}</Text>
               {input(firstName, setFirstName, 'First Name')}
               {input(lastName, setLastName, 'Last Name')}
               {hasContactNo ? input(contactNo, setContactNo, 'Contact No', {keyboardType: 'phone-pad', maxLength: 12}) : null}
@@ -400,7 +402,7 @@ const EditEmployeeModal: React.FC<Props> = ({
                 )}
               </TouchableOpacity>
               <TouchableOpacity onPress={onClose}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('cancel')}</Text>
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>

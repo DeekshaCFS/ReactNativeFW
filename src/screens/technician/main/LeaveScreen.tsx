@@ -23,6 +23,7 @@ import type {
 } from '../../../api/leaveManagement/leaveManagement.types';
 import { showFailureMsg } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 // ── Screen-local UI helpers (not Java DTOs — kept inline) ──────────────────
 const LeaveStatusId = { PENDING: 1, APPROVED: 2, DECLINED: 3 } as const;
 const LEAVE_STATUS_OPTIONS = ['Status', 'Approved', 'Declined', 'Pending'] as const;
@@ -100,6 +101,7 @@ const formatRequestedAt = (iso?: string) => {
 };
 
 export default function LeaveScreen() {
+  const {t} = useTranslation();
   const navigation = useNavigation<NavigationProp>();
   const headerHeight = useAppHeaderHeight();
 
@@ -640,7 +642,7 @@ export default function LeaveScreen() {
             </View>
 
             <Pressable style={styles.cancelLink} onPress={closeSheet}>
-              <Text style={styles.cancelLinkText}>Cancel</Text>
+              <Text style={styles.cancelLinkText}>{t('cancel')}</Text>
             </Pressable>
             </View>
           </View>

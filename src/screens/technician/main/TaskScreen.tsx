@@ -28,7 +28,9 @@ import { useTaskStatus } from '../../../hooks/useTaskStatus';
 import { useOpenTask } from '../../../hooks/useOpenTask';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 export default function TaskScreen({ navigation, route }: any) {
+  const {t} = useTranslation();
   const headerHeight = useAppHeaderHeight();
   const [uid, setUid] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -439,7 +441,7 @@ export default function TaskScreen({ navigation, route }: any) {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Customer Or Task Id Number"
+            placeholder={t('customer_number_taskid')}
             placeholderTextColor={COLORS.lightGray}
             style={styles.searchInput}
             cursorColor={COLORS.primary}
@@ -519,7 +521,7 @@ export default function TaskScreen({ navigation, route }: any) {
       {/* Java: dialog_searchable_spinner_tasktag / _status -- the shared searchable dialog. */}
       <SearchPickerModal
         visible={activeDropdown === 'TAG'}
-        title="Select Task Tag"
+        title={t('select_task_tag')}
         options={tagList.map(tag => ({ id: Number(tag.TaskTagId) || 0, label: tag.TaskTagName }))}
         onSelect={option => {
           const tag = tagList.find(t => (Number(t.TaskTagId) || 0) === option.id && t.TaskTagName === option.label);
@@ -533,7 +535,7 @@ export default function TaskScreen({ navigation, route }: any) {
 
       <SearchPickerModal
         visible={activeDropdown === 'STATUS'}
-        title="Status"
+        title={t('status')}
         options={statusList.map(item => ({ id: Number(item.Id) || 0, label: String(item.Name ?? '') }))}
         onSelect={option => {
           setSelectedStatus({ Id: option.id, Name: option.label });
@@ -552,7 +554,7 @@ export default function TaskScreen({ navigation, route }: any) {
           </View>
           <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: '#eee', marginTop: vs(12) }}>
             <Pressable style={{ flex: 1, paddingVertical: vs(14), alignItems: 'center' }} onPress={() => setShowMonthPicker(false)}>
-              <Text style={{ fontSize: sp(15), color: '#888' }}>Cancel</Text>
+              <Text style={{ fontSize: sp(15), color: '#888' }}>{t('cancel')}</Text>
             </Pressable>
             <Pressable
               style={{ flex: 1, paddingVertical: vs(14), alignItems: 'center' }}
@@ -562,7 +564,7 @@ export default function TaskScreen({ navigation, route }: any) {
                 setShowMonthPicker(false);
               }}
             >
-              <Text style={{ fontSize: sp(15), color: COLORS.primary, fontWeight: '600' }}>OK</Text>
+              <Text style={{ fontSize: sp(15), color: COLORS.primary, fontWeight: '600' }}>{t('qr_code_positive_button_know')}</Text>
             </Pressable>
           </View>
         </View>
@@ -596,7 +598,7 @@ export default function TaskScreen({ navigation, route }: any) {
               {renderPhotoSlots(rejectPhotos, setRejectPhotos)}
               <View style={styles.inputBox}>
                 <TextInput
-                  placeholder="Reason for Reject"
+                  placeholder={t('reject_reason')}
                   value={rejectReason}
                   onChangeText={setRejectReason}
                   style={{ flex: 1, fontSize: sp(16) }}

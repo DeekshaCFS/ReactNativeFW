@@ -20,6 +20,7 @@ import {FIELDWEB_MAP_STYLE} from '../../config/mapStyle';
 import {COLORS} from '../../theme/theme';
 import {ms, sp, vs} from '../../utils/responsive';
 
+import {useTranslation} from 'react-i18next';
 type Props = {
   technicianId: number;
   technicianName: string;
@@ -43,6 +44,7 @@ const OwnerTaskTrackingMap: React.FC<Props> = ({
   taskName,
   customerName,
 }) => {
+  const {t} = useTranslation();
   const [present, setPresent] = useState<boolean | null>(null);
   const [tech, setTech] = useState<Point | null>(null);
   const [route, setRoute] = useState<DrivingRoute | null>(null);
@@ -112,7 +114,7 @@ const OwnerTaskTrackingMap: React.FC<Props> = ({
     return (
       <View style={styles.absent}>
         <Text style={styles.absentName}>{technicianName || 'Fieldworker Name'}</Text>
-        <Text style={styles.absentText}>is currently Absent or Unavailable</Text>
+        <Text style={styles.absentText}>{t('is_currently_absent_or_unavailable')}</Text>
       </View>
     );
   }
@@ -164,11 +166,11 @@ const OwnerTaskTrackingMap: React.FC<Props> = ({
       )}
       {/* linear_distance: white 10dp-radius card, 30dp tall, weights 0.2 / 0.3 / 0.2 / 0.4 */}
       <View style={styles.distanceCard} pointerEvents="none">
-        <Text style={[styles.distanceLabel, styles.col2]}>Distance</Text>
+        <Text style={[styles.distanceLabel, styles.col2]}>{t('distance')}</Text>
         <Text style={[styles.distanceValue, styles.col3]} numberOfLines={1}>
           {distanceText}
         </Text>
-        <Text style={[styles.distanceLabel, styles.col2]}>Time</Text>
+        <Text style={[styles.distanceLabel, styles.col2]}>{t('time')}</Text>
         <Text style={[styles.distanceValue, styles.col4]} numberOfLines={1}>
           {durationText}
         </Text>

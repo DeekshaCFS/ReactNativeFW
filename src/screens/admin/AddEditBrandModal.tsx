@@ -27,6 +27,7 @@ import {addBrand, updateBrand} from '../../api/brandModel/brandModelService';
 import type {BrandItem} from '../../api/brandModel/brandModelService';
 import { showToast } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type Props = {
   visible: boolean;
   ownerId: number;
@@ -42,6 +43,7 @@ type PickedImage = {
 };
 
 const AddEditBrandModal: React.FC<Props> = ({visible, ownerId, editing, onClose, onSaved}) => {
+  const {t} = useTranslation();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState<PickedImage | null>(null);
@@ -135,10 +137,10 @@ const AddEditBrandModal: React.FC<Props> = ({visible, ownerId, editing, onClose,
           <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={styles.title}>{isEditing ? 'Edit Brand' : 'Add Brand'}</Text>
 
-            <Text style={styles.label}>Brand Name *</Text>
+            <Text style={styles.label}>{t('star_product_brand')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Brand Name"
+              placeholder={t('label_brand_name')}
               placeholderTextColor={COLORS.textMuted}
               value={name}
               onChangeText={setName}
@@ -158,7 +160,7 @@ const AddEditBrandModal: React.FC<Props> = ({visible, ownerId, editing, onClose,
             <Text style={styles.label}>Brand Description</Text>
             <TextInput
               style={[styles.input, styles.multilineInput]}
-              placeholder="Description"
+              placeholder={t('description')}
               placeholderTextColor={COLORS.textMuted}
               value={description}
               onChangeText={setDescription}
@@ -169,7 +171,7 @@ const AddEditBrandModal: React.FC<Props> = ({visible, ownerId, editing, onClose,
 
             <View style={styles.buttonRow}>
               <Pressable style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
               </Pressable>
               <Pressable
                 style={[styles.submitButton, (!isValid || submitting) && styles.submitButtonDisabled]}
@@ -178,7 +180,7 @@ const AddEditBrandModal: React.FC<Props> = ({visible, ownerId, editing, onClose,
                 {submitting ? (
                   <ActivityIndicator color={COLORS.white} />
                 ) : (
-                  <Text style={styles.submitButtonText}>Save</Text>
+                  <Text style={styles.submitButtonText}>{t('save')}</Text>
                 )}
               </Pressable>
             </View>

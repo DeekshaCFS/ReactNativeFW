@@ -28,6 +28,7 @@ import i18n from 'i18next';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import { SHOW_QA_OTP } from '../../config/qa';
 
+import {useTranslation} from 'react-i18next';
 type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
@@ -48,6 +49,7 @@ type AuthStackParamList = {
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginScreen() {
+  const {t} = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
@@ -185,14 +187,14 @@ export default function LoginScreen() {
             />
           </View>
 
-          <Text style={GlobalStyles.title}>Welcome</Text>
+          <Text style={GlobalStyles.title}>{t('welcome')}</Text>
           <Text style={GlobalStyles.subtitle}>
             Please enter your details{'\n'}to access your account
           </Text>
 
           <View style={GlobalStyles.form}>
             <TextInput
-              placeholder="Enter Your Mobile No. Or Email"
+              placeholder={t('enter_your_mobile_email')}
               placeholderTextColor={COLORS.authText}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -227,13 +229,13 @@ export default function LoginScreen() {
 
           <Pressable style={GlobalStyles.languageRow} onPress={() => setLangModalVisible(true)}>
             <LanguageIcon width={dp(24)} height={dp(24)} />
-            <Text style={GlobalStyles.languageText}>Change Language</Text>
+            <Text style={GlobalStyles.languageText}>{t('title_change_language')}</Text>
           </Pressable>
 
           <View style={GlobalStyles.footerRow}>
             <Text style={GlobalStyles.footerText}>New to FieldWeb?</Text>
             <Text style={GlobalStyles.link} onPress={() => navigation.navigate('Signup')}>
-              Register Here
+              {t('register_here')}
             </Text>
           </View>
 

@@ -46,6 +46,7 @@ import {
 } from './crmShared';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 const STATE_KEYS = ['state', 'State', 'stateName', 'StateName'];
 const CITY_KEYS = ['city', 'City', 'cityName', 'CityName'];
 const PINCODE_KEYS = ['pinCode', 'PinCode', 'pincode', 'Pincode', 'zipCode', 'ZipCode'];
@@ -173,6 +174,7 @@ const EditCustomerModal = ({
   onClose,
   onUpdated,
 }: EditCustomerModalProps) => {
+  const {t} = useTranslation();
   const isAddMode = mode === 'add';
   const modalTitle = isAddMode ? 'Add Customer' : 'Edit Customer';
   const [form, setForm] = useState(EMPTY_FORM);
@@ -513,13 +515,13 @@ const EditCustomerModal = ({
               keyboardShouldPersistTaps="handled"
             >
             <LabeledField
-              label="Customer Name"
+              label={t('customer_name')}
               required
               value={form.customerName}
               onChangeText={text => setField('customerName', text)}
             />
 
-            <Text style={styles.sectionLabel}>Primary Details</Text>
+            <Text style={styles.sectionLabel}>{t('primary_details')}</Text>
 
             <LabeledField
               label="Primary Address"
@@ -584,7 +586,7 @@ const EditCustomerModal = ({
               </View>
               <View style={styles.halfWrap}>
                 <LabeledField
-                  label="City"
+                  label={t('city')}
                   required
                   half
                   value={form.city}
@@ -634,7 +636,7 @@ const EditCustomerModal = ({
             <View style={styles.fieldRow}>
               <View style={styles.halfWrap}>
                 <LabeledField
-                  label="Pin Code"
+                  label={t('pin_code')}
                   required
                   half
                   value={form.pinCode}
@@ -645,7 +647,7 @@ const EditCustomerModal = ({
               </View>
               <View style={styles.halfWrap}>
                 <LabeledField
-                  label="Mobile Number"
+                  label={t('mobile_number')}
                   required
                   half
                   value={form.mobileNumber}
@@ -659,7 +661,7 @@ const EditCustomerModal = ({
             <View style={styles.fieldRow}>
               <View style={styles.halfWrap}>
                 <LabeledField
-                  label="Landmark/PACI"
+                  label={t('sec_landmark_paci')}
                   required
                   half
                   value={form.description}
@@ -669,7 +671,7 @@ const EditCustomerModal = ({
               {isAddMode ? (
                 <View style={styles.halfWrap}>
                   <LabeledField
-                    label="Telephone Number"
+                    label={t('tele_number')}
                     half
                     value={form.telephoneNumber}
                     keyboardType="phone-pad"
@@ -682,7 +684,7 @@ const EditCustomerModal = ({
             <View style={styles.fieldRow}>
               <View style={styles.halfWrap}>
                 <LabeledField
-                  label="Email ID"
+                  label={t('email_id')}
                   half
                   value={form.emailId}
                   keyboardType="email-address"
@@ -715,7 +717,7 @@ const EditCustomerModal = ({
             <View style={styles.fieldRow}>
               <View style={styles.halfWrap}>
                 <LabeledField
-                  label="Representative Name"
+                  label={t('representative_name')}
                   half
                   value={form.representativeName}
                   onChangeText={text => setField('representativeName', text)}
@@ -723,7 +725,7 @@ const EditCustomerModal = ({
               </View>
               <View style={styles.halfWrap}>
                 <LabeledField
-                  label="Representative Number"
+                  label={t('representative_number')}
                   half
                   value={form.representativeNumber}
                   keyboardType="phone-pad"
@@ -733,15 +735,15 @@ const EditCustomerModal = ({
             </View>
 
             <LabeledField
-              label="Notes"
+              label={t('notes')}
               value={form.instructions}
               onChangeText={text => setField('instructions', text)}
             />
 
-            <Text style={styles.sectionLabel}>Secondary Details</Text>
+            <Text style={styles.sectionLabel}>{t('secondary_details')}</Text>
 
             <LabeledField
-              label="Secondary Address"
+              label={t('secondary_address')}
               value={form.secondaryAddress}
               onChangeText={text => setField('secondaryAddress', text)}
               onPress={() => setPlaceSearchFor('secondaryAddress')}
@@ -750,7 +752,7 @@ const EditCustomerModal = ({
             <View style={styles.fieldRow}>
               <View style={styles.halfWrap}>
                 <LabeledField
-                  label="Landmark/PACI"
+                  label={t('sec_landmark_paci')}
                   half
                   value={form.secondaryDescription}
                   onChangeText={text => setField('secondaryDescription', text)}
@@ -758,7 +760,7 @@ const EditCustomerModal = ({
               </View>
               <View style={styles.halfWrap}>
                 <LabeledField
-                  label="Phone Number"
+                  label={t('phone_number')}
                   half
                   value={form.secondaryMobileNumber}
                   keyboardType="phone-pad"
@@ -769,14 +771,14 @@ const EditCustomerModal = ({
             </View>
 
             <LabeledField
-              label="Email ID"
+              label={t('email_id')}
               value={form.secondaryEmailId}
               keyboardType="email-address"
               onChangeText={text => setField('secondaryEmailId', text)}
             />
 
             <LabeledField
-              label="Notes"
+              label={t('notes')}
               value={form.secondaryInstructions}
               onChangeText={text => setField('secondaryInstructions', text)}
             />
@@ -784,13 +786,13 @@ const EditCustomerModal = ({
             <Text style={styles.sectionLabel}>Asset Details</Text>
 
             <LabeledField
-              label="Brand Name"
+              label={t('label_brand_name')}
               value={form.brandName}
               onChangeText={text => setField('brandName', text)}
             />
 
             <LabeledField
-              label="Model Number"
+              label={t('model_number')}
               value={form.modelNumber}
               onChangeText={text => setField('modelNumber', text)}
             />
@@ -813,7 +815,7 @@ const EditCustomerModal = ({
             </TouchableOpacity>
 
             <TouchableOpacity onPress={onClose}>
-              <Text style={taskStyles.cancelText}>Cancel</Text>
+              <Text style={taskStyles.cancelText}>{t('cancel')}</Text>
             </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>

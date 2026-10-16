@@ -24,6 +24,7 @@ import { getCurrentUserId } from '../../../state/session';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 import DecimalInput from '../../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
 type PaymentMode = 'AMC' | 'Rate';
 
 interface Props {
@@ -34,6 +35,7 @@ interface Props {
 }
 
 export default function RoutineServiceAcceptModal({ visible, customer, onClose, onCreated }: Props) {
+  const {t} = useTranslation();
   const [taskName, setTaskName] = useState('');
   const [taskNameError, setTaskNameError] = useState('');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('AMC');
@@ -63,7 +65,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
   const handleCall = () => {
     const number = customer?.MobileNumber;
     if (!number) {
-      showToast('Contact Number is not available...!!');
+      showToast(t('contact_no_is_not_available'));
       return;
     }
     Linking.openURL(`tel:${number}`);
@@ -187,7 +189,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
             <Ionicons name="close-circle" size={scale(30)} color={COLORS.primary} />
           </Pressable>
 
-          <Text style={styles.sectionLabel}>Customer Details</Text>
+          <Text style={styles.sectionLabel}>{t('customer_details')}</Text>
           <Text style={styles.customerName}>{customer?.CustomerName}</Text>
           <View style={styles.addressRow}>
             <Text style={styles.addressText}>{customer?.Address}</Text>
@@ -200,13 +202,13 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
               Not styles.addressText here: that style's flex:1 only makes sense
               inside addressRow's flex row -- standalone, it was collapsing
               this Text to zero height and silently hiding the landmark value. */}
-          <Text style={styles.sectionLabel}>Landmark</Text>
+          <Text style={styles.sectionLabel}>{t('landmark')}</Text>
           <Text style={styles.landmarkText}>{customer?.Description}</Text>
 
           <TextInput
             value={taskName}
             onChangeText={text => { setTaskName(text); if (taskNameError) setTaskNameError(''); }}
-            placeholder="Task Name"
+            placeholder={t('task_name')}
             placeholderTextColor="#9ca3af"
             style={styles.input}
             maxLength={100}
@@ -220,13 +222,13 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
                 style={[styles.segmentBtn, paymentMode === 'AMC' && styles.segmentBtnActive]}
                 onPress={() => { setPaymentMode('AMC'); setWages(''); setWagesError(''); }}
               >
-                <Text style={[styles.segmentText, paymentMode === 'AMC' && styles.segmentTextActive]}>AMC</Text>
+                <Text style={[styles.segmentText, paymentMode === 'AMC' && styles.segmentTextActive]}>{t('title_amc')}</Text>
               </Pressable>
               <Pressable
                 style={[styles.segmentBtn, paymentMode === 'Rate' && styles.segmentBtnActive]}
                 onPress={() => setPaymentMode('Rate')}
               >
-                <Text style={[styles.segmentText, paymentMode === 'Rate' && styles.segmentTextActive]}>Rate</Text>
+                <Text style={[styles.segmentText, paymentMode === 'Rate' && styles.segmentTextActive]}>{t('rate')}</Text>
               </Pressable>
             </View>
 

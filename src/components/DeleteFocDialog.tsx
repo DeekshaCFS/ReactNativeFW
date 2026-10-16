@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import BottomSheetDialog from './BottomSheetDialog';
 import { ms, sp } from '../utils/responsive';
 
+import {useTranslation} from 'react-i18next';
 type Props = {
   visible: boolean;
   onConfirm: () => void;
@@ -14,19 +15,20 @@ type Props = {
 };
 
 export default function DeleteFocDialog({ visible, onConfirm, onCancel }: Props) {
+  const {t} = useTranslation();
   return (
     <BottomSheetDialog visible={visible} onRequestClose={() => {}}>
       <View style={styles.outer}>
         <View style={styles.inner}>
           <Text style={styles.title}>Are you sure?</Text>
-          <Text style={styles.message}>Do you want to delete this FOC?</Text>
+          <Text style={styles.message}>{t('delete_foc')}</Text>
 
           <Pressable style={styles.deleteBtn} onPress={onConfirm}>
-            <Text style={styles.deleteText}>Yes. Delete</Text>
+            <Text style={styles.deleteText}>{t('delete_tech_yes')}</Text>
           </Pressable>
 
           <Pressable style={styles.cancelBtn} onPress={onCancel}>
-            <Text style={styles.cancelText}>Nope. Not Now</Text>
+            <Text style={styles.cancelText}>{t('delete_tech_no')}</Text>
           </Pressable>
         </View>
       </View>

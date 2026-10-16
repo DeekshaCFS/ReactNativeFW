@@ -23,6 +23,8 @@ import {
 } from '@react-navigation/native';
 
 import { COLORS } from '../theme/theme';
+import { useTranslation } from 'react-i18next';
+import { tr } from '../i18n/tr';
 
 import {
   sp,
@@ -57,6 +59,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   onBack,
   useRegisteredBack = true,
 }) => {
+  useTranslation();
   const registeredBack = useHeaderBack();
   const back = onBack ?? (useRegisteredBack ? registeredBack : null);
 
@@ -112,7 +115,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             numberOfLines={1}
             allowFontScaling={false}
           >
-            {title}
+            {tr(title)}
           </Text>
         </View>
 

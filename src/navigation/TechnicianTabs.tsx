@@ -46,6 +46,7 @@ import { unmountOnBlur, pushedScreenOptions } from './tabScreenHelpers';
 import { requestLocationPermission } from '../utils/locationPermision';
 import { putLiveLocation } from '../utils/firebaseLiveLocation';
 
+import {useTranslation} from 'react-i18next';
 export type TechnicianTabParamList = {
   Home: undefined;
   Task: undefined;
@@ -114,6 +115,7 @@ const SHEET_SCREENS = ['TaskRouteMap', 'ItemRequest', 'TaskInput'];
 const PushedTabScreen = Tab.Screen as any;
 
 export default function TechnicianTabs() {
+  const {t} = useTranslation();
   // Java opens Passbook/Expenditure in one tab host: from the Passbook bottom tab it is titled
   // "Passbook" with Passbook highlighted; from the drawer it stays on Home ("FieldWeb").
   const passbookTabOrder = usePassbookTabOrder();
@@ -170,17 +172,17 @@ export default function TechnicianTabs() {
   const quickActions: QuickAction[] = [
     {
       icon: 'fab-quote',
-      label: 'Add Quote',
+      label: t('title_add_quote'),
       onPress: () => setIsAddQuoteModalOpen(true),
     },
     {
       icon: 'fab-invoice',
-      label: 'Add Invoice',
+      label: t('title_add_inv'),
       onPress: () => setIsAddInvoiceModalOpen(true),
     },
     {
       icon: 'fab-lead',
-      label: 'Add Lead',
+      label: t('title_add_lead'),
       // Java (CommonDialog.linear_add_lead) opens the Leads screen; its "+ Lead" button adds one.
       route: 'Leads',
     },

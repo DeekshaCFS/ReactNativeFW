@@ -25,6 +25,7 @@ import {COLORS} from '../../theme/theme';
 import {ms, sp} from '../../utils/responsive';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type Props = {
   leave: LeaveListItem | null;
   ownerId: number;
@@ -43,6 +44,7 @@ const toDisplayDate = (raw?: string | null) => {
 const orNA = (value?: string | null) => (String(value ?? '').trim() ? String(value).trim() : NA);
 
 const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActioned}) => {
+  const {t} = useTranslation();
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState<'approve' | 'decline' | null>(null);
 
@@ -143,7 +145,7 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
               <Text style={styles.notesLabel}>Approval/Decline Notes *</Text>
               <TextInput
                 style={styles.notes}
-                placeholder="Notes"
+                placeholder={t('notes')}
                 placeholderTextColor={COLORS.lightGray}
                 value={notes}
                 onChangeText={setNotes}
@@ -170,7 +172,7 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
                     {submitting === 'approve' ? (
                       <ActivityIndicator color="#fff" />
                     ) : (
-                      <Text style={styles.buttonText}>Approve</Text>
+                      <Text style={styles.buttonText}>{t('approve')}</Text>
                     )}
                   </Pressable>
                 </View>
