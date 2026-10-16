@@ -10,6 +10,7 @@ import {
   Linking,
   Pressable,
   RefreshControl,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -32,6 +33,7 @@ import AddLeadModal from './AddLeadModal';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import {encryptUserId} from './crmShared';
 type LeadListScreenProps = {
   userId: number;
   // Technician's own leads (Java: LeadsFragmentForTechnician) submit through
@@ -47,6 +49,8 @@ type LeadStatusOption = {
 };
 
 const PAGE_START = 1;
+// Java URLConstant.Base.LEADFORM_LINK (BuildConfig.GETLEADFORM) for the QA server this app talks to.
+const LEAD_FORM_LINK = 'http://192.169.3.8/LeadForm/LeadForm?Node=';
 const THEME_PRIMARY = COLORS.primary;
 const HEADER_PRIMARY = '#d0003f';
 const ALL_STATUS: LeadStatusOption = {id: 0, label: 'Select Lead Status'};
@@ -390,6 +394,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
   const [errorMessage, setErrorMessage] = useState('');
   const headerHeight = useAppHeaderHeight();
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [isLinkSheetOpen, setIsLinkSheetOpen] = useState(false);
   const latestRequestId = useRef(0);
 
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
@@ -543,6 +548,17 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
     } catch {
       showToast('Please try again later.');
     }
+  };
+
+  // Java CommonDialog.getLeadFormLink: share <LEADFORM_LINK><encrypted user id> through the system share sheet.
+  const handleShareLeadFormLink = async () => {
+    const url = LEAD_FORM_LINK + encryptUserId(userId);
+    try {
+      await Share.share({message: url, url, title: 'FieldWeb : Lead Form'});
+    } catch {
+      showFailureMsg('Unable to share the link right now.');
+    }
+    setIsLinkSheetOpen(false);
   };
 
   const renderLead = ({item}: {item: LeadListItem}) => {
@@ -707,9 +723,11 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
             <Text style={styles.addButtonText}>+ Lead</Text>
           </Pressable>
 
-          {/* <Pressable style={styles.linkButton}>
-            <Text style={styles.linkButtonText}>Link</Text>
-          </Pressable> */}
+          {!technician && (
+            <Pressable hitSlop={10} onPress={() => setIsLinkSheetOpen(true)}>
+              <Ionicons name="link-outline" size={ms(26)} color={THEME_PRIMARY} />
+            </Pressable>
+          )}
         </View>
 
         {isInitialLoading ? (
@@ -783,6 +801,25 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
         </Pressable>
       </Modal>
 
+      {/* diaolog_lead_form_link.xml: bottom card (30dp corners), 18sp message, red Copy & Share, red Cancel */}
+      <Modal
+        visible={isLinkSheetOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsLinkSheetOpen(false)}>
+        <Pressable style={styles.linkOverlay} onPress={() => setIsLinkSheetOpen(false)}>
+          <Pressable style={styles.linkSheet} onPress={() => {}}>
+            <Text style={styles.linkMessage}>Click on below button to Copy or Share the Lead Form link</Text>
+            <Pressable style={styles.linkShareBtn} onPress={handleShareLeadFormLink}>
+              <Text style={styles.linkShareBtnText}>{t('click_to_copy')}</Text>
+            </Pressable>
+            <Pressable style={styles.linkCancel} onPress={() => setIsLinkSheetOpen(false)}>
+              <Text style={styles.linkCancelText}>{t('cancel')}</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <AddLeadModal
         technician={technician}
         visible={isAddLeadModalOpen}
@@ -794,6 +831,37 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
 };
 
 const styles = StyleSheet.create({
+  linkOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  linkSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    padding: ms(20),
+    paddingTop: ms(30),
+  },
+  linkMessage: {
+    textAlign: 'center',
+    fontSize: sp(17),
+    color: COLORS.ink,
+    marginBottom: ms(20),
+  },
+  linkShareBtn: {
+    height: ms(50),
+    borderRadius: ms(34),
+    backgroundColor: THEME_PRIMARY,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
+  },
+  linkShareBtnText: {color: '#FFFFFF', fontSize: sp(17)},
+  linkCancel: {alignItems: 'center', marginBottom: ms(10)},
+  linkCancelText: {color: THEME_PRIMARY, fontSize: sp(17)},
   screen: {
     flex: 1,
     backgroundColor: THEME_PRIMARY,
