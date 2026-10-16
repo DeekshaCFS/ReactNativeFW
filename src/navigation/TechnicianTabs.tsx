@@ -213,11 +213,13 @@ export default function TechnicianTabs() {
               {/* Leave is the Leaves sub-tab of Attendance in Java: same header + tab. */}
               {/* Profile reuses HomeActivityNew's own toolbar in Java (hamburger + "Profile"
                   title + location/headset/bell icons), not a back-arrow push header. */}
-              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave' || currentRoute === 'Expenditure' || currentRoute === 'Leads' || currentRoute === 'Profile' || SHEET_SCREENS.includes(currentRoute)) && (
+              {(MAIN_TABS.includes(currentRoute) || currentRoute === 'Leave' || currentRoute === 'Expenditure' || currentRoute === 'Leads' || currentRoute === 'Profile' || currentRoute === 'FieldWeb AI' || SHEET_SCREENS.includes(currentRoute)) && (
                 <AppHeader
                   title={currentRoute === 'Expenditure'
                     ? (passbookTabOrder === 'passbookFirst' ? 'Passbook' : 'FieldWeb')
-                    : currentRoute === 'Leads' || SHEET_SCREENS.includes(currentRoute)
+                    : currentRoute === 'FieldWeb AI'
+                      ? 'FieldWeb AI'
+                      : currentRoute === 'Leads' || SHEET_SCREENS.includes(currentRoute)
                       ? 'FieldWeb'
                       : getTitle(currentRoute)}
                   navigation={props.navigation as any}
@@ -225,7 +227,7 @@ export default function TechnicianTabs() {
               )}
 
               {/* Java hides the bottom navigation on the route map. */}
-              {!SHEET_SCREENS.includes(currentRoute) && (
+              {!SHEET_SCREENS.includes(currentRoute) && currentRoute !== 'FieldWeb AI' && (
               <BottomTabBar
                 {...props}
                 visibleTabs={MAIN_TABS}
@@ -254,7 +256,7 @@ export default function TechnicianTabs() {
             component={component}
             initialParams={initialParams}
             options={({ navigation, route }: any) =>
-              name === 'Leave' || name === 'Expenditure' || name === 'Leads' || name === 'Profile' || SHEET_SCREENS.includes(name)
+              name === 'Leave' || name === 'Expenditure' || name === 'Leads' || name === 'Profile' || name === 'FieldWeb AI' || SHEET_SCREENS.includes(name)
                 ? { headerShown: false }
                 // Task Details: the header arrow goes back to the task list, not Home.
                 : pushedScreenOptions(title, navigation, route, name === 'TaskClosure' ? 'Task' : undefined)}

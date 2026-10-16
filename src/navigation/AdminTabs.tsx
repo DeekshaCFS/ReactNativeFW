@@ -117,7 +117,7 @@ const STATIC_PUSHED_SCREENS: PushedScreen[] = [
 // Screens that keep HomeActivityNew's own toolbar (hamburger + title + headset/bell)
 // instead of the back-arrow push header.
 // Profile reuses HomeActivityNew's own toolbar in Java (hamburger + "Profile" title), not a back-arrow header.
-const MAIN_HEADER_SCREENS = ['notification', 'help', 'TaskDetails', 'Profile'];
+const MAIN_HEADER_SCREENS = ['notification', 'help', 'TaskDetails', 'Profile', 'FieldWeb AI'];
 
 // Task, CRM and Employee all need the owner's id, which none of these
 // screens can look up on their own — they take it as a prop. `component=`
@@ -353,6 +353,8 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
                     ? 'Profile'
                   : currentRoute.name === 'help'
                     ? 'Help & Support'
+                    : currentRoute.name === 'FieldWeb AI'
+                    ? 'FieldWeb AI'
                     : currentRoute.name === 'TaskDetails'
                       ? (currentRoute.params as any)?.headerTitle ?? 'Tasks'
                       : getAdminTabTitle(currentRoute.name as keyof AdminTabParamList);
@@ -373,11 +375,14 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
                   }
                 />
               )}
-              <BottomTabBar
-                {...props}
-                visibleTabs={MAIN_TABS}
-                quickActions={quickActions}
-              />
+              {/* Java hides the bottom navigation on the AI chat. */}
+              {currentRoute.name !== 'FieldWeb AI' && (
+                <BottomTabBar
+                  {...props}
+                  visibleTabs={MAIN_TABS}
+                  quickActions={quickActions}
+                />
+              )}
             </>
           );
         }}
