@@ -22,6 +22,8 @@ import {
   View,
 } from 'react-native';
 import Modal from '../../components/AppModal';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {OutlinedInput} from '../../components/OutlinedInput';
 import {launchImageLibrary, type Asset} from 'react-native-image-picker';
 import {COLORS} from '../../theme/theme';
 import {ms, scale, sp, vs} from '../../utils/responsive';
@@ -171,60 +173,74 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
     }
   };
 
+  // dialog_add_category.xml / dialog_add_sub_category.xml: 25dp-corner card, dark gradient_addtask
+  // header (22sp white title + close), outlined name pill, 100dp "Add/Capture Image" box, 100dp
+  // description pill, dark Add/Update pill and a red Cancel.
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable style={styles.backdropPress} onPress={onClose} />
         <View style={styles.sheet}>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.title}>{isEditing ? `Edit ${title}` : `Add ${title}`}</Text>
-
-            <Text style={styles.label}>{kind === 'category' ? 'Category Name *' : 'SUB Category Name *'}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={t('name')}
-              placeholderTextColor={COLORS.textMuted}
-              value={name}
-              onChangeText={setName}
-            />
-
-            <Pressable style={styles.imagePicker} onPress={showImagePickerOptions}>
-              {image ? (
-                <Image source={{uri: image.uri}} style={styles.imagePreview} />
-              ) : editing?.image ? (
-                <Image source={{uri: editing.image}} style={styles.imagePreview} />
-              ) : (
-                <Text style={styles.imagePickerText}>+ Add Photo</Text>
-              )}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>{kind === 'category' ? 'Service Category' : 'Service Sub Category'}</Text>
+            <Pressable onPress={onClose} hitSlop={12}>
+              <Ionicons name="close" size={ms(30)} color="#fff" />
             </Pressable>
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View style={styles.body}>
+              <OutlinedInput
+                style={styles.pill}
+                placeholder={kind === 'category' ? 'Category Name *' : 'SUB Category Name *'}
+                placeholderTextColor={COLORS.lightGray}
+                value={name}
+                maxLength={25}
+                onChangeText={setName}
+              />
 
-            <Text style={styles.label}>Service Description *</Text>
-            <TextInput
-              style={[styles.input, styles.multilineInput]}
-              placeholder={t('description')}
-              placeholderTextColor={COLORS.textMuted}
-              value={description}
-              onChangeText={setDescription}
-              multiline
-            />
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <View style={styles.buttonRow}>
-              <Pressable style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
+              <Pressable style={styles.imageBox} onPress={showImagePickerOptions}>
+                {image ? (
+                  <Image source={{uri: image.uri}} style={styles.imagePreview} resizeMode="cover" />
+                ) : editing?.image ? (
+                  <Image source={{uri: editing.image}} style={styles.imagePreview} resizeMode="cover" />
+                ) : (
+                  <>
+                    <Ionicons name="image-outline" size={ms(34)} color={COLORS.lightGray} />
+                    <Text style={styles.imageHint}>Add/Capture Image</Text>
+                  </>
+                )}
               </Pressable>
+
+              <OutlinedInput
+                style={[styles.pill, styles.descPill]}
+                placeholder="Service Description *"
+                placeholderTextColor={COLORS.lightGray}
+                value={description}
+                maxLength={60}
+                onChangeText={setDescription}
+                multiline
+              />
+
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
               <Pressable
-                style={[styles.submitButton, (!isValid || submitting) && styles.submitButtonDisabled]}
-                onPress={handleSubmit}
-                disabled={!isValid || submitting}>
+                style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+                onPress={() => {
+                  if (!isValid) {
+                    setError('Please enter the name and description.');
+                    return;
+                  }
+                  handleSubmit();
+                }}
+                disabled={submitting}>
                 {submitting ? (
                   <ActivityIndicator color={COLORS.white} />
                 ) : (
-                  <Text style={styles.submitButtonText}>{t('save')}</Text>
+                  <Text style={styles.submitButtonText}>{(isEditing ? t('update') : t('add')).toUpperCase()}</Text>
                 )}
+              </Pressable>
+              <Pressable style={styles.cancelButton} onPress={onClose}>
+                <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -235,115 +251,75 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
+  backdrop: {flex: 1, justifyContent: 'flex-end'},
   backdropPress: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.36)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   sheet: {
     width: '100%',
     maxWidth: ms(560),
     alignSelf: 'center',
     backgroundColor: COLORS.white,
-    borderTopLeftRadius: ms(16),
-    borderTopRightRadius: ms(16),
-    paddingHorizontal: ms(22),
-    paddingTop: ms(20),
-    paddingBottom: ms(28),
-    maxHeight: '86%',
-  },
-  title: {
-    color: '#111827',
-    fontSize: sp(18),
-    fontWeight: '800',
-    marginBottom: vs(14),
-  },
-  imagePicker: {
-    width: ms(84),
-    height: ms(84),
-    borderRadius: ms(12),
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: vs(16),
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
     overflow: 'hidden',
+    maxHeight: '92%',
   },
-  imagePreview: {
-    width: '100%',
-    height: '100%',
-  },
-  imagePickerText: {
-    color: COLORS.primary,
-    fontSize: sp(12),
-    fontWeight: '600',
-    textAlign: 'center',
-    paddingHorizontal: scale(6),
-  },
-  label: {
-    color: '#6b7280',
-    fontSize: sp(13),
-    marginBottom: vs(6),
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: scale(10),
-    paddingHorizontal: scale(14),
-    paddingVertical: vs(10),
-    fontSize: sp(15),
-    color: '#111827',
-    marginBottom: vs(14),
-  },
-  multilineInput: {
-    minHeight: vs(70),
-    textAlignVertical: 'top',
-  },
-  errorText: {
-    color: '#DC2626',
-    fontSize: sp(13),
-    marginBottom: vs(10),
-  },
-  buttonRow: {
+  header: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: scale(12),
-    marginTop: vs(6),
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.statusOnHold,
+    height: ms(60),
+    paddingHorizontal: ms(20),
+    borderRadius: ms(20),
   },
-  cancelButton: {
-    paddingHorizontal: scale(18),
-    paddingVertical: vs(10),
+  headerTitle: {color: '#fff', fontSize: sp(21)},
+  body: {paddingHorizontal: ms(20), paddingTop: ms(20)},
+  pill: {
+    height: ms(50),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    fontSize: sp(16),
+    color: COLORS.ink,
+    backgroundColor: '#fff',
+    marginBottom: ms(20),
+  },
+  descPill: {height: ms(100), paddingTop: ms(14), textAlignVertical: 'top'},
+  imageBox: {
+    height: ms(100),
+    borderRadius: ms(20),
+    borderWidth: 1,
+    borderColor: '#d0d0d0',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    marginBottom: ms(20),
   },
-  cancelButtonText: {
-    color: '#6b7280',
-    fontSize: sp(15),
-    fontWeight: '700',
-  },
+  imagePreview: {width: '100%', height: '100%'},
+  imageHint: {color: COLORS.lightGray, fontSize: sp(16), marginTop: ms(2)},
+  errorText: {color: '#DC2626', fontSize: sp(13), marginBottom: ms(10), textAlign: 'center'},
   submitButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: scale(10),
-    paddingHorizontal: scale(24),
-    paddingVertical: vs(10),
+    height: ms(52),
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(34),
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: ms(90),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
   },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    color: COLORS.white,
-    fontSize: sp(15),
-    fontWeight: '700',
-  },
+  submitButtonDisabled: {opacity: 0.6},
+  submitButtonText: {color: '#fff', fontSize: sp(17)},
+  cancelButton: {alignItems: 'center', marginBottom: ms(24)},
+  cancelButtonText: {color: COLORS.primary, fontSize: sp(17)},
 });
 
 export default AddEditServiceGroupModal;

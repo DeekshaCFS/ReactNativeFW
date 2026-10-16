@@ -23,6 +23,8 @@ import {
   View,
 } from 'react-native';
 import Modal from '../../components/AppModal';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {OutlinedInput} from '../../components/OutlinedInput';
 import {launchImageLibrary, type Asset} from 'react-native-image-picker';
 import {COLORS} from '../../theme/theme';
 import {ms, scale, sp, vs} from '../../utils/responsive';
@@ -188,97 +190,117 @@ const AddEditServiceModal: React.FC<Props> = ({
     }
   };
 
+  // Add: dialog_add_service_sub_category.xml (dark gradient_addtask header "Add Service", 3 photo boxes).
+  // Edit: dialog_add_service.xml (centred 22sp "Edit Service" title with a close cross, no photos).
+  const fields = (
+    <View style={styles.body}>
+      <OutlinedInput
+        style={styles.pill}
+        placeholder="Service Name *"
+        placeholderTextColor={COLORS.lightGray}
+        value={name}
+        maxLength={25}
+        onChangeText={setName}
+      />
+
+      <View style={styles.pairRow}>
+        <DecimalInput
+          style={[styles.pill, styles.half]}
+          label="Service Price *"
+          placeholderTextColor={COLORS.lightGray}
+          value={price}
+          onChangeText={v => setPrice(sanitizeDecimalInput(v))}
+        />
+        <OutlinedInput
+          style={[styles.pill, styles.half]}
+          placeholder="SAC Code"
+          placeholderTextColor={COLORS.lightGray}
+          value={sacCode}
+          maxLength={10}
+          autoCapitalize="characters"
+          onChangeText={setSacCode}
+        />
+      </View>
+
+      <OutlinedInput
+        style={styles.pill}
+        placeholder="Service Contact Number"
+        placeholderTextColor={COLORS.lightGray}
+        value={contactNo}
+        onChangeText={v => setContactNo(v.replace(/[^0-9]/g, ''))}
+        keyboardType="number-pad"
+        maxLength={10}
+      />
+
+      {isEditing ? null : (
+        <View style={styles.photoRow}>
+          {images.map((img, slot) => (
+            <Pressable key={slot} style={styles.photoSlot} onPress={() => showImagePickerOptions(slot)}>
+              {img ? (
+                <Image source={{uri: img.uri}} style={styles.imagePreview} />
+              ) : (
+                <Ionicons name="camera-outline" size={ms(32)} color={COLORS.lightGray} />
+              )}
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      <OutlinedInput
+        style={[styles.pill, styles.descPill]}
+        placeholder="Service Description *"
+        placeholderTextColor={COLORS.lightGray}
+        value={description}
+        onChangeText={setDescription}
+        multiline
+      />
+
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+      <Pressable
+        style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+        onPress={() => {
+          if (!isValid) {
+            setError('Please enter the service name, price and description.');
+            return;
+          }
+          handleSubmit();
+        }}
+        disabled={submitting}>
+        {submitting ? (
+          <ActivityIndicator color={COLORS.white} />
+        ) : (
+          <Text style={styles.submitButtonText}>{(isEditing ? t('update') : t('add')).toUpperCase()}</Text>
+        )}
+      </Pressable>
+      <Pressable style={styles.cancelButton} onPress={onClose}>
+        <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
+      </Pressable>
+    </View>
+  );
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable style={styles.backdropPress} onPress={onClose} />
-        <View style={styles.sheet}>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.title}>{isEditing ? 'Edit Service' : 'Add Service'}</Text>
-
-            <Text style={styles.label}>Service Name *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={t('service_name_add_task')}
-              placeholderTextColor={COLORS.textMuted}
-              value={name}
-              onChangeText={setName}
-            />
-
-            <Text style={styles.label}>Service Price *</Text>
-            <DecimalInput
-              style={styles.input}
-              placeholderTextColor={COLORS.textMuted}
-              value={price}
-              onChangeText={t => setPrice(sanitizeDecimalInput(t))}
-            />
-
-            <Text style={styles.label}>SAC Code</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="SAC Code"
-              placeholderTextColor={COLORS.textMuted}
-              value={sacCode}
-              onChangeText={setSacCode}
-            />
-
-            <Text style={styles.label}>Service Contact Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Service Contact Number"
-              placeholderTextColor={COLORS.textMuted}
-              value={contactNo}
-              onChangeText={t => setContactNo(t.replace(/[^0-9]/g, ''))}
-              keyboardType="number-pad"
-              maxLength={10}
-            />
-
-            {isEditing ? null : (
-            <View style={styles.photoRow}>
-              {images.map((img, slot) => (
-                <Pressable
-                  key={slot}
-                  style={[styles.imagePicker, styles.photoSlot]}
-                  onPress={() => showImagePickerOptions(slot)}>
-                  {img ? (
-                    <Image source={{uri: img.uri}} style={styles.imagePreview} />
-                  ) : (
-                    <Text style={styles.imagePickerText}>+ Photo</Text>
-                  )}
-                </Pressable>
-              ))}
-            </View>
-            )}
-
-            <Text style={styles.label}>Service Description *</Text>
-            <TextInput
-              style={[styles.input, styles.multilineInput]}
-              placeholder="Service Description"
-              placeholderTextColor={COLORS.textMuted}
-              value={description}
-              onChangeText={setDescription}
-              multiline
-            />
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <View style={styles.buttonRow}>
-              <Pressable style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
+        <View style={[styles.sheet, isEditing && {borderTopLeftRadius: ms(30), borderTopRightRadius: ms(30)}]}>
+          {isEditing ? (
+            <View style={styles.editHeader}>
+              <Pressable style={styles.editClose} onPress={onClose} hitSlop={12}>
+                <Ionicons name="close" size={ms(30)} color={COLORS.primary} />
               </Pressable>
-              <Pressable
-                style={[styles.submitButton, (!isValid || submitting) && styles.submitButtonDisabled]}
-                onPress={handleSubmit}
-                disabled={!isValid || submitting}>
-                {submitting ? (
-                  <ActivityIndicator color={COLORS.white} />
-                ) : (
-                  <Text style={styles.submitButtonText}>{t('save')}</Text>
-                )}
+              <Text style={styles.editTitle}>Edit Service</Text>
+            </View>
+          ) : (
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>Add Service</Text>
+              <Pressable onPress={onClose} hitSlop={12}>
+                <Ionicons name="close" size={ms(30)} color="#fff" />
               </Pressable>
             </View>
+          )}
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {fields}
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -287,123 +309,80 @@ const AddEditServiceModal: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
+  backdrop: {flex: 1, justifyContent: 'flex-end'},
   backdropPress: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.36)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   sheet: {
     width: '100%',
     maxWidth: ms(560),
     alignSelf: 'center',
     backgroundColor: COLORS.white,
-    borderTopLeftRadius: ms(16),
-    borderTopRightRadius: ms(16),
-    paddingHorizontal: ms(22),
-    paddingTop: ms(20),
-    paddingBottom: ms(28),
-    maxHeight: '86%',
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
+    overflow: 'hidden',
+    maxHeight: '94%',
   },
-  title: {
-    color: '#111827',
-    fontSize: sp(18),
-    fontWeight: '800',
-    marginBottom: vs(14),
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.statusOnHold,
+    height: ms(60),
+    paddingHorizontal: ms(20),
+    borderRadius: ms(20),
   },
-  imagePicker: {
-    width: ms(84),
-    height: ms(84),
-    borderRadius: ms(12),
-    backgroundColor: '#f3f4f6',
+  headerTitle: {color: '#fff', fontSize: sp(21)},
+  editHeader: {height: ms(60), justifyContent: 'center', alignItems: 'center'},
+  editClose: {position: 'absolute', right: ms(12), top: ms(8)},
+  editTitle: {color: COLORS.ink, fontSize: sp(21), marginTop: ms(6)},
+  body: {paddingHorizontal: ms(20), paddingTop: ms(20)},
+  pill: {
+    height: ms(50),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    fontSize: sp(16),
+    color: COLORS.ink,
+    backgroundColor: '#fff',
+    marginBottom: ms(18),
+  },
+  pairRow: {flexDirection: 'row', gap: ms(10)},
+  half: {flex: 1},
+  descPill: {height: ms(100), paddingTop: ms(14), textAlignVertical: 'top'},
+  photoRow: {flexDirection: 'row', gap: ms(20), marginTop: ms(2), marginBottom: ms(20)},
+  photoSlot: {
+    flex: 1,
+    height: ms(100),
+    borderRadius: ms(20),
+    borderWidth: 1,
+    borderColor: '#d0d0d0',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: vs(16),
     overflow: 'hidden',
   },
-  photoRow: {
-    flexDirection: 'row',
-    gap: ms(10),
-  },
-  photoSlot: {
-    width: ms(76),
-    height: ms(76),
-  },
-  imagePreview: {
-    width: '100%',
-    height: '100%',
-  },
-  imagePickerText: {
-    color: COLORS.primary,
-    fontSize: sp(12),
-    fontWeight: '600',
-    textAlign: 'center',
-    paddingHorizontal: scale(6),
-  },
-  label: {
-    color: '#6b7280',
-    fontSize: sp(13),
-    marginBottom: vs(6),
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: scale(10),
-    paddingHorizontal: scale(14),
-    paddingVertical: vs(10),
-    fontSize: sp(15),
-    color: '#111827',
-    marginBottom: vs(14),
-  },
-  multilineInput: {
-    minHeight: vs(70),
-    textAlignVertical: 'top',
-  },
-  errorText: {
-    color: '#DC2626',
-    fontSize: sp(13),
-    marginBottom: vs(10),
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: scale(12),
-    marginTop: vs(6),
-  },
-  cancelButton: {
-    paddingHorizontal: scale(18),
-    paddingVertical: vs(10),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButtonText: {
-    color: '#6b7280',
-    fontSize: sp(15),
-    fontWeight: '700',
-  },
+  imagePreview: {width: '100%', height: '100%'},
+  errorText: {color: '#DC2626', fontSize: sp(13), marginBottom: ms(10), textAlign: 'center'},
   submitButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: scale(10),
-    paddingHorizontal: scale(24),
-    paddingVertical: vs(10),
+    height: ms(52),
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(34),
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: ms(90),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
   },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    color: COLORS.white,
-    fontSize: sp(15),
-    fontWeight: '700',
-  },
+  submitButtonDisabled: {opacity: 0.6},
+  submitButtonText: {color: '#fff', fontSize: sp(17)},
+  cancelButton: {alignItems: 'center', marginBottom: ms(24)},
+  cancelButtonText: {color: COLORS.primary, fontSize: sp(17)},
 });
 
 export default AddEditServiceModal;
