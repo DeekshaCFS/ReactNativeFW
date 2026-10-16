@@ -7,7 +7,8 @@
 // SettingsScreenBase.tsx for the shared layout/styling.
 
 import {useState} from 'react';
-import {Share} from 'react-native';
+import {Share, DeviceEventEmitter} from 'react-native';
+import {useTour, type TourStep} from '../../tour/TourContext';
 import {useNavigation} from '@react-navigation/native';
 import {useTranslation} from 'react-i18next';
 import {AppTourIcon, RateUsIcon, ShareFeedbackIcon, LanguageIcon2, InviteFriendIcon, TermsIcon, PrivacyIcon, RefundIcon, AboutUsIcon, AccountsRowIcon} from '../../components/SettingsIcons';
@@ -17,7 +18,36 @@ import LanguagePickerModal from '../../components/LanguagePickerModal';
 import RateUsModal from '../../components/RateUsModal';
 import {setAppLanguage, type LanguageCode} from '../../i18n';
 
+// Java HomeActivityNew.AppGuideForOwner_Skippable + OwnerDashboardFragment.OwnerAppTour_Skippable:
+// + button, its first sheet row, Task tab, CRM tab, Employee tab, header menu, help icon, then
+// the profile-completion card.
+const ADMIN_APP_TOUR_STEPS: TourStep[] = [
+  // Java OwnerAppTour: spotlight on +, tapping it opens the options sheet and spotlights its first row.
+  {
+    key: 'fab',
+    titleKey: 'add_tech_create_task',
+    descriptionKey: 'add_tech_create_task_desc',
+    radius: 62,
+    onExit: () => DeviceEventEmitter.emit('openFabSheet'),
+  },
+  {
+    key: 'fabFirstRow',
+    titleKey: 'title_add_tech',
+    descriptionKey: 'title_add_tech',
+    radius: 62,
+    delayMs: 450,
+    onExit: () => DeviceEventEmitter.emit('closeFabSheet'),
+  },
+  {key: 'taskTab', titleKey: 'app_tour_manage_task_title_owner', descriptionKey: 'app_tour_manage_task_desc_owner'},
+  {key: 'crmTab', titleKey: 'manage_crm', descriptionKey: 'crm_desc'},
+  {key: 'employeeTab', titleKey: 'manage_amc', descriptionKey: 'manage_amc_desc'},
+  {key: 'headerMenu', titleKey: 'manage_expense_assigned_items', descriptionKey: 'manage_expense_assigned_items_desc'},
+  {key: 'headerHelp', titleKey: 'help_and_support_tour', descriptionKey: 'help_and_support_tour', radius: 30},
+  {key: 'profileCompletion', titleKey: 'profile', descriptionKey: 'complete_ur_profile', fixed: {x: 0.2, y: 0.158}, textPosition: 'below'},
+];
+
 export default function AdminSettingScreen() {
+  const {startTour} = useTour();
   const navigation = useNavigation<any>();
   const {t, i18n} = useTranslation();
   const [langModalVisible, setLangModalVisible] = useState(false);
@@ -31,9 +61,11 @@ export default function AdminSettingScreen() {
   // thefieldweb.com/contact (not a mailto link).
   const handleFeedback = () => navigation.navigate('Feedback');
 
-  // Java: cardView_AppTour navigates back to the dashboard (and would kick
-  // off a TapTarget tour there, which isn't ported). Match the navigation.
-  const handleAppTour = () => navigation.navigate('Home');
+  // Java: cardView_AppTour -> dashboard, then the TapTargetSequence above.
+  const handleAppTour = () => {
+    navigation.navigate('Home');
+    startTour(ADMIN_APP_TOUR_STEPS);
+  };
 
   const handleSelectLanguage = (code: LanguageCode) => {
     setAppLanguage(code);

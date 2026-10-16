@@ -127,13 +127,13 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             </Pressable>
           )}
 
-          <Pressable
-            onPress={() => navigation.navigate('help')}
-            hitSlop={10}
-            style={styles.iconBtn}
-          >
-            <Ionicons name="headset-outline" size={ms(22)} color="#fff" />
-          </Pressable>
+          <TourTarget tourKey="headerHelp">
+            <Pressable onPress={() => navigation.navigate('help')} hitSlop={10} style={styles.iconBtn}>
+              <Ionicons name="headset-outline" size={ms(22)} color="#fff" />
+            </Pressable>
+
+
+          </TourTarget>
 
           <Pressable
             onPress={() => navigation.navigate('notification')}

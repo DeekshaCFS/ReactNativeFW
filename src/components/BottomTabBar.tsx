@@ -1,7 +1,7 @@
 // src/components/BottomTabBar.tsx
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Keyboard } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Keyboard, DeviceEventEmitter } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/theme';
@@ -45,6 +45,15 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
   useTranslation();
   const [fabOpen, setFabOpen] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  // App Tour: tapping the + spotlight opens the sheet, finishing the row step closes it.
+  useEffect(() => {
+    const open = DeviceEventEmitter.addListener('openFabSheet', () => setFabOpen(true));
+    const close = DeviceEventEmitter.addListener('closeFabSheet', () => setFabOpen(false));
+    return () => {
+      open.remove();
+      close.remove();
+    };
+  }, []);
   const insets = useSafeAreaInsets();
 
   // The activity uses adjustResize, so the window shrinks above the keyboard and
@@ -104,11 +113,11 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
         </Text>
       </Pressable>
     );
-    // Only the technician's on-demand App Tour targets this tab; wrapping it
-    // unconditionally is harmless since TourTarget is inert without an
-    // active tour.
-    return name === 'Task' ? (
-      <TourTarget key={name} tourKey="taskTab" style={styles.item}>
+    // On-demand App Tours (Java TapTargetSequence) spotlight these tabs; wrapping is inert
+    // without an active tour.
+    const tourKey = name === 'Task' ? 'taskTab' : name === 'CRM' ? 'crmTab' : name === 'Employee' ? 'employeeTab' : null;
+    return tourKey ? (
+      <TourTarget key={name} tourKey={tourKey} style={styles.item}>
         {button}
       </TourTarget>
     ) : (
@@ -149,20 +158,29 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
             <Ionicons name="close" size={scale(30)} color={COLORS.primary} />
           </Pressable>
 
-          {quickActions.map((action, i) => (
-            <Pressable
-              key={action.route ?? action.label}
-              style={[styles.sheetItem, i === quickActions.length - 1 && { marginBottom: scale(14) }]}
-              onPress={() => navigateFromFab(action)}
-            >
-              {isFabIcon(action.icon) ? (
-                <FabIcon name={action.icon} size={scale(30)} />
-              ) : (
-                <Ionicons name={action.icon} size={scale(28)} color={COLORS.primary} />
-              )}
-              <Text style={styles.sheetText}>{action.label}</Text>
-            </Pressable>
-          ))}
+          {quickActions.map((action, i) => {
+            const row = (
+              <Pressable
+                key={i === 0 ? undefined : action.route ?? action.label}
+                style={[styles.sheetItem, i === quickActions.length - 1 && { marginBottom: scale(14) }]}
+                onPress={() => navigateFromFab(action)}
+              >
+                {isFabIcon(action.icon) ? (
+                  <FabIcon name={action.icon} size={scale(30)} />
+                ) : (
+                  <Ionicons name={action.icon} size={scale(28)} color={COLORS.primary} />
+                )}
+                <Text style={styles.sheetText}>{action.label}</Text>
+              </Pressable>
+            );
+            return i === 0 ? (
+              <TourTarget key={action.route ?? action.label} tourKey="fabFirstRow">
+                {row}
+              </TourTarget>
+            ) : (
+              row
+            );
+          })}
         </View>
       )}
 
@@ -183,9 +201,11 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
             accessibilityRole="button"
             accessibilityLabel="Quick actions"
           >
-            <View style={[styles.fab, { width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2 }]}>
-              <Ionicons name="add" size={scale(26)} color="#fff" />
-            </View>
+            <TourTarget tourKey="fab">
+              <View style={[styles.fab, { width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2 }]}>
+                <Ionicons name="add" size={scale(26)} color="#fff" />
+              </View>
+            </TourTarget>
           </Pressable>
         )}
 

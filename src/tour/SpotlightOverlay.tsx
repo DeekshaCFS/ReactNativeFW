@@ -1,21 +1,22 @@
 // src/tour/SpotlightOverlay.tsx
 //
-// RN equivalent of Android's TapTargetView: a dimmed full-screen layer with
-// a circular cutout around the active tour step's target, a title +
-// description bubble next to it, and tap-to-advance on the circle itself
-// (Java's TapTargetSequence with cancelable(false) -- tapping outside the
-// spotlighted circle does nothing, matching that here too).
+// RN equivalent of Android's TapTargetView (Java: TapTargetSequence with
+// drawShadow/cancelable(false)/transparentTarget(true)/outerCircleColor(transperant_black)):
+//   - the page is dimmed lightly,
+//   - a large dark "outer circle" centred on the target holds the title/description,
+//   - the target itself is a hole (radius 50dp, 30dp for toolbar icons) showing the real UI,
+//   - tapping the target advances; tapping elsewhere does nothing.
 //
-// Mounted once at the app root (see App.tsx) so it can float above
-// navigation, headers and the tab bar regardless of which screen a step's
-// target lives on.
+// Mounted once at the app root (see App.tsx) so it floats above navigation, headers and tab bar.
 
 import {useWindowDimensions, View, Text, Pressable, StyleSheet} from 'react-native';
 import {useTranslation} from 'react-i18next';
 import Svg, {Mask, Rect, Circle} from 'react-native-svg';
-import {COLORS} from '../theme/theme';
 import {ms, sp} from '../utils/responsive';
 import {useTour} from './TourContext';
+
+const OUTER_COLOR = '#3d3b3d';
+const TEXT_SIDE_MARGIN = 40;
 
 export default function SpotlightOverlay() {
   const {activeStep, activeMeasurement, advance} = useTour();
@@ -26,45 +27,60 @@ export default function SpotlightOverlay() {
 
   const cx = activeMeasurement.x + activeMeasurement.width / 2;
   const cy = activeMeasurement.y + activeMeasurement.height / 2;
-  const radius = Math.max(activeMeasurement.width, activeMeasurement.height) / 2 + ms(16);
+  const hole = ms(activeStep.radius ?? 50);
 
-  const tooltipBelow = cy < screenH / 2;
-  const tooltipStyle = tooltipBelow
-    ? {top: Math.min(cy + radius + ms(16), screenH - ms(160))}
-    : {bottom: Math.min(screenH - (cy - radius) + ms(16), screenH - ms(160))};
+  // Text sits above the target when the target is in the lower half (Java's rule), else below.
+  const above = activeStep.textPosition ? activeStep.textPosition === 'above' : cy > screenH / 2;
+  // Targets on the right push the text block in from the left like TapTargetView does.
+  const textW = Math.min(ms(285), screenW - ms(2 * TEXT_SIDE_MARGIN));
+  const left = cx > screenW * 0.7 ? screenW - textW - ms(26) : ms(TEXT_SIDE_MARGIN);
+  const right = screenW - left - textW;
+  // Estimate the wrapped text block height (title 20sp / description 16sp) to place it and size the circle.
+  const titleLines = Math.ceil((t(activeStep.titleKey).length * sp(22) * 0.58) / textW);
+  const descLines = Math.ceil((t(activeStep.descriptionKey).length * sp(17) * 0.5) / textW);
+  const textH = titleLines * sp(27) + ms(8) + descLines * sp(24);
+  const gap = ms(24);
+  const rawTop = above ? cy - hole - gap - textH : cy + hole + gap;
+  const textTop = Math.max(rawTop, ms(60));
+
+  // Outer circle: centred on the target, large enough to reach the far corner of the text block.
+  const corners = [
+    [left, textTop],
+    [screenW - right, textTop],
+    [left, textTop + textH],
+    [screenW - right, textTop + textH],
+  ];
+  const far = Math.max(...corners.map(([x, y]) => Math.hypot(x - cx, y - cy)));
+  const outer = Math.max(far, hole * 3) + ms(50);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="auto">
       <Svg style={StyleSheet.absoluteFill}>
         <Mask id="spotlight-mask">
           <Rect x={0} y={0} width={screenW} height={screenH} fill="#fff" />
-          <Circle cx={cx} cy={cy} r={radius} fill="#000" />
+          <Circle cx={cx} cy={cy} r={hole} fill="#000" />
         </Mask>
-        <Rect
-          x={0}
-          y={0}
-          width={screenW}
-          height={screenH}
-          fill="rgba(0, 0, 0, 0.65)"
-          mask="url(#spotlight-mask)"
-        />
-        <Circle cx={cx} cy={cy} r={radius} stroke={'#252525'} strokeWidth={20} fill="none" />
+        <Rect x={0} y={0} width={screenW} height={screenH} fill="rgba(0,0,0,0.3)" mask="url(#spotlight-mask)" />
+        <Circle cx={cx} cy={cy} r={outer} fill={OUTER_COLOR} fillOpacity={0.98} mask="url(#spotlight-mask)" />
       </Svg>
 
-      {/* Tap the spotlighted circle to advance -- matches Java's cancelable(false) sequence. */}
+      {/* Tap the spotlighted target to advance (cancelable(false)). */}
       <Pressable
         onPress={advance}
         style={{
           position: 'absolute',
-          left: cx - radius,
-          top: cy - radius,
-          width: radius * 2,
-          height: radius * 2,
-          borderRadius: radius,
+          left: cx - hole,
+          top: cy - hole,
+          width: hole * 2,
+          height: hole * 2,
+          borderRadius: hole,
         }}
       />
 
-      <View style={[styles.tooltip, {left: ms(24), right: ms(24)}, tooltipStyle]}>
+      <View
+        pointerEvents="none"
+        style={[styles.text, {left, right, top: textTop}, above && {justifyContent: 'flex-end', height: textH}]}
+      >
         <Text style={styles.title}>{t(activeStep.titleKey)}</Text>
         <Text style={styles.description}>{t(activeStep.descriptionKey)}</Text>
       </View>
@@ -73,19 +89,7 @@ export default function SpotlightOverlay() {
 }
 
 const styles = StyleSheet.create({
-  tooltip: {
-    position: 'absolute',
-    padding: ms(20),
-  },
-  title: {
-    fontSize: sp(20),
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: ms(6),
-  },
-  description: {
-    fontSize: sp(17),
-    color: '#bbbbbb',
-    lineHeight: sp(20),
-  },
+  text: {position: 'absolute'},
+  title: {fontSize: sp(22), fontWeight: '700', color: '#fff', marginBottom: ms(8)},
+  description: {fontSize: sp(17), color: '#e6e6e6', lineHeight: sp(24)},
 });

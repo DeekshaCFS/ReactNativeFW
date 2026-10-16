@@ -38,6 +38,8 @@ import type {
 } from '../../api/users/users.types';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
+import TabStrip from '../../components/TabStrip';
+import {OutlinedInput} from '../../components/OutlinedInput';
 
 import {useTranslation} from 'react-i18next';
 type Props = {
@@ -264,78 +266,83 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.tabRow}>
-        <Pressable
-          style={[styles.tabButton, activeTab === 'bank' && styles.tabActive]}
-          onPress={() => setActiveTab('bank')}>
-          <Text style={[styles.tabButtonText, activeTab === 'bank' && styles.tabButtonTextActive]}>
-            Bank Details
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tabButton, activeTab === 'tax' && styles.tabActive]}
-          onPress={() => setActiveTab('tax')}>
-          <Text style={[styles.tabButtonText, activeTab === 'tax' && styles.tabButtonTextActive]}>
-            Tax Details
-          </Text>
-        </Pressable>
-      </View>
+      <TabStrip
+        tabs={[
+          {key: 'bank', label: 'BANK DETAILS'},
+          {key: 'tax', label: 'TAX DETAILS'},
+        ]}
+        active={activeTab}
+        onChange={k => setActiveTab(k as 'bank' | 'tax')}
+      />
 
       {activeTab === 'bank' ? (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Order follows fragment_bankdetails.xml: header, fields, then the QR image. */}
-          <Text style={styles.label}>Bank Account Details</Text>
+          {/* fragment_bankdetails.xml: centred 20sp heading, first three fields in the left half
+              with the QR image on the right, then full-width fields. */}
+          <Text style={styles.heading}>Bank Account Details</Text>
+          <View style={styles.topRow}>
+            <View style={styles.leftCol}>
+              {(
+                [
+                  ['Bank Name', 'BankName'],
+                  ['IFSC/Swift', 'IFSC_Code'],
+                  ['Account Number', 'AccountNumber'],
+                ] as const
+              ).map(([label, field]) => (
+                <OutlinedInput
+                  key={field}
+                  style={styles.pill}
+                  placeholder={label}
+                  placeholderTextColor={COLORS.lightGray}
+                  value={bankFields[field]}
+                  onChangeText={v => setBankFields(f => ({...f, [field]: v}))}
+                  autoCapitalize={field === 'IFSC_Code' ? 'characters' : 'sentences'}
+                  keyboardType={field === 'AccountNumber' ? 'number-pad' : 'default'}
+                />
+              ))}
+            </View>
+            <Pressable style={styles.qrBox} onPress={showImagePickerOptions}>
+              {pickedQrImage ? (
+                <Image source={{uri: pickedQrImage.uri}} style={styles.qrPreview} resizeMode="contain" />
+              ) : existingQrImage ? (
+                <Image source={{uri: existingQrImage}} style={styles.qrPreview} resizeMode="contain" />
+              ) : (
+                <Image source={require('../../../assets/images/profile_icon.png')} style={styles.qrPreview} resizeMode="contain" />
+              )}
+            </Pressable>
+          </View>
+
+          <Pressable onPress={() => setPlaceSearchOpen(true)}>
+            <View pointerEvents="none">
+              <OutlinedInput
+                style={styles.pill}
+                placeholder="Branch Address"
+                placeholderTextColor={COLORS.lightGray}
+                value={bankFields.BranchAddress}
+                editable={false}
+              />
+            </View>
+          </Pressable>
           {(
             [
-              ['Bank Name', 'BankName'],
-              ['IFSC/Swift', 'IFSC_Code'],
-              ['Account Number', 'AccountNumber'],
-              ['Branch Address', 'BranchAddress'],
               ['UPI ID', 'UPI_Id'],
               ['Payment Link', 'PaymentLink'],
             ] as const
           ).map(([label, field]) => (
-            <View key={field}>
-              <Text style={styles.label}>{label}</Text>
-              {field === 'BranchAddress' ? (
-                // tapping the branch address opens the Google Places search
-                <Pressable onPress={() => setPlaceSearchOpen(true)}>
-                  <View pointerEvents="none">
-                    <TextInput
-                      style={styles.input}
-                      placeholder={label}
-                      placeholderTextColor={COLORS.textMuted}
-                      value={bankFields[field]}
-                      editable={false}
-                    />
-                  </View>
-                </Pressable>
-              ) : (
-                <TextInput
-                  style={styles.input}
-                  placeholder={label}
-                  placeholderTextColor={COLORS.textMuted}
-                  value={bankFields[field]}
-                  onChangeText={t => setBankFields(f => ({...f, [field]: t}))}
-                  autoCapitalize={field === 'IFSC_Code' ? 'characters' : 'sentences'}
-                />
-              )}
-            </View>
+            <OutlinedInput
+              key={field}
+              style={styles.pill}
+              placeholder={label}
+              placeholderTextColor={COLORS.lightGray}
+              value={bankFields[field]}
+              onChangeText={v => setBankFields(f => ({...f, [field]: v}))}
+              autoCapitalize="none"
+            />
           ))}
 
-          <Pressable style={styles.qrPicker} onPress={showImagePickerOptions}>
-            {pickedQrImage ? (
-              <Image source={{uri: pickedQrImage.uri}} style={styles.qrPreview} />
-            ) : existingQrImage ? (
-              <Image source={{uri: existingQrImage}} style={styles.qrPreview} />
-            ) : (
-              <Text style={styles.qrPickerText}>+ Add QR Code</Text>
-            )}
-          </Pressable>
-
-          <View style={styles.buttonRow}>
+          <View style={styles.buttonCol}>
             <Pressable style={styles.payButton} onPress={handlePay}>
-              <Text style={styles.payButtonText}>Pay</Text>
+              <Text style={styles.payButtonText}>PAY</Text>
             </Pressable>
             <Pressable
               style={[styles.saveButton, savingBank && styles.saveButtonDisabled]}
@@ -351,19 +358,20 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <Text style={styles.heading}>Tax Details</Text>
           {taxRows.map((row, index) => (
             <View key={index} style={styles.taxRow}>
-              <TextInput
-                style={[styles.input, styles.taxNameInput]}
+              <OutlinedInput
+                style={[styles.pill, styles.taxNameInput]}
                 placeholder="Tax Name"
-                placeholderTextColor={COLORS.textMuted}
+                placeholderTextColor={COLORS.lightGray}
                 value={row.TaxName}
                 onChangeText={t => updateTaxRow(index, 'TaxName', t)}
               />
               <DecimalInput
-                style={[styles.input, styles.taxPercentInput]}
-                label="%"
-                placeholderTextColor={COLORS.textMuted}
+                style={[styles.pill, styles.taxPercentInput]}
+                label="Percent %"
+                placeholderTextColor={COLORS.lightGray}
                 value={row.TaxPercentage}
                 onChangeText={t => updateTaxRow(index, 'TaxPercentage', sanitizeDecimalInput(t))}
               />
@@ -411,6 +419,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
 };
 
 const THEME_PRIMARY = '#c3002f';
+const BORDER = '#8d8d8d';
 
 const styles = StyleSheet.create({
   root: {
@@ -446,9 +455,29 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
   content: {
-    padding: ms(16),
+    padding: ms(20),
     paddingBottom: vs(40),
   },
+  heading: {
+    textAlign: 'center',
+    fontSize: sp(20),
+    color: COLORS.ink,
+    marginBottom: ms(25),
+  },
+  pill: {
+    height: ms(50),
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: ms(25),
+    paddingHorizontal: ms(18),
+    fontSize: sp(16),
+    color: COLORS.ink,
+    marginBottom: ms(20),
+  },
+  topRow: {flexDirection: 'row', gap: ms(14)},
+  leftCol: {width: '52%'},
+  qrBox: {flex: 1, height: ms(170), alignItems: 'center', justifyContent: 'flex-start'},
+  buttonCol: {marginTop: ms(10), gap: ms(30)},
   qrPicker: {
     width: ms(110),
     height: ms(110),
@@ -492,26 +521,21 @@ const styles = StyleSheet.create({
     marginTop: vs(6),
   },
   payButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: THEME_PRIMARY,
-    borderRadius: scale(10),
-    paddingVertical: vs(12),
+    height: ms(50),
+    backgroundColor: '#353935',
+    borderRadius: ms(25),
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 3,
   },
-  payButtonText: {
-    color: THEME_PRIMARY,
-    fontSize: sp(15),
-    fontWeight: '700',
-  },
+  payButtonText: {color: '#fff', fontSize: sp(18)},
   saveButton: {
-    flex: 1,
+    height: ms(50),
     backgroundColor: THEME_PRIMARY,
-    borderRadius: scale(10),
-    paddingVertical: vs(12),
+    borderRadius: ms(25),
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 3,
   },
   fullWidthSaveButton: {
     marginTop: vs(10),
@@ -519,11 +543,7 @@ const styles = StyleSheet.create({
   saveButtonDisabled: {
     opacity: 0.5,
   },
-  saveButtonText: {
-    color: COLORS.white,
-    fontSize: sp(15),
-    fontWeight: '700',
-  },
+  saveButtonText: {color: '#fff', fontSize: sp(18)},
   taxRow: {
     flexDirection: 'row',
     alignItems: 'center',

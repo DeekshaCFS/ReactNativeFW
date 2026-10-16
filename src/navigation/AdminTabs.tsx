@@ -229,7 +229,7 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
       ...STATIC_PUSHED_SCREENS,
       {
         name: 'BankDetailsTax',
-        title: 'Bank Details & Tax',
+        title: 'Tax Details',
         component: unmountOnBlur(() => (
           <BankDetailsTaxScreen ownerId={ownerId as number} />
         )),

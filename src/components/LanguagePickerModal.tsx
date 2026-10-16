@@ -37,7 +37,7 @@ export default function LanguagePickerModal({visible, selected, onSelect, onCanc
               >
                 <Text style={styles.rowText}>{lang.label}</Text>
                 {lang.code === selected && (
-                  <Ionicons name="checkmark" size={scale22} color={COLORS.primary} />
+                  <Ionicons name="checkmark" size={scale22} color={COLORS.ink} />
                 )}
               </Pressable>
             ))}
@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: sp(20),
-    color: '#000',
+    color: COLORS.ink,
     paddingLeft: ms(10),
     paddingTop: ms(5),
     marginBottom: ms(10),
@@ -89,14 +89,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: ms(10),
-    paddingVertical: ms(10),
+    paddingVertical: ms(9),
   },
   rowPressed: {
     backgroundColor: '#FFE5EA',
   },
   rowText: {
     fontSize: sp(20),
-    color: '#000',
+    color: COLORS.ink,
   },
   cancelButton: {
     alignSelf: 'center',
