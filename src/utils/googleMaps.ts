@@ -92,10 +92,66 @@ export type GoogleRoute = {
   durationText: string;
 };
 
+const ROUTES = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+
+// Google's legacy Directions API (what the Java app calls) is not enabled for projects created
+// recently -- it answers REQUEST_DENIED -- so the Routes API is tried first. Same Google road
+// network and the same leg numbers; English + metric keep the text in Java's "15.3 km" /
+// "23 mins" style whatever the device language is.
+async function routesApiDirections(from: LatLng, to: LatLng): Promise<GoogleRoute | null> {
+  if (!PLACES_API_KEY) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(ROUTES, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': PLACES_API_KEY,
+        'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.localizedValues,routes.polyline.encodedPolyline',
+        ...googleApiHeaders(),
+      },
+      body: JSON.stringify({
+        origin: { location: { latLng: { latitude: from.latitude, longitude: from.longitude } } },
+        destination: { location: { latLng: { latitude: to.latitude, longitude: to.longitude } } },
+        travelMode: 'DRIVE',
+        routingPreference: 'TRAFFIC_UNAWARE',
+        languageCode: 'en-US',
+        units: 'METRIC',
+      }),
+      signal: controller.signal,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      console.warn('Google routes:', data?.error?.status, data?.error?.message ?? '');
+      return null;
+    }
+    const route = data?.routes?.[0];
+    const encoded = route?.polyline?.encodedPolyline;
+    if (!route || !encoded) return null;
+    const seconds = parseInt(String(route.duration ?? '0').replace('s', ''), 10) || 0;
+    const distanceKm = (route.distanceMeters ?? 0) / 1000;
+    return {
+      coordinates: decodePolyline(encoded),
+      distanceKm,
+      durationMin: seconds / 60,
+      distanceText: route.localizedValues?.distance?.text ?? `${distanceKm.toFixed(1)} km`,
+      durationText: route.localizedValues?.duration?.text ?? 'NA',
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function googleDirections(from: LatLng, to: LatLng): Promise<GoogleRoute | null> {
+  const viaRoutesApi = await routesApiDirections(from, to);
+  if (viaRoutesApi) return viaRoutesApi;
+
   if (!PLACES_API_KEY) return null;
   const data = await getJson(
-    `${DIRECTIONS}?origin=${from.latitude},${from.longitude}&destination=${to.latitude},${to.longitude}&mode=driving&key=${PLACES_API_KEY}`,
+    `${DIRECTIONS}?origin=${from.latitude},${from.longitude}&destination=${to.latitude},${to.longitude}&mode=driving&language=en&key=${PLACES_API_KEY}`,
   );
   if (!statusOk('Google directions', data)) return null;
   const route = data.routes?.[0];

@@ -43,6 +43,7 @@ export type TechnicianStackParamList = {
   RefundPolicy: undefined;
   AboutFieldweb: undefined;
   TaskRouteMap: { task: any };
+  TodayTasksMap: undefined;
   TaskExecution: { task: any };
   TaskTracking: { task: any; autoReject?: boolean; resumeOnHold?: boolean };
   PaymentReceived: { task: any; elapsedSeconds?: number };

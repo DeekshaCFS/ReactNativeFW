@@ -19,6 +19,7 @@ import PassbookScreen from '../screens/technician/main/PassbookScreen';
 
 import TaskTrackingScreen from '../screens/technician/main/TaskTrackingScreen';
 import TaskExecutionScreen from '../screens/technician/main/TaskExecutionScreen';
+import TodayTasksMapScreen from '../screens/technician/main/TodayTasksMapScreen';
 import TaskRouteMapScreen from '../screens/technician/main/TaskRouteMapScreen';
 import TaskClosureScreen from '../screens/technician/main/TaskClosureScreen';
 import TaskSummaryScreen from '../screens/technician/main/TaskSummaryScreen';
@@ -70,6 +71,7 @@ const PUSHED_SCREENS: {
   initialParams?: object;
 }[] = [
   { name: 'TaskRouteMap', component: unmountOnBlur(TaskRouteMapScreen), title: 'Route' },
+  { name: 'TodayTasksMap', component: unmountOnBlur(TodayTasksMapScreen), title: 'Track Task' },
   { name: 'TaskExecution', component: unmountOnBlur(TaskExecutionScreen), title: 'Task' },
   { name: 'TaskTracking', component: unmountOnBlur(TaskTrackingScreen), title: 'Tasks' },
   { name: 'TaskClosure', component: unmountOnBlur(TaskClosureScreen, ['TaskInput', 'ItemRequest', 'QRScanHistory', 'TaskSummary']), title: 'Task Details' },

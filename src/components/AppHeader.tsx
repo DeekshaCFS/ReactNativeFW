@@ -122,7 +122,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         {/* RIGHT */}
         <View style={styles.headerIcons}>
           {isAdmin ? null : (
-            <Pressable hitSlop={10} style={styles.iconBtn}>
+            <Pressable onPress={() => navigation.navigate('TodayTasksMap')} hitSlop={10} style={styles.iconBtn}>
               <Ionicons name="location-outline" size={ms(22)} color="#fff" />
             </Pressable>
           )}
