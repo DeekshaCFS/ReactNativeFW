@@ -217,7 +217,9 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
   const grossTotal = (taskAmount ?? 0) + itemsTotal + servicesTotal;
   const discountAmount = Math.max(Number(discount) || 0, 0);
   // The total shown (and the ceiling for the received amount) is the amount after the discount.
-  const grandTotal = Math.max(grossTotal - discountAmount, 0);
+  // Java works from a %.3f string, so round to 3 decimals to avoid float noise (0.1 + 0.2) in the checks.
+  const round3 = (n: number) => Math.round(n * 1000) / 1000;
+  const grandTotal = round3(Math.max(grossTotal - discountAmount, 0));
 
   // ── Adjustment rows (Task_Excess_Amount_Dtls), capped at 5 ──
   const addAdjustmentRow = () => {
@@ -256,7 +258,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
       }
       // Java: the received amount may not exceed the Total Task Amount shown (which already holds
       // the services and the discount); the field is cleared.
-      if (Number(earnedAmount) > grandTotal) {
+      if (round3(Number(earnedAmount)) > grandTotal) {
         showFailureMsg('Received Amount Can not be greater than Total Task Amount!');
         setEarnedAmount('');
         return;
