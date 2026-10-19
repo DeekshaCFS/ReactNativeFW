@@ -274,6 +274,7 @@
   "full_name": "Full Name",
   "amount": "Amount",
   "discount": "Discount",
+  "discount_if_any": "Discount Amount (if any)",
   "add": "Add",
   "enquiry_form": "Enquiry Form",
   "preferable_date": "Preferable Date",

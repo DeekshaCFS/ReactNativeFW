@@ -20,7 +20,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import QRCode from 'react-native-qrcode-svg';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp } from '../../../utils/responsive';
+import { scale, vs, sp, ms } from '../../../utils/responsive';
 import { formatAmount, sanitizeDecimalInput } from '../../../utils/decimal';
 import { getTaskClosureDetails } from '../../../api/taskList/taskListService';
 import { getPgActivationStatus } from '../../../api/paymentGateway/paymentGatewayService';
@@ -33,7 +33,7 @@ import { TASK_STATUS_ID } from '../../../constants/taskStatus';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
 import { getCurrentCurrencySymbol } from '../../../state/session';
-import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 import { getNetworkQuality, isPostable } from '../../../offline/networkQuality';
 import { savePendingTask, getPendingTask } from '../../../offline/offlineStore';
 import DecimalInput from '../../../components/DecimalInput';
@@ -252,8 +252,16 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
   // ── Submit ──
   const handleSubmit = async (markPendingParam = false) => {
     if (!markPendingParam) {
+      // Java onClick: nothing typed -> "Please enter the Amount Received!!".
       if (!earnedAmount.trim() || Number.isNaN(Number(earnedAmount))) {
-        showFailureMsg('Please enter the amount received.');
+        showFailureMsg('Please enter the Amount Received!!');
+        return;
+      }
+      // Java: the received amount may not exceed the Total Task Amount shown (which already holds
+      // the services and the discount); the field is cleared.
+      if (Number(earnedAmount) > grandTotal) {
+        showFailureMsg('Received Amount Can not be greater than Total Task Amount!');
+        setEarnedAmount('');
         return;
       }
     }
@@ -261,12 +269,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
     const isZeroAmount = !markPendingParam && Number(earnedAmount) === 0;
     const markPending = markPendingParam || isZeroAmount;
 
-    let adjustmentTotal = 0;
     if (!markPending) {
-      if (discountAmount > grossTotal) {
-        showFailureMsg('Discount cannot be greater than the total task amount.');
-        return;
-      }
       if (!paymentMode) {
         showFailureMsg('Select Payment Mode');
         return;
@@ -277,20 +280,9 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
       }
       for (const row of adjustments) {
         if (row.amount.trim() && !row.description.trim()) {
-          showFailureMsg('Please enter a description for each adjustment amount.');
+          showFailureMsg('Please Enter Description !');
           return;
         }
-      }
-
-      adjustmentTotal = adjustments.reduce(
-        (sum, row) => sum + (Number(row.amount) || 0),
-        0,
-      );
-      const total = Number(earnedAmount) + adjustmentTotal;
-
-      if (grandTotal > 0 && total > grandTotal) {
-        showFailureMsg('Received amount cannot be greater than the total task amount.');
-        return;
       }
     }
 
@@ -304,22 +296,26 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
       const userId = Number(uid);
       const now = new Date().toISOString();
 
-      const excessDtls: ExcessAmountDetail[] = markPending
-        ? []
-        : adjustments
-            .filter(row => row.amount.trim() !== '')
-            .map(row => ({
-              Excess_Amount_Id: 0,
-              TaskId: routeTask.Id,
-              Excess_Amount_Des: row.description.trim(),
-              Excess_Amount: Number(row.amount),
-              IsActive: true,
-              UserId: userId,
-              CreatedBy: userId,
-              CreatedDate: now,
-              UpdatedBy: userId,
-              UpdatedDate: now,
-            }));
+      // Java (UpdatePayment): the first excess row is the task amount itself, then one row per
+      // filled service -- for a "Payment Pending" close too.
+      const excessRow = (description: string, amount: number): ExcessAmountDetail => ({
+        Excess_Amount_Id: 0,
+        TaskId: routeTask.Id,
+        Excess_Amount_Des: description,
+        Excess_Amount: amount,
+        IsActive: true,
+        UserId: userId,
+        CreatedBy: userId,
+        CreatedDate: now,
+        UpdatedBy: userId,
+        UpdatedDate: now,
+      });
+      const excessDtls: ExcessAmountDetail[] = [
+        excessRow(routeTask.Name ?? '', routeTask.WagesPerHours ?? taskAmount ?? 0),
+        ...adjustments
+          .filter(row => row.amount.trim() !== '')
+          .map(row => excessRow(row.description.trim(), Number(row.amount))),
+      ];
 
       const paymentBody = {
         Id: 0,
@@ -333,8 +329,9 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
         // Java sends mTextViewAmount's value here — items + Task Amount + adjustments
         // (unchanged from the base task amount when there are no items/adjustments).
         // With a discount this is the reduced total.
-        NewWagePerHours: (taskAmount ?? 0) + itemsTotal + (markPending ? 0 : adjustmentTotal - discountAmount),
-        TaskDiscountedAmount: markPending ? 0 : discountAmount,
+        NewWagePerHours: grandTotal,
+        // Java only sets it when a discount was typed.
+        ...(discount.trim() !== '' && { TaskDiscountedAmount: discountAmount }),
         Task_Excess_Amount_Dtls: excessDtls,
         // Only attach proof when it applies to the chosen payment type.
         ...(!markPending && showProofPicker && proofPhoto && {
@@ -425,13 +422,9 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
           </View>
 
           {addedItems.map((item, idx) => (
-            <View key={idx} style={styles.itemLine}>
-              <Text style={styles.itemName}>
-                {item.ItemName}
-              </Text>
-              <Text style={styles.itemQty}>
-                {(item.UsedItemQty ?? 0) > 0 ? ` ${item.UsedItemQty}` : ''}
-              </Text>
+            <View key={idx} style={styles.itemRow}>
+              <Text style={styles.itemName}>{item.ItemName}</Text>
+              <Text style={styles.itemQty}>{item.UsedItemQty ?? 0}</Text>
               <Text style={styles.itemPrice}>
                 {taskCurrency} {formatAmount((item.UsedItemQty ?? 0) * (item.SalesPrice ?? 0))}
               </Text>
@@ -522,11 +515,32 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
               <Text style={styles.totalValue}>{formatAmount(grandTotal)}</Text>
             </View>
 
+            {/* Java: Discount first (shown for every payment mode), then Amount Received. The
+                hint sits inside the pill ("Discount" / "Amount"). */}
+            <View style={[styles.amountReceivedRow, { marginBottom: ms(20) }]}>
+              <Text style={styles.amountReceivedLabel}>{t('discount_if_any')}</Text>
+              <DecimalInput
+                style={styles.amountReceivedInput}
+                placeholder="Discount"
+                placeholderTextColor="#9CA3AF"
+                value={discount}
+                onChangeText={text => {
+                  // Java: a discount above the actual amount is refused and cleared.
+                  if (Number(text) > grossTotal) {
+                    showToast('Discount cannot be greater than the actual amount.');
+                    setDiscount('');
+                    return;
+                  }
+                  setDiscount(text);
+                }}
+              />
+            </View>
+
             <View style={styles.amountReceivedRow}>
               <Text style={styles.amountReceivedLabel}>Amount Received</Text>
               <DecimalInput
                 style={styles.amountReceivedInput}
-                label={t('amount')}
+                placeholder="Amount"
                 placeholderTextColor="#9CA3AF"
                 value={earnedAmount}
                 onChangeText={t => setEarnedAmount(sanitizeDecimalInput(t))}
@@ -535,17 +549,6 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
                     setEarnedAmount(formatAmount(earnedAmount));
                   }
                 }}
-              />
-            </View>
-
-            <View style={styles.amountReceivedRow}>
-              <Text style={styles.amountReceivedLabel}>{t('discount')}</Text>
-              <DecimalInput
-                style={styles.amountReceivedInput}
-                label={t('discount')}
-                placeholderTextColor="#9CA3AF"
-                value={discount}
-                onChangeText={t => setDiscount(t)}
               />
             </View>
 
@@ -639,14 +642,16 @@ const styles = StyleSheet.create({
   taskCard: { paddingBottom: vs(40), paddingTop: vs(10) },
   tintedCard: { backgroundColor: '#fff0f3' },
 
-  taskName: { fontSize: sp(20), fontWeight: '700', color: DARK, textAlign: 'center' },
-  sectionTitle: { fontSize: sp(17), fontWeight: '700', color: DARK },
+  taskName: { fontSize: sp(16), fontWeight: '700', color: DARK, textAlign: 'center' },
+  sectionTitle: { fontSize: sp(15), fontWeight: '700', color: DARK },
   taskname: { fontSize: sp(13), fontWeight: '700', color: COLORS.primary },
   taskAmount: { fontSize: sp(13), fontWeight: '700', color: COLORS.success, marginTop: vs(4) },
   itemLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: scale(5), marginTop: vs(10) },
-  itemName: { flex: 1, fontSize: sp(13), fontWeight: '500', color: COLORS.charcoal, marginRight: scale(8) },
-  itemQty: { fontSize: sp(13), fontWeight: '500', color: COLORS.charcoal, marginRight: scale(100) },
-  itemPrice: { fontSize: sp(13), fontWeight: '500', color: COLORS.charcoal },
+  // tech_multiple_item_price_child_row: three equal columns, 13sp.
+  itemRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(10), marginBottom: vs(10), paddingVertical: scale(5), paddingHorizontal: scale(11) },
+  itemName: { width: '33.33%', fontSize: sp(13), color: COLORS.charcoal },
+  itemQty: { width: '33.33%', fontSize: sp(13), color: COLORS.charcoal, textAlign: 'center' },
+  itemPrice: { width: '33.33%', fontSize: sp(13), color: COLORS.charcoal, textAlign: 'center' },
 
   serviceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: scale(15), paddingVertical: vs(4) },
   serviceNo: { fontSize: sp(15), fontWeight: '700', color: COLORS.primary },
@@ -662,7 +667,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   addRowButton: { height: vs(30), marginTop: vs(10), alignItems: 'center', justifyContent: 'center' },
-  addRowText: { color: COLORS.primary, fontSize: sp(20), fontWeight: '700' },
+  addRowText: { color: COLORS.primary, fontSize: sp(18), fontWeight: '700' },
 
   selectWrap: { paddingHorizontal: scale(10), marginTop: vs(10), gap: vs(8) },
   selectBox: {
@@ -681,22 +686,24 @@ const styles = StyleSheet.create({
 
   detailsBox: {
     marginTop: vs(5),
-    padding: scale(20),
+    paddingVertical: scale(20),
+    paddingHorizontal: scale(16),
   },
   totalRow: { flexDirection: 'row', alignItems: 'center' },
-  totalLabel: { flex: 1, fontSize: sp(16), color: '#6B7280' },
-  totalCurrency: { fontSize: sp(16), color: '#6B7280', marginRight: scale(18) },
+  totalLabel: { flex: 1, fontSize: sp(13.5), color: '#6B7280' },
+  totalCurrency: { fontSize: sp(13.5), color: '#6B7280', marginRight: scale(18) },
   totalValue: { fontSize: sp(18), fontWeight: '700', color: COLORS.success },
   amountReceivedRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(14) },
-  amountReceivedLabel: { flex: 0.6, fontSize: sp(17), fontWeight: '700', color: COLORS.primary },
+  amountReceivedLabel: { width: '60%', fontSize: sp(13.5), fontWeight: '700', color: COLORS.primary },
   amountReceivedInput: {
-    flex: 0.4,
-    height: vs(52),
+    flex: 1,
+    marginLeft: ms(5),
+    height: ms(40),
     borderWidth: 1,
     borderColor: '#9CA3AF',
     borderRadius: scale(34),
-    paddingHorizontal: scale(16),
-    fontSize: sp(18),
+    paddingHorizontal: scale(14),
+    fontSize: sp(16),
     color: DARK,
     backgroundColor: 'transparent',
   },
