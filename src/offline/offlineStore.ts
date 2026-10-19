@@ -9,7 +9,10 @@
 // documents are stored as base64 inside the record, so there is no separate file bookkeeping.
 
 import RNFS from 'react-native-fs';
-import type { UpdateTaskStatus } from '../api/task/task.types';
+import type { UpdateTaskStatus, TaskClosureResultData, AddPhotoBeforeTaskResultData } from '../api/task/task.types';
+import type { UploadTaskDocDTO } from '../api/taskList/taskList.types';
+import type { UpdateTaskWithEarnedAmountRequest } from '../api/passbook/passbook.types';
+import type { SaveSelectedChkPointDataResultData } from '../api/fsrManagement/fsrManagement.types';
 
 const STORE_PATH = `${RNFS.DocumentDirectoryPath}/offline_pending_tasks.json`;
 
@@ -30,7 +33,21 @@ export type PendingTask = {
   /** "0" = pending, mirrors Java's isSyncDone. */
   isSyncDone: '0';
   accept?: PendingAccept;
+  /** acceptTask1_tbl rows after the accept (task started / ended), posted in order. */
+  statuses?: PendingAccept[];
+  /** BeforeAfterImg tables: before photos + note (AddPhotoBeforeTask body). */
+  beforePhotos?: Partial<AddPhotoBeforeTaskResultData>;
+  /** SelectedChkPoints table: FSR checkpoint answers picked on the closure screen. */
+  checkpoints?: Partial<SaveSelectedChkPointDataResultData>[];
+  /** SummaryDetails + child tables: the whole AddTaskClosureDetails body (tech notes, devices, after photos...). */
+  closure?: TaskClosureResultData;
+  /** RateModeTsk + Excess amount tables: the UpdateTaskWithEarnedAmount body. */
+  payment?: UpdateTaskWithEarnedAmountRequest;
+  /** DocumentUpload tables: the UploadTaskDoc body, files as base64. */
+  documents?: Partial<UploadTaskDocDTO>;
 };
+
+export type PendingSection = 'accept' | 'statuses' | 'beforePhotos' | 'checkpoints' | 'closure' | 'payment' | 'documents';
 
 type Store = { version: 1; tasks: PendingTask[] };
 
@@ -83,12 +100,14 @@ export const hasPendingData = async (userId?: number) => (await getPendingTasks(
 /** Insert or merge a section into the pending record of a task. */
 export const savePendingTask = async (
   base: Pick<PendingTask, 'taskId' | 'newTaskId' | 'userId' | 'taskName'>,
-  sections: Partial<Pick<PendingTask, 'accept'>>,
+  sections: Partial<Pick<PendingTask, PendingSection>>,
 ) => {
   const store = await load();
   const existing = store.tasks.find(t => t.taskId === base.taskId);
   if (existing) {
-    Object.assign(existing, sections);
+    const { statuses, ...rest } = sections;
+    Object.assign(existing, rest);
+    if (statuses) existing.statuses = [...(existing.statuses ?? []), ...statuses];
   } else {
     store.tasks.push({ ...base, createdAt: Date.now(), isSyncDone: '0', ...sections });
   }
@@ -109,4 +128,13 @@ export const clearPendingTasks = async (userId?: number) => {
   store.tasks = userId == null ? [] : store.tasks.filter(t => t.userId !== userId);
   await persist(store);
   notify();
+};
+
+/** Drop one section after the server accepted it, so a retry after a later failure does not repost it. */
+export const removePendingSection = async (taskId: number, section: PendingSection) => {
+  const store = await load();
+  const task = store.tasks.find(t => t.taskId === taskId);
+  if (!task) return;
+  delete task[section];
+  await persist(store);
 };

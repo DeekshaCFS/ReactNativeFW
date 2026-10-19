@@ -23,6 +23,7 @@ import { COLORS } from '../../../theme/theme';
 import { ms, sp, useAppHeaderHeight } from '../../../utils/responsive';
 import OutlinedInput from '../../../components/OutlinedInput';
 import { getCustomFieldData, postTaskCustomField } from '../../../api/users/usersService';
+import { refreshCustomFieldsCache } from '../../../offline/offlineCache';
 import type { CustomFieldDTOResultData } from '../../../api/users/users.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showToast } from '../../../utils/toast';
@@ -184,6 +185,8 @@ export default function TaskInputScreen({ navigation, route }: any) {
       const res = await postTaskCustomField({ UserId: userId, TaskId: routeTask.Id }, payload);
       if (res.Code === '200') {
         toast(res.Message || 'Task input saved successfully.');
+        // The offline closure check reads this task's Task Input from the cache: keep it current.
+        refreshCustomFieldsCache(userId, routeTask.Id as number);
         closeSheet();
       } else {
         toast(res.Message || 'Failed to save task input.');

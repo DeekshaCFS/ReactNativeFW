@@ -34,6 +34,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, ms } from '../../../utils/responsive';
 import { HEADER_CONTENT_HEIGHT } from '../../../components/AppHeader';
+import { getNetworkQuality, isPostable } from '../../../offline/networkQuality';
+import { savePendingTask } from '../../../offline/offlineStore';
 import { getDocumentTypes, uploadTaskDoc } from '../../../api/taskList/taskListService';
 import type { DocAttachmentType } from '../../../api/taskList/taskList.types';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
@@ -237,7 +239,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
       setSaving(true);
       const uid = await AsyncStorage.getItem('uid');
 
-      const res = await uploadTaskDoc({
+      const body = {
         UserId: Number(uid),
         TaskId: task.Id,
         CustomerId: task.CustomerDetailsid,
@@ -248,7 +250,21 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
           DocumnetTypeId: f.documentId,
           DocumnetTypeName: f.documentName,
         })),
-      });
+      };
+
+      // Java (DocumentUploadFragment): on a Poor link the attachments are kept on the device
+      // and posted from the Sync screen.
+      if (!isPostable(await getNetworkQuality())) {
+        await savePendingTask(
+          { taskId: task.Id ?? 0, newTaskId: task.NewTaskId ?? String(task.Id), userId: Number(uid) },
+          { documents: body },
+        );
+        showSuccessMsg('Attachment saved under offline storage !');
+        finishTaskFlowToHome(navigation);
+        return;
+      }
+
+      const res = await uploadTaskDoc(body);
 
       if (res?.Code && res.Code !== '200') {
         showFailureMsg(res.Message || 'Could not upload the documents.');

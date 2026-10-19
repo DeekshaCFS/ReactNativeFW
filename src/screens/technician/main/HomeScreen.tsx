@@ -35,6 +35,7 @@ import {
 } from '../../../api/userDisclaimer/userDisclaimerService';
 import { getCurrentLocationAndAddress } from '../../../utils/locationPermision';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
+import { prefetchFsrForTasks } from '../../../offline/offlineCache';
 
 import {useTranslation} from 'react-i18next';
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -314,6 +315,8 @@ export default function HomeScreen({ navigation }: any) {
       });
 
       setTodayTasks(filtered);
+      // Download the FSR checklists now so they open offline later.
+      prefetchFsrForTasks(userId, filtered).catch(() => {});
     } catch { /* silent */ }
     finally { setLoadingToday(false); }
   };

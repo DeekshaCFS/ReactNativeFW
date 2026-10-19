@@ -22,6 +22,9 @@ import type { TasksListResultData as Task, TaskClosureResultData as TaskClosureP
 import { resetToTabsThen, finishTaskFlowToHome } from '../../../navigation/taskFlowNavigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
+import { getNetworkQuality, isPostable } from '../../../offline/networkQuality';
+import { savePendingTask, getPendingTask } from '../../../offline/offlineStore';
+import { cachedFetch } from '../../../offline/offlineCache';
 
 import {useTranslation} from 'react-i18next';
 interface SignaturePath {
@@ -119,6 +122,8 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
     let active = true;
     (async () => {
       const uid = Number(await AsyncStorage.getItem('uid'));
+      // Warm the HNG flag so the post-closure routing works offline too.
+      cachedFetch(`hng:${uid}`, () => getIsHNGClient({ UserId: uid })).catch(() => {});
       try {
         const res = await getAllChkpointInputformData({ UserId: uid, TaskId: task.Id });
         if (active && res?.Code === '200') setCheckpointForm(res.ResultData ?? null);
@@ -135,6 +140,18 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
         });
         const files = res?.ResultData?.FileLists ?? [];
         if (active) setBeforePhotoUris(files.map(f => f.FilePath || '').filter(Boolean));
+      } catch {
+        // optional section
+      }
+      // Started offline: the before photos are still on the device.
+      try {
+        const before = (await getPendingTask(task.Id as number))?.beforePhotos;
+        const stored = [before?.DeviceInfoImagePath, before?.DeviceInfoImagePath1, before?.DeviceInfoImagePath2]
+          .filter((b): b is string => !!b)
+          .map(b => `data:image/jpeg;base64,${b}`);
+        if (active && stored.length > 0) {
+          setBeforePhotoUris(prev => (prev.length > 0 ? prev : stored));
+        }
       } catch {
         // optional section
       }
@@ -162,16 +179,28 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
         return;
       }
 
-      // Step 1: Add closure details (Android: updateTask() → updateTaskClosure API)
-      try {
-        const closureRes = await addTaskClosure(payload);
-        if (closureRes.Code !== '200') {
-          showFailureMsg(closureRes.Message || 'Unknown error');
+      // Java (SummaryDetailsFragment.button_submit_closure): on a Poor link the whole closure
+      // (tech notes, devices, after photos, items, ...) is stored on the device and posted later
+      // from the Sync screen; the flow then carries on exactly as after an online closure.
+      const online = isPostable(await getNetworkQuality());
+
+      if (!online) {
+        await savePendingTask(
+          { taskId: task.Id as number, newTaskId: task.NewTaskId ?? String(task.Id), userId: Number(freshUid) },
+          { closure: payload },
+        );
+      } else {
+        // Step 1: Add closure details (Android: updateTask() → updateTaskClosure API)
+        try {
+          const closureRes = await addTaskClosure(payload);
+          if (closureRes.Code !== '200') {
+            showFailureMsg(closureRes.Message || 'Unknown error');
+            return;
+          }
+        } catch (err: any) {
+          showFailureMsg(err?.response?.data?.Message || err?.message || 'Closure Error');
           return;
         }
-      } catch (err: any) {
-        showFailureMsg(err?.response?.data?.Message || err?.message || 'Closure Error');
-        return;
       }
 
       const isRateMode =
@@ -183,11 +212,13 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
       // "not HNG", same as Java.
       let isHngClient = false;
       try {
-        const hng = await getIsHNGClient({ UserId: Number(freshUid) });
+        const { data: hng } = await cachedFetch(`hng:${freshUid}`, () => getIsHNGClient({ UserId: Number(freshUid) }));
         isHngClient = hng?.Code === '200';
       } catch {
         isHngClient = false;
       }
+
+      if (!online) showSuccessMsg('Task saved offline. Sync it from the Task tab when the network is back.');
 
       if (isHngClient || isRateMode) {
         // The closure is already saved: back from Payment must not return to Summary,
@@ -198,7 +229,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
 
       // Java: after a non-Rate, non-HNG closure the technician is offered the document
       // upload screen (skippable) before returning to the dashboard.
-      showSuccessMsg('The task has been closed successfully.');
+      if (online) showSuccessMsg('The task has been closed successfully.');
       resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task } });
     } catch (err: any) {
       showFailureMsg(err?.message || 'Failed to close task');

@@ -23,6 +23,10 @@ import { getCurrentUserProfile } from '../../../state/session';
 import { placeTeleCmiCall } from '../../../utils/teleCmiCall';
 import BottomSheetDialog, { FieldErrorDot, FieldErrorTip } from '../../../components/BottomSheetDialog';
 import { UploadPhotoIcon } from '../../../components/DialogIcons';
+import { isNetworkAvailable } from '../../../offline/networkQuality';
+import { savePendingTask, getPendingTask } from '../../../offline/offlineStore';
+import { cachedFetch, fsrCacheKey, refreshCustomFieldsCache } from '../../../offline/offlineCache';
+import { getAllchkpointCategory } from '../../../api/fsrManagement/fsrManagementService';
 import {
   getTaskById,
   addPhotoBeforeTask,
@@ -207,8 +211,30 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       }
     };
 
+    // Before photos + note stored on the device (started offline) are shown from there.
+    const loadOfflineBeforePhotos = async () => {
+      const pending = await getPendingTask(routeTask.Id as number);
+      const before = pending?.beforePhotos;
+      if (!before) return;
+      const toUri = (b64?: string) => (b64 ? { uri: `data:image/jpeg;base64,${b64}`, base64: b64 } : null);
+      const stored = [before.DeviceInfoImagePath, before.DeviceInfoImagePath1, before.DeviceInfoImagePath2]
+        .map(toUri)
+        .filter((x): x is { uri: string; base64: string } => !!x);
+      if (stored.length > 0) setPhotos(stored);
+      if (before.DeviceInfoNotes) setNote(before.DeviceInfoNotes);
+    };
+
+    // Warm what the Closure screen needs while the network is still there (FSR checkpoints).
+    const warmFsr = () => {
+      if (!uid || !routeTask?.Id) return;
+      refreshCustomFieldsCache(Number(uid), routeTask.Id as number);
+      cachedFetch(fsrCacheKey(uid, routeTask.Id as number), () => getAllchkpointCategory({ UserId: Number(uid), TaskId: routeTask.Id })).catch(() => {});
+    };
+
     fetchTrackingDetails();
     fetchTaskImages();
+    loadOfflineBeforePhotos();
+    warmFsr();
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -345,7 +371,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         `${now.getFullYear()}${p2(now.getMonth() + 1)}${p2(now.getDate())}_` +
         `${p2(now.getHours())}${p2(now.getMinutes())}${p2(now.getSeconds())}_1.jpg`;
 
-      const response = await addPhotoBeforeTask({
+      const photoBody = {
         DeviceInfoImageName: photoName,
         Images: buildImagesPayload(presentPhotos.map(p => p.base64)),
         DeviceInfoImagePath: presentPhotos[0]?.base64 || '',
@@ -354,7 +380,34 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         DeviceInfoNotes: note,
         CreatedBy: Number(uid),
         TaskId: routeTask.Id,
-      });
+      };
+
+      // Java (CountdownTechFragmentNew): no network -> the before photos + note and the STARTED
+      // status are stored on the device and the timer starts as usual; both sync later.
+      if (!(await isNetworkAvailable())) {
+        await savePendingTask(
+          { taskId: routeTask.Id as number, newTaskId: routeTask.NewTaskId ?? String(routeTask.Id), userId: Number(uid), taskName: routeTask.Name },
+          {
+            beforePhotos: photoBody,
+            statuses: [{
+              TaskId: routeTask.Id as number,
+              UserId: Number(uid),
+              TaskStatus: TASK_STATUS_ID.Ongoing,
+              TaskState: 1,
+              RejectedTaskNotes: '',
+              TotalDistance: 0,
+              Time: nowAsJavaTime(),
+            }],
+          },
+        );
+        setShowUploadSheet(false);
+        setShowContinue(false);
+        setIsRunning(true);
+        setTaskDetail(prev => (prev ? { ...prev, TaskState: 1 } : prev));
+        return;
+      }
+
+      const response = await addPhotoBeforeTask(photoBody);
 
       if (response?.Code !== '200') {
         showFailureMsg(response?.Message || 'Could not upload photos');
@@ -478,13 +531,34 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
   const handleEndTask = async () => {
     setIsRunning(false);
     try {
-      const res = await updateTaskStatus({
-        TaskId: routeTask.Id,
-        UserId: Number(uid),
-        TaskStatus: TASK_STATUS_ID.Ongoing,
-        TaskState: 2,
-        Time: nowAsJavaTime(),
-      });
+      // Java: no network -> the ENDED status is stored on the device and the flow moves on to
+      // Closure; it is posted from the Sync screen.
+      const offlineEnd = !(await isNetworkAvailable());
+      if (offlineEnd) {
+        await savePendingTask(
+          { taskId: routeTask.Id as number, newTaskId: routeTask.NewTaskId ?? String(routeTask.Id), userId: Number(uid), taskName: routeTask.Name },
+          {
+            statuses: [{
+              TaskId: routeTask.Id as number,
+              UserId: Number(uid),
+              TaskStatus: TASK_STATUS_ID.Ongoing,
+              TaskState: 2,
+              RejectedTaskNotes: '',
+              TotalDistance: 0,
+              Time: nowAsJavaTime(),
+            }],
+          },
+        );
+      }
+      const res: any = offlineEnd
+        ? { Code: '200' }
+        : await updateTaskStatus({
+            TaskId: routeTask.Id,
+            UserId: Number(uid),
+            TaskStatus: TASK_STATUS_ID.Ongoing,
+            TaskState: 2,
+            Time: nowAsJavaTime(),
+          });
       // Java only moves on to Closure after the server confirms ENDED_NO_PAYMENT.
       if (res?.Code !== '200') {
         setIsRunning(true);

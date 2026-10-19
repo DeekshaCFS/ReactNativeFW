@@ -15,7 +15,7 @@ import {
   subscribeOffline,
   type PendingTask,
 } from '../../../offline/offlineStore';
-import { syncPendingTask } from '../../../offline/offlineSync';
+import { purgeDeletedPendingTasks, syncPendingTask } from '../../../offline/offlineSync';
 import { getNetworkQuality, isPostable, resetNetworkQualityCache } from '../../../offline/networkQuality';
 import { showFailureMsg, showToast } from '../../../utils/toast';
 
@@ -30,6 +30,18 @@ export default function SyncOfflineScreen({ navigation }: any) {
 
   useEffect(() => {
     reload();
+    // Tasks the admin deleted meanwhile no longer belong on this page.
+    (async () => {
+      const uid = Number(await AsyncStorage.getItem('uid'));
+      const removed = await purgeDeletedPendingTasks(uid || undefined);
+      if (removed.length > 0) {
+        showToast(
+          removed.length === 1
+            ? `Task ${removed[0].newTaskId} was removed by the admin.`
+            : `${removed.length} tasks were removed by the admin.`,
+        );
+      }
+    })().catch(() => {});
     return subscribeOffline(reload);
   }, [reload]);
 

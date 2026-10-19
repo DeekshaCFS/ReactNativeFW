@@ -42,6 +42,9 @@ import { getCustomFieldData } from '../../../api/users/usersService';
 import { pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import { showFailureMsg } from '../../../utils/toast';
+import { isNetworkAvailable } from '../../../offline/networkQuality';
+import { savePendingTask } from '../../../offline/offlineStore';
+import { cachedFetch, fsrCacheKey, customFieldsCacheKey } from '../../../offline/offlineCache';
 import DecimalInput from '../../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
@@ -520,10 +523,13 @@ export default function TaskClosure({ navigation, route }: any) {
     try {
       setFsrLoading(true);
       const uid = await AsyncStorage.getItem('uid');
-      const response = await getAllchkpointCategory({
-        UserId: Number(uid),
-        TaskId: routeTask.Id,
-      });
+      // Cached when fetched online (warmed on the Execution screen), so it opens offline too.
+      const { data: response } = await cachedFetch(fsrCacheKey(Number(uid), routeTask.Id as number), () =>
+        getAllchkpointCategory({
+          UserId: Number(uid),
+          TaskId: routeTask.Id,
+        }),
+      );
       const result = response?.ResultData?.[0];
 
       const categories = (result?.lstFSRCategories ?? []).map(cat => ({
@@ -614,6 +620,16 @@ export default function TaskClosure({ navigation, route }: any) {
 
       // Java's saveAllChkPointData posts a List<ResultData> body directly
       // (see Api.java: @Body List<SaveSelectedChkPointData.ResultData>).
+      // Java (SelectedChkPoints table): no network -> the answers are stored on the device and
+      // posted from the Sync screen, before the closure.
+      if (!(await isNetworkAvailable())) {
+        await savePendingTask(
+          { taskId: routeTask.Id as number, newTaskId: routeTask.NewTaskId ?? String(routeTask.Id), userId },
+          { checkpoints: payload },
+        );
+        setShowFSRSheet(false);
+        return;
+      }
       await postChkpointData(payload);
       setShowFSRSheet(false);
     } catch (err) {
@@ -653,7 +669,12 @@ export default function TaskClosure({ navigation, route }: any) {
     }
   };
 
-  const openUsedItemSheet = () => {
+  const openUsedItemSheet = async () => {
+    // Updating used items talks to the server (assigned stock), so it needs a connection.
+    if (!(await isNetworkAvailable())) {
+      showFailureMsg('Internet connection is required to update used items.');
+      return;
+    }
     setShowUsedItemSheet(true);
     loadIssueList();
   };
@@ -845,19 +866,32 @@ export default function TaskClosure({ navigation, route }: any) {
       }
       // Java (getCustomFieldData -> isCustomLabelRequired): every required Task Input
       // field must have a value before the closure can continue.
+      // Offline, the answer saved the last time the fields were read online is used, so a task
+      // with an empty mandatory Task Input cannot be closed without a connection (Task Input
+      // itself needs one).
       try {
-        const customFields = await getCustomFieldData({ UserId: Number(freshUid), TaskId: routeTask.Id });
+        const { data: customFields, fromCache } = await cachedFetch(
+          customFieldsCacheKey(Number(freshUid), routeTask.Id as number),
+          () => getCustomFieldData({ UserId: Number(freshUid), TaskId: routeTask.Id }),
+        );
         const missingRequired = (customFields.ResultData ?? []).some(
           f => f.IsRequired && (f.UserValue == null || String(f.UserValue).trim() === ''),
         );
         if (missingRequired) {
-          showFailureMsg('Please Add all the mandatory Task Input to proceed !!');
+          showFailureMsg(
+            fromCache && !(await isNetworkAvailable())
+              ? 'Connect to the internet to add the mandatory Task Input to proceed !!'
+              : 'Please Add all the mandatory Task Input to proceed !!',
+          );
           return;
         }
       } catch {
-        // Java simply does not proceed when this check fails; do the same, visibly.
-        showFailureMsg('Could not verify the required task inputs. Please try again.');
-        return;
+        // Nothing saved for this task (e.g. created offline) and no connection: there is
+        // nothing to verify against, so the closure carries on and is stored for sync.
+        if (await isNetworkAvailable()) {
+          showFailureMsg('Could not verify the required task inputs. Please try again.');
+          return;
+        }
       }
 
       const now = new Date().toISOString();
@@ -1394,7 +1428,14 @@ export default function TaskClosure({ navigation, route }: any) {
           </Pressable>
           <Pressable
             style={[styles.tile, { backgroundColor: '#EEF0F3' }]}
-            onPress={() => navigation.navigate('TaskInput', { routeTask, returnTo: { name: 'TaskClosure', params: route.params } })}
+            onPress={async () => {
+              // Task Input is saved straight to the server, so it needs a connection.
+              if (!(await isNetworkAvailable())) {
+                showFailureMsg('Internet connection is required to add task input.');
+                return;
+              }
+              navigation.navigate('TaskInput', { routeTask, returnTo: { name: 'TaskClosure', params: route.params } });
+            }}
           >
             <Text style={styles.tileTitle}>Add Task Input</Text>
             <Text style={styles.tileSub}>Click Here to Add Task Input</Text>

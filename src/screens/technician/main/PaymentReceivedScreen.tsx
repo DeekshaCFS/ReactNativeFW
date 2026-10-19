@@ -34,6 +34,8 @@ import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
 import { getCurrentCurrencySymbol } from '../../../state/session';
 import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
+import { getNetworkQuality, isPostable } from '../../../offline/networkQuality';
+import { savePendingTask, getPendingTask } from '../../../offline/offlineStore';
 import DecimalInput from '../../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
@@ -149,6 +151,14 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
           if (closure?.MultipleItemAssigned && !routeTask.QuotationId) {
             setAddedItems(closure.MultipleItemAssigned);
           }
+        }
+
+        // Closure stored offline: the server has no closure for this task yet, so the items
+        // come from the one kept on the device.
+        if (closureRes.status === 'rejected' || !(closureRes.value?.ResultData as any)?.MultipleItemAssigned) {
+          const pending = await getPendingTask(routeTask.Id as number);
+          const stored = pending?.closure?.MultipleItemAssigned;
+          if (stored && !routeTask.QuotationId) setAddedItems(stored as any);
         }
 
         if (pgRes.status === 'fulfilled') {
@@ -311,7 +321,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
               UpdatedDate: now,
             }));
 
-      const res = await updateTaskWithEarnedAmount({
+      const paymentBody = {
         Id: 0,
         EarningAmount: markPending ? 0 : Number(earnedAmount),
         TaskId: routeTask.Id,
@@ -331,7 +341,21 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
           QRCodeImageFileName: `${proofFileTimestamp()}_ProofOfPaymntImg_.jpg`,
           QRCodeImageFileBase64Str: proofPhoto.base64,
         }),
-      });
+      };
+
+      // Java: an Offline-mode payment on a Poor link is stored on the device (RateModeTsk /
+      // Excess amount tables) and posted after the closure from the Sync screen.
+      if (!markPending && paymentMode === MODE_OFFLINE && !isPostable(await getNetworkQuality())) {
+        await savePendingTask(
+          { taskId: routeTask.Id as number, newTaskId: routeTask.NewTaskId ?? String(routeTask.Id), userId },
+          { payment: paymentBody },
+        );
+        showSuccessMsg('Payment saved offline. Sync it from the Task tab when the network is back.');
+        resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task: routeTask } });
+        return;
+      }
+
+      const res = await updateTaskWithEarnedAmount(paymentBody);
 
       if (res.Code !== '200') {
         showFailureMsg(res.Message || 'Could not update payment.');

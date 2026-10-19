@@ -17,6 +17,7 @@ import type { GetPostedTaskDocFile } from '../../../api/taskList/taskList.types'
 import TaskAttachmentsSheet from '../../../components/TaskAttachmentsSheet';
 import TaskTrackingSheet from '../../../components/TaskTrackingSheet';
 import { getPendingTasks } from '../../../offline/offlineStore';
+import { prefetchFsrForTasks } from '../../../offline/offlineCache';
 import { userPermissions } from '../../../api/userPermission/userPermissionService';
 import { downloadReport } from '../../../api/report/reportService';
 import type { TasksListResultData as Task, TagListResultData as TaskTag } from '../../../api/task/task.types';
@@ -194,6 +195,9 @@ export default function TaskScreen({ navigation, route }: any) {
         if (!hasMoreRef.current || collected.length >= PAGE_FILL) break;
         current += 1;
       }
+
+      // Download the FSR checklists of these tasks now so they open offline later.
+      prefetchFsrForTasks(Number(uid), collected).catch(() => {});
 
       const sortByIdDesc = (arr: Task[]) => [...arr].sort((x, y) => (y.Id ?? 0) - (x.Id ?? 0));
       setTasks(prev => {
