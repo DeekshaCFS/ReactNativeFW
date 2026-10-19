@@ -36,6 +36,7 @@ import { showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import { showImageSourceDialog } from '../../components/ImageSourceHost';
+import { tr } from '../../i18n/tr';
 export type ServiceGroupKind = 'category' | 'subcategory';
 
 export type EditingServiceGroup = {
@@ -90,7 +91,7 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      showToast('Unable to read the selected image. Please try again.');
+      showToast(t('rn_unable_to_read_the_selected_image_please_t'));
       return;
     }
     setImage({
@@ -179,7 +180,7 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
         <Pressable style={styles.backdropPress} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>{kind === 'category' ? 'Service Category' : 'Service Sub Category'}</Text>
+            <Text style={styles.headerTitle}>{kind === 'category' ? tr('Service Category') : tr('Service Sub Category')}</Text>
             <Pressable onPress={onClose} hitSlop={12}>
               <Ionicons name="close" size={ms(30)} color="#fff" />
             </Pressable>
@@ -188,7 +189,7 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
             <View style={styles.body}>
               <OutlinedInput
                 style={styles.pill}
-                placeholder={kind === 'category' ? 'Category Name *' : 'SUB Category Name *'}
+                placeholder={kind === 'category' ? tr('Category Name *') : tr('SUB Category Name *')}
                 placeholderTextColor={COLORS.lightGray}
                 value={name}
                 maxLength={25}
@@ -203,14 +204,14 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
                 ) : (
                   <>
                     <Ionicons name="image-outline" size={ms(34)} color={COLORS.lightGray} />
-                    <Text style={styles.imageHint}>Add/Capture Image</Text>
+                    <Text style={styles.imageHint}>{t('add_capture_image')}</Text>
                   </>
                 )}
               </Pressable>
 
               <OutlinedInput
                 style={[styles.pill, styles.descPill]}
-                placeholder="Service Description *"
+                placeholder={t('rn_service_description')}
                 placeholderTextColor={COLORS.lightGray}
                 value={description}
                 maxLength={60}

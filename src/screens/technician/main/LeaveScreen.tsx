@@ -24,6 +24,7 @@ import type {
 import { showFailureMsg } from '../../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 // ── Screen-local UI helpers (not Java DTOs — kept inline) ──────────────────
 const LeaveStatusId = { PENDING: 1, APPROVED: 2, DECLINED: 3 } as const;
 const LEAVE_STATUS_OPTIONS = ['Status', 'Approved', 'Declined', 'Pending'] as const;
@@ -248,7 +249,7 @@ export default function LeaveScreen() {
 
   const openUpdateSheet = (leave: LeaveDetails) => {
     if (leave.LeaveStatusId === LeaveStatusId.APPROVED || leave.LeaveStatusId === LeaveStatusId.DECLINED) {
-      showFailureMsg("You can't edit an Approved or Declined leave.");
+      showFailureMsg(t('rn_you_can_t_edit_an_approved_or_declined_lea'));
       return;
     }
     setSheetMode('update');
@@ -356,10 +357,10 @@ export default function LeaveScreen() {
 
   const handleDelete = () => {
     if (!userId || !activeLeave) return;
-    Alert.alert('Delete Leave', 'Are you sure you want to delete this leave request?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(tr('Delete Leave'), tr('Are you sure you want to delete this leave request?'), [
+      { text: tr('Cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: tr('Delete'),
         style: 'destructive',
         onPress: async () => {
           setSubmitting(true);
@@ -397,7 +398,7 @@ export default function LeaveScreen() {
         </View>
 
         <View style={styles.leaveDateRow}>
-          <Text style={styles.leaveDateLabel}>Leave Date : </Text>
+          <Text style={styles.leaveDateLabel}>{t('rn_leave_date')} </Text>
           <Text style={styles.leaveDateValue}>
             {formatDisplayDate(item.LeaveStartDate)} - {formatDisplayDate(item.LeaveEndDate)}
           </Text>
@@ -405,7 +406,7 @@ export default function LeaveScreen() {
         </View>
 
         <View style={styles.leaveNotesRow}>
-          <Text style={styles.leaveNotesLabel}>Leave Remarks : </Text>
+          <Text style={styles.leaveNotesLabel}>{t('rn_leave_remarks')} </Text>
           <Text style={styles.leaveNotes} numberOfLines={2}>{item.ReasonOfLeave || 'NA'}</Text>
         </View>
       </Pressable>
@@ -417,10 +418,10 @@ export default function LeaveScreen() {
       {/* Tabs */}
       <View style={[styles.tabRow, { paddingTop: headerHeight + vs(4) }]}>
         <Pressable style={styles.inactiveTab} onPress={() => navigation.navigate('Attendance')}>
-          <Text style={styles.inactiveTabText}>ATTENDANCE</Text>
+          <Text style={styles.inactiveTabText}>{t('attendance').toUpperCase()}</Text>
         </Pressable>
         <Pressable style={styles.activeTab}>
-          <Text style={styles.activeTabText}>LEAVES</Text>
+          <Text style={styles.activeTabText}>{t('rn_leaves')}</Text>
         </Pressable>
       </View>
 
@@ -438,7 +439,7 @@ export default function LeaveScreen() {
           </Pressable>
 
           <Pressable style={styles.leaveBtn} onPress={openRequestSheet}>
-            <Text style={styles.leaveText}>+ Leave</Text>
+            <Text style={styles.leaveText}>{t('onleave')}</Text>
           </Pressable>
         </View>
       </View>
@@ -519,7 +520,7 @@ export default function LeaveScreen() {
           <Pressable style={styles.sheetBackdrop} onPress={closeSheet} />
           <View style={styles.sheet}>
             <View style={styles.sheetHeaderRow}>
-              <Text style={styles.sheetTitle}>{sheetMode === 'request' ? 'Apply for Leave' : 'Update Leave'}</Text>
+              <Text style={styles.sheetTitle}>{sheetMode === 'request' ? tr('Apply for Leave') : tr('Update Leave')}</Text>
               <Pressable onPress={closeSheet}>
                 <Ionicons name="close" size={scale(22)} color={COLORS.white} />
               </Pressable>
@@ -548,7 +549,7 @@ export default function LeaveScreen() {
                   </View>
                 ))}
                 <View style={styles.balanceGridRow}>
-                  <Text style={styles.balanceLabel}>Total Available Leave : </Text>
+                  <Text style={styles.balanceLabel}>{t('rn_total_available_leave')} </Text>
                   <Text style={styles.balanceTotalValue}>{totalAvailable}</Text>
                 </View>
               </View>
@@ -614,7 +615,7 @@ export default function LeaveScreen() {
             {/* Reason */}
             <TextInput
               style={[styles.reasonInput, styles.fieldSpacingTop]}
-              placeholder="Leave Reason*"
+              placeholder={t('rn_leave_reason_2')}
               placeholderTextColor={COLORS.lightGray}
               multiline
               value={form.reason}
@@ -631,12 +632,12 @@ export default function LeaveScreen() {
                 {submitting ? (
                   <ActivityIndicator color={COLORS.white} size="small" />
                 ) : (
-                  <Text style={styles.submitBtnText}>{sheetMode === 'request' ? 'APPLY' : 'UPDATE'}</Text>
+                  <Text style={styles.submitBtnText}>{sheetMode === 'request' ? tr('APPLY') : tr('UPDATE')}</Text>
                 )}
               </Pressable>
               {sheetMode === 'update' && (
                 <Pressable style={styles.deleteBtn} onPress={handleDelete} disabled={submitting}>
-                  <Text style={styles.deleteBtnText}>Delete</Text>
+                  <Text style={styles.deleteBtnText}>{t('rn_delete')}</Text>
                 </Pressable>
               )}
             </View>
@@ -651,7 +652,7 @@ export default function LeaveScreen() {
       {/* Leave type: Java dialog_searchable_spinner_leavetype */}
       <SearchPickerModal
         visible={showLeaveTypeDropdown}
-        title="Select Leave Type"
+        title={t('rn_select_leave_type')}
         options={leaveTypes.map(lt => ({ id: lt.Id ?? 0, label: lt.Name ?? '' }))}
         onSelect={opt => {
           const lt = leaveTypes.find(t => t.Id === opt.id);

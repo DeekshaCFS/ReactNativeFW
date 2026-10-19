@@ -5,10 +5,12 @@ import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { ms, sp } from '../../utils/responsive';
 
+import { useTranslation } from 'react-i18next';
 // Same URL as BookDemoFragment.mUrl (updated in Java v4.6.6).
 const BOOK_DEMO_URL = 'https://calendly.com/priya-singh-fieldweb/30min';
 
 export default function BookDemoScreen() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -25,13 +27,13 @@ export default function BookDemoScreen() {
       {loading && (
         <View style={styles.overlay}>
           <ActivityIndicator size="large" color="#D90429" />
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading')}</Text>
         </View>
       )}
 
       {error && (
         <View style={styles.overlay}>
-          <Text style={styles.errorText}>Error loading page</Text>
+          <Text style={styles.errorText}>{t('rn_error_loading_page')}</Text>
         </View>
       )}
     </View>

@@ -35,6 +35,7 @@ import AddTaskModal, {
 import { showFailureMsg } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 // TasksListAdapter's textView_reassign_from_list: edit icon for InActive,
 // re-assign icon for Completed / Rejected / OnHold, nothing for Ongoing.
 // MainTaskFragmentNew then opens updateTaskDialog / reAssignCompletedTaskDialog /
@@ -750,7 +751,7 @@ const MainTaskFragmentNewScreen = ({
       return (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>!</Text>
-          <Text style={styles.emptyTitle}>Unable to Load Tasks</Text>
+          <Text style={styles.emptyTitle}>{t('rn_unable_to_load_tasks')}</Text>
           <Text style={styles.emptyText}>{errorMessage}</Text>
         </View>
       );
@@ -838,12 +839,12 @@ const MainTaskFragmentNewScreen = ({
             style={styles.filterButton}
             onPress={() => setStatusModalVisible(true)}>
             <Text numberOfLines={1} style={styles.filterText}>
-              {selectedStatus.label}
+              {tr(selectedStatus.label)}
             </Text>
             <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
           <Pressable style={styles.refreshButton} onPress={resetAndLoad}>
-            <Text style={styles.refreshText}>Refresh List</Text>
+            <Text style={styles.refreshText}>{t('rn_refresh_list')}</Text>
             <View style={styles.refreshIcon}>
               <ResetIcon size={ms(24)} />
             </View>
@@ -854,7 +855,7 @@ const MainTaskFragmentNewScreen = ({
       {isInitialLoading ? (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading tasks...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading_tasks')}</Text>
         </View>
       ) : null}
 
@@ -898,7 +899,7 @@ const MainTaskFragmentNewScreen = ({
         title={t('status')}
         options={TASK_STATUSES.filter(status => status.id !== 0).map(status => ({
           id: status.id,
-          label: status.label,
+          label: tr(status.label),
         }))}
         onClose={() => setStatusModalVisible(false)}
         onSelect={option => {

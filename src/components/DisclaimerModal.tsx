@@ -23,7 +23,7 @@ export default function DisclaimerModal({ visible, disclaimerHtml, loading, onAc
 
   const handleContinue = () => {
     if (!agreed) {
-      showFailureMsg('Please Click on I Agree');
+      showFailureMsg(t('click_on_agree'));
       return;
     }
     onAccept();

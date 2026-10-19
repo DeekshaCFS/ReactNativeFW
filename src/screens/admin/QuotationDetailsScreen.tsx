@@ -179,7 +179,7 @@ const QuotationDetailsScreen = ({
       const resultData = response.ResultData ?? null;
       const pdfUrl = String(resultData?.QuotationPdfPath ?? '').trim();
       if (!pdfUrl) {
-        showToast('PDF is not available for this quotation.');
+        showToast(t('rn_pdf_is_not_available_for_this_quotation'));
         return;
       }
       await Linking.openURL(pdfUrl);
@@ -198,7 +198,7 @@ const QuotationDetailsScreen = ({
   // Java UpdateQuotationStatus(): spinner {Select Status, Lost}; "Select Status!" toast when unchosen.
   const handleUpdateStatus = async () => {
     if (!selectedStatus) {
-      showToast('Select Status!');
+      showToast(t('select_status'));
       return;
     }
     setIsUpdatingStatus(true);
@@ -324,11 +324,11 @@ const QuotationDetailsScreen = ({
                 </ActionCell>
               </StatusIconRow>
 
-              <SectionTitle first>Quote Details</SectionTitle>
-              <DetailRow first label="Quote Name" value={details?.QuoteName ?? ''} />
-              <DetailRow label="Quote ID" value={details?.QuoteCode ?? ''} />
-              <DetailRow label="Created Date " value={formatDateTime(details?.CreatedDate)} />
-              <DetailRow label="Validity Date" value={formatDateTime(details?.ValidityDate)} />
+              <SectionTitle first>{t('rn_quote_details')}</SectionTitle>
+              <DetailRow first label={t('rn_quote_name')} value={details?.QuoteName ?? ''} />
+              <DetailRow label={t('rn_quote_id')} value={details?.QuoteCode ?? ''} />
+              <DetailRow label={t('rn_created_date')} value={formatDateTime(details?.CreatedDate)} />
+              <DetailRow label={t('rn_validity_date_2')} value={formatDateTime(details?.ValidityDate)} />
 
               <SectionTitle>{t('customer_details')}</SectionTitle>
               <DetailRow first label={t('customer_name')} value={customer?.CustomerName ?? ''} />
@@ -337,14 +337,14 @@ const QuotationDetailsScreen = ({
                 value={'+' + getCurrentCountryCode() + ' ' + (customer?.MobileNumber ?? '')}
               />
               <DetailRow clip label={t('address')} value={location?.Address ?? ''} />
-              <DetailRow label="Flat/Building/Parcel" value={location?.BuildingNumber ?? ''} />
+              <DetailRow label={t('rn_flat_building_parcel')} value={location?.BuildingNumber ?? ''} />
               <DetailRow label={t('landmark')} value={location?.Description ?? ''} />
 
               <View style={[styles.tableHeaderRow, {marginTop: ms(5)}]}>
                 <Text style={[styles.tableHeaderCell, styles.eq, {textAlign: 'left'}]}>{t('item_details')}</Text>
-                <Text style={[styles.tableHeaderCell, styles.eq]}>Qty</Text>
-                <Text style={[styles.tableHeaderCell, styles.eq]}>Unit Price</Text>
-                <Text style={[styles.tableHeaderCell, styles.eq]}>Total Price</Text>
+                <Text style={[styles.tableHeaderCell, styles.eq]}>{t('rn_qty')}</Text>
+                <Text style={[styles.tableHeaderCell, styles.eq]}>{t('rn_unit_price')}</Text>
+                <Text style={[styles.tableHeaderCell, styles.eq]}>{t('rn_total_price')}</Text>
               </View>
               {itemList.map((line, index) => (
                 <View key={`item-${index}`} style={styles.listRow}>
@@ -357,8 +357,8 @@ const QuotationDetailsScreen = ({
 
               <View style={[styles.tableHeaderRow, {marginTop: ms(10)}]}>
                 <Text style={[styles.tableHeaderCell, {flex: 0.4}]}>{t('service_name_add_task')}</Text>
-                <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>Qty</Text>
-                <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>Service Price</Text>
+                <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>{t('rn_qty')}</Text>
+                <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>{t('rn_service_price_2')}</Text>
               </View>
               {serviceList.map((line, index) => (
                 <View key={`service-${index}`} style={styles.listRow}>
@@ -369,8 +369,8 @@ const QuotationDetailsScreen = ({
               ))}
 
               <View style={[styles.tableHeaderRow, {marginTop: ms(10), marginBottom: ms(12)}]}>
-                <Text style={[styles.tableHeaderCell, {flex: 0.6}]}>Extra Name</Text>
-                <Text style={[styles.tableHeaderCell, {flex: 0.4}]}>Extra Price</Text>
+                <Text style={[styles.tableHeaderCell, {flex: 0.6}]}>{t('rn_extra_name')}</Text>
+                <Text style={[styles.tableHeaderCell, {flex: 0.4}]}>{t('rn_extra_price')}</Text>
               </View>
               <View style={[styles.tableHeaderRow, {marginLeft: ms(10), marginTop: 0, marginBottom: 0}]}>
                 <Text style={[styles.rowCell, {flex: 0.6, textAlign: 'left'}]}>{extraItem}</Text>
@@ -379,8 +379,8 @@ const QuotationDetailsScreen = ({
                 </Text>
               </View>
 
-              <SectionTitle>Tax,Discounts & Quote Amount</SectionTitle>
-              <DetailRow first label="Total Amount" value={`₹ ${formatAmount(details?.TotalAmount)}`} />
+              <SectionTitle>{t('rn_tax_discounts_quote_amount')}</SectionTitle>
+              <DetailRow first label={t('rn_total_amount')} value={`₹ ${formatAmount(details?.TotalAmount)}`} />
               <DetailRow
                 label={t('discount')}
                 value={`₹ ${javaDouble(taxInfo?.DiscountAmounnt)}(${javaDouble(taxInfo?.Discount)}%)`}
@@ -390,13 +390,13 @@ const QuotationDetailsScreen = ({
                 value={`₹ ${javaDouble(taxInfo?.TaxAmount)}(${javaDouble(taxInfo?.Tax)}%)`}
               />
               <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
-                <Text style={{flex: 0.4, fontSize: sp(14), color: DETAIL_DARK}}>Grand Total Amount</Text>
+                <Text style={{flex: 0.4, fontSize: sp(14), color: DETAIL_DARK}}>{t('rn_grand_total_amount')}</Text>
                 <Text style={{flex: 0.6, fontSize: sp(14), color: DETAIL_GREEN, fontWeight: '700'}}>
                   ₹ {formatAmount(details?.GrandTotalAmount)}
                 </Text>
               </View>
 
-              <SectionTitle>Terms & Conditions</SectionTitle>
+              <SectionTitle>{t('rn_terms_conditions')}</SectionTitle>
               <Text style={styles.termsText} numberOfLines={1}>
                 {String(details?.TermCondition ?? '')}
               </Text>
@@ -407,7 +407,7 @@ const QuotationDetailsScreen = ({
 
       <AccountsDeleteSheet
         visible={isDeleteOpen}
-        message="Do you want to delete this Quote ? It will delete all quotation history."
+        message={t('rn_do_you_want_to_delete_this_quote_it_will_d')}
         onNo={() => setIsDeleteOpen(false)}
         onYes={confirmDelete}
       />
@@ -415,7 +415,7 @@ const QuotationDetailsScreen = ({
       {/* Java update_quote_status.xml */}
       <AccountsFormSheet
         visible={isStatusModalOpen}
-        title="Update Quote Status"
+        title={t('rn_update_quote_status')}
         onClose={() => setIsStatusModalOpen(false)}
         actionLabel={t('update')}
         actionIcon
@@ -424,14 +424,14 @@ const QuotationDetailsScreen = ({
         cancelLabel={t('cancel')}>
         <OutlinedSelect
           style={sheetPill}
-          label="Select Status"
+          label={t('select_status')}
           value={selectedStatus || 'Select Status'}
           chevron
           onPress={() => setIsStatusPickerOpen(true)}
         />
         <OutlinedInput
           style={styles.notesPill}
-          placeholder="Notes"
+          placeholder={t('notes')}
           placeholderTextColor={COLORS.lightGray}
           multiline
           maxLength={60}
@@ -442,7 +442,7 @@ const QuotationDetailsScreen = ({
 
       <SearchPickerModal
         visible={isStatusPickerOpen}
-        title="Select Status"
+        title={t('select_status')}
         hideSearch
         options={[
           {id: 0, label: 'Select Status'},

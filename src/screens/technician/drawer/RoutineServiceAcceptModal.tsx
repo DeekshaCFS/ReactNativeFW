@@ -27,6 +27,7 @@ import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast'
 import DecimalInput from '../../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 type PaymentMode = 'AMC' | 'Rate';
 
 interface Props {
@@ -252,7 +253,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
               floats over the card's corner, with the title centered below/around it
               (not sharing a row) -- not a left-aligned title + inline icon row. */}
           <View style={styles.header}>
-            <Text style={styles.title}>Routine Service</Text>
+            <Text style={styles.title}>{t('rn_routine_service')}</Text>
           </View>
           <Pressable onPress={onClose} hitSlop={8} style={styles.closeButton}>
             <Ionicons name="close-circle" size={scale(30)} color={COLORS.primary} />
@@ -317,7 +318,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
             <DecimalInput
               value={wages}
               onChangeText={text => { setWages(text); if (wagesError) setWagesError(''); }}
-              placeholder={paymentMode === 'AMC' ? 'Not Applicable In AMC Mode' : 'Please Enter Amount'}
+              placeholder={paymentMode === 'AMC' ? tr('Not Applicable In AMC Mode') : tr('Please Enter Amount')}
               placeholderTextColor="#9ca3af"
               editable={paymentMode === 'Rate'}
               style={[styles.inputRate, paymentMode === 'AMC' && styles.inputDisabled]}
@@ -343,7 +344,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.proceedText}>PROCEED</Text>
+              <Text style={styles.proceedText}>{t('proceed').toUpperCase()}</Text>
             )}
           </Pressable>
         </View>
@@ -352,7 +353,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
       {/* Existing tasks of this customer. */}
       <SearchPickerModal
         visible={taskPickerOpen}
-        title="Select Task"
+        title={t('rn_select_task')}
         searchHint="Search task"
         options={customerTasks.map((task, i) => ({ id: i, label: `${task.Name}  [${task.NewTaskId ?? task.Id}]` }))}
         onSelect={option => {
@@ -370,7 +371,7 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
       {/* FSR picker -- Java dialog_searchable_spinner ("Select FSR"), the shared dialog. */}
       <SearchPickerModal
         visible={fsrPickerOpen}
-        title="Select FSR"
+        title={t('rn_select_fsr')}
         options={fsrList.map((item, idx) => ({ id: Number(item.FSRId) || idx + 1, label: String(item.FSRName ?? '') }))}
         onSelect={option => {
           const item = fsrList.find((it, idx) => (Number(it.FSRId) || idx + 1) === option.id && String(it.FSRName ?? '') === option.label);

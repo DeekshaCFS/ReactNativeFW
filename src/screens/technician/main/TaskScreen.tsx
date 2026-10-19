@@ -274,13 +274,13 @@ export default function TaskScreen({ navigation, route }: any) {
       });
       const files = response?.ResultData?.Files ?? [];
       if (files.length === 0) {
-        showToast('You have no attachment!');
+        showToast(t('rn_you_have_no_attachment'));
         return;
       }
       setAttachmentFiles(files);
       setAttachmentTask(task);
     } catch {
-      showToast('You have no attachment!');
+      showToast(t('rn_you_have_no_attachment'));
     }
   };
 
@@ -296,7 +296,7 @@ export default function TaskScreen({ navigation, route }: any) {
   const handleSyncFab = async () => {
     const pending = await getPendingTasks(Number(uid) || undefined);
     if (pending.length === 0) {
-      showToast('You have no Offline data to be sync.');
+      showToast(t('rn_you_have_no_offline_data_to_be_sync'));
       return;
     }
     navigation.navigate('SyncOffline');
@@ -325,12 +325,12 @@ export default function TaskScreen({ navigation, route }: any) {
 
   const handleRejectTask = async () => {
     if (!rejectReason.trim()) {
-      showFailureMsg('Please enter reason');
+      showFailureMsg(t('rn_please_enter_reason'));
       return;
     }
     const photosWithImage = rejectPhotos.filter(p => p?.base64);
     if (photosWithImage.length === 0) {
-      showFailureMsg('At least one image is mandatory to reject the task');
+      showFailureMsg(t('rn_at_least_one_image_is_mandatory_to_reject_'));
       return;
     }
     try {
@@ -361,7 +361,7 @@ export default function TaskScreen({ navigation, route }: any) {
 
       fetchTasks(1, true);
 
-      showSuccessMsg('Task rejected successfully.');
+      showSuccessMsg(t('rn_task_rejected_successfully'));
     } catch (err: any) {
       showFailureMsg(err?.message || 'Failed to reject task');
     }
@@ -469,7 +469,7 @@ export default function TaskScreen({ navigation, route }: any) {
           </Pressable>
 
           <Pressable style={styles.refreshItem} onPress={handleRefresh}>
-            <Text style={styles.refreshText}>Refresh List</Text>
+            <Text style={styles.refreshText}>{t('rn_refresh_list')}</Text>
             <Ionicons name="refresh-outline" size={ms(20)} color={COLORS.primary} />
           </Pressable>
         </View>
@@ -584,17 +584,17 @@ export default function TaskScreen({ navigation, route }: any) {
 
           <Text style={styles.sheetTitle}>{selectedTask?.Name}</Text>
           <Text style={styles.sheetText}>
-            It's too Late to Accept the Task !{'\n'}
-            Do you wish to proceed for Reject the task ?
+            {t('rn_it_s_too_late_to_accept_the_task')}{'\n'}
+            {t('rn_do_you_wish_to_proceed_for_reject_the_task')}
           </Text>
 
           {lateRejectPhase === 'confirm' ? (
             <View style={[styles.btnRow, { marginTop: 'auto' }]}>
               <Pressable style={styles.cancelBtn} onPress={closeLateRejectSheet}>
-                <Text style={styles.btnText}>CANCEL</Text>
+                <Text style={styles.btnText}>{t('cancel').toUpperCase()}</Text>
               </Pressable>
               <Pressable style={styles.rejectBtn} onPress={() => setLateRejectPhase('upload')}>
-                <Text style={styles.btnText}>REJECT</Text>
+                <Text style={styles.btnText}>{t('reject_task').toUpperCase()}</Text>
               </Pressable>
             </View>
           ) : (
@@ -611,10 +611,10 @@ export default function TaskScreen({ navigation, route }: any) {
               </View>
               <View style={styles.btnRow}>
                 <Pressable style={styles.cancelBtn} onPress={closeLateRejectSheet}>
-                  <Text style={styles.btnText}>CANCEL</Text>
+                  <Text style={styles.btnText}>{t('cancel').toUpperCase()}</Text>
                 </Pressable>
                 <Pressable style={styles.rejectBtn} onPress={handleRejectTask}>
-                  <Text style={styles.btnText}>REJECT</Text>
+                  <Text style={styles.btnText}>{t('reject_task').toUpperCase()}</Text>
                 </Pressable>
               </View>
             </>

@@ -24,6 +24,7 @@ import { showFailureMsg } from '../../utils/toast';
 import { isBiometricAvailable, promptBiometric } from '../../utils/biometricAuth';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
@@ -117,12 +118,12 @@ export default function SignupScreen() {
       const res: any = await GoogleSignin.signIn();
       const user = res?.data?.user ?? res?.user;
       if (!user?.email) {
-        showFailureMsg('Sign in cancel');
+        showFailureMsg(t('rn_sign_in_cancel'));
         return;
       }
       await signup(user.email, user.name ?? '');
     } catch {
-      showFailureMsg('Sign in cancel');
+      showFailureMsg(t('rn_sign_in_cancel'));
     }
   };
 
@@ -146,7 +147,7 @@ export default function SignupScreen() {
       if (problem) return;
     }
     if (!selectedCountry) {
-      showFailureMsg('Please select your country.');
+      showFailureMsg(t('rn_please_select_your_country'));
       return;
     }
     const contact = fromGoogle ? googleEmail : useEmail ? email.trim() : mobile;
@@ -168,7 +169,7 @@ export default function SignupScreen() {
       }
       const result = response?.ResultData;
       if (response.Code !== '200' || !result?.OTP) {
-        showFailureMsg('Failed to get OTP. Please try again.');
+        showFailureMsg(t('rn_failed_to_get_otp_please_try_again'));
         return;
       }
 
@@ -225,7 +226,7 @@ export default function SignupScreen() {
 
           <Text style={GlobalStyles.title}>{t('sign_up')}</Text>
           <Text style={GlobalStyles.subtitle}>
-            Please enter your details{'\n'}to signup
+            {t('please_enter_details')}{'\n'}{t('rn_to_signup')}
           </Text>
 
           <View style={[GlobalStyles.form, { marginTop: dp(10) }]}>
@@ -248,7 +249,7 @@ export default function SignupScreen() {
                 </>
               ) : (
                 <Text style={GlobalStyles.dropdownText}>
-                  {countriesLoading ? 'Loading countries...' : 'Select country'}
+                  {countriesLoading ? tr('Loading countries...') : tr('Select country')}
                 </Text>
               )}
             </Pressable>
@@ -289,23 +290,23 @@ export default function SignupScreen() {
               onPress={() => { setUseEmail(v => !v); setError(''); }}
             >
               <Text style={styles.toggleText}>
-                {useEmail ? 'Login with Mobile' : 'Login with Email'}
+                {useEmail ? tr('Login with Mobile') : tr('Login with Email')}
               </Text>
             </Pressable>
 
-            <AppButton title="GET OTP" onPress={() => signup()} loading={loading} />
+            <AppButton title={t('login_with_otp').toUpperCase()} onPress={() => signup()} loading={loading} />
           </View>
 
           {bioAvailable && (
             <>
               <View style={styles.bioOrRow}>
                 <View style={styles.bioOrLine} />
-                <Text style={styles.bioOrText}>OR</Text>
+                <Text style={styles.bioOrText}>{t('rn_or')}</Text>
                 <View style={styles.bioOrLine} />
               </View>
               <Pressable style={styles.bioButton} onPress={biometricSignup} disabled={loading}>
                 <Ionicons name="finger-print" size={dp(28)} color={COLORS.primary} />
-                <Text style={styles.bioText}>Signup with Biometric</Text>
+                <Text style={styles.bioText}>{t('rn_signup_with_biometric')}</Text>
               </Pressable>
             </>
           )}
@@ -319,7 +320,7 @@ export default function SignupScreen() {
               </View>
               <Pressable style={styles.googleBtn} onPress={googleSignup} disabled={loading}>
                 <GoogleG size={dp(18)} />
-                <Text style={styles.googleBtnText}>Sign In</Text>
+                <Text style={styles.googleBtnText}>{t('rn_sign_in')}</Text>
               </Pressable>
             </View>
           )}
@@ -345,7 +346,7 @@ export default function SignupScreen() {
         >
           <Pressable style={GlobalStyles.modalContent} onPress={() => {}}>
             <TextInput
-              placeholder="Search Country.."
+              placeholder={t('rn_search_country')}
               value={countrySearch}
               onChangeText={setCountrySearch}
               style={styles.searchInput}

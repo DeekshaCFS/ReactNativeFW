@@ -26,6 +26,7 @@ import {ms, sp} from '../../utils/responsive';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type Props = {
   leave: LeaveListItem | null;
   ownerId: number;
@@ -69,7 +70,7 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
 
   const submit = async (approve: boolean) => {
     if (!notes.trim()) {
-      showFailureMsg('Please Explain Leave Reason');
+      showFailureMsg(t('rn_please_explain_leave_reason'));
       return;
     }
     setSubmitting(approve ? 'approve' : 'decline');
@@ -83,11 +84,11 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
       });
       const message = String(response?.Message ?? '');
       showSuccessMsg(message.toLowerCase() === 'leave successfully declined'
-          ? 'Leave Successfully Declined.'
+          ? tr('Leave Successfully Declined.')
           : message || (approve ? 'Leave approved.' : 'Leave declined.'));
       onActioned();
     } catch (error) {
-      showFailureMsg(error instanceof Error ? error.message : 'Unable to update leave.');
+      showFailureMsg(error instanceof Error ? error.message : tr('Unable to update leave.'));
     } finally {
       setSubmitting(null);
     }
@@ -127,7 +128,7 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
             <View style={styles.nameRow}>
               <Text style={styles.name}>{fullName || NA}</Text>
               <Text style={styles.empId} numberOfLines={1}>
-                (EMP{leave.UserID ?? ''})
+                {t('plus_emp').toUpperCase()}{leave.UserID ?? ''})
               </Text>
             </View>
             <Text style={styles.role}>{orNA(leave.UserDesignation)}</Text>
@@ -142,7 +143,7 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
                 </View>
               ))}
 
-              <Text style={styles.notesLabel}>Approval/Decline Notes *</Text>
+              <Text style={styles.notesLabel}>{t('rn_approval_decline_notes')}</Text>
               <TextInput
                 style={styles.notes}
                 placeholder={t('notes')}
@@ -162,7 +163,7 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
                     {submitting === 'decline' ? (
                       <ActivityIndicator color="#fff" />
                     ) : (
-                      <Text style={styles.buttonText}>Decline</Text>
+                      <Text style={styles.buttonText}>{t('rn_decline')}</Text>
                     )}
                   </Pressable>
                   <Pressable

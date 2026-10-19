@@ -54,6 +54,8 @@ import {getCurrentCountryCode} from '../../state/session';
 import {DeleteAccIcon, EditProfileIcon, RightArrowIcon} from '../../components/JavaIcons';
 import { showFailureMsg } from '../../utils/toast';
 
+import { useTranslation } from 'react-i18next';
+import {tr, trf} from '../../i18n/tr';
 type Props = {
   ownerId: number;
 };
@@ -86,6 +88,7 @@ const ServiceThumb = ({uri, style, fallback}: {uri?: string | null; style: Style
 };
 
 const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
+  const { t } = useTranslation();
   const [tree, setTree] = useState<ServiceCategoryListDTOResultData[]>([]);
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation<any>();
@@ -225,10 +228,10 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
   };
 
   const handleDeleteCategory = (category: ServiceCategoryListDTOResultData) => {
-    Alert.alert('Delete Category', `Delete "${category.ServiceTypeCategoryName}"? This also removes its sub-categories and services.`, [
-      {text: 'Cancel', style: 'cancel'},
+    Alert.alert(tr('Delete Category'), trf('Delete "{{name}}"? This also removes its sub-categories and services.', {name: category.ServiceTypeCategoryName}), [
+      {text: tr('Cancel'), style: 'cancel'},
       {
-        text: 'Delete',
+        text: tr('Delete'),
         style: 'destructive',
         onPress: async () => {
           try {
@@ -241,7 +244,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
             );
             refresh();
           } catch (e) {
-            showFailureMsg(e instanceof Error ? e.message : 'Unable to delete category.');
+            showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete category.'));
           }
         },
       },
@@ -253,12 +256,12 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
     subcategory: ServiceCategoryListDTOLstServiceTypeSubcategories,
   ) => {
     Alert.alert(
-      'Delete Sub-Category',
-      `Delete "${subcategory.ServiceTypeSubCategoryName}"? This also removes its services.`,
+      tr('Delete Sub-Category'),
+      trf('Delete "{{name}}"? This also removes its services.', {name: subcategory.ServiceTypeSubCategoryName}),
       [
-        {text: 'Cancel', style: 'cancel'},
+        {text: tr('Cancel'), style: 'cancel'},
         {
-          text: 'Delete',
+          text: tr('Delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -271,7 +274,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
               );
               refresh();
             } catch (e) {
-              showFailureMsg(e instanceof Error ? e.message : 'Unable to delete sub-category.');
+              showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete sub-category.'));
             }
           },
         },
@@ -280,17 +283,17 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
   };
 
   const handleDeleteService = (service: ServiceCategoryListDTOLstServiceType) => {
-    Alert.alert('Delete Service', `Delete "${service.ServiceName}"?`, [
-      {text: 'Cancel', style: 'cancel'},
+    Alert.alert(tr('Delete Service'), trf('Delete "{{name}}"?', {name: service.ServiceName}), [
+      {text: tr('Cancel'), style: 'cancel'},
       {
-        text: 'Delete',
+        text: tr('Delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await ensureSuccess(await getDeleteService({OwnerId: ownerId, SId: service.Id}));
             refresh();
           } catch (e) {
-            showFailureMsg(e instanceof Error ? e.message : 'Unable to delete service.');
+            showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete service.'));
           }
         },
       },
@@ -468,7 +471,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
           {renderBreadcrumb('Category', view.category.ServiceTypeCategoryName ?? '', view.category.ServiceTypeCategoryImage)}
           {isFirstCategory ? (
             <View style={styles.titleBar}>
-              <Text style={styles.titleText}>Service Sub Category</Text>
+              <Text style={styles.titleText}>{t('rn_service_sub_category')}</Text>
             </View>
           ) : (
             renderTitleBar('Service Sub Category', '+ Sub Category', () =>
@@ -558,7 +561,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
           </View>
 
           <View style={styles.detailTitleRow}>
-            <Text style={styles.detailSection}>Service Details</Text>
+            <Text style={styles.detailSection}>{t('service_details')}</Text>
             <Pressable hitSlop={8} onPress={() => setServiceModal({editing: view.service})}>
               <EditProfileIcon size={ms(20)} color={COLORS.textBlack} />
             </Pressable>
@@ -577,10 +580,10 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
               <Text style={styles.detailValue}>{(value as string) || 'NA'}</Text>
             </View>
           ))}
-          <Text style={styles.detailDescTitle}>Service Description</Text>
+          <Text style={styles.detailDescTitle}>{t('rn_service_description_2')}</Text>
           <Text style={styles.detailDesc}>{svc.Description || 'NA'}</Text>
           <Pressable style={styles.enquiryBtn} onPress={() => navigation.navigate('CRM', {addEnquiryTrigger: Date.now()})}>
-            <Text style={styles.enquiryBtnText}>Add Enquiry</Text>
+            <Text style={styles.enquiryBtnText}>{t('title_add_enquiry')}</Text>
           </Pressable>
         </ScrollView>
 
@@ -608,10 +611,10 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
       <View style={styles.sheet}>
         {renderBreadcrumb('Sub Category', view.subcategory.ServiceTypeSubCategoryName ?? '', view.subcategory.ServiceTypeSubCategoryImage)}
         <View style={styles.searchRow}>
-          <UnderlineSearch value={search} onChangeText={setSearch} placeholder="Search" style={styles.searchFlex} />
+          <UnderlineSearch value={search} onChangeText={setSearch} placeholder={t('rn_search')} style={styles.searchFlex} />
           {tree[0]?.ServiceTypeCategoryId === view.category.ServiceTypeCategoryId ? null : (
             <Pressable style={styles.addPill} onPress={() => setServiceModal({editing: null})}>
-              <Text style={styles.addPillText}>+ Service</Text>
+              <Text style={styles.addPillText}>{t('rn_service')}</Text>
             </Pressable>
           )}
         </View>

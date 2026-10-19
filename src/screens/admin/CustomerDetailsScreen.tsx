@@ -53,6 +53,7 @@ import {
 import TaskDetailsScreen from './TaskDetailsScreen';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type CustomerDetailsScreenProps = {
   ownerId: number;
   customer: Record<string, unknown>;
@@ -471,11 +472,11 @@ const CustomerDetailsScreen = ({
               {getAMCName(item)}
             </Text>
             <Text style={[styles.amcStatus, {color: active ? '#03DE73' : COLORS.darkGray}]}>
-              {active ? 'Active' : 'DeActive'}
+              {active ? tr('Active') : tr('DeActive')}
             </Text>
           </View>
           <View style={styles.amcRow}>
-            <Text style={[styles.amcText, {flex: 1.5}]}>Acti. Date</Text>
+            <Text style={[styles.amcText, {flex: 1.5}]}>{t('rn_acti_date')}</Text>
             <Text style={[styles.amcText, {flex: 1.2}]}>{activation ? toListDate(activation) : ''}</Text>
             <View style={{flex: 0.5}} />
             <Text style={[styles.amcText, {flex: 1.5}]}>{t('no_of_services')}</Text>
@@ -516,7 +517,7 @@ const CustomerDetailsScreen = ({
         <View>
           {status ? (
             <View style={[styles.docRibbon, {backgroundColor: status.color}]}>
-              <Text style={styles.docRibbonText}>{status.label}</Text>
+              <Text style={styles.docRibbonText}>{tr(status.label)}</Text>
             </View>
           ) : (
             <View style={styles.docRibbonSpacer} />
@@ -530,12 +531,12 @@ const CustomerDetailsScreen = ({
               {getStringField(item, ['quoteName', 'QuoteName'])}
             </Text>
             <View style={styles.docLine}>
-              <Text style={styles.docLabel}>Customer :</Text>
+              <Text style={styles.docLabel}>{t('rn_customer')}</Text>
               <Text style={[styles.docValue, {color: COLORS.primary}]}>{customerName}</Text>
             </View>
           </View>
           <View style={styles.docRight}>
-            <Text style={styles.docLabel}>Amount : </Text>
+            <Text style={styles.docLabel}>{t('amount') + ' :'} </Text>
             <Text style={[styles.docValue, styles.docBold, {color: '#4CAF50'}]}>
               {listMoney(getNumberField(item, ['grandTotalAmount', 'GrandTotalAmount']))}
             </Text>
@@ -565,7 +566,7 @@ const CustomerDetailsScreen = ({
         <View>
           {status ? (
             <View style={[styles.docRibbon, {backgroundColor: status.color}]}>
-              <Text style={styles.docRibbonText}>{status.label}</Text>
+              <Text style={styles.docRibbonText}>{tr(status.label)}</Text>
             </View>
           ) : (
             <View style={styles.docRibbonSpacer} />
@@ -579,7 +580,7 @@ const CustomerDetailsScreen = ({
               {getStringField(item, ['quoteTaskName', 'QuoteTaskName'])}
             </Text>
             <View style={styles.docLine}>
-              <Text style={styles.docLabel}>Cust. Name :</Text>
+              <Text style={styles.docLabel}>{t('rn_cust_name')}</Text>
               <Text style={[styles.docValue, {color: COLORS.primary}]}>
                 {getStringField(item, ['customerName', 'CustomerName'])}
               </Text>
@@ -599,7 +600,7 @@ const CustomerDetailsScreen = ({
           </View>
           {isPartial ? (
             <View style={[styles.docRight, {flex: 0.4, justifyContent: 'flex-start'}]}>
-              <Text style={[styles.docLabel, {color: '#FF9B00'}]}>Pending Amt : </Text>
+              <Text style={[styles.docLabel, {color: '#FF9B00'}]}>{t('rn_pending_amt')} </Text>
               <Text style={[styles.docValue, styles.docBold, {color: COLORS.primary}]}>
                 {listMoney(pending)}
               </Text>
@@ -625,7 +626,7 @@ const CustomerDetailsScreen = ({
       >
         <View style={crmStyles.cardRibbon}>
           <Text style={crmStyles.cardRibbonText}>
-            {displayNo ? `ENQUIRY #${displayNo}` : 'ENQUIRY'}
+            {displayNo ? `ENQUIRY #${displayNo}` : tr('ENQUIRY')}
           </Text>
         </View>
         <View style={crmStyles.cardBody}>
@@ -748,7 +749,7 @@ const CustomerDetailsScreen = ({
 
       {/* fragment_crm_task_amc_tabhost: three weighted rows (label .4 / value .6 / action .4) */}
       <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Cust Name</Text>
+        <Text style={styles.infoLabel}>{t('rn_cust_name_2')}</Text>
         <Text style={styles.infoValue}>{customerName}</Text>
         <TouchableOpacity style={styles.infoAction} onPress={() => onEdit?.(customer)}>
           <Ionicons name="create-outline" size={ms(20)} color={THEME_PRIMARY} />
@@ -762,7 +763,7 @@ const CustomerDetailsScreen = ({
         </TouchableOpacity>
       </View>
       <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Cust Address</Text>
+        <Text style={styles.infoLabel}>{t('rn_cust_address')}</Text>
         <Text style={styles.infoValue}>{customerAddress}</Text>
         <View style={styles.infoAction} />
       </View>
@@ -784,7 +785,7 @@ const CustomerDetailsScreen = ({
                 onPress={() => setActiveTab(tab.key)}
               >
                 <Text style={[styles.tabButtonText, selected ? styles.tabButtonTextActive : null]}>
-                  {tab.label}
+                  {tr(tab.label)}
                 </Text>
               </Pressable>
             );
@@ -798,7 +799,7 @@ const CustomerDetailsScreen = ({
             style={styles.filterControl}
             onPress={() => setStatusModalVisible(true)}
           >
-            <Text style={styles.filterLabel}>{selectedStatus.label}</Text>
+            <Text style={styles.filterLabel}>{tr(selectedStatus.label)}</Text>
             <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
           <Pressable
@@ -905,7 +906,7 @@ const CustomerDetailsScreen = ({
                     setStatusModalVisible(false);
                   }}
                 >
-                  <Text style={styles.modalItemText}>{option.label}</Text>
+                  <Text style={styles.modalItemText}>{tr(option.label)}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -924,7 +925,7 @@ const CustomerDetailsScreen = ({
           onPress={() => setMonthModalVisible(false)}
         >
           <Pressable style={styles.modalPanel}>
-            <Text style={styles.modalTitle}>Select Month</Text>
+            <Text style={styles.modalTitle}>{t('rn_select_month')}</Text>
             <ScrollView>
               {MONTH_NAMES.map((name, index) => (
                 <TouchableOpacity

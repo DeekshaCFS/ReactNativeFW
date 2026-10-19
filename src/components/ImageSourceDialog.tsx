@@ -10,6 +10,7 @@ import Modal from './AppModal';
 import { COLORS } from '../theme/theme';
 import { ms, sp } from '../utils/responsive';
 
+import { useTranslation } from 'react-i18next';
 type Props = {
   visible: boolean;
   onCamera: () => void;
@@ -25,6 +26,7 @@ export default function ImageSourceDialog({
   onClose,
   title = 'Select Image Source',
 }: Props) {
+  const { t } = useTranslation();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -36,14 +38,14 @@ export default function ImageSourceDialog({
             android_ripple={{ color: '#00000014' }}
             onPress={onCamera}
           >
-            <Text style={styles.rowText}>Camera</Text>
+            <Text style={styles.rowText}>{t('rn_camera')}</Text>
           </Pressable>
           <Pressable
             style={styles.row}
             android_ripple={{ color: '#00000014' }}
             onPress={onGallery}
           >
-            <Text style={styles.rowText}>Gallery</Text>
+            <Text style={styles.rowText}>{t('rn_gallery')}</Text>
           </Pressable>
         </Pressable>
       </Pressable>

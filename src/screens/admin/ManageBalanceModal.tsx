@@ -23,6 +23,7 @@ import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import {trf, tr} from '../../i18n/tr';
 const GREEN_500 = '#4CAF50'; // @color/green_500
 
 const getCode = (response: {code?: string; Code?: string}) =>
@@ -175,19 +176,19 @@ const ManageBalanceModal = ({
 
   const handleSubmit = () => {
     if (!selectedTechnician) {
-      showFailureMsg('Please select a fieldworker first.');
+      showFailureMsg(t('rn_please_select_a_fieldworker_first'));
       return;
     }
 
     if (!balanceAmount.trim() || Number(balanceAmount) <= 0) {
-      showFailureMsg('Please enter a valid balance amount.');
+      showFailureMsg(t('rn_please_enter_a_valid_balance_amount'));
       return;
     }
 
     if (balanceMode === 'deduct') {
       const remaining = selectedTechnicianBalance ?? getTechnicianBalance(selectedTechnician);
       if (remaining <= 0) {
-        showFailureMsg('Current amount is 0, balance cannot be deducted.');
+        showFailureMsg(t('rn_current_amount_is_0_balance_cannot_be_dedu'));
         return;
       }
     }
@@ -202,7 +203,7 @@ const ManageBalanceModal = ({
             ReceivedBy: getTechnicianId(selectedTechnician),
           }));
 
-          showSuccessMsg(`₹${formatAmount(balanceAmount)} added to ${getTechnicianName(selectedTechnician)}.`);
+          showSuccessMsg(trf('₹{{amount}} added to {{name}}.', { amount: formatAmount(balanceAmount), name: getTechnicianName(selectedTechnician) }));
         } else {
           ensureSuccess(await updateDeductBalance({
             Amount: Number(balanceAmount),
@@ -210,7 +211,7 @@ const ManageBalanceModal = ({
             DeductBy: userId,
             UserId: getTechnicianId(selectedTechnician),
           }));
-          showSuccessMsg(`₹${formatAmount(balanceAmount)} deducted from ${getTechnicianName(selectedTechnician)}.`);
+          showSuccessMsg(trf('₹{{amount}} deducted from {{name}}.', { amount: formatAmount(balanceAmount), name: getTechnicianName(selectedTechnician) }));
         }
 
         onSuccess?.();
@@ -276,7 +277,7 @@ const ManageBalanceModal = ({
                 style={selectedTechnician ? styles.spinnerValue : styles.spinnerPlaceholder}
                 numberOfLines={1}>
                 {isLoadingTechnicians
-                  ? 'Loading...'
+                  ? tr('Loading...')
                   : selectedTechnician
                   ? getTechnicianName(selectedTechnician)
                   : 'Select Fieldworkers'}
@@ -334,7 +335,7 @@ const ManageBalanceModal = ({
               <View style={styles.submitIconWrap}>
                 <BalanceIcon size={ms(30)} color="#FFFFFF" />
               </View>
-              <Text style={styles.submitText}>{balanceMode === 'deduct' ? 'DEDUCT' : 'ADD'}</Text>
+              <Text style={styles.submitText}>{balanceMode === 'deduct' ? tr('DEDUCT') : tr('ADD')}</Text>
             </Pressable>
 
             <Pressable onPress={handleClose}>

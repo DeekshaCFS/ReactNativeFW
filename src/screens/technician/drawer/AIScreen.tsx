@@ -125,7 +125,7 @@ export default function AIScreen() {
           )}
 
           {errored && (
-            <Text style={styles.errorText}>Something went wrong. Please try again.</Text>
+            <Text style={styles.errorText}>{t('rn_something_went_wrong_please_try_again')}</Text>
           )}
         </ScrollView>
 

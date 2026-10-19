@@ -44,6 +44,7 @@ import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import { showImageSourceDialog } from '../../../components/ImageSourceHost';
+import { trf } from '../../../i18n/tr';
 // Java: DocumentUploadFragment limits.
 const MAX_TOTAL_MB = 5;
 const MAX_FILES = 10;
@@ -123,15 +124,15 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
 
         // Track running totals locally: state has not updated yet inside this loop.
         if (count >= MAX_FILES) {
-          showFailureMsg(`You can upload only ${MAX_FILES} files`);
+          showFailureMsg(trf('You can upload only {{n}} files', { n: MAX_FILES }));
           break;
         }
         if (toMB(sizeBytes) > MAX_TOTAL_MB) {
-          showFailureMsg(`${name} is larger than ${MAX_TOTAL_MB} MB`);
+          showFailureMsg(trf('{{name}} is larger than {{mb}} MB', { name, mb: MAX_TOTAL_MB }));
           continue;
         }
         if (toMB(sizeBytes) > room) {
-          showFailureMsg(`Not enough space. You can upload only ${formatMB(room)} MB more`);
+          showFailureMsg(trf('Not enough space. You can upload only {{mb}} MB more', { mb: formatMB(room) }));
           continue;
         }
 
@@ -154,7 +155,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
       }
     } catch (err: any) {
       if (!isErrorWithCode(err) || err.code !== errorCodes.OPERATION_CANCELED) {
-        showFailureMsg('Error selecting file');
+        showFailureMsg(t('rn_error_selecting_file'));
       }
     }
   };
@@ -178,7 +179,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
         0,
       );
       if (toMB(sizeBytes) + others > MAX_TOTAL_MB) {
-        showFailureMsg(`Total size exceeded! You can upload only ${formatMB(Math.max(MAX_TOTAL_MB - others, 0))} MB more.`);
+        showFailureMsg(trf('Total size exceeded! You can upload only {{mb}} MB more.', { mb: formatMB(Math.max(MAX_TOTAL_MB - others, 0)) }));
         return;
       }
 
@@ -204,7 +205,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
         return next;
       });
     } catch {
-      showFailureMsg('Could not load the photo');
+      showFailureMsg(t('rn_could_not_load_the_photo'));
     }
   };
 
@@ -224,11 +225,11 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
 
   const handleSave = async () => {
     if (activeFiles.length === 0) {
-      showFailureMsg('To upload : PDF or Image is compulsory !');
+      showFailureMsg(t('rn_to_upload_pdf_or_image_is_compulsory'));
       return;
     }
     if (totalMB > MAX_TOTAL_MB) {
-      showFailureMsg('Total file size cannot exceed 5 MB');
+      showFailureMsg(t('rn_total_file_size_cannot_exceed_5_mb'));
       return;
     }
 
@@ -256,7 +257,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
           { taskId: task.Id ?? 0, newTaskId: task.NewTaskId ?? String(task.Id), userId: Number(uid) },
           { documents: body },
         );
-        showSuccessMsg('Attachment saved under offline storage !');
+        showSuccessMsg(t('rn_attachment_saved_under_offline_storage'));
         finishTaskFlowToHome(navigation);
         return;
       }
@@ -307,7 +308,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
     <View style={styles.root} pointerEvents="box-none">
       <View style={[styles.sheet, { top: sheetTop, bottom: sheetBottom }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Document Upload</Text>
+          <Text style={styles.headerTitle}>{t('rn_document_upload')}</Text>
           <Pressable style={styles.closeBtn} onPress={() => finishTaskFlowToHome(navigation)} hitSlop={8}>
             <Ionicons name="close" size={sp(20)} color="#fff" />
           </Pressable>
@@ -363,7 +364,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
           </View>
         ) : (
           <View style={styles.panelCapture}>
-            <Text style={styles.panelText}>Click here to capture Images upto 5 if any !</Text>
+            <Text style={styles.panelText}>{t('rn_click_here_to_capture_images_upto_5_if_any')}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -387,10 +388,10 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
 
         <View style={styles.footer}>
           <Pressable style={[styles.footerBtn, styles.skipBtn]} onPress={() => finishTaskFlowToHome(navigation)} disabled={saving}>
-            <Text style={styles.footerText}>SKIP</Text>
+            <Text style={styles.footerText}>{t('skip').toUpperCase()}</Text>
           </Pressable>
           <Pressable style={[styles.footerBtn, styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.footerText}>UPLOAD</Text>}
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.footerText}>{t('upload').toUpperCase()}</Text>}
           </Pressable>
         </View>
       </View>
@@ -403,9 +404,9 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setTypePickerFor(null)}>
           <Pressable style={styles.modalCard} onPress={e => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Document Type</Text>
+            <Text style={styles.modalTitle}>{t('rn_document_type')}</Text>
             {docTypes.length === 0 ? (
-              <Text style={styles.emptyTypes}>No document types available.</Text>
+              <Text style={styles.emptyTypes}>{t('rn_no_document_types_available')}</Text>
             ) : (
               <FlatList
                 data={docTypes}

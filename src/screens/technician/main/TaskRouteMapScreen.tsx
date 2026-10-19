@@ -23,6 +23,7 @@ import { FIELDWEB_MAP_STYLE } from '../../../config/mapStyle';
 import { showToast } from '../../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 type Props = NativeStackScreenProps<TechnicianStackParamList, 'TaskRouteMap'>;
 
 export default function TaskRouteMapScreen({ navigation, route }: Props) {
@@ -120,7 +121,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
     const lng = task.Longitude ? parseFloat(task.Longitude) : 0;
 
     if (!lat || !lng) {
-      showToast('Google Map is unable to find this destination.');
+      showToast(t('rn_google_map_is_unable_to_find_this_destinat'));
       return;
     }
 
@@ -135,7 +136,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
         await Linking.openURL(webFallbackUrl);
       }
     } catch {
-      showToast('Please install a maps application to continue.');
+      showToast(t('rn_please_install_a_maps_application_to_conti'));
       return;
     }
 
@@ -164,7 +165,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
     // Java: TeleCMI module on -> bridged call (number stays hidden); otherwise the dialer.
     if (masked) placeTeleCmiCall(phone);
     else if (phone && phone.trim()) Linking.openURL(`tel:${phone}`);
-    else showToast('Contact number is not available.');
+    else showToast(t('contact_no_is_not_available'));
   };
 
   const address = task.FullAddress || task.LocationName || '';
@@ -178,16 +179,16 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!task.Latitude && !task.Longitude) {
       Alert.alert(
-        'No Location Found',
-        'This task does not have a location set. Do you want to proceed without navigation?',
+        tr('No Location Found'),
+        tr('This task does not have a location set. Do you want to proceed without navigation?'),
         [
           {
-            text: 'Not Yet',
+            text: tr('Not Yet'),
             style: 'cancel',
             onPress: () => navigation.navigate('Task'),
           },
           {
-            text: 'Yes, Proceed',
+            text: tr('Yes, Proceed'),
             onPress: () => {
               const taskWithFallbackCoords = { ...task, Latitude: '0.00', Longitude: '0.00' };
               navigation.navigate('TaskExecution', { task: taskWithFallbackCoords });
@@ -282,10 +283,10 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
               </View>
               <View style={styles.distanceRow}>
                 <Text style={[styles.distanceValue, styles.distanceCol]}>
-                  {routeFailed || !route_ ? 'NA' : route_.distanceText}
+                  {routeFailed || !route_ ? tr('NA') : route_.distanceText}
                 </Text>
                 <Text style={[styles.distanceValue, styles.distanceCol]}>
-                  {routeFailed || !route_ ? 'NA' : route_.durationText}
+                  {routeFailed || !route_ ? tr('NA') : route_.durationText}
                 </Text>
               </View>
             </View>
@@ -313,7 +314,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
       {!showPrompt && (
         <>
           <Pressable style={styles.startBtn} onPress={handleStartNavigation}>
-            <Text style={styles.startBtnText}>START NAVIGATION</Text>
+            <Text style={styles.startBtnText}>{t('start_navigation').toUpperCase()}</Text>
           </Pressable>
           <Pressable style={styles.skipBtn} onPress={handleSkip}>
             <Text style={styles.skipBtnText}>{t('skip')}</Text>
@@ -327,7 +328,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
           <Text style={styles.promptText}>{t('have_you_reached_your_destination')}</Text>
           <View style={styles.promptBtns}>
             <Pressable style={styles.yesBtn} onPress={handleYes}>
-              <Text style={styles.yesBtnText}>YES</Text>
+              <Text style={styles.yesBtnText}>{t('yes').toUpperCase()}</Text>
             </Pressable>
             <Pressable style={styles.noBtn} onPress={() => setShowPrompt(false)}>
               <Text style={styles.noBtnText}>{t('no')}</Text>

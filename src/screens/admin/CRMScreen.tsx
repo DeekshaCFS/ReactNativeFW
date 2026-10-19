@@ -224,6 +224,7 @@ import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import { showImageSourceDialog } from '../../components/ImageSourceHost';
+import { tr } from '../../i18n/tr';
 // Enquiry form: same Java dialog sheet / header / outlined-field metrics as the Add Task form
 // (dialog_enquiry_new), layered over the CRM-wide styles.
 const eq = {...styles, ...taskStyles};
@@ -1004,7 +1005,7 @@ const CRMScreen = ({
 
   const applyPickedPhoto = (slotIndex: number, asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      showToast('Unable to read the selected photo. Please try again.');
+      showToast(t('rn_unable_to_read_the_selected_photo_please_t'));
       return;
     }
 
@@ -1219,31 +1220,31 @@ const CRMScreen = ({
 
   const handleAddEnquirySubmit = async () => {
     if (!phone.trim()) {
-      showFailureMsg('Please enter Phone Number.');
+      showFailureMsg(t('please_enter_phone_number'));
       return;
     }
     if (!address.trim()) {
-      showFailureMsg('Please enter Customer Address.');
+      showFailureMsg(t('please_enter_cust_address'));
       return;
     }
     if (!state.trim()) {
-      showFailureMsg('Please enter State.');
+      showFailureMsg(t('please_select_state'));
       return;
     }
     if (!city.trim()) {
-      showFailureMsg('Please enter City.');
+      showFailureMsg(t('please_select_city'));
       return;
     }
     if (!pinCode.trim()) {
-      showFailureMsg('Please enter Pin Code.');
+      showFailureMsg(t('please_enter_pincode'));
       return;
     }
     if (!/^\d{6}$/.test(pinCode.trim())) {
-      showFailureMsg('Please enter a valid 6-digit Pin Code.');
+      showFailureMsg(t('rn_please_enter_a_valid_6_digit_pin_code'));
       return;
     }
     if (!landmark.trim()) {
-      showFailureMsg('Please enter Landmark.');
+      showFailureMsg(t('please_enter_landmark'));
       return;
     }
 
@@ -1326,7 +1327,7 @@ const CRMScreen = ({
           },
         }));
         closeAddEnquiryModal();
-        showSuccessMsg('Enquiry updated successfully.');
+        showSuccessMsg(t('rn_enquiry_updated_successfully'));
       } else {
         const payload: AddEnquiryRequest = {
           CustomerDetailsid: customerId || 0,
@@ -1362,7 +1363,7 @@ const CRMScreen = ({
         };
         ensureSuccess(await addEnquiry(payload as unknown as Parameters<typeof addEnquiry>[0]));
         closeAddEnquiryModal();
-        showSuccessMsg('Enquiry added successfully.');
+        showSuccessMsg(t('rn_enquiry_added_successfully'));
       }
       fetchEnquiries();
     } catch (error) {
@@ -1428,7 +1429,7 @@ const CRMScreen = ({
         url,
       });
     } catch {
-      showFailureMsg('Unable to share the link right now.');
+      showFailureMsg(t('rn_unable_to_share_the_link_right_now'));
     }
   };
 
@@ -1458,7 +1459,7 @@ const CRMScreen = ({
 
       if (result.statusCode && result.statusCode >= 200 && result.statusCode < 300) {
         if (Platform.OS === 'android') {
-          showToast('File downloaded successfully');
+          showToast(t('rn_file_downloaded_successfully'));
         }
         setQrPreviewPath(filePath);
       } else {
@@ -1466,9 +1467,9 @@ const CRMScreen = ({
       }
     } catch {
       if (Platform.OS === 'android') {
-        showToast('Download failed');
+        showToast(t('sownload_failed'));
       } else {
-        showFailureMsg('Unable to download QR code right now.');
+        showFailureMsg(t('rn_unable_to_download_qr_code_right_now'));
       }
     } finally {
       setIsDownloadingQrCode(false);
@@ -1478,7 +1479,7 @@ const CRMScreen = ({
   const openCall = async (rawPhone: string) => {
     const normalizedPhone = normalizePhone(rawPhone);
     if (!normalizedPhone) {
-      showToast('Phone number unavailable');
+      showToast(t('rn_phone_number_unavailable'));
       return;
     }
     const url = `tel:${normalizedPhone}`;
@@ -1488,7 +1489,7 @@ const CRMScreen = ({
         await Linking.openURL(url);
       }
     } catch {
-      showToast('Please try again on a device.');
+      showToast(t('rn_please_try_again_on_a_device'));
     }
   };
 
@@ -1499,7 +1500,7 @@ const CRMScreen = ({
   const openSms = async (rawPhone: string) => {
     const normalizedPhone = normalizePhone(rawPhone);
     if (!normalizedPhone) {
-      showToast('Phone number unavailable');
+      showToast(t('rn_phone_number_unavailable'));
       return;
     }
     const url = `sms:${normalizedPhone}`;
@@ -1508,10 +1509,10 @@ const CRMScreen = ({
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        showToast('Please try again on a device.');
+        showToast(t('rn_please_try_again_on_a_device'));
       }
     } catch {
-      showToast('Please try again later.');
+      showToast(t('rn_please_try_again_later'));
     }
   };
 
@@ -1521,7 +1522,7 @@ const CRMScreen = ({
   const openWhatsapp = async (rawPhone: string) => {
     const digitsOnly = normalizePhone(rawPhone).replace(/^\+/, '');
     if (!digitsOnly) {
-      showToast('WhatsApp number unavailable');
+      showToast(t('rn_whatsapp_number_unavailable'));
       return;
     }
     const countryCode = getCurrentCountryCode().replace(/\D/g, '');
@@ -1532,10 +1533,10 @@ const CRMScreen = ({
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        showToast('Please try again on a device.');
+        showToast(t('rn_please_try_again_on_a_device'));
       }
     } catch {
-      showToast('Please try again later.');
+      showToast(t('rn_please_try_again_later'));
     }
   };
 
@@ -1582,7 +1583,7 @@ const CRMScreen = ({
       >
         <View style={styles.cardRibbon}>
           <Text style={styles.cardRibbonText}>
-            {displayNo ? `ENQUIRY #${displayNo}` : 'ENQUIRY'}
+            {displayNo ? `ENQUIRY #${displayNo}` : tr('ENQUIRY')}
           </Text>
         </View>
         <View style={styles.cardBody}>
@@ -1753,11 +1754,11 @@ const CRMScreen = ({
               // CRMTaskAmcTabHostFragment.deleteCustomer (delete_customer_dialog).
               Alert.alert(
                 '',
-                'Do you want to delete this Customer ? It will delete all customer history.',
+                tr('Do you want to delete this Customer ? It will delete all customer history.'),
                 [
-                  {text: 'NO', style: 'cancel'},
+                  {text: tr('NO'), style: 'cancel'},
                   {
-                    text: 'Yes',
+                    text: tr('Yes'),
                     style: 'destructive',
                     onPress: async () => {
                       try {
@@ -1771,7 +1772,7 @@ const CRMScreen = ({
                           fetchCustomers(true);
                         }
                       } catch (error) {
-                        showFailureMsg(error instanceof Error ? error.message : 'Unable to delete customer.');
+                        showFailureMsg(error instanceof Error ? error.message : tr('Unable to delete customer.'));
                       }
                     },
                   },
@@ -1792,8 +1793,8 @@ const CRMScreen = ({
       <View style={{ marginTop: insets.top + HEADER_CONTENT_HEIGHT }}>
         <TabStrip
           tabs={[
-            { key: 'enquiries', label: 'ENQUIRIES' },
-            { key: 'customers', label: 'CUSTOMERS' },
+            { key: 'enquiries', label: tr('ENQUIRIES') },
+            { key: 'customers', label: tr('CUSTOMERS') },
           ]}
           active={activeTab}
           onChange={setActiveTab}
@@ -1807,8 +1808,8 @@ const CRMScreen = ({
             style={styles.searchInput}
             placeholder={
               activeTab === 'enquiries'
-                ? 'Search by Enq no., Customer name...'
-                : 'Search by Customer name...'
+                ? tr('Search by Enq no., Customer name...')
+                : tr('Search by Customer name...')
             }
             placeholderTextColor={COLORS.lightGray}
             value={searchText}
@@ -1838,7 +1839,7 @@ const CRMScreen = ({
             style={[styles.addEnquiryButton, customerListStyles.addCustButton]}
             onPress={() => setIsAddCustomerModalOpen(true)}
           >
-            <Text style={styles.addEnquiryButtonText}>+ CUST</Text>
+            <Text style={styles.addEnquiryButtonText}>{t('add_cust').toUpperCase()}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1847,7 +1848,7 @@ const CRMScreen = ({
         <View style={customerListStyles.filterRow}>
           <TouchableOpacity style={customerListStyles.tagSpinner} onPress={openCustomerTagPicker}>
             <Text style={customerListStyles.tagSpinnerText} numberOfLines={1}>
-              {customerTagFilter ? customerTagFilter.label : 'Select Customer Tag'}
+              {customerTagFilter ? customerTagFilter.label : tr('Select Customer Tag')}
             </Text>
             <Ionicons name="chevron-down" style={customerListStyles.tagSpinnerChevron} />
           </TouchableOpacity>
@@ -1861,7 +1862,7 @@ const CRMScreen = ({
               }
             }}
           >
-            <Text style={customerListStyles.refreshText}>Refresh List</Text>
+            <Text style={customerListStyles.refreshText}>{t('rn_refresh_list')}</Text>
             <Ionicons name="sync" size={ms(22)} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
@@ -1893,7 +1894,7 @@ const CRMScreen = ({
             }
             ListEmptyComponent={
               <View style={styles.centerBox}>
-                <Text style={styles.emptyText}>No enquiries found.</Text>
+                <Text style={styles.emptyText}>{t('rn_no_enquiries_found')}</Text>
               </View>
             }
           />
@@ -1926,7 +1927,7 @@ const CRMScreen = ({
           }
           ListEmptyComponent={
             <View style={styles.centerBox}>
-              <Text style={styles.emptyText}>No customers found.</Text>
+              <Text style={styles.emptyText}>{t('rn_no_customers_found')}</Text>
             </View>
           }
         />
@@ -1934,7 +1935,7 @@ const CRMScreen = ({
 
       <SearchPickerModal
         visible={isCustomerTagPickerOpen}
-        title="Select Customer Tag"
+        title={t('rn_select_customer_tag')}
         options={customerTagOptions}
         loading={isLoadingCustomerTags}
         emptyText="No customer tags found."
@@ -1968,7 +1969,7 @@ const CRMScreen = ({
           <View style={eq.modalSheet}>
             <View style={eq.modalHeader}>
               <Text style={eq.modalHeaderTitle}>
-                {editingEnquiryId ? 'Edit Enquiry' : 'Enquiry'}
+                {editingEnquiryId ? tr('Edit Enquiry') : tr('Enquiry')}
               </Text>
               <TouchableOpacity onPress={closeAddEnquiryModal}>
                 <Ionicons name="close" style={eq.modalCloseIcon} />
@@ -2190,7 +2191,7 @@ const CRMScreen = ({
                       }}
                       onFocus={() => {
                         if (!stateId) {
-                          showFailureMsg('Please select a State first.');
+                          showFailureMsg(t('rn_please_select_a_state_first'));
                           return;
                         }
                         setShowCitySuggestions(true);
@@ -2276,7 +2277,7 @@ const CRMScreen = ({
                     }
                     numberOfLines={1}
                   >
-                    {selectedService ? selectedService.label : 'Select Service Type'}
+                    {selectedService ? selectedService.label : tr('Select Service Type')}
                   </Text>
                   <Ionicons name="chevron-down" style={eq.dropdownChevron} />
                 </TouchableOpacity>
@@ -2296,7 +2297,7 @@ const CRMScreen = ({
                     }
                     numberOfLines={1}
                   >
-                    {selectedTaskTag ? selectedTaskTag.label : 'Select Task Type'}
+                    {selectedTaskTag ? selectedTaskTag.label : tr('Select Task Type')}
                   </Text>
                   <Ionicons name="chevron-down" style={eq.dropdownChevron} />
                 </TouchableOpacity>
@@ -2355,7 +2356,7 @@ const CRMScreen = ({
                         <EnquiryIcon size={ms(30)} color="#FFFFFF" />
                       </View>
                       <Text style={eq.darkAddButtonText}>
-                        {editingEnquiryId ? 'UPDATE' : 'ADD'}
+                        {editingEnquiryId ? tr('UPDATE') : tr('ADD')}
                       </Text>
                     </>
                   )}
@@ -2412,7 +2413,7 @@ const CRMScreen = ({
                 </View>
 
                   <View style={enquiryDetailStyles.row}>
-                    <Text style={enquiryDetailStyles.label}>Enquiry No.</Text>
+                    <Text style={enquiryDetailStyles.label}>{t('rn_enquiry_no')}</Text>
                     <Text style={enquiryDetailStyles.value}>
                       #{getEnquiryDisplayNo(selectedEnquiry) || '-'}
                     </Text>
@@ -2458,7 +2459,7 @@ const CRMScreen = ({
                   style={enquiryDetailStyles.addTaskButton}
                   onPress={openAddTaskModal}
                 >
-                  <Text style={enquiryDetailStyles.addTaskText}>+ ADD TASK</Text>
+                  <Text style={enquiryDetailStyles.addTaskText}>{t('title_add_task').toUpperCase()}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={closeEnquiryDetailModal}>
@@ -2491,7 +2492,7 @@ const CRMScreen = ({
               onPress={handleCopyAndShareEnquiryLink}
             >
               <Text style={styles.shareModalPrimaryButtonText}>
-                COPY & SHARE
+                {t('click_to_copy').toUpperCase()}
               </Text>
             </TouchableOpacity>
 
@@ -2504,7 +2505,7 @@ const CRMScreen = ({
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.shareModalSecondaryButtonText}>
-                  DOWNLOAD QR CODE
+                  {t('QR_Code').toUpperCase()}
                 </Text>
               )}
             </TouchableOpacity>
@@ -2524,7 +2525,7 @@ const CRMScreen = ({
       >
         <View style={styles.centeredModalOverlay}>
           <View style={styles.qrPreviewSheet}>
-            <Text style={styles.shareModalTitle}>Enquiry QR Code</Text>
+            <Text style={styles.shareModalTitle}>{t('rn_enquiry_qr_code')}</Text>
             {qrPreviewPath ? (
               <Image
                 source={{uri: `file://${qrPreviewPath}`}}
@@ -2533,7 +2534,7 @@ const CRMScreen = ({
               />
             ) : null}
             <Text style={styles.shareModalSubtitle}>
-              QR code saved to your device storage.
+              {t('rn_qr_code_saved_to_your_device_storage')}
             </Text>
             <TouchableOpacity
               style={styles.shareModalPrimaryButton}
@@ -2548,7 +2549,7 @@ const CRMScreen = ({
                 }
               }}
             >
-              <Text style={styles.shareModalPrimaryButtonText}>SHARE</Text>
+              <Text style={styles.shareModalPrimaryButtonText}>{t('rn_share')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setQrPreviewPath(null)}>
               <Text style={styles.cancelText}>{t('close')}</Text>
@@ -2571,7 +2572,7 @@ const CRMScreen = ({
             <View style={styles.serviceSearchWrap}>
               <TextInput
                 style={styles.serviceSearchInput}
-                placeholder="Search..."
+                placeholder={t('rn_search_2')}
                 placeholderTextColor="#757575"
                 value={serviceTypeSearch}
                 onChangeText={setServiceTypeSearch}

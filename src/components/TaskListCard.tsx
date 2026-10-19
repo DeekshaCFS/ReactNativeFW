@@ -9,6 +9,7 @@ import { COLORS } from '../theme/theme';
 import { ms, sp } from '../utils/responsive';
 import { getCurrentCurrencySymbol } from '../state/session';
 import type { TasksListResultData as Task } from '../api/task/task.types';
+import { tr } from '../i18n/tr';
 
 // drawable/*_background.xml + strings: ribbon colour and label per TaskStatus.
 const STATUS_RIBBON: Record<string, { label: string; color: string }> = {
@@ -62,7 +63,7 @@ export default function TaskListCard({ task, onPress, actions }: Props) {
         <Text
           style={[styles.ribbon, { backgroundColor: ribbon?.color ?? COLORS.statusInactive }]}
         >
-          {(ribbon?.label ?? task.TaskType ?? '').toUpperCase()}
+          {tr(ribbon?.label ?? task.TaskType ?? '').toUpperCase()}
         </Text>
         {tag ? (
           <Text style={styles.tag} numberOfLines={1}>{tag.toUpperCase()}</Text>

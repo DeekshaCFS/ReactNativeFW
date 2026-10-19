@@ -199,7 +199,7 @@ const LeadDetailsScreen = ({
 
   const handleStatusUpdate = async () => {
     if (!selectedStatusId) {
-      showFailureMsg('Please select a lead status.');
+      showFailureMsg(t('rn_please_select_a_lead_status'));
       return;
     }
 
@@ -238,7 +238,7 @@ const LeadDetailsScreen = ({
       // Based on Api.ts, request returns the parsed JSON response
       // Usually success is indicated by the absence of error or a specific field
       if (response) {
-        showSuccessMsg('Lead status updated successfully.');
+        showSuccessMsg(t('rn_lead_status_updated_successfully'));
         setStatusModalVisible(false);
         setUpdateNotes('');
         setSelectedStatusId(null);
@@ -622,7 +622,7 @@ const LeadDetailsScreen = ({
   const openCall = (phone: string) => {
     if (!phone) return;
     Linking.openURL(`tel:${phone.replace(/[^\d+]/g, '')}`).catch(() => {
-      showToast('Unable to open dialer.');
+      showToast(t('rn_unable_to_open_dialer'));
     });
   };
 
@@ -630,7 +630,7 @@ const LeadDetailsScreen = ({
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator color={THEME_PRIMARY} size="large" />
-        <Text style={styles.loadingText}>Loading details...</Text>
+        <Text style={styles.loadingText}>{t('rn_loading_details')}</Text>
       </View>
     );
   }
@@ -687,7 +687,7 @@ const LeadDetailsScreen = ({
             </MapView>
           ) : (
             <View style={styles.mapPlaceholder}>
-              <Text style={styles.mapPlaceholderText}>Map location not available</Text>
+              <Text style={styles.mapPlaceholderText}>{t('rn_map_location_not_available')}</Text>
             </View>
           )}
         </View>
@@ -698,7 +698,7 @@ const LeadDetailsScreen = ({
             <View style={styles.actionRow}>
               {!technician && (
                 <TouchableOpacity style={styles.updateStatusBtn} onPress={() => setStatusModalVisible(true)}>
-                  <Text style={styles.updateStatusBtnText}>Update Status</Text>
+                  <Text style={styles.updateStatusBtnText}>{t('rn_update_status')}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={styles.iconBtn} onPress={() => openAddTask(lead)}>
@@ -718,14 +718,14 @@ const LeadDetailsScreen = ({
         </View>
         <ScrollView style={{flex: 1}} contentContainerStyle={styles.contentInner} showsVerticalScrollIndicator={false}>
         <View style={styles.infoCard}>
-          <Text style={styles.sectionTitle}>Lead Details</Text>
+          <Text style={styles.sectionTitle}>{t('rn_lead_details')}</Text>
           <View style={styles.details}>
             <View style={styles.fieldRow}>
               <Text style={styles.fieldLabel}>{t('customer_name')}</Text>
               <Text style={styles.fieldValue}>{getLeadTitle(lead)}</Text>
             </View>
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Date & Time</Text>
+              <Text style={styles.fieldLabel}>{t('rn_date_time')}</Text>
               <Text style={styles.fieldValue}>{dateTime}</Text>
             </View>
             <View style={styles.fieldRow}>
@@ -750,7 +750,7 @@ const LeadDetailsScreen = ({
 
           {hasPhotos && (
             <>
-              <Text style={[styles.sectionTitle, {marginTop: ms(20)}]}>Attached Photos</Text>
+              <Text style={[styles.sectionTitle, {marginTop: ms(20)}]}>{t('rn_attached_photos')}</Text>
               <View style={styles.photoRow}>
                 {photoPaths.map((path, index) => (
                   <View key={index} style={{flex: 1}}>
@@ -761,7 +761,7 @@ const LeadDetailsScreen = ({
             </>
           )}
 
-          <Text style={[styles.sectionTitle, {marginTop: ms(10), marginBottom: ms(5)}]}>Follow up History</Text>
+          <Text style={[styles.sectionTitle, {marginTop: ms(10), marginBottom: ms(5)}]}>{t('rn_follow_up_history')}</Text>
           <ScrollView style={{height: ms(100)}} nestedScrollEnabled showsVerticalScrollIndicator={false}>
           {(history && history.length > 0
             ? history
@@ -836,7 +836,7 @@ const LeadDetailsScreen = ({
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalBody}>
               <OutlinedSelect
                 style={styles.statusPill}
-                label="Select Lead Status"
+                label={t('rn_select_lead_status')}
                 value={statusOptions
                   .map(item => ({
                     id: getNumberValue(item, ['Id', 'id', 'LeadStatusId', 'leadStatusId']),
@@ -886,7 +886,7 @@ const LeadDetailsScreen = ({
 
       <SearchPickerModal
         visible={statusPickerOpen}
-        title="Select Lead Status"
+        title={t('rn_select_lead_status')}
         hideSearch
         options={statusOptions.map((item, index) => ({
           id: getNumberValue(item, ['Id', 'id', 'LeadStatusId', 'leadStatusId']) || index,

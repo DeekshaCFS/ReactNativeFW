@@ -44,6 +44,7 @@ import {OutlinedInput} from '../../components/OutlinedInput';
 
 import {useTranslation} from 'react-i18next';
 import { showImageSourceDialog } from '../../components/ImageSourceHost';
+import {trf, tr} from '../../i18n/tr';
 type Props = {
   ownerId: number;
 };
@@ -137,7 +138,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      showToast('Unable to read the selected image. Please try again.');
+      showToast(t('rn_unable_to_read_the_selected_image_please_t'));
       return;
     }
     setPickedQrImage({
@@ -165,11 +166,11 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
   const handlePay = () => {
     const link = bankFields.PaymentLink.trim();
     if (!link.startsWith('http://') && !link.startsWith('https://')) {
-      showFailureMsg('Enter a valid payment link starting with http:// or https:// first.');
+      showFailureMsg(t('rn_enter_a_valid_payment_link_starting_with_h'));
       return;
     }
     Linking.openURL(link).catch(() => {
-      showToast('Unable to open this link.');
+      showToast(t('rn_unable_to_open_this_link'));
     });
   };
 
@@ -193,7 +194,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
         showFailureMsg(response?.Message ?? 'Unable to update bank details.');
       }
     } catch (e) {
-      showFailureMsg(e instanceof Error ? e.message : 'Unable to update bank details.');
+      showFailureMsg(e instanceof Error ? e.message : tr('Unable to update bank details.'));
     } finally {
       setSavingBank(false);
     }
@@ -223,7 +224,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
 
   const handleSaveTax = async () => {
     if (!areAllTaxRowsFilled) {
-      showFailureMsg('Please fill in both fields for every tax row.');
+      showFailureMsg(t('rn_please_fill_in_both_fields_for_every_tax_r'));
       return;
     }
     setSavingTax(true);
@@ -245,7 +246,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
         showFailureMsg(response?.Message ?? 'Unable to update tax details.');
       }
     } catch (e) {
-      showFailureMsg(e instanceof Error ? e.message : 'Unable to update tax details.');
+      showFailureMsg(e instanceof Error ? e.message : tr('Unable to update tax details.'));
     } finally {
       setSavingTax(false);
     }
@@ -263,8 +264,8 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <TabStrip
         tabs={[
-          {key: 'bank', label: 'BANK DETAILS'},
-          {key: 'tax', label: 'TAX DETAILS'},
+          {key: 'bank', label: tr('BANK DETAILS')},
+          {key: 'tax', label: tr('TAX DETAILS')},
         ]}
         active={activeTab}
         onChange={k => setActiveTab(k as 'bank' | 'tax')}
@@ -274,7 +275,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* fragment_bankdetails.xml: centred 20sp heading, first three fields in the left half
               with the QR image on the right, then full-width fields. */}
-          <Text style={styles.heading}>Bank Account Details</Text>
+          <Text style={styles.heading}>{t('rn_bank_account_details')}</Text>
           <View style={styles.topRow}>
             <View style={styles.leftCol}>
               {(
@@ -311,7 +312,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
             <View pointerEvents="none">
               <OutlinedInput
                 style={styles.pill}
-                placeholder="Branch Address"
+                placeholder={t('rn_branch_address')}
                 placeholderTextColor={COLORS.lightGray}
                 value={bankFields.BranchAddress}
                 editable={false}
@@ -337,7 +338,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
 
           <View style={styles.buttonCol}>
             <Pressable style={styles.payButton} onPress={handlePay}>
-              <Text style={styles.payButtonText}>PAY</Text>
+              <Text style={styles.payButtonText}>{t('rn_pay')}</Text>
             </Pressable>
             <Pressable
               style={[styles.saveButton, savingBank && styles.saveButtonDisabled]}
@@ -353,13 +354,13 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.heading}>Tax Details</Text>
+          <Text style={styles.heading}>{t('rn_tax_details')}</Text>
           {/* add_bulk_dynamic_tax.xml: one rounded card per tax -- red "Tax #N", red cross, name +
               percent pills; "Add More" lives in the last card. */}
           {taxRows.map((row, index) => (
             <View key={index} style={styles.taxCard}>
               <View style={styles.taxCardHeader}>
-                <Text style={styles.taxCardTitle}>{`Tax #${index + 1}`}</Text>
+                <Text style={styles.taxCardTitle}>{trf('Tax #{{n}}', { n: index + 1 })}</Text>
                 <Pressable hitSlop={8} onPress={() => (index === 0 ? showFailureMsg(t('not_allowed')) : removeTaxRow(index))}>
                   <Ionicons name="close" size={ms(26)} color={THEME_PRIMARY} />
                 </Pressable>
@@ -367,14 +368,14 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
               <View style={styles.taxRow}>
                 <OutlinedInput
                   style={[styles.pill, styles.taxNameInput]}
-                  placeholder="Tax Name"
+                  placeholder={t('rn_tax_name')}
                   placeholderTextColor={COLORS.lightGray}
                   value={row.TaxName}
                   onChangeText={v => updateTaxRow(index, 'TaxName', v)}
                 />
                 <DecimalInput
                   style={[styles.pill, styles.taxPercentInput]}
-                  label="Percent %"
+                  label={t('rn_percent')}
                   placeholderTextColor={COLORS.lightGray}
                   value={row.TaxPercentage}
                   onChangeText={v => updateTaxRow(index, 'TaxPercentage', sanitizeDecimalInput(v))}

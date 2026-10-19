@@ -44,6 +44,7 @@ import SearchPickerModal from '../../components/SearchPickerModal';
 import { showFailureMsg, showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import {tr, trf} from '../../i18n/tr';
 type EmployeeManagementScreenProps = {
   ownerId: number;
   // Non-zero only when mounted under the shared AppHeader (the Employee tab
@@ -659,28 +660,28 @@ const EmployeeManagementScreen = ({
   const handleCallEmployee = (item: EmployeeListItem) => {
     const mobile = String(item.ContactM ?? '').trim();
     if (!mobile) {
-      showToast('Mobile number is not available.');
+      showToast(t('rn_mobile_number_is_not_available'));
       return;
     }
     Linking.openURL(`tel:${mobile}`).catch(() => {
-      showToast('Unable to place the call.');
+      showToast(t('rn_unable_to_place_the_call'));
     });
   };
 
   const handleWhatsAppEmployee = (item: EmployeeListItem) => {
     const mobile = String(item.ContactM ?? '').trim();
     if (!mobile) {
-      showToast('Mobile number is not available.');
+      showToast(t('rn_mobile_number_is_not_available'));
       return;
     }
     Linking.openURL(`https://wa.me/${mobile}`).catch(() => {
-      showToast('Unable to open WhatsApp.');
+      showToast(t('rn_unable_to_open_whatsapp_2'));
     });
   };
 
   const handleEditEmployee = (item: EmployeeListItem) => {
     if (!item.EmployeeNumber) {
-      showToast('Employee id is not available.');
+      showToast(t('rn_employee_id_is_not_available'));
       return;
     }
     setEditingEmployee(item);
@@ -698,19 +699,19 @@ const EmployeeManagementScreen = ({
         showFailureMsg(response?.Message || 'Unable to download the employee list.');
       }
     } catch (error) {
-      showFailureMsg(error instanceof Error ? error.message : 'Unable to download the employee list.');
+      showFailureMsg(error instanceof Error ? error.message : tr('Unable to download the employee list.'));
     }
   };
 
   const handleDeleteEmployee = (item: EmployeeListItem) => {
     // delete_tech_account.xml wording.
     Alert.alert(
-      `Do you wish to Delete ${getEmployeeName(item)}`,
+      `${t('delete_tech_acc_desc')} ${getEmployeeName(item)}`,
       t('delete_tech_acc_desc_one'),
       [
-        {text: 'Nope. Not Now', style: 'cancel'},
+        {text: tr('Nope. Not Now'), style: 'cancel'},
         {
-          text: 'Yes. Delete',
+          text: tr('Yes. Delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -724,7 +725,7 @@ const EmployeeManagementScreen = ({
               setSelectedEmployee(null);
               refreshList();
             } catch (error) {
-              showFailureMsg(error instanceof Error ? error.message : 'Unable to delete employee.');
+              showFailureMsg(error instanceof Error ? error.message : tr('Unable to delete employee.'));
             }
           },
         },
@@ -780,7 +781,7 @@ const EmployeeManagementScreen = ({
             {getEmployeeName(item)}
           </Text>
           <View style={styles.metricRow}>
-            <Text style={styles.metricLabel}>Battery</Text>
+            <Text style={styles.metricLabel}>{t('rn_battery')}</Text>
             <Text
               style={[
                 styles.metricValue,
@@ -790,9 +791,9 @@ const EmployeeManagementScreen = ({
             </Text>
           </View>
           <View style={styles.metricRow}>
-            <Text style={styles.metricLabel}>GPS</Text>
+            <Text style={styles.metricLabel}>{t('rn_gps')}</Text>
             <Text style={[styles.metricValue, {color: gpsOn ? COLORS.success : COLORS.primary}]}>
-              {gpsOn ? 'On' : 'Off'}
+              {gpsOn ? 'On' : tr('Off')}
             </Text>
           </View>
         </View>
@@ -827,7 +828,7 @@ const EmployeeManagementScreen = ({
               style={styles.trackButton}
               onPress={() => {
                 if (attendanceLower === 'absent') {
-                  showToast('Employee is Absent today.');
+                  showToast(t('technician_status'));
                   return;
                 }
                 setTrackingEmployee(item);
@@ -849,7 +850,7 @@ const EmployeeManagementScreen = ({
       return (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>!</Text>
-          <Text style={styles.emptyTitle}>Unable to Load Employees</Text>
+          <Text style={styles.emptyTitle}>{t('rn_unable_to_load_employees')}</Text>
           <Text style={styles.emptyText}>{errorMessage}</Text>
         </View>
       );
@@ -912,7 +913,7 @@ const EmployeeManagementScreen = ({
 
         <View style={styles.leaveDetailRow}>
           <View style={styles.leaveDateGroup}>
-            <Text style={styles.leaveLabel}>Leave Date :</Text>
+            <Text style={styles.leaveLabel}>{t('rn_leave_date')}</Text>
             <Text numberOfLines={1} style={styles.leaveValue}>
               {startDate} - {endDate}
             </Text>
@@ -926,7 +927,7 @@ const EmployeeManagementScreen = ({
         </View>
 
         <View style={styles.leaveReasonRow}>
-          <Text style={styles.leaveLabel}>Leave Reason :</Text>
+          <Text style={styles.leaveLabel}>{t('rn_leave_reason')}</Text>
           <Text numberOfLines={1} style={styles.leaveReasonValue}>
             {String(item.ReasonOfLeave ?? '').trim() || 'NA'}
           </Text>
@@ -944,7 +945,7 @@ const EmployeeManagementScreen = ({
       return (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>!</Text>
-          <Text style={styles.emptyTitle}>Unable to Load Leave Requests</Text>
+          <Text style={styles.emptyTitle}>{t('rn_unable_to_load_leave_requests')}</Text>
           <Text style={styles.emptyText}>{leaveErrorMessage}</Text>
         </View>
       );
@@ -972,7 +973,7 @@ const EmployeeManagementScreen = ({
               onChangeText={setSearchText}
               onSubmitEditing={submitSearch}
               returnKeyType="search"
-              placeholder="Search"
+              placeholder={t('rn_search')}
               placeholderTextColor={COLORS.lightGray}
               style={styles.searchInput}
             />
@@ -1000,7 +1001,7 @@ const EmployeeManagementScreen = ({
             style={[styles.filterButton, {flex: 1.3}]}
             onPress={() => setFilterModal('type')}>
             <Text numberOfLines={1} style={styles.filterText}>
-              {selectedType.label}
+              {tr(selectedType.label)}
             </Text>
             <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
@@ -1008,7 +1009,7 @@ const EmployeeManagementScreen = ({
             style={[styles.filterButton, {flex: 1}]}
             onPress={() => setFilterModal('zone')}>
             <Text numberOfLines={1} style={styles.filterText}>
-              {selectedZone.label}
+              {tr(selectedZone.label)}
             </Text>
             <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
@@ -1016,7 +1017,7 @@ const EmployeeManagementScreen = ({
             style={[styles.filterButton, {flex: 0.7}]}
             onPress={() => setFilterModal('status')}>
             <Text numberOfLines={1} style={styles.filterText}>
-              {selectedStatus.label}
+              {tr(selectedStatus.label)}
             </Text>
             <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
@@ -1026,7 +1027,7 @@ const EmployeeManagementScreen = ({
       {isInitialLoading ? (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading employees...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading_employees')}</Text>
         </View>
       ) : null}
 
@@ -1077,7 +1078,7 @@ const EmployeeManagementScreen = ({
             onChangeText={setLeaveSearchText}
             onSubmitEditing={submitLeaveSearch}
             returnKeyType="search"
-            placeholder="Search"
+            placeholder={t('rn_search')}
             placeholderTextColor={COLORS.lightGray}
             style={styles.searchInput}
           />
@@ -1097,7 +1098,7 @@ const EmployeeManagementScreen = ({
           style={styles.leaveStatusButton}
           onPress={() => setLeaveFilterModal('leaveStatus')}>
           <Text numberOfLines={1} style={styles.leaveFilterText}>
-            {selectedLeaveStatus.label}
+            {tr(selectedLeaveStatus.label)}
           </Text>
           <Ionicons name="chevron-down" style={styles.leaveFilterChevron} />
         </Pressable>
@@ -1119,7 +1120,7 @@ const EmployeeManagementScreen = ({
       {isLeaveInitialLoading ? (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading leave requests...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading_leave_requests')}</Text>
         </View>
       ) : null}
 
@@ -1165,8 +1166,8 @@ const EmployeeManagementScreen = ({
       <View style={{ marginTop: contentTopOffset }}>
         <TabStrip
           tabs={[
-            { key: 'employee', label: 'EMPLOYEE LIST' },
-            { key: 'leave', label: 'LEAVE REQUEST' },
+            { key: 'employee', label: tr('EMPLOYEE LIST') },
+            { key: 'leave', label: tr('LEAVE REQUEST') },
           ]}
           active={activeTab}
           onChange={setActiveTab}
@@ -1212,7 +1213,7 @@ const EmployeeManagementScreen = ({
           onPress={() => setLeaveFilterModal(null)}>
           <Pressable style={styles.modalPanel}>
               <>
-                <Text style={styles.modalTitle}>Select month</Text>
+                <Text style={styles.modalTitle}>{t('rn_select_month_2')}</Text>
                 <View style={styles.monthPickerBody}>
                   <ScrollView style={styles.monthPickerColumn}>
                     <Text style={styles.monthPickerColumnTitle}>{t('month')}</Text>
@@ -1343,11 +1344,11 @@ const EmployeeManagementScreen = ({
                   </Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Employee Type</Text>
+                  <Text style={styles.detailsLabel}>{t('rn_employee_type')}</Text>
                   <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployee.UserGroupName)}</Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Designation</Text>
+                  <Text style={styles.detailsLabel}>{t('rn_designation')}</Text>
                   <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployee.DesignationName)}</Text>
                 </View>
                 <View style={styles.detailsFieldRow}>

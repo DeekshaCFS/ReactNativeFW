@@ -8,6 +8,7 @@ import PrivacyPolicyScreen from '../screens/technician/drawer/PrivacyPolicyScree
 import DocumentUploadScreen from '../screens/technician/main/DocumentUploadScreen';
 
 import { COLORS } from '../theme/theme';
+import { tr } from '../i18n/tr';
 
 // Route-name map for every technician screen. Most of them are registered in
 // TechnicianTabs (hidden from the tab bar so the shared bar shows under them);
@@ -75,7 +76,7 @@ export default function TechnicianStack() {
         name="DocumentUpload"
         component={DocumentUploadScreen}
         options={{
-          title: 'Upload Documents',
+          title: tr('Upload Documents'),
           headerShown: false,
           presentation: 'transparentModal',
           animation: 'slide_from_bottom',

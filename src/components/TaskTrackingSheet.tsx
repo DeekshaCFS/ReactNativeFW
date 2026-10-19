@@ -22,6 +22,8 @@ import { showFailureMsg, showToast } from '../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import ImageSourceDialog from './ImageSourceDialog';
+import i18n from 'i18next';
+import { tr } from '../i18n/tr';
 const REJECTION_REASONS = [
   'Not available', 'Wrong area', 'Personal reason', 'Equipment issue', 'Other',
 ];
@@ -34,14 +36,14 @@ const REASON_FOCUS_GREEN = '#2a7d6f';
 const handleCallTask = (task: Task) => {
   const phone = task.ContactNo ?? task.TechContactNo;
   if (phone) Linking.openURL(`tel:${phone}`);
-  else showToast('Contact number is not available.');
+  else showToast(i18n.t('contact_no_is_not_available'));
 };
 
 const handleLocationTask = async (task: Task) => {
   const lat = task.Latitude ? parseFloat(task.Latitude) : 0;
   const lng = task.Longitude ? parseFloat(task.Longitude) : 0;
   if (!lat || !lng) {
-    showToast('Google Map is unable to find this destination.');
+    showToast(i18n.t('rn_google_map_is_unable_to_find_this_destinat'));
     return;
   }
   const nativeNavUrl = `google.navigation:q=${lat},${lng}`;
@@ -51,7 +53,7 @@ const handleLocationTask = async (task: Task) => {
     if (canOpenNative) await Linking.openURL(nativeNavUrl);
     else await Linking.openURL(webFallbackUrl);
   } catch {
-    showToast('Please install a maps application to continue.');
+    showToast(i18n.t('rn_please_install_a_maps_application_to_conti'));
   }
 };
 
@@ -113,7 +115,7 @@ export default function TaskTrackingSheet({
   // Java: ValidateTaskDetails -> 201 "No Data Found." sends the user home to refresh.
   const handleTaskUnavailable = () =>
     {
-      showFailureMsg('This task is no longer available. Refreshing your tasks.');
+      showFailureMsg(t('rn_this_task_is_no_longer_available_refreshin'));
       navigation.navigate('Home');
     }
   const isLoading = actionState === 'loading';
@@ -153,11 +155,11 @@ export default function TaskTrackingSheet({
   const handleAccept = async (responseCode?: string) => {
     if (!isResumeFlow && task.ResponseCode && Number(task.ResponseCode) !== 0) {
       if (!responseCode || !responseCode.trim()) {
-        showFailureMsg('Please enter the response code.');
+        showFailureMsg(t('rn_please_enter_the_response_code'));
         return;
       }
       if (Number(responseCode.trim()) !== Number(task.ResponseCode)) {
-        showFailureMsg('Please enter a valid response code.');
+        showFailureMsg(t('rn_please_enter_a_valid_response_code'));
         return;
       }
     }
@@ -204,7 +206,7 @@ export default function TaskTrackingSheet({
 
     const photosWithImage = rejectPhotos.filter(p => p?.base64);
     if (photosWithImage.length === 0) {
-      showFailureMsg('At least one image is mandatory to reject the task');
+      showFailureMsg(t('rn_at_least_one_image_is_mandatory_to_reject_'));
       return;
     }
 
@@ -233,7 +235,7 @@ export default function TaskTrackingSheet({
     setRejectNoteError(false);
     const photosWithImage = rejectPhotos.filter(p => p?.base64);
     if (photosWithImage.length === 0) {
-      showFailureMsg('At least One Image is mandatory to Reject the Task !!');
+      showFailureMsg(t('rn_at_least_one_image_is_mandatory_to_reject__2'));
       return;
     }
     const success = await rejectTask(task, userId, rejectNote, photosWithImage);
@@ -404,14 +406,14 @@ function ActionSheet({
         {requiresResponseCode && <ResponseCodeInput value={responseCode} onChange={setResponseCode} />}
         <View style={styles.btnRow}>
           <Pressable style={[styles.pillBtn, styles.rejectPillBtn, isLoading && styles.btnDisabled]} onPress={onReject} disabled={isLoading}>
-            <Text style={styles.pillBtnLabel}>REJECT</Text>
+            <Text style={styles.pillBtnLabel}>{t('reject_task').toUpperCase()}</Text>
           </Pressable>
           <Pressable
             style={[styles.pillBtn, styles.acceptPillBtn, (isLoading || !codeReady) && styles.btnDisabled]}
             onPress={() => onAccept(requiresResponseCode ? responseCode.trim() : undefined)}
             disabled={isLoading || !codeReady}
           >
-            <Text style={styles.pillBtnLabel}>{isLoading ? 'Please wait…' : 'ACCEPT'}</Text>
+            <Text style={styles.pillBtnLabel}>{isLoading ? tr('Please wait…') : tr('ACCEPT')}</Text>
           </Pressable>
         </View>
 
@@ -485,13 +487,13 @@ function OnHoldResumeSheet({ task, onClose, onResume, isLoading }: {
     <ScrollView showsVerticalScrollIndicator={false}>
       <TaskDetailsBlock task={task} onClose={onClose} resumeDefaults />
       <View style={styles.content}>
-        <Text style={styles.resumePrompt}>Do you want to Resume this Task?</Text>
+        <Text style={styles.resumePrompt}>{t('rn_do_you_want_to_resume_this_task')}</Text>
         <View style={styles.btnRow}>
           <Pressable style={[styles.pillBtn, { backgroundColor: '#E5E7EB' }]} onPress={onClose}>
             <Text style={[styles.pillBtnLabel, { color: '#9CA3AF' }]}>{t('no')}</Text>
           </Pressable>
           <Pressable style={[styles.pillBtn, styles.acceptPillBtn, isLoading && styles.btnDisabled]} onPress={() => onResume()} disabled={isLoading}>
-            <Text style={styles.pillBtnLabel}>{isLoading ? 'Please wait…' : 'YES'}</Text>
+            <Text style={styles.pillBtnLabel}>{isLoading ? tr('Please wait…') : tr('YES')}</Text>
           </Pressable>
         </View>
       </View>
@@ -507,13 +509,14 @@ function RejectSheet({ reasons, selectedReason, onSelectReason, note, onNoteChan
   photos: { uri: string; base64?: string }[];
   onOpenPhotoPicker: (index: number) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.rejectScroll}>
       <View style={styles.titleRow}>
         <Pressable onPress={onBack} hitSlop={10} style={{ marginRight: scale(12) }}>
           <Ionicons name="arrow-back" size={scale(22)} color={COLORS.primary} />
         </Pressable>
-        <Text style={styles.rejectTitle}>Reason for Rejection</Text>
+        <Text style={styles.rejectTitle}>{t('rn_reason_for_rejection')}</Text>
       </View>
       <View style={styles.photoRow}>
         {[0, 1, 2].map(i => (
@@ -524,10 +527,10 @@ function RejectSheet({ reasons, selectedReason, onSelectReason, note, onNoteChan
           </Pressable>
         ))}
       </View>
-      <Text style={styles.sectionLabel}>Additional note (optional)</Text>
+      <Text style={styles.sectionLabel}>{t('rn_additional_note_optional')}</Text>
       <TextInput
         value={note} onChangeText={onNoteChange}
-        placeholder="Describe the reason…" placeholderTextColor="#9CA3AF"
+        placeholder={t('rn_describe_the_reason')} placeholderTextColor="#9CA3AF"
         multiline style={styles.noteInput}
         cursorColor={COLORS.primary} textAlignVertical="top"
       />
@@ -536,7 +539,7 @@ function RejectSheet({ reasons, selectedReason, onSelectReason, note, onNoteChan
         style={[styles.pillBtn, styles.rejectPillBtn, { width: '100%', flex: 0 }, (!selectedReason || isLoading) && styles.btnDisabled]}
         onPress={onConfirm} disabled={!selectedReason || isLoading}
       >
-        <Text style={styles.pillBtnLabel}>{isLoading ? 'Please wait…' : 'CONFIRM REJECTION'}</Text>
+        <Text style={styles.pillBtnLabel}>{isLoading ? tr('Please wait…') : tr('CONFIRM REJECTION')}</Text>
       </Pressable>
     </ScrollView>
   );

@@ -34,6 +34,7 @@ import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import {encryptUserId} from './crmShared';
+import { tr } from '../../i18n/tr';
 type LeadListScreenProps = {
   userId: number;
   // Technician's own leads (Java: LeadsFragmentForTechnician) submit through
@@ -515,7 +516,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
   const openCall = async (phone: string) => {
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
-      showToast('Phone number unavailable');
+      showToast(t('rn_phone_number_unavailable'));
       return;
     }
 
@@ -526,14 +527,14 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
         await Linking.openURL(url);
       }
     } catch {
-      showToast('Please try again on a device.');
+      showToast(t('rn_please_try_again_on_a_device'));
     }
   };
 
   const openWhatsapp = async (phone: string) => {
     const normalizedPhone = normalizePhone(phone).replace(/^\+/, '');
     if (!normalizedPhone) {
-      showToast('WhatsApp number unavailable');
+      showToast(t('rn_whatsapp_number_unavailable'));
       return;
     }
 
@@ -543,10 +544,10 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        showToast('Please try again on a device.');
+        showToast(t('rn_please_try_again_on_a_device'));
       }
     } catch {
-      showToast('Please try again later.');
+      showToast(t('rn_please_try_again_later'));
     }
   };
 
@@ -554,9 +555,9 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
   const handleShareLeadFormLink = async () => {
     const url = LEAD_FORM_LINK + encryptUserId(userId);
     try {
-      await Share.share({message: url, url, title: 'FieldWeb : Lead Form'});
+      await Share.share({message: url, url, title: tr('FieldWeb : Lead Form')});
     } catch {
-      showFailureMsg('Unable to share the link right now.');
+      showFailureMsg(t('rn_unable_to_share_the_link_right_now'));
     }
     setIsLinkSheetOpen(false);
   };
@@ -627,7 +628,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
       return (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>!</Text>
-          <Text style={styles.emptyTitle}>Unable to Load Leads</Text>
+          <Text style={styles.emptyTitle}>{t('rn_unable_to_load_leads')}</Text>
           <Text style={styles.emptyText}>{errorMessage}</Text>
         </View>
       );
@@ -657,9 +658,9 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
             '',
             t('delete_leaddetails'),
             [
-              { text: 'NO', style: 'cancel' },
+              { text: tr('NO'), style: 'cancel' },
               {
-                text: 'Yes',
+                text: tr('Yes'),
                 style: 'destructive',
                 onPress: async () => {
                   try {
@@ -670,7 +671,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
                       fetchLeadPage({ nextPage: PAGE_START, replace: true });
                     }
                   } catch (error) {
-                    showFailureMsg(error instanceof Error ? error.message : 'Unable to delete lead.');
+                    showFailureMsg(error instanceof Error ? error.message : tr('Unable to delete lead.'));
                   }
                 },
               },
@@ -710,7 +711,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
               }}
               onSubmitEditing={submitSearch}
               returnKeyType="search"
-              placeholder="Search by Customer Name, Lead Id"
+              placeholder={t('rn_search_by_customer_name_lead_id')}
               placeholderTextColor="#8f8f8f"
               style={styles.searchInput}
             />
@@ -720,7 +721,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
           </View>
 
           <Pressable style={styles.addButton} onPress={openAddLeadModal}>
-            <Text style={styles.addButtonText}>+ Lead</Text>
+            <Text style={styles.addButtonText}>{t('rn_lead')}</Text>
           </Pressable>
 
           {!technician && (
@@ -733,7 +734,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
         {isInitialLoading ? (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator color={THEME_PRIMARY} />
-            <Text style={styles.loadingText}>Loading leads...</Text>
+            <Text style={styles.loadingText}>{t('rn_loading_leads')}</Text>
           </View>
         ) : null}
 
@@ -809,7 +810,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
         onRequestClose={() => setIsLinkSheetOpen(false)}>
         <Pressable style={styles.linkOverlay} onPress={() => setIsLinkSheetOpen(false)}>
           <Pressable style={styles.linkSheet} onPress={() => {}}>
-            <Text style={styles.linkMessage}>Click on below button to Copy or Share the Lead Form link</Text>
+            <Text style={styles.linkMessage}>{t('rn_click_on_below_button_to_copy_or_share_the')}</Text>
             <Pressable style={styles.linkShareBtn} onPress={handleShareLeadFormLink}>
               <Text style={styles.linkShareBtnText}>{t('click_to_copy')}</Text>
             </Pressable>

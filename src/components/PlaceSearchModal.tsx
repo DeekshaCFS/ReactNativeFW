@@ -14,6 +14,7 @@ import { ms, sp, scale, vs } from '../utils/responsive';
 import { PLACES_API_KEY } from '../config/maps';
 import { placesAutocomplete, placeDetails, type PlacePrediction } from '../utils/googleMaps';
 
+import { useTranslation } from 'react-i18next';
 export type PickedPlace = { address: string; name: string; latitude: number; longitude: number };
 
 type Prediction = PlacePrediction;
@@ -25,6 +26,7 @@ type Props = {
 };
 
 export default function PlaceSearchModal({ visible, onClose, onSelect }: Props) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(false);
@@ -100,7 +102,7 @@ export default function PlaceSearchModal({ visible, onClose, onSelect }: Props) 
             style={styles.input}
             value={query}
             onChangeText={search}
-            placeholder="Search"
+            placeholder={t('rn_search')}
             placeholderTextColor="rgba(255,255,255,0.6)"
             autoFocus
             returnKeyType="search"
@@ -119,7 +121,7 @@ export default function PlaceSearchModal({ visible, onClose, onSelect }: Props) 
           keyExtractor={p => p.placeId}
           ListHeaderComponent={
             <View style={styles.poweredRow}>
-              <Text style={styles.powered}>powered by </Text>
+              <Text style={styles.powered}>{t('rn_powered_by')} </Text>
               <Text style={styles.googleWord}>
                 <Text style={{ color: '#4285F4' }}>G</Text>
                 <Text style={{ color: '#EA4335' }}>o</Text>
@@ -138,7 +140,7 @@ export default function PlaceSearchModal({ visible, onClose, onSelect }: Props) 
                 <Ionicons name="location-outline" size={ms(22)} color={COLORS.darkGray} style={styles.pin} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.primary} numberOfLines={2}>{query.trim()}</Text>
-                  <Text style={styles.secondary}>Use this address</Text>
+                  <Text style={styles.secondary}>{t('rn_use_this_address')}</Text>
                 </View>
               </Pressable>
             ) : null

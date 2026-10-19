@@ -48,6 +48,7 @@ import { cachedFetch, fsrCacheKey, customFieldsCacheKey } from '../../../offline
 import DecimalInput from '../../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 // ─── Local Types ──────────────────────────────────────────────────────────────
 
 interface PhotoAsset {
@@ -428,7 +429,7 @@ export default function TaskClosure({ navigation, route }: any) {
       // Decoded size, as Java's isValidBase64Size() checks.
       const bytes = Math.floor((base64.length * 3) / 4);
       if (bytes > MAX_ATTACHMENT_BYTES) {
-        showFailureMsg('File size exceeds 5 MB.');
+        showFailureMsg(t('rn_file_size_exceeds_5_mb'));
         return;
       }
 
@@ -441,7 +442,7 @@ export default function TaskClosure({ navigation, route }: any) {
     } catch (err: any) {
       // Picker cancelled -> no-op; anything else is worth surfacing.
       if (!isErrorWithCode(err) || err.code !== errorCodes.OPERATION_CANCELED) {
-        showFailureMsg('Could not read the selected file.');
+        showFailureMsg(t('rn_could_not_read_the_selected_file'));
       }
     }
   };
@@ -561,7 +562,7 @@ export default function TaskClosure({ navigation, route }: any) {
         setFsrCompletedCount(Object.keys(preSelected).length);
       }
     } catch (err) {
-      showFailureMsg('Could not load FSR checkpoints. Please try again.');
+      showFailureMsg(t('rn_could_not_load_fsr_checkpoints_please_try_'));
     } finally {
       setFsrLoading(false);
     }
@@ -633,7 +634,7 @@ export default function TaskClosure({ navigation, route }: any) {
       await postChkpointData(payload);
       setShowFSRSheet(false);
     } catch (err) {
-      showFailureMsg('Could not save checkpoints. Please try again.');
+      showFailureMsg(t('rn_could_not_save_checkpoints_please_try_agai'));
     } finally {
       setFsrSubmitting(false);
     }
@@ -663,7 +664,7 @@ export default function TaskClosure({ navigation, route }: any) {
           })),
       );
     } catch {
-      showFailureMsg('Unable to load items. Please try again.');
+      showFailureMsg(t('rn_unable_to_load_items_please_try_again'));
     } finally {
       setIssueListLoading(false);
     }
@@ -672,7 +673,7 @@ export default function TaskClosure({ navigation, route }: any) {
   const openUsedItemSheet = async () => {
     // Updating used items talks to the server (assigned stock), so it needs a connection.
     if (!(await isNetworkAvailable())) {
-      showFailureMsg('Internet connection is required to update used items.');
+      showFailureMsg(t('rn_internet_connection_is_required_to_update_'));
       return;
     }
     setShowUsedItemSheet(true);
@@ -688,11 +689,11 @@ export default function TaskClosure({ navigation, route }: any) {
     if (visibleSlotCount > 0) {
       const lastSlot = adHocSlots[visibleSlotCount - 1];
       if (!lastSlot?.itemName || !lastSlot?.usedQty || lastSlot.usedQty === '0') {
-        showFailureMsg('Please Enter Item Name and Quantity!!');
+        showFailureMsg(t('rn_please_enter_item_name_and_quantity'));
         return;
       }
       if (Number(lastSlot.usedQty) > lastSlot.avlQty) {
-        showFailureMsg('Quantity should not be greater than Available Qty!!');
+        showFailureMsg(t('rn_quantity_should_not_be_greater_than_availa'));
         setAdHocSlots(prev => {
           const updated = [...prev];
           if (updated[visibleSlotCount - 1]) {
@@ -736,19 +737,19 @@ export default function TaskClosure({ navigation, route }: any) {
 
     if (assignedSlots.length > 0 && filledAdHoc.length > 0) {
       if (hasDuplicatesBetween(assignedSlots, filledAdHoc)) {
-        showFailureMsg('Duplicate Items are not allowed!!');
+        showFailureMsg(t('rn_duplicate_items_are_not_allowed'));
         return;
       }
     } else if (filledAdHoc.length > 0) {
       if (hasDuplicatesInAdHoc(filledAdHoc)) {
-        showFailureMsg('Duplicate Items not allowed!!');
+        showFailureMsg(t('rn_duplicate_items_not_allowed'));
         return;
       }
     }
 
     const hasAssignedQty = assignedSlots.some(s => s.usedQty.trim() !== '');
     if (!hasAssignedQty && filledAdHoc.length === 0) {
-      showFailureMsg('Please Enter Used Quantity!');
+      showFailureMsg(t('rn_please_enter_used_quantity'));
       return;
     }
 
@@ -861,7 +862,7 @@ export default function TaskClosure({ navigation, route }: any) {
       setSubmitting(true);
       const freshUid = await AsyncStorage.getItem('uid');
       if (!freshUid) {
-        showFailureMsg('User session not found. Please log in again.');
+        showFailureMsg(t('rn_user_session_not_found_please_log_in_again'));
         return;
       }
       // Java (getCustomFieldData -> isCustomLabelRequired): every required Task Input
@@ -880,8 +881,8 @@ export default function TaskClosure({ navigation, route }: any) {
         if (missingRequired) {
           showFailureMsg(
             fromCache && !(await isNetworkAvailable())
-              ? 'Connect to the internet to add the mandatory Task Input to proceed !!'
-              : 'Please Add all the mandatory Task Input to proceed !!',
+              ? tr('Connect to the internet to add the mandatory Task Input to proceed !!')
+              : tr('Please Add all the mandatory Task Input to proceed !!'),
           );
           return;
         }
@@ -889,7 +890,7 @@ export default function TaskClosure({ navigation, route }: any) {
         // Nothing saved for this task (e.g. created offline) and no connection: there is
         // nothing to verify against, so the closure carries on and is stored for sync.
         if (await isNetworkAvailable()) {
-          showFailureMsg('Could not verify the required task inputs. Please try again.');
+          showFailureMsg(t('rn_could_not_verify_the_required_task_inputs_'));
           return;
         }
       }
@@ -1173,7 +1174,7 @@ export default function TaskClosure({ navigation, route }: any) {
           </Pressable>
           {notAllowedVisible && (
             <Text style={styles.notAllowedText}>
-              Please fill the existing note before adding a new one.
+              {t('rn_please_fill_the_existing_note_before_addin')}
             </Text>
           )}
           {technicalNotes.map((note, idx) => (
@@ -1226,7 +1227,7 @@ export default function TaskClosure({ navigation, route }: any) {
                     onChangeText={setNoteInputValue}
                     onFocus={() => setNoteFocused(true)}
                     onBlur={() => setNoteFocused(false)}
-                    placeholder={noteFocused ? undefined : 'Click here to add note'}
+                    placeholder={noteFocused ? undefined : tr('Click here to add note')}
                     placeholderTextColor={COLORS.lightGray}
                     style={styles.sheetTextArea}
                     multiline
@@ -1250,7 +1251,7 @@ export default function TaskClosure({ navigation, route }: any) {
                     setNoteSheetVisible(false);
                   }}
                 >
-                  <Text style={styles.sheetSaveBtnText}>SAVE</Text>
+                  <Text style={styles.sheetSaveBtnText}>{t('save').toUpperCase()}</Text>
                 </Pressable>
                 <Pressable onPress={() => setNoteSheetVisible(false)}>
                   <Text style={styles.sheetCancelText}>{t('cancel')}</Text>
@@ -1284,7 +1285,7 @@ export default function TaskClosure({ navigation, route }: any) {
           </Pressable>
           {deviceNotAllowed && (
             <Text style={styles.notAllowedText}>
-              Please fill the existing device before adding a new one.
+              {t('rn_please_fill_the_existing_device_before_add')}
             </Text>
           )}
           {devices.map((device, idx) => {
@@ -1423,29 +1424,29 @@ export default function TaskClosure({ navigation, route }: any) {
         {/* ── ACTION TILES ────────────────────────────────────────────── */}
         <View style={styles.tilesRow}>
           <Pressable style={styles.tile} onPress={openUsedItemSheet}>
-            <Text style={styles.tileTitle}>Update Used Item</Text>
-            <Text style={styles.tileSub}>Click Here to Add/Update</Text>
+            <Text style={styles.tileTitle}>{t('rn_update_used_item')}</Text>
+            <Text style={styles.tileSub}>{t('rn_click_here_to_add_update')}</Text>
           </Pressable>
           <Pressable
             style={[styles.tile, { backgroundColor: '#EEF0F3' }]}
             onPress={async () => {
               // Task Input is saved straight to the server, so it needs a connection.
               if (!(await isNetworkAvailable())) {
-                showFailureMsg('Internet connection is required to add task input.');
+                showFailureMsg(t('rn_internet_connection_is_required_to_add_tas'));
                 return;
               }
               navigation.navigate('TaskInput', { routeTask, returnTo: { name: 'TaskClosure', params: route.params } });
             }}
           >
-            <Text style={styles.tileTitle}>Add Task Input</Text>
-            <Text style={styles.tileSub}>Click Here to Add Task Input</Text>
+            <Text style={styles.tileTitle}>{t('rn_add_task_input')}</Text>
+            <Text style={styles.tileSub}>{t('rn_click_here_to_add_task_input')}</Text>
           </Pressable>
           <Pressable
             style={styles.tile}
             onPress={() => navigation.navigate('QRScanHistory', { task: routeTask, returnTo: { name: 'TaskClosure', params: route.params } })}
           >
-            <Text style={styles.tileTitle}>Scan QR</Text>
-            <Text style={styles.tileSub}>Click Here to Scan QR</Text>
+            <Text style={styles.tileTitle}>{t('rn_scan_qr_2')}</Text>
+            <Text style={styles.tileSub}>{t('rn_click_here_to_scan_qr')}</Text>
           </Pressable>
         </View>
 
@@ -1456,7 +1457,7 @@ export default function TaskClosure({ navigation, route }: any) {
             <Text style={styles.naSub}>
               {fsrCompletedCount > 0
                 ? `${fsrCompletedCount} checkpoint${fsrCompletedCount === 1 ? '' : 's'} filled — tap to review`
-                : 'Click here for filling checkpoints'}
+                : tr('Click here for filling checkpoints')}
             </Text>
           </Pressable>
         )}
@@ -1495,7 +1496,7 @@ export default function TaskClosure({ navigation, route }: any) {
             <TextInput
               value={satisfactionCode}
               onChangeText={setSatisfactionCode}
-              placeholder="Enter satisfaction code"
+              placeholder={t('rn_enter_satisfaction_code')}
               placeholderTextColor="#ABABAB"
               keyboardType="numeric"
               style={styles.deviceInput}
@@ -1533,7 +1534,7 @@ export default function TaskClosure({ navigation, route }: any) {
           style={styles.requestBtn}
           onPress={() => navigation.navigate('ItemRequest', { routeTask, returnTo: { name: 'TaskClosure', params: route.params } })}
         >
-          <Text style={styles.requestBtnText}>REQUEST ITEMS</Text>
+          <Text style={styles.requestBtnText}>{t('request_items').toUpperCase()}</Text>
         </Pressable>
 
         {/* ── CONTINUE BTN ────────────────────────────────────────────── */}
@@ -1545,7 +1546,7 @@ export default function TaskClosure({ navigation, route }: any) {
           {submitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.continueBtnText}>CONTINUE</Text>
+            <Text style={styles.continueBtnText}>{t('continue_title').toUpperCase()}</Text>
           )}
         </Pressable>
 
@@ -1577,7 +1578,7 @@ export default function TaskClosure({ navigation, route }: any) {
                 ]}
                 onPress={() => toggleAccordion('customer')}
               >
-                <Text style={styles.signatureDropdownText}>ADD CUSTOMER DETAILS</Text>
+                <Text style={styles.signatureDropdownText}>{t('rn_add_customer_details')}</Text>
                 <Ionicons name="caret-down" size={ms(18)} color={COLORS.primary} style={styles.signatureCaret} />
               </Pressable>
 
@@ -1625,7 +1626,7 @@ export default function TaskClosure({ navigation, route }: any) {
                   <View style={sigModalStyles.signatureRow}>
                     <Text style={sigModalStyles.signatureLabel}>{t('customer_signature')}</Text>
                     <Pressable onPress={() => setCustomerSignPaths([])}>
-                      <Text style={sigModalStyles.clearText}>CLEAR</Text>
+                      <Text style={sigModalStyles.clearText}>{t('clear').toUpperCase()}</Text>
                     </Pressable>
                   </View>
                   <SignaturePad
@@ -1648,7 +1649,7 @@ export default function TaskClosure({ navigation, route }: any) {
                       <TextInput
                         value={ratingRemark}
                         onChangeText={setRatingRemark}
-                        placeholder="Enter Remark Here..."
+                        placeholder={t('rn_enter_remark_here')}
                         placeholderTextColor="#ABABAB"
                         style={sigModalStyles.roundedInput}
                         multiline
@@ -1669,13 +1670,13 @@ export default function TaskClosure({ navigation, route }: any) {
                 ]}
                 onPress={() => toggleAccordion('tech')}
               >
-                <Text style={styles.signatureDropdownText}>ADD TECHNICIAN DETAILS</Text>
+                <Text style={styles.signatureDropdownText}>{t('rn_add_technician_details')}</Text>
                 <Ionicons name="caret-down" size={ms(18)} color={COLORS.primary} style={styles.signatureCaret} />
               </Pressable>
 
               {techExpanded && (
                 <View style={sigModalStyles.expandedSection}>
-                  <Text style={sigModalStyles.techInfoLabel}>Tech Info.</Text>
+                  <Text style={sigModalStyles.techInfoLabel}>{t('rn_tech_info')}</Text>
                   <Pressable
                     style={sigModalStyles.techPhotoSlot}
                     onPress={() => openPhotoPicker({ type: 'techPhoto' })}
@@ -1699,7 +1700,7 @@ export default function TaskClosure({ navigation, route }: any) {
                   <View style={sigModalStyles.signatureRow}>
                     <Text style={sigModalStyles.signatureLabel}>{t('customer_signature')}</Text>
                     <Pressable onPress={() => setTechSignPaths([])}>
-                      <Text style={sigModalStyles.clearText}>CLEAR</Text>
+                      <Text style={sigModalStyles.clearText}>{t('clear').toUpperCase()}</Text>
                     </Pressable>
                   </View>
                   <SignaturePad
@@ -1716,7 +1717,7 @@ export default function TaskClosure({ navigation, route }: any) {
               style={styles.signatureSaveBtn}
               onPress={() => setShowSignatureSheet(false)}
             >
-              <Text style={styles.signatureSaveText}>SAVE</Text>
+              <Text style={styles.signatureSaveText}>{t('save').toUpperCase()}</Text>
             </Pressable>
             <Pressable onPress={() => setShowSignatureSheet(false)}>
               <Text style={styles.signatureCancelText}>{t('cancel')}</Text>
@@ -1793,7 +1794,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
                   {assignedSlots.length === 0 && visibleSlotCount === 0 && (
                     <Text style={usedItemStyles.emptyText}>
-                      No items assigned to this task.
+                      {t('rn_no_items_assigned_to_this_task')}
                     </Text>
                   )}
 
@@ -1804,7 +1805,7 @@ export default function TaskClosure({ navigation, route }: any) {
                       <View key={`adhoc-${idx}`} style={usedItemStyles.adHocBlock}>
                         {/* Header row: # Item1 + red X */}
                         <View style={usedItemStyles.slotHeaderRow}>
-                          <Text style={usedItemStyles.slotLabel}># Item{idx + 1}</Text>
+                          <Text style={usedItemStyles.slotLabel}>{t('item')}{idx + 1}</Text>
                           <Pressable
                             hitSlop={8}
                             onPress={() => {
@@ -1885,7 +1886,7 @@ export default function TaskClosure({ navigation, route }: any) {
             </ScrollView>
 
             <Pressable style={usedItemStyles.updateBtn} onPress={handleUsedItemUpdate}>
-              <Text style={usedItemStyles.updateBtnText}>UPDATE</Text>
+              <Text style={usedItemStyles.updateBtnText}>{t('update').toUpperCase()}</Text>
             </Pressable>
             <Pressable onPress={() => setShowUsedItemSheet(false)}>
               <Text style={usedItemStyles.cancelText}>{t('cancel')}</Text>
@@ -1923,7 +1924,7 @@ export default function TaskClosure({ navigation, route }: any) {
               {fsrLoading ? (
                 <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: vs(30) }} />
               ) : fsrCategories.length === 0 ? (
-                <Text style={fsrStyles.emptyText}>No checkpoints found for this FSR.</Text>
+                <Text style={fsrStyles.emptyText}>{t('rn_no_checkpoints_found_for_this_fsr')}</Text>
               ) : (
                 fsrCategories.map(category => (
                   <View key={category.CategoryId} style={fsrStyles.categoryBlock}>
@@ -1971,7 +1972,7 @@ export default function TaskClosure({ navigation, route }: any) {
               {fsrSubmitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={fsrStyles.submitBtnText}>SUBMIT</Text>
+                <Text style={fsrStyles.submitBtnText}>{t('submit').toUpperCase()}</Text>
               )}
             </Pressable>
           </KeyboardAvoidingView>

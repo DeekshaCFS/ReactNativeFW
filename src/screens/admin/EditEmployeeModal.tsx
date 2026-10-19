@@ -38,6 +38,7 @@ import {getAllZoneList, getManagerListByServzone} from '../../api/umServiceZone/
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type Props = {
   visible: boolean;
   ownerId: number;
@@ -140,7 +141,7 @@ const EditEmployeeModal: React.FC<Props> = ({
         setKycDocName(String(data.EmpDocument ?? ''));
       })
       .catch(error => {
-        showFailureMsg(error instanceof Error ? error.message : 'Unable to load employee details.');
+        showFailureMsg(error instanceof Error ? error.message : tr('Unable to load employee details.'));
       })
       .finally(() => active && setIsLoading(false));
     return () => {
@@ -153,7 +154,7 @@ const EditEmployeeModal: React.FC<Props> = ({
   const openPicker = useCallback(
     async (kind: PickerKind) => {
       if (kind === 'manager' && !zone) {
-        showFailureMsg('Please select a zone first.');
+        showFailureMsg(t('rn_please_select_a_zone_first'));
         return;
       }
       setPicker(kind);
@@ -217,7 +218,7 @@ const EditEmployeeModal: React.FC<Props> = ({
         return;
       }
       if (typeof file.size === 'number' && file.size > MAX_DOC_BYTES) {
-        showFailureMsg('File size must be 6 MB or less.');
+        showFailureMsg(t('rn_file_size_must_be_6_mb_or_less'));
         return;
       }
       const base64 = await RNFS.readFile(file.uri, 'base64');
@@ -231,7 +232,7 @@ const EditEmployeeModal: React.FC<Props> = ({
     } catch (error) {
       const code = (error as {code?: string} | null)?.code;
       if (code !== 'DOCUMENT_PICKER_CANCELED' && code !== 'OPERATION_CANCELED') {
-        showFailureMsg('Unable to attach this file.');
+        showFailureMsg(t('rn_unable_to_attach_this_file'));
       }
     }
   };
@@ -239,31 +240,31 @@ const EditEmployeeModal: React.FC<Props> = ({
   const handleUpdate = async () => {
     // Same checks as Java's EditEmpFragment btnUpdate.
     if (!firstName.trim()) {
-      showFailureMsg('Please enter first name.');
+      showFailureMsg(t('rn_please_enter_first_name'));
       return;
     }
     if (firstName.includes(' ')) {
-      showFailureMsg('Space is not allowed in first name.');
+      showFailureMsg(t('rn_space_is_not_allowed_in_first_name'));
       return;
     }
     if (!lastName.trim()) {
-      showFailureMsg('Please enter last name.');
+      showFailureMsg(t('rn_please_enter_last_name'));
       return;
     }
     if (lastName.includes(' ')) {
-      showFailureMsg('Space is not allowed in last name.');
+      showFailureMsg(t('rn_space_is_not_allowed_in_last_name'));
       return;
     }
     if (hasContactNo && !/^\d{10,12}$/.test(contactNo.trim())) {
-      showFailureMsg('Please enter a valid contact number.');
+      showFailureMsg(t('rn_please_enter_a_valid_contact_number'));
       return;
     }
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      showFailureMsg('Please enter a valid email id.');
+      showFailureMsg(t('please_enter_valid_emailid'));
       return;
     }
     if (joiningDate.trim() && !toApiDate(joiningDate)) {
-      showFailureMsg('Joining date must be DD-MM-YYYY.');
+      showFailureMsg(t('rn_joining_date_must_be_dd_mm_yyyy'));
       return;
     }
 
@@ -299,11 +300,11 @@ const EditEmployeeModal: React.FC<Props> = ({
             : {}),
         } as unknown as Parameters<typeof updateEmpDetails>[0]),
       );
-      showSuccessMsg('Profile updated successfully.');
+      showSuccessMsg(t('profile_updated_successfully'));
       onUpdated();
       onClose();
     } catch (error) {
-      showFailureMsg(error instanceof Error ? error.message : 'Unable to update profile.');
+      showFailureMsg(error instanceof Error ? error.message : tr('Unable to update profile.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -363,7 +364,7 @@ const EditEmployeeModal: React.FC<Props> = ({
               {showZone ? pill(zone?.label === 'Zone' ? '' : zone?.label ?? '', 'Select Zone', () => openPicker('zone')) : null}
               {showManager ? pill(manager?.label === 'Manager' ? '' : manager?.label ?? '', 'Select Manager', () => openPicker('manager')) : null}
 
-              <Text style={styles.section}>Other Details</Text>
+              <Text style={styles.section}>{t('rn_other_details')}</Text>
               {/* tapping the address opens the Google Places search */}
               <Pressable onPress={() => setPlaceSearchOpen(true)}>
                 <View pointerEvents="none">
@@ -374,14 +375,14 @@ const EditEmployeeModal: React.FC<Props> = ({
               {input(joiningDate, setJoiningDate, 'Joining Date (DD-MM-YYYY)')}
               {input(email, setEmail, 'E-Mail ID', {keyboardType: 'email-address', autoCapitalize: 'none'})}
 
-              <Text style={styles.section}>KYC Details</Text>
+              <Text style={styles.section}>{t('rn_kyc_details')}</Text>
               {pill(kycType?.label ?? '', 'Please Select Document', () => openPicker('kyc'))}
-              <Text style={styles.label}>Attach File</Text>
+              <Text style={styles.label}>{t('rn_attach_file')}</Text>
               <TouchableOpacity style={styles.pill} onPress={attachFile}>
                 <Text style={attachment ? styles.pillValue : styles.pillPlaceholder} numberOfLines={1}>
                   {attachment
                     ? `${attachment.name}${attachment.ext ? `.${attachment.ext}` : ''}`
-                    : 'Choose .pdf, .jpeg, .jpg, .png, .xlsx, .txt, .zip, etc. max file size is 6 MB'}
+                    : tr('Choose .pdf, .jpeg, .jpg, .png, .xlsx, .txt, .zip, etc. max file size is 6 MB')}
                 </Text>
               </TouchableOpacity>
               {/* Existing KYC document link (Java's docTinyUrl, Linkify'd). */}
@@ -398,7 +399,7 @@ const EditEmployeeModal: React.FC<Props> = ({
                 {isSubmitting ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.updateText}>UPDATE</Text>
+                  <Text style={styles.updateText}>{t('update').toUpperCase()}</Text>
                 )}
               </TouchableOpacity>
               <TouchableOpacity onPress={onClose}>
@@ -421,7 +422,7 @@ const EditEmployeeModal: React.FC<Props> = ({
         visible={picker !== null}
         title={
           picker === 'designation'
-            ? 'Select Designation'
+            ? tr('Select Designation')
             : picker === 'zone'
             ? 'Select Zone'
             : picker === 'manager'

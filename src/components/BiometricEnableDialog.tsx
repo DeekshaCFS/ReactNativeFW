@@ -6,9 +6,11 @@ import AppModal from './AppModal';
 import { COLORS } from '../theme/theme';
 import { dp, sp } from '../utils/responsive';
 
+import { useTranslation } from 'react-i18next';
 type Props = { visible: boolean; onEnable: () => void; onNotNow: () => void };
 
 export default function BiometricEnableDialog({ visible, onEnable, onNotNow }: Props) {
+  const { t } = useTranslation();
   return (
     <AppModal transparent visible={visible} animationType="fade" onRequestClose={onNotNow}>
       <View style={styles.backdrop}>
@@ -16,13 +18,13 @@ export default function BiometricEnableDialog({ visible, onEnable, onNotNow }: P
           <View style={styles.icon}>
             <Ionicons name="finger-print" size={dp(44)} color={COLORS.primary} />
           </View>
-          <Text style={styles.title}>Enable Biometric Login?</Text>
-          <Text style={styles.text}>Use Fingerprint / Face ID for faster login next time.</Text>
+          <Text style={styles.title}>{t('rn_enable_biometric_login')}</Text>
+          <Text style={styles.text}>{t('rn_use_fingerprint_face_id_for_faster_login_n')}</Text>
           <Pressable style={styles.enableBtn} onPress={onEnable}>
-            <Text style={styles.enableText}>Enable</Text>
+            <Text style={styles.enableText}>{t('rn_enable')}</Text>
           </Pressable>
           <Pressable style={styles.notNowBtn} onPress={onNotNow}>
-            <Text style={styles.notNowText}>Not Now</Text>
+            <Text style={styles.notNowText}>{t('rn_not_now')}</Text>
           </Pressable>
         </View>
       </View>

@@ -29,6 +29,8 @@ import type {EmployeeListItem} from './adminLegacyApiTypes';
 import {COLORS} from '../../theme/theme.ts';
 import { showToast } from '../../utils/toast';
 
+import { useTranslation } from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type Props = {
   visible: boolean;
   employee: EmployeeListItem | null;
@@ -73,6 +75,7 @@ const formatTime = (dateStr?: string) => {
 const CELL_SIZE = scale(32);
 
 const EmployeeAttendanceModal: React.FC<Props> = ({visible, employee, onClose}) => {
+  const { t } = useTranslation();
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<number>(() => new Date().getDate());
   const [records, setRecords] = useState<TechMonthlyAttendanceResultData[]>([]);
@@ -136,11 +139,11 @@ const EmployeeAttendanceModal: React.FC<Props> = ({visible, employee, onClose}) 
   const handleCall = () => {
     const mobile = String(employee?.ContactM ?? '').trim();
     if (!mobile) {
-      showToast('Mobile number is not available.');
+      showToast(t('rn_mobile_number_is_not_available'));
       return;
     }
     Linking.openURL(`tel:${mobile}`).catch(() => {
-      showToast('Unable to open dialer.');
+      showToast(t('rn_unable_to_open_dialer'));
     });
   };
 
@@ -242,10 +245,10 @@ const EmployeeAttendanceModal: React.FC<Props> = ({visible, employee, onClose}) 
 
               <View style={styles.summaryRow}>
                 {[
-                  {label: 'Total Present', value: present, bg: '#22c55e'},
-                  {label: 'Total Absent', value: absent, bg: '#f87171'},
-                  {label: 'Total Idle', value: idle, bg: '#f59e0b'},
-                  {label: 'Total Leave', value: leave, bg: '#000'},
+                  {label: tr('Total Present'), value: present, bg: '#22c55e'},
+                  {label: tr('Total Absent'), value: absent, bg: '#f87171'},
+                  {label: tr('Total Idle'), value: idle, bg: '#f59e0b'},
+                  {label: tr('Total Leave'), value: leave, bg: '#000'},
                 ].map(({label, value, bg}) => (
                   <View key={label} style={[styles.summaryCard, {backgroundColor: bg}]}>
                     <Text style={styles.summaryValue}>{loading ? '-' : value}</Text>
@@ -264,17 +267,17 @@ const EmployeeAttendanceModal: React.FC<Props> = ({visible, employee, onClose}) 
                   </View>
                 </View>
                 <View style={styles.checkRow}>
-                  <Text style={styles.checkLabel}>Check In</Text>
+                  <Text style={styles.checkLabel}>{t('rn_check_in')}</Text>
                   <Text style={styles.checkTime}>{formatTime(selectedRecord?.CheckIn)}</Text>
                 </View>
                 <View style={styles.checkRow}>
-                  <Text style={styles.checkLabel}>Check Out</Text>
+                  <Text style={styles.checkLabel}>{t('rn_check_out')}</Text>
                   <Text style={styles.checkTime}>{formatTime(selectedRecord?.CheckOut)}</Text>
                 </View>
               </View>
 
               <Pressable style={styles.closeButton} onPress={onClose}>
-                <Text style={styles.closeButtonText}>CLOSE</Text>
+                <Text style={styles.closeButtonText}>{t('close').toUpperCase()}</Text>
               </Pressable>
             </>
           ) : null}

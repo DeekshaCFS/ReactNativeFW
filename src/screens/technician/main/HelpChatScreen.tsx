@@ -12,10 +12,13 @@ import { COLORS } from '../../../theme/theme';
 import { ms, sp, useAppHeaderHeight } from '../../../utils/responsive';
 import { showToast } from '../../../utils/toast';
 
+import { useTranslation } from 'react-i18next';
+import { trf } from '../../../i18n/tr';
 export const HELP_CHAT_URL = 'https://tawk.to/chat/65eada4b8d261e1b5f6a7448/1hoem9egj';
 
 // `underAppHeader`: the admin app draws the shared (absolute) AppHeader above this screen.
 export default function HelpChatScreen({ underAppHeader = false }: { underAppHeader?: boolean }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const headerHeight = useAppHeaderHeight();
 
@@ -28,14 +31,14 @@ export default function HelpChatScreen({ underAppHeader = false }: { underAppHea
         onLoadEnd={() => setLoading(false)}
         onError={e => {
           setLoading(false);
-          showToast(`Error:${e.nativeEvent.description}`);
+          showToast(trf('Error:{{msg}}', { msg: e.nativeEvent.description }));
         }}
       />
 
       {loading && (
         <View style={[styles.overlay, underAppHeader ? { top: headerHeight } : null]}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading')}</Text>
         </View>
       )}
     </View>

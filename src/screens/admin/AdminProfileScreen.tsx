@@ -30,6 +30,7 @@ import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import ImageSourceDialog from '../../components/ImageSourceDialog';
+import { tr } from '../../i18n/tr';
 type UserResultData = UserDetailsResultData;
 
 // ─── Field Component (identical to TechProfileScreen's) ─────────────────────
@@ -333,20 +334,20 @@ export default function AdminProfileScreen() {
 
     if (from === 'MOBILE') {
       if (!isValidPhone(newValue)) {
-        showFailureMsg('Please enter a valid 10-digit number');
+        showFailureMsg(t('rn_please_enter_a_valid_10_digit_number'));
         return;
       }
       if (newValue === profile?.ContactNo) {
-        showFailureMsg('This is a duplicate mobile number');
+        showFailureMsg(t('rn_this_is_a_duplicate_mobile_number'));
         return;
       }
     } else {
       if (!isValidEmailFormat(newValue)) {
-        showFailureMsg('Please enter a valid email id');
+        showFailureMsg(t('please_enter_valid_emailid'));
         return;
       }
       if (newValue.toLowerCase() === (profile?.Email ?? '').toLowerCase()) {
-        showFailureMsg('This is a duplicate email id');
+        showFailureMsg(t('rn_this_is_a_duplicate_email_id'));
         return;
       }
     }
@@ -369,7 +370,7 @@ export default function AdminProfileScreen() {
   const handleVerifyOtp = () => {
     const { from, newValue, otpValue, sentOtp } = otpModal;
     if (sentOtp == null || Number(otpValue) !== sentOtp) {
-      showFailureMsg('Invalid OTP');
+      showFailureMsg(t('invalid_otp'));
       return;
     }
 
@@ -380,7 +381,7 @@ export default function AdminProfileScreen() {
       setProfile(prev => prev ? { ...prev, Email: newValue } : prev);
       setIsEmailIdUpdate(true);
     }
-    showSuccessMsg('OTP verified');
+    showSuccessMsg(t('otp_verified'));
     closeOtpFlow();
   };
 
@@ -518,14 +519,14 @@ export default function AdminProfileScreen() {
   const addLeadEmail = () => {
     const email = leadEmailInput.trim();
     if (leadEmails.length >= 5) {
-      showFailureMsg("You can add up to 5 Email ID's only!");
+      showFailureMsg(t('rn_you_can_add_up_to_5_email_id_s_only'));
     } else if (isValidEmailFormat(email)) {
       if (!leadEmails.includes(email)) {
         setLeadEmails(prev => [...prev, email]);
       }
       setLeadEmailInput('');
     } else {
-      showFailureMsg('Invalid Email!!');
+      showFailureMsg(t('rn_invalid_email'));
     }
   };
 
@@ -535,7 +536,7 @@ export default function AdminProfileScreen() {
       <Pressable
         style={[styles.segment, styles.segmentLeft, !value && { backgroundColor: COLORS.primary }]}
         onPress={() => onChange(false)}>
-        <Text style={[styles.segmentText, !value && styles.segmentTextOn]}>No</Text>
+        <Text style={[styles.segmentText, !value && styles.segmentTextOn]}>{t('no')}</Text>
       </Pressable>
       <Pressable
         style={[styles.segment, styles.segmentRight, value && { backgroundColor: COLORS.green500 }]}
@@ -606,7 +607,7 @@ export default function AdminProfileScreen() {
           <Text style={fieldStyles.floatingLabel}>{t('date_of_birth')}</Text>
           <Pressable style={fieldStyles.inputBox} onPress={() => setShowDobPicker(true)}>
             <Text style={{ fontSize: sp(16), color: profile?.DOB ? COLORS.textBlack : COLORS.lightGray }}>
-              {profile?.DOB ? new Date(profile.DOB).toLocaleDateString('en-GB').replace(/\//g, '-') : 'Select...'}
+              {profile?.DOB ? new Date(profile.DOB).toLocaleDateString('en-GB').replace(/\//g, '-') : tr('Select...')}
             </Text>
           </Pressable>
         </View>
@@ -633,7 +634,7 @@ export default function AdminProfileScreen() {
           <Text
             style={[styles.serviceSpinnerText, !serviceType && { color: COLORS.lightGray }]}
             numberOfLines={1}>
-            {serviceType ? serviceType.label : 'Select Service Type'}
+            {serviceType ? serviceType.label : tr('Select Service Type')}
           </Text>
           <Ionicons name="chevron-down" size={scale(18)} color={COLORS.textBlack} />
         </Pressable>
@@ -672,7 +673,7 @@ export default function AdminProfileScreen() {
         <Field label={t('company_address_hint')} value={companyAddress}
           onPress={() => setPlaceSearchFor('companyAddress')} />
         <Field label={t('city')} value={companyCity} maxLength={200} onChange={setCompanyCity} />
-        <Field label="GST/PAN No." value={gstOrPan} maxLength={15}
+        <Field label={t('rn_gst_pan_no')} value={gstOrPan} maxLength={15}
           onChange={(v) => setGstOrPan(v.replace(/[^0-9A-Za-z]/g, '').toUpperCase())} />
         <Field label={t('company_cont_no_hint')} keyboard="number-pad" maxLength={12}
           value={companyContactNo} onChange={setCompanyContactNo} />
@@ -691,21 +692,21 @@ export default function AdminProfileScreen() {
         </View>
 
         {/* linear_trigger / trigger.xml */}
-        <Text style={styles.sectionTitle}>Triggers</Text>
+        <Text style={styles.sectionTitle}>{t('rn_triggers')}</Text>
         <View style={styles.triggerRow}>
-          <Text style={styles.triggerLabel}>Activate Response Code</Text>
+          <Text style={styles.triggerLabel}>{t('rn_activate_response_code')}</Text>
           {renderYesNo(responseCode, setResponseCode)}
         </View>
         <View style={[styles.triggerRow, { marginTop: ms(10) }]}>
-          <Text style={styles.triggerLabel}>Activate Satisfaction Code</Text>
+          <Text style={styles.triggerLabel}>{t('rn_activate_satisfaction_code')}</Text>
           {renderYesNo(happyCode, setHappyCode)}
         </View>
-        <Text style={styles.leadsLabel}>Receive Real-time Lead Information (max 5)</Text>
+        <Text style={styles.leadsLabel}>{t('rn_receive_real_time_lead_information_max_5')}</Text>
         <View style={[fieldStyles.wrapper, { marginTop: ms(8) }]}>
           <View style={[fieldStyles.inputBox, { minHeight: ms(50) }]}>
             <TextInput
               style={fieldStyles.input}
-              placeholder="Enter Email ID"
+              placeholder={t('enter_email_id')}
               placeholderTextColor={COLORS.lightGray}
               value={leadEmailInput}
               onChangeText={setLeadEmailInput}
@@ -736,7 +737,7 @@ export default function AdminProfileScreen() {
         >
           {updating
             ? <ActivityIndicator size="small" color="#fff" />
-            : <Text style={styles.updateText}>UPDATE</Text>}
+            : <Text style={styles.updateText}>{t('update').toUpperCase()}</Text>}
         </Pressable>
 
         <Pressable onPress={() => navigation.navigate('Home')}>
@@ -772,7 +773,7 @@ export default function AdminProfileScreen() {
             <View style={styles.otpSheet}>
               <View style={styles.otpHeaderRow}>
                 <Text style={styles.otpTitle}>
-                  {otpModal.from === 'MOBILE' ? 'Update Mobile Number' : 'Update Email ID'}
+                  {otpModal.from === 'MOBILE' ? tr('Update Mobile Number') : tr('Update Email ID')}
                 </Text>
                 <Pressable onPress={closeOtpFlow}>
                   <Ionicons name="close" size={scale(20)} color="#444" />
@@ -783,7 +784,7 @@ export default function AdminProfileScreen() {
                 <>
                   <TextInput
                     style={styles.otpInput}
-                    placeholder={otpModal.from === 'MOBILE' ? 'Enter new mobile number' : 'Enter new email id'}
+                    placeholder={otpModal.from === 'MOBILE' ? tr('Enter new mobile number') : tr('Enter new email id')}
                     keyboardType={otpModal.from === 'MOBILE' ? 'phone-pad' : 'email-address'}
                     value={otpModal.newValue}
                     onChangeText={(v) => setOtpModal(prev => ({ ...prev, newValue: v }))}
@@ -795,18 +796,18 @@ export default function AdminProfileScreen() {
               ) : (
                 <>
                   <Text style={styles.otpHint}>
-                    Enter the OTP sent to {otpModal.newValue}
+                    {t('rn_enter_the_otp_sent_to')} {otpModal.newValue}
                   </Text>
                   <TextInput
                     style={styles.otpInput}
-                    placeholder="Enter OTP"
+                    placeholder={t('rn_enter_otp')}
                     keyboardType="number-pad"
                     maxLength={6}
                     value={otpModal.otpValue}
                     onChangeText={(v) => setOtpModal(prev => ({ ...prev, otpValue: v }))}
                   />
                   <Pressable style={styles.otpActionBtn} onPress={handleVerifyOtp}>
-                    <Text style={styles.otpActionText}>Verify & Submit</Text>
+                    <Text style={styles.otpActionText}>{t('rn_verify_submit')}</Text>
                   </Pressable>
                 </>
               )}

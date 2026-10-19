@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import { ms, sp } from '../../../utils/responsive';
 import { HELP_CHAT_URL } from './HelpChatScreen';
 
+import { useTranslation } from 'react-i18next';
 // Only the admin stack still uses this screen (technician Help is HelpChatScreen).
 type NavigationProp = any;
 
@@ -17,6 +18,7 @@ type NavigationProp = any;
 export { HELP_CHAT_URL };
 
 export default function HelpScreen() {
+  const { t } = useTranslation();
 
   const navigation = useNavigation<NavigationProp>();
 
@@ -28,18 +30,18 @@ export default function HelpScreen() {
 
       <View style={styles.textSection}>
         <Text style={styles.greeting}>
-          Hi there <Text style={styles.wave}>👋</Text>
+          {t('rn_hi_there')} <Text style={styles.wave}>👋</Text>
         </Text>
         <Text style={styles.subText}>
-          Start a conversation with our product experts.
+          {t('rn_start_a_conversation_with_our_product_expe')}
         </Text>
       </View>
 
       <Pressable style={styles.card} onPress={() => navigation.navigate('helpChat')}>
         <View>
-          <Text style={styles.cardTitle}>New Conversation</Text>
+          <Text style={styles.cardTitle}>{t('rn_new_conversation')}</Text>
           <Text style={styles.cardSubtitle}>
-            We typically reply in a few minutes
+            {t('rn_we_typically_reply_in_a_few_minutes')}
           </Text>
         </View>
         <Ionicons name="send" size={sp(22)} color={COLORS.primary} />
@@ -62,7 +64,7 @@ export default function HelpScreen() {
             />
           </Pressable>
         </View>
-        <Text style={styles.footerText}>Powered by tawk.to</Text>
+        <Text style={styles.footerText}>{t('rn_powered_by_tawk_to')}</Text>
       </View>
     </View>
   );

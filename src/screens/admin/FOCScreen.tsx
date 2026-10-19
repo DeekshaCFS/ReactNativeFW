@@ -41,6 +41,8 @@ import {
 } from '../../api/focItemRequest/focItemRequestService';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
+import { useTranslation } from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type FOCScreenProps = {
   ownerId: number;
   isFieldWorker?: boolean;
@@ -218,6 +220,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
   onRequestNewItem,
   onOpenDetails,
 }) => {
+  const { t } = useTranslation();
   const [focRequests, setFocRequests] = useState<FocRequestListItem[]>([]);
   const [focSearchText, setFocSearchText] = useState('');
   const [submittedFocSearch, setSubmittedFocSearch] = useState('');
@@ -414,7 +417,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
   const confirmDeleteFocRequest = async (item: FocRequestListItem) => {
     const focRequestId = getFocId(item);
     if (!focRequestId) {
-      showToast('Request id is not available.');
+      showToast(t('rn_request_id_is_not_available'));
       return;
     }
 
@@ -473,7 +476,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
                 }
               }}
               onSubmitEditing={submitFocSearch}
-              placeholder="Search Employee Name"
+              placeholder={t('rn_search_employee_name')}
               placeholderTextColor={COLORS.lightGray}
               style={styles.searchInput}
               returnKeyType="search"
@@ -491,17 +494,17 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
               if (onRequestNewItem) {
                 onRequestNewItem();
               } else {
-                showToast('Raise a request from the Items tab.');
+                showToast(t('rn_raise_a_request_from_the_items_tab'));
               }
             }}>
-            <Text style={styles.requestButtonText}>+ Request</Text>
+            <Text style={styles.requestButtonText}>{t('rn_request')}</Text>
           </TouchableOpacity>
         )}
       </View>
 
       <FocFilterRow
         statusLabel={selectedStatusTag.name}
-        issueLabel={selectedIssue.label}
+        issueLabel={tr(selectedIssue.label)}
         onStatusPress={() => setIsStatusModalOpen(true)}
         onIssuePress={() => setIsIssueModalOpen(true)}
         onRefreshPress={refreshFocList}
@@ -511,7 +514,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
       {isFocInitialLoading ? (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading requested items...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading_requested_items')}</Text>
         </View>
       ) : null}
 
@@ -531,7 +534,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
         ListEmptyComponent={
           isFocInitialLoading ? null : focErrorMessage ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>Unable to Load Requests</Text>
+              <Text style={styles.emptyTitle}>{t('rn_unable_to_load_requests')}</Text>
               <Text style={styles.emptyText}>{focErrorMessage}</Text>
             </View>
           ) : (
@@ -575,7 +578,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
 
       <SearchPickerModal
         visible={isStatusModalOpen}
-        title="Select Status Tag"
+        title={t('rn_select_status_tag')}
         wrapContent
         options={statusTags.map(tag => ({id: tag.id, label: tag.name}))}
         emptyText="No status tags returned."
@@ -585,9 +588,9 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
 
       <SearchPickerModal
         visible={isIssueModalOpen}
-        title="Select Issue"
+        title={t('rn_select_issue')}
         hideSearch
-        options={ISSUE_FILTERS.filter(issue => issue.id > 0).map(issue => ({id: issue.id, label: issue.label}))}
+        options={ISSUE_FILTERS.filter(issue => issue.id > 0).map(issue => ({id: issue.id, label: tr(issue.label)}))}
         onClose={() => setIsIssueModalOpen(false)}
         onSelect={option =>
           selectIssueFilter(ISSUE_FILTERS.find(issue => issue.id === option.id) ?? ISSUE_FILTERS[0])

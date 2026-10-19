@@ -37,6 +37,7 @@ import { showFailureMsg, showToast } from '../../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import ImageSourceDialog from '../../../components/ImageSourceDialog';
+import { tr } from '../../../i18n/tr';
 // `UserResultData` / `KycDocType` are just local aliases for the api-layer
 // DTO shapes, kept so the rest of this screen reads the same as before.
 // DocTypeId/DocTypeName are narrowed back to required — every entry the KYC
@@ -311,7 +312,7 @@ export default function TechProfileScreen() {
       const file = result[0];
 
       if (file.size != null && file.size > MAX_FILE_SIZE_BYTES) {
-        showFailureMsg('Please choose a file under 6 MB.');
+        showFailureMsg(t('rn_please_choose_a_file_under_6_mb'));
         return;
       }
 
@@ -596,7 +597,7 @@ export default function TechProfileScreen() {
             onPress={() => setShowDobPicker(true)}
           >
             <Text style={{ fontSize: sp(16), color: profile?.DOB ? COLORS.textBlack : COLORS.lightGray }}>
-              {profile?.DOB ? new Date(profile.DOB).toLocaleDateString('en-GB').replace(/\//g, '-') : 'Select...'}
+              {profile?.DOB ? new Date(profile.DOB).toLocaleDateString('en-GB').replace(/\//g, '-') : tr('Select...')}
             </Text>
           </Pressable>
         </View>
@@ -621,7 +622,7 @@ export default function TechProfileScreen() {
         />
 
         {/* KYC Section */}
-        <Text style={styles.sectionTitle}>KYC Details</Text>
+        <Text style={styles.sectionTitle}>{t('rn_kyc_details')}</Text>
 
         {/* Document Picker — populated from the KYC list API, falls back to static list */}
         <View style={fieldStyles.wrapper}>
@@ -639,7 +640,7 @@ export default function TechProfileScreen() {
         </View>
 
         {/* File Attach */}
-        <Text style={styles.attachLabel}>Attach File</Text>
+        <Text style={styles.attachLabel}>{t('rn_attach_file')}</Text>
 
         {/* Existing uploaded document link (docTinyUrl in Java) */}
         {hasExistingDoc && (
@@ -654,7 +655,7 @@ export default function TechProfileScreen() {
           <Text style={styles.attachText}>
             {selectedFile
               ? selectedFile.name
-              : 'Choose .pdf, .jpeg, .jpg, .png, .xlsx, .txt, .zip, etc. max file size is 6 MB'}
+              : tr('Choose .pdf, .jpeg, .jpg, .png, .xlsx, .txt, .zip, etc. max file size is 6 MB')}
           </Text>
         </Pressable>
 
@@ -666,7 +667,7 @@ export default function TechProfileScreen() {
         >
           {updating
             ? <ActivityIndicator size="small" color="#fff" />
-            : <Text style={styles.updateText}>UPDATE</Text>}
+            : <Text style={styles.updateText}>{t('update').toUpperCase()}</Text>}
         </Pressable>
 
         <Pressable onPress={() => navigation.navigate('TechnicianTabsRoot', { screen: 'Home' })}>
@@ -686,7 +687,7 @@ export default function TechProfileScreen() {
       {/* Java ProfileFragmentNew: dialog_searchable_spinner_kyc -- the shared dialog. */}
       <SearchPickerModal
         visible={showDocDropdown}
-        title="Select Document"
+        title={t('rn_select_document')}
         options={(kycList.length > 0
           ? kycList
           : (['Aadhar', 'PAN', 'Driving License'] as const).map((name) => ({
@@ -714,7 +715,7 @@ export default function TechProfileScreen() {
             <View style={styles.otpSheet}>
               <View style={styles.otpHeaderRow}>
                 <Text style={styles.otpTitle}>
-                  {otpModal.from === 'MOBILE' ? 'Change your contact number' : 'Change your Email id'}
+                  {otpModal.from === 'MOBILE' ? tr('Change your contact number') : tr('Change your Email id')}
                 </Text>
                 <Pressable onPress={closeOtpFlow} hitSlop={8}>
                   <Ionicons name="close" size={scale(20)} color="#444" />
@@ -723,7 +724,7 @@ export default function TechProfileScreen() {
 
               <View style={fieldStyles.wrapper}>
                 <Text style={fieldStyles.floatingLabel}>
-                  {otpModal.from === 'MOBILE' ? 'Contact No' : 'E-Mail ID'}
+                  {otpModal.from === 'MOBILE' ? tr('Contact No') : tr('E-Mail ID')}
                 </Text>
                 <View style={fieldStyles.inputBox}>
                   <TextInput
@@ -739,7 +740,7 @@ export default function TechProfileScreen() {
 
               {otpInputReady && (
                 <View style={fieldStyles.wrapper}>
-                  <Text style={fieldStyles.floatingLabel}>OTP</Text>
+                  <Text style={fieldStyles.floatingLabel}>{t('rn_otp')}</Text>
                   <View style={fieldStyles.inputBox}>
                     <TextInput
                       style={[fieldStyles.input, styles.otpBoxesInput]}

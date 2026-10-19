@@ -47,6 +47,7 @@ import {
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 const STATE_KEYS = ['state', 'State', 'stateName', 'StateName'];
 const CITY_KEYS = ['city', 'City', 'cityName', 'CityName'];
 const PINCODE_KEYS = ['pinCode', 'PinCode', 'pincode', 'Pincode', 'zipCode', 'ZipCode'];
@@ -367,19 +368,19 @@ const EditCustomerModal = ({
 
   const handleUpdate = async () => {
     if (!form.customerName.trim()) {
-      showFailureMsg('Customer Name is required.');
+      showFailureMsg(t('rn_customer_name_is_required'));
       return;
     }
     if (!form.address.trim()) {
-      showFailureMsg('Primary Address is required.');
+      showFailureMsg(t('rn_primary_address_is_required'));
       return;
     }
     if (!form.state.trim() || !form.city.trim() || !form.pinCode.trim()) {
-      showFailureMsg('State, City and Pin Code are required.');
+      showFailureMsg(t('rn_state_city_and_pin_code_are_required'));
       return;
     }
     if (!form.mobileNumber.trim()) {
-      showFailureMsg('Phone Number is required.');
+      showFailureMsg(t('rn_phone_number_is_required'));
       return;
     }
 
@@ -524,7 +525,7 @@ const EditCustomerModal = ({
             <Text style={styles.sectionLabel}>{t('primary_details')}</Text>
 
             <LabeledField
-              label="Primary Address"
+              label={t('primary_address')}
               required
               value={form.address}
               onChangeText={text => setField('address', text)}
@@ -532,7 +533,7 @@ const EditCustomerModal = ({
             />
 
             <LabeledField
-              label="Building / Flat Number"
+              label={t('rn_building_flat_number')}
               value={form.buildingNumber}
               onChangeText={text => setField('buildingNumber', text)}
             />
@@ -540,7 +541,7 @@ const EditCustomerModal = ({
             <View style={styles.fieldRow}>
               <View style={[styles.halfWrap, styles.stateZIndex]}>
                 <LabeledField
-                  label="State"
+                  label={t('state')}
                   required
                   half
                   value={form.state}
@@ -783,7 +784,7 @@ const EditCustomerModal = ({
               onChangeText={text => setField('secondaryInstructions', text)}
             />
 
-            <Text style={styles.sectionLabel}>Asset Details</Text>
+            <Text style={styles.sectionLabel}>{t('rn_asset_details')}</Text>
 
             <LabeledField
               label={t('label_brand_name')}
@@ -809,7 +810,7 @@ const EditCustomerModal = ({
                   <View style={styles.updateButtonIconWrap}>
                     <EnquiryIcon size={ms(30)} color="#FFFFFF" />
                   </View>
-                  <Text style={styles.updateButtonText}>{isAddMode ? 'ADD' : 'UPDATE'}</Text>
+                  <Text style={styles.updateButtonText}>{isAddMode ? tr('ADD') : tr('UPDATE')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -834,11 +835,11 @@ const EditCustomerModal = ({
           onPress={() => setIsTagModalOpen(false)}
         >
           <View style={styles.tagModalSheet}>
-            <Text style={styles.tagModalTitle}>Select Customer Tag</Text>
+            <Text style={styles.tagModalTitle}>{t('rn_select_customer_tag')}</Text>
             {isTagLoading ? (
               <ActivityIndicator color={THEME_PRIMARY} style={styles.tagModalLoader} />
             ) : customerTags.length === 0 ? (
-              <Text style={styles.tagModalEmptyText}>No customer tags available.</Text>
+              <Text style={styles.tagModalEmptyText}>{t('rn_no_customer_tags_available')}</Text>
             ) : (
               <ScrollView style={styles.tagModalScroll}>
                 {customerTags.map(option => (

@@ -44,6 +44,7 @@ import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type LeadServiceTypeItem = EnquiryServiceTypeDTOResultData;
 type ItemInventoryListItem = ItemsListResultData;
 type SaveQuotationServiceRequest = SaveQuotationDTOQuoteServiceList;
@@ -288,7 +289,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       const response = await getTaxList({UserId: ownerId});
       const rows = Array.isArray(response?.ResultData) ? response.ResultData : [];
       if (String(response?.Code) !== '200' || rows.length === 0) {
-        showFailureMsg('Please add Dynamic Tax from Portal to proceed further.');
+        showFailureMsg(t('rn_please_add_dynamic_tax_from_portal_to_proc'));
         onClose();
         return;
       }
@@ -300,7 +301,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         }),
       );
     } catch (error) {
-      showFailureMsg('Unable to load tax details. Please try again.');
+      showFailureMsg(t('rn_unable_to_load_tax_details_please_try_agai'));
       onClose();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -367,10 +368,10 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     if (!technician) {
       const last = itemRows[itemRows.length - 1];
       if (!last?.itemId) {
-        showToast('Please Select an Item!!');
+        showToast(t('rn_please_select_an_item'));
       }
       if (['0', '00', '000'].includes((last?.price ?? '').trim())) {
-        showToast('Price should not be Zero!!');
+        showToast(t('rn_price_should_not_be_zero'));
         return;
       }
     }
@@ -379,7 +380,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
   const removeItemRow = (id: string) => {
     if (!technician && itemRows.length === 1) {
-      showToast('At least one item is required');
+      showToast(t('rn_at_least_one_item_is_required'));
       return;
     }
     setItemRows(prev =>
@@ -394,7 +395,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   const onServiceQtyChange = (rowId: string, text: string) => {
     const qty = text.replace(/[^0-9]/g, '').slice(0, 3);
     if (qty && /^0+$/.test(qty)) {
-      showToast('Qty should not be zero!!');
+      showToast(t('rn_qty_should_not_be_zero'));
     }
     setServiceRows(prev =>
       prev.map(r => {
@@ -467,7 +468,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         return;
       }
       if (typeof file.size === 'number' && file.size > MAX_ATTACHMENT_BYTES) {
-        showFailureMsg('File size must be 6 MB or less.');
+        showFailureMsg(t('rn_file_size_must_be_6_mb_or_less'));
         return;
       }
       const base64 = await RNFS.readFile(file.uri, 'base64');
@@ -476,7 +477,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     } catch (error) {
       const code = (error as {code?: string} | null)?.code;
       if (code !== 'DOCUMENT_PICKER_CANCELED' && code !== 'OPERATION_CANCELED') {
-        showFailureMsg('Unable to attach this file.');
+        showFailureMsg(t('rn_unable_to_attach_this_file'));
       }
     }
   };
@@ -662,11 +663,11 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       return false;
     }
     if (quoteDate.trim() > validityDate.trim()) {
-      showToast('Validity Date should not be less than Quote Date!');
+      showToast(t('rn_validity_date_should_not_be_less_than_quot'));
       return false;
     }
     if (!serviceRows.some(r => r.serviceTypeId && Number(r.quantity) > 0)) {
-      showToast('Please add a Service!', true);
+      showToast(t('rn_please_add_a_service'), true);
       return false;
     }
     const phone = phoneNumber.trim();
@@ -681,7 +682,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       return invalidPhone();
     }
     if (itemRows.some(r => r.itemId && !(Number(r.quantity) > 0))) {
-      showToast('Item Qty. cannot be zero');
+      showToast(t('rn_item_qty_cannot_be_zero'));
       return false;
     }
     return true;
@@ -753,11 +754,11 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         return;
       }
       if (!selectedPaymentType) {
-        showToast('Please select Payment Transaction Type', true);
+        showToast(t('rn_please_select_payment_transaction_type'), true);
         return;
       }
       if (Number(receivedAmount) > totals.grand) {
-        showToast('Entered Amount is greater than Grand Total Amount', true);
+        showToast(t('rn_entered_amount_is_greater_than_grand_total'), true);
         return;
       }
     }
@@ -911,7 +912,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
           );
         }
 
-        showSuccessMsg(isInvoice ? 'Invoice Created Successfully.' : 'Quotation Created Successfully.');
+        showSuccessMsg(isInvoice ? tr('Invoice Created Successfully.') : tr('Quotation Created Successfully.'));
         onSuccess?.();
         handleClose();
         return;
@@ -1001,7 +1002,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         );
       }
 
-      showSuccessMsg(isInvoice ? 'Invoice Created Successfully.' : 'Quotation Created Successfully.');
+      showSuccessMsg(isInvoice ? tr('Invoice Created Successfully.') : tr('Quotation Created Successfully.'));
       onSuccess?.();
       handleClose();
     } catch (error) {
@@ -1066,7 +1067,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     const typeId = getServiceTypeId(item);
     const typeName = getServiceTypeName(item);
     if (serviceRows.some(r => r.id !== rowId && r.serviceTypeName.toLowerCase() === typeName.toLowerCase())) {
-      showToast('Same Service name not allowed!');
+      showToast(t('rn_same_service_name_not_allowed'));
       return;
     }
     setServiceRows(prev =>
@@ -1089,7 +1090,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     const name = getItemName(item);
     const price = getItemPrice(item);
     if (itemRows.some(r => r.id !== rowId && r.itemName.toLowerCase() === name.toLowerCase())) {
-      showToast('Same Item name not allowed!');
+      showToast(t('rn_same_item_name_not_allowed'));
       return;
     }
     setItemRows(prev =>
@@ -1116,7 +1117,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       <Text
         style={row.serviceTypeName ? styles.dropdownValueText : styles.dropdownPlaceholderText}
         numberOfLines={1}>
-        {isLoadingServiceTypes ? 'Loading...' : row.serviceTypeName || t('select_service_type')}
+        {isLoadingServiceTypes ? tr('Loading...') : row.serviceTypeName || t('select_service_type')}
       </Text>
       <Ionicons name="chevron-down" style={styles.dropdownChevron} />
     </Pressable>
@@ -1125,7 +1126,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   const renderItemDropdown = (row: ItemRow, flex = 3) => (
     <Pressable style={[styles.dropdownField, {flex}]} onPress={() => setOpenDropdownKey(`item-${row.id}`)}>
       <Text style={row.itemName ? styles.dropdownValueText : styles.dropdownPlaceholderText} numberOfLines={1}>
-        {isLoadingItems ? 'Loading...' : row.itemName || (technician ? 'Select Item' : 'Select')}
+        {isLoadingItems ? tr('Loading...') : row.itemName || (technician ? 'Select Item' : 'Select')}
       </Text>
       <Ionicons name="chevron-down" style={styles.dropdownChevron} />
     </Pressable>
@@ -1201,7 +1202,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                   <View pointerEvents="none">
                     <OutlinedInput
                       style={[styles.pillInput, isErr('validity') && styles.pillError]}
-                      placeholder="Validity Date*"
+                      placeholder={t('rn_validity_date')}
                       value={validityDate}
                       editable={false}
                     />
@@ -1244,7 +1245,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
               <OutlinedInput
                 style={[styles.pillInput, {marginBottom: ms(36)}]}
-                placeholder="Building / Flat Number"
+                placeholder={t('rn_building_flat_number')}
                 placeholderTextColor={COLORS.lightGray}
                 maxLength={25}
                 value={buildingFlatNumber}
@@ -1362,7 +1363,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                             {renderItemDropdown(row, 5)}
                             <TextInput
                               style={[styles.qtyInput, {flex: 2}]}
-                              placeholder="Qty."
+                              placeholder={t('rn_qty_2')}
                               placeholderTextColor={COLORS.lightGray}
                               value={row.quantity}
                               keyboardType="number-pad"
@@ -1382,7 +1383,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                             {renderItemDropdown(row)}
                             <DecimalInput
                               style={[styles.pillInput, styles.thirdInput]}
-                              label="Qty."
+                              label={t('rn_qty_2')}
                               placeholderTextColor={COLORS.lightGray}
                               value={row.quantity}
                               onChangeText={value =>
@@ -1415,7 +1416,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                 <View>
                   <OutlinedInput
                     style={styles.pillInput}
-                    placeholder="Discount %"
+                    placeholder={t('discount') + ' %'}
                     placeholderTextColor={COLORS.lightGray}
                     keyboardType="number-pad"
                     maxLength={2}
@@ -1439,7 +1440,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                         activeOpacity={0.7}
                         onPress={() => openTaxPicker()}>
                         <Text style={styles.taxSpinnerText} numberOfLines={1}>
-                          {taxName ? `${taxName}: ${taxPercent}%` : 'Select Tax Percentage'}
+                          {taxName ? `${taxName}: ${taxPercent}%` : tr('Select Tax Percentage')}
                         </Text>
                         <Ionicons name="chevron-down" style={styles.taxChevron} />
                       </TouchableOpacity>
@@ -1450,7 +1451,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                 </View>
               ) : null}
 
-              <Text style={styles.extraLabel}>Extra</Text>
+              <Text style={styles.extraLabel}>{t('rn_extra')}</Text>
               <View style={[styles.fieldRow, {gap: ms(20), marginBottom: ms(4)}]}>
                 <OutlinedInput
                   style={[styles.pillInput, styles.halfInput, {flex: 1.5}]}
@@ -1483,7 +1484,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
               {/* Java: lnlAttachFile is made visible by the admin addQuote only (never invoice / technician). */}
               {showAttach ? (
                 <>
-                  <Text style={[styles.extraLabel, {marginTop: 0, marginBottom: ms(10)}]}>Attach File</Text>
+                  <Text style={[styles.extraLabel, {marginTop: 0, marginBottom: ms(10)}]}>{t('rn_attach_file')}</Text>
                   <TouchableOpacity style={styles.attachBox} activeOpacity={0.7} onPress={handlePickAttachment}>
                     <Text style={styles.attachBoxText}>
                       {attachedFileName ||
@@ -1506,7 +1507,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                 style={styles.saveButton}
                 onPress={() => handleSave()}
                 disabled={isSubmitting}>
-                <Text style={styles.saveButtonText}>{isSubmitting ? 'SAVING...' : 'SAVE & VIEW'}</Text>
+                <Text style={styles.saveButtonText}>{isSubmitting ? tr('SAVING...') : tr('SAVE & VIEW')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
@@ -1520,7 +1521,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
       <SearchPickerModal
         visible={isTaxModePickerOpen}
-        title="Select Tax"
+        title={t('rn_select_tax')}
         hideSearch
         options={TAX_MODE_OPTIONS}
         onSelect={option => {
@@ -1538,7 +1539,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
       <SearchPickerModal
         visible={isTaxPickerOpen}
-        title="Select Tax"
+        title={t('rn_select_tax')}
         hideSearch
         options={taxOptions}
         loading={isLoadingTaxes}
@@ -1554,7 +1555,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
       <SearchPickerModal
         visible={isPaymentTypePickerOpen}
-        title="Payment Transaction Type"
+        title={t('rn_payment_transaction_type')}
         options={paymentTypes}
         loading={isLoadingPaymentTypes}
         emptyText="No payment types found."
@@ -1578,8 +1579,8 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
 
       <SearchPickerModal
         visible={pickerKind !== null}
-        title={pickerKind === 'item' ? 'Select Item' : 'Select Service Type'}
-        searchHint={pickerKind === 'item' ? 'Please Enter Min 3 Characters...' : 'Search...'}
+        title={pickerKind === 'item' ? tr('Select Item') : tr('Select Service Type')}
+        searchHint={pickerKind === 'item' ? tr('Please Enter Min 3 Characters...') : tr('Search...')}
         options={
           pickerKind === 'item'
             ? items.map((item, index) => ({id: index, label: getItemName(item)}))
@@ -1603,7 +1604,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
           <Modal transparent animationType="fade" onRequestClose={() => setDatePickerField(null)}>
             <Pressable style={styles.dateBackdrop} onPress={() => setDatePickerField(null)}>
               <Pressable style={styles.dateSheet} onPress={e => e.stopPropagation()}>
-                <Text style={styles.dateSheetTitle}>Select Date</Text>
+                <Text style={styles.dateSheetTitle}>{t('rn_select_date')}</Text>
                 <DateTimePicker
                   value={datePickerValue}
                   mode="date"
@@ -1639,7 +1640,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
             }}
             onDismiss={() => setDatePickerField(null)}
             positiveButton={{label: t('qr_code_positive_button_know'), textColor: COLORS.primary}}
-            negativeButton={{label: 'CANCEL', textColor: COLORS.primary}}
+            negativeButton={{label: tr('CANCEL'), textColor: COLORS.primary}}
           />
         )
       )}

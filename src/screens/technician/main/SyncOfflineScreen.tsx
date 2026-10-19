@@ -19,7 +19,10 @@ import { purgeDeletedPendingTasks, syncPendingTask } from '../../../offline/offl
 import { getNetworkQuality, isPostable, resetNetworkQualityCache } from '../../../offline/networkQuality';
 import { showFailureMsg, showToast } from '../../../utils/toast';
 
+import { useTranslation } from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 export default function SyncOfflineScreen({ navigation }: any) {
+  const { t } = useTranslation();
   const [tasks, setTasks] = useState<PendingTask[]>([]);
   const [syncingId, setSyncingId] = useState<number | null>(null);
 
@@ -48,7 +51,7 @@ export default function SyncOfflineScreen({ navigation }: any) {
   const handleSync = async (task: PendingTask) => {
     resetNetworkQualityCache();
     if (!isPostable(await getNetworkQuality())) {
-      showToast('Please connect to a stronger network to sync.');
+      showToast(t('rn_please_connect_to_a_stronger_network_to_sy'));
       return;
     }
     setSyncingId(task.taskId);
@@ -73,10 +76,10 @@ export default function SyncOfflineScreen({ navigation }: any) {
     <View style={styles.root}>
       <View style={styles.sheet}>
         <View style={styles.headerRow}>
-          <Text style={[styles.headerText, styles.colSr]}>Sr. No</Text>
-          <Text style={[styles.headerText, styles.colTask]}>Task Id</Text>
-          <Text style={[styles.headerText, styles.colStatus]}>Sync Status</Text>
-          <Text style={[styles.headerText, styles.colAction]}>Action</Text>
+          <Text style={[styles.headerText, styles.colSr]}>{t('rn_sr_no_2')}</Text>
+          <Text style={[styles.headerText, styles.colTask]}>{t('task_id')}</Text>
+          <Text style={[styles.headerText, styles.colStatus]}>{t('rn_sync_status')}</Text>
+          <Text style={[styles.headerText, styles.colAction]}>{t('rn_action')}</Text>
         </View>
 
         <FlatList
@@ -87,14 +90,14 @@ export default function SyncOfflineScreen({ navigation }: any) {
             <View style={styles.row}>
               <Text style={[styles.cellSr, styles.colSr]}>{index + 1}.</Text>
               <Text style={[styles.cell, styles.colTask]} numberOfLines={1}>{item.newTaskId}</Text>
-              <Text style={[styles.cell, styles.colStatus]}>PENDING</Text>
+              <Text style={[styles.cell, styles.colStatus]}>{t('rn_pending')}</Text>
               <View style={styles.colAction}>
                 <Pressable
                   style={styles.syncButton}
                   disabled={syncingId !== null}
                   onPress={() => handleSync(item)}
                 >
-                  <Text style={styles.syncText}>{syncingId === item.taskId ? '...' : 'Sync'}</Text>
+                  <Text style={styles.syncText}>{syncingId === item.taskId ? '...' : tr('Sync')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -102,7 +105,7 @@ export default function SyncOfflineScreen({ navigation }: any) {
         />
 
         <Pressable style={styles.clearButton} onPress={handleClear}>
-          <Text style={styles.clearText}>Clear All Records</Text>
+          <Text style={styles.clearText}>{t('rn_clear_all_records')}</Text>
         </Pressable>
       </View>
     </View>

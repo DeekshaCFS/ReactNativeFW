@@ -50,6 +50,7 @@ import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast'
 
 import {useTranslation} from 'react-i18next';
 import ImageSourceDialog from '../../../components/ImageSourceDialog';
+import { tr } from '../../../i18n/tr';
 type Task = TasksListResultData;
 type AssignedItem = TasksListMultipleItemAssigned;
 
@@ -275,7 +276,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
     if (source === 'camera' && Platform.OS === 'android') {
       const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
       if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-        showToast('Camera permission is required to take a photo.');
+        showToast(t('rn_camera_permission_is_required_to_take_a_ph'));
         return;
       }
     }
@@ -292,7 +293,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
     if (result.errorCode) {
       showToast(result.errorCode === 'permission'
-          ? 'Camera permission is required to take a photo.'
+          ? tr('Camera permission is required to take a photo.')
           : result.errorMessage || 'Unable to open the camera');
       return;
     }
@@ -359,7 +360,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
   const handleUploadAndStart = async () => {
     const presentPhotos = photos.filter(p => p?.base64);
     if (presentPhotos.length === 0) {
-      showFailureMsg('Please Add/Capture Image');
+      showFailureMsg(t('rn_please_add_capture_image'));
       return;
     }
     try {
@@ -434,7 +435,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
     const presentRejectPhotos = rejectPhotos.filter(p => p?.base64);
     if (presentRejectPhotos.length === 0) {
-      showToast('At least One Image is mandatory to Reject the Task !!', true);
+      showToast(t('rn_at_least_one_image_is_mandatory_to_reject__2'), true);
       return;
     }
 
@@ -466,7 +467,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       setShowRejectSheet(false);
       setRejectReason('');
       setRejectPhotos([]);
-      showToast('Task updated successfully', true);
+      showToast(t('task_updated_successfully'), true);
       // Java returns to the Task tab after a rejection.
       navigation.navigate('Task');
     } catch (err: any) {
@@ -486,7 +487,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
     const presentHoldPhotos = onHoldPhotos.filter(p => p?.base64);
     if (presentHoldPhotos.length === 0) {
-      showFailureMsg('At Least One Image is Mandatory to put task on hold !! ');
+      showFailureMsg(t('rn_at_least_one_image_is_mandatory_to_put_tas'));
       return;
     }
 
@@ -517,7 +518,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
       setShowOnHoldSheet(false);
       setIsRunning(false);
-      showToast('Status Updated Successfully.', true);
+      showToast(t('rn_status_updated_successfully'), true);
       navigation.navigate('Task');
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -573,7 +574,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       showFailureMsg(err?.message || 'Could not end the task. Please try again.');
       return;
     }
-    showSuccessMsg('Task Updated Successfully');
+    showSuccessMsg(t('task_updated_successfully'));
     // Java sets TaskState = ENDED_NO_PAYMENT before opening Closure (HomeActivityNew
     // updateTaskStatus success). Closure derives Rate-mode handling from this state, so
     // it must not receive the stale pre-end task.
@@ -597,7 +598,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       routeTask.AudioFilePath;
 
     if (!audioPath) {
-      showToast('No instruction audio is attached to this task.');
+      showToast(t('rn_no_instruction_audio_is_attached_to_this_t'));
       return;
     }
 
@@ -670,7 +671,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
           <Text style={styles.description}>
             {taskDetail?.Description && taskDetail.Description !== 'undefined' && taskDetail.Description.trim() !== ''
               ? taskDetail.Description
-              : 'NA'}
+              : tr('NA')}
           </Text>
 
           {/* Java shows the call button only when the TeleCMI module is on. */}
@@ -682,7 +683,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
           {trackingDetail?.OnHoldTaskDtos?.OnHoldNotes && (
             <>
-              <Text style={styles.sectionTitle}>On Hold Notes</Text>
+              <Text style={styles.sectionTitle}>{t('rn_on_hold_notes')}</Text>
               <Text style={styles.sectionValue}>{trackingDetail.OnHoldTaskDtos.OnHoldNotes}</Text>
             </>
           )}
@@ -727,7 +728,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
         {/* linear_play_audio: bg_closure_border (34dp radius, #f4f4f4), 10dp above */}
         <View style={styles.audioCard}>
-          <Text style={styles.audioText}>Listen your Instructions</Text>
+          <Text style={styles.audioText}>{t('rn_listen_your_instructions')}</Text>
           <Pressable style={styles.playBtn} onPress={handlePlayAudio} disabled={audioLoading}>
             {audioLoading ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -744,11 +745,11 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
         <View style={styles.btnRow}>
           <Pressable style={[styles.btn, styles.reject]} onPress={() => setShowRejectSheet(true)}>
-            <Text style={styles.btnText}>REJECT</Text>
+            <Text style={styles.btnText}>{t('reject_task').toUpperCase()}</Text>
           </Pressable>
 
           <Pressable style={[styles.btn, styles.onhold]} onPress={() => setShowOnHoldSheet(true)}>
-            <Text style={styles.btnText}>ON HOLD</Text>
+            <Text style={styles.btnText}>{t('rn_on_hold')}</Text>
           </Pressable>
 
           <Pressable
@@ -756,17 +757,17 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             onPress={isRunning ? handleEndTask : handleStart}
           >
             <Text style={styles.btnText}>
-              {isRunning ? 'END TASK' : showContinue ? 'CONTINUE' : 'START'}
+              {isRunning ? tr('END TASK') : showContinue ? 'CONTINUE' : 'START'}
             </Text>
           </Pressable>
         </View>
 
         <View style={styles.btnRow}>
           <Pressable style={[styles.btn, styles.onhold]} onPress={handleTaskInput}>
-            <Text style={styles.btnText}>TASK INPUT</Text>
+            <Text style={styles.btnText}>{t('rn_task_input')}</Text>
           </Pressable>
           <Pressable style={[styles.btn, styles.onhold]} onPress={() => navigation.navigate('ItemRequest', { routeTask })}>
-            <Text style={styles.btnText}>REQUEST ITEMS</Text>
+            <Text style={styles.btnText}>{t('request_items').toUpperCase()}</Text>
           </Pressable>
         </View>
       </View>
@@ -800,7 +801,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
           />
         </View>
         <Pressable style={styles.dlgBtn} onPress={handleUploadAndStart} disabled={uploading}>
-          <Text style={styles.dlgBtnText}>{uploading ? 'UPLOADING...' : 'UPLOAD'}</Text>
+          <Text style={styles.dlgBtnText}>{uploading ? tr('UPLOADING...') : tr('UPLOAD')}</Text>
         </Pressable>
       </BottomSheetDialog>
 
@@ -847,7 +848,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
           </View>
         </View>
         <Pressable style={styles.dlgBtn} onPress={handleReject} disabled={rejecting}>
-          <Text style={styles.dlgBtnText}>{rejecting ? 'REJECTING...' : 'REJECT'}</Text>
+          <Text style={styles.dlgBtnText}>{rejecting ? tr('REJECTING...') : tr('REJECT')}</Text>
         </Pressable>
         <Pressable
           style={styles.dlgCancel}
@@ -863,9 +864,9 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         onRequestClose={() => {}}
         onClose={() => { setShowOnHoldSheet(false); setOnHoldPhotos([]); setOnHoldReasonError(false); }}
       >
-        <Text style={styles.holdTitle}>Reason for holding the task ?</Text>
+        <Text style={styles.holdTitle}>{t('rn_reason_for_holding_the_task')}</Text>
         <View style={styles.holdNoteWrap}>
-          {onHoldReasonError && <FieldErrorTip message="Please Enter the Reason!!" bottom={ms(100) + ms(3)} />}
+          {onHoldReasonError && <FieldErrorTip message={t('rn_please_enter_the_reason')} bottom={ms(100) + ms(3)} />}
           <View style={styles.holdNote}>
             <TextInput
               value={onHoldReason}
@@ -881,7 +882,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         {renderPhotoSlots(onHoldPhotos, setOnHoldPhotos)}
         <View style={styles.holdBtnRow}>
           <Pressable style={[styles.holdBtn, { backgroundColor: COLORS.statusOnHold }]} onPress={handleOnHold} disabled={onHolding}>
-            <Text style={styles.dlgBtnText}>{onHolding ? 'SAVING...' : 'PUT ON HOLD'}</Text>
+            <Text style={styles.dlgBtnText}>{onHolding ? tr('SAVING...') : tr('PUT ON HOLD')}</Text>
           </Pressable>
           <Pressable
             style={[styles.holdBtn, { backgroundColor: COLORS.primary }]}
@@ -890,7 +891,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
               navigation.navigate('ItemRequest', { routeTask, fromOnHold: true });
             }}
           >
-            <Text style={styles.dlgBtnText}>REQUEST ITEMS</Text>
+            <Text style={styles.dlgBtnText}>{t('request_items').toUpperCase()}</Text>
           </Pressable>
         </View>
       </BottomSheetDialog>
@@ -909,7 +910,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             setAudioLoading(false);
             setIsPlayingAudio(false);
             setAudioSource(null);
-            showToast('Unable to play instruction audio.');
+            showToast(t('rn_unable_to_play_instruction_audio'));
           }}
         />
       )}

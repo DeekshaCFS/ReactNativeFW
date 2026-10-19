@@ -17,6 +17,7 @@ import { FIELDWEB_MAP_STYLE } from '../../../config/mapStyle';
 import TaskListCard from '../../../components/TaskListCard';
 import { showFailureMsg } from '../../../utils/toast';
 
+import { useTranslation } from 'react-i18next';
 const MAP_HEIGHT = ms(370);
 const SPEED_KMPH = 60; // Java: fixed 60 km/h for the time estimate
 
@@ -39,6 +40,7 @@ const isToday = (taskDate?: string) => {
 };
 
 export default function TodayTasksMapScreen({ navigation }: any) {
+  const { t } = useTranslation();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [me, setMe] = useState<Coordinates | null>(null);
@@ -52,13 +54,13 @@ export default function TodayTasksMapScreen({ navigation }: any) {
         const todays = (res?.ResultData ?? []).filter(t => isToday(t.TaskDate));
         if (todays.length === 0) {
           // Java: the pin only opens the screen when there is something to show.
-          showFailureMsg('There is no Task assigned for you today!');
+          showFailureMsg(t('rn_there_is_no_task_assigned_for_you_today'));
           navigation.navigate('Home');
           return;
         }
         setTasks(todays);
       } catch {
-        showFailureMsg("Unable to load today's tasks.");
+        showFailureMsg(t('rn_unable_to_load_today_s_tasks'));
       } finally {
         setLoading(false);
       }

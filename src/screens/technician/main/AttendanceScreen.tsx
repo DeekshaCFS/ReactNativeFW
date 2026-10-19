@@ -15,6 +15,8 @@ import { CompositeNavigationProp } from '@react-navigation/native';
 import { getAttendanceTechMonthly } from '../../../api/attendance/attendanceService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { useTranslation } from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 type NavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<TechnicianTabParamList, 'Attendance'>,
   NativeStackNavigationProp<TechnicianStackParamList>
@@ -23,6 +25,7 @@ type NavigationProp = CompositeNavigationProp<
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export default function AttendanceScreen() {
+  const { t } = useTranslation();
   const headerHeight = useAppHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
 
@@ -145,10 +148,10 @@ export default function AttendanceScreen() {
         {/* Tab Row */}
         <View style={[styles.tabRow, { paddingTop: headerHeight + vs(4) }]}>
           <Pressable style={styles.activeTab}>
-            <Text style={styles.activeTabText}>ATTENDANCE</Text>
+            <Text style={styles.activeTabText}>{t('attendance').toUpperCase()}</Text>
           </Pressable>
           <Pressable style={styles.inactiveTab} onPress={() => navigation.navigate('Leave')}>
-            <Text style={styles.inactiveTabText}>LEAVES</Text>
+            <Text style={styles.inactiveTabText}>{t('rn_leaves')}</Text>
           </Pressable>
         </View>
 
@@ -168,10 +171,10 @@ export default function AttendanceScreen() {
         {/* Summary cards */}
         <View style={styles.summaryRow}>
           {[
-            { label: 'Total Absent',  value: absent,  bg: COLORS.attAbsent },
-            { label: 'Total Present', value: present, bg: COLORS.success },
-            { label: 'Total Idle',    value: idle,    bg: COLORS.statusOngoing },
-            { label: 'Total Leave',   value: leave,   bg: COLORS.attLeave },
+            { label: tr('Total Absent'),  value: absent,  bg: COLORS.attAbsent },
+            { label: tr('Total Present'), value: present, bg: COLORS.success },
+            { label: tr('Total Idle'),    value: idle,    bg: COLORS.statusOngoing },
+            { label: tr('Total Leave'),   value: leave,   bg: COLORS.attLeave },
           ].map(({ label, value, bg }) => (
             <View key={label} style={[styles.summaryCard, { backgroundColor: bg }]}>
               <Text style={styles.summaryText}>{label}</Text>
@@ -186,7 +189,7 @@ export default function AttendanceScreen() {
             <Text style={styles.lineText} numberOfLines={1}>
               {selectedFullDate.toLocaleDateString(undefined, { weekday: 'long' })}
             </Text>
-            <Text style={styles.lineLabel}>CheckIn :</Text>
+            <Text style={styles.lineLabel}>{t('rn_checkin')}</Text>
             <Text style={styles.lineTime}>{formatTime(selectedAttendance?.CheckIn)}</Text>
           </View>
 
@@ -194,7 +197,7 @@ export default function AttendanceScreen() {
             <View style={styles.statusRow}>
               <View style={[styles.statusTag, { backgroundColor: statusColor(selectedAttendance) }]}>
                 <Text style={[styles.statusTagText, selectedAttendance.Attendance === 'OnLeave' && { color: COLORS.white }]}>
-                  {selectedAttendance.Attendance === 'OnLeave' ? 'On Leave' : selectedAttendance.Attendance}
+                  {selectedAttendance.Attendance === 'OnLeave' ? tr('On Leave') : selectedAttendance.Attendance}
                 </Text>
               </View>
             </View>
@@ -206,7 +209,7 @@ export default function AttendanceScreen() {
                 year: 'numeric', month: '2-digit', day: '2-digit',
               }).replace(/\//g, '-')}
             </Text>
-            <Text style={styles.lineLabel}>CheckOut :</Text>
+            <Text style={styles.lineLabel}>{t('title_check_out') + ' :'}</Text>
             <Text style={styles.lineTime}>{formatTime(selectedAttendance?.CheckOut)}</Text>
           </View>
         </View>

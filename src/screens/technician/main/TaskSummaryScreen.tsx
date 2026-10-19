@@ -27,6 +27,7 @@ import { savePendingTask, getPendingTask } from '../../../offline/offlineStore';
 import { cachedFetch } from '../../../offline/offlineCache';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 interface SignaturePath {
   points: { x: number; y: number }[];
 }
@@ -60,10 +61,11 @@ const buildPathD = (points: { x: number; y: number }[]) => {
 };
 
 function SignaturePreview({ paths }: { paths: SignaturePath[] }) {
+  const { t } = useTranslation();
   if (!paths.length) {
     return (
       <View style={styles.signatureEmpty}>
-        <Text style={styles.signatureEmptyText}>No signature</Text>
+        <Text style={styles.signatureEmptyText}>{t('rn_no_signature')}</Text>
       </View>
     );
   }
@@ -175,7 +177,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
       setSubmitting(true);
       const freshUid = await AsyncStorage.getItem('uid');
       if (!freshUid) {
-        showFailureMsg('User session not found. Please log in again.');
+        showFailureMsg(t('rn_user_session_not_found_please_log_in_again'));
         return;
       }
 
@@ -218,7 +220,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
         isHngClient = false;
       }
 
-      if (!online) showSuccessMsg('Task saved offline. Sync it from the Task tab when the network is back.');
+      if (!online) showSuccessMsg(t('rn_task_saved_offline_sync_it_from_the_task_t'));
 
       if (isHngClient || isRateMode) {
         // The closure is already saved: back from Payment must not return to Summary,
@@ -229,7 +231,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
 
       // Java: after a non-Rate, non-HNG closure the technician is offered the document
       // upload screen (skippable) before returning to the dashboard.
-      if (online) showSuccessMsg('The task has been closed successfully.');
+      if (online) showSuccessMsg(t('rn_the_task_has_been_closed_successfully'));
       resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task } });
     } catch (err: any) {
       showFailureMsg(err?.message || 'Failed to close task');
@@ -269,16 +271,16 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
           </View>
 
           <Text style={styles.workModeRow}>
-            Work Mode:  <Text style={styles.workModeValue}>{preview.workModeType}</Text>
+            {t('work_mode')}  <Text style={styles.workModeValue}>{preview.workModeType}</Text>
           </Text>
 
           {items.length > 0 && (
             <>
-              <Text style={styles.heading}>Items</Text>
+              <Text style={styles.heading}>{t('rn_items')}</Text>
               <View style={styles.itemRow}>
                 <Text style={[styles.tableHead, { flex: 2 }]}>{t('item')}</Text>
                 <Text style={[styles.tableHead, styles.tableNum]}>{t('assigned')}</Text>
-                <Text style={[styles.tableHead, styles.tableNum]}>Used</Text>
+                <Text style={[styles.tableHead, styles.tableNum]}>{t('rn_used_2')}</Text>
                 <Text style={[styles.tableHead, styles.tableNum]}>{t('price')}</Text>
               </View>
               {items.map((it, i) => (
@@ -310,10 +312,10 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
               <Text style={styles.heading}>{t('device_list')}</Text>
               {devices.map((d, i) => (
                 <View key={i} style={styles.deviceBlock}>
-                  <Text style={styles.greyText}>Device: {d.DeviceName}</Text>
-                  <Text style={styles.greyText}>Company/Model: {d.ModelNumber}</Text>
+                  <Text style={styles.greyText}>{t('device') + ':'} {d.DeviceName}</Text>
+                  <Text style={styles.greyText}>{t('company_model') + ':'} {d.ModelNumber}</Text>
                   {!!d.DeviceReading && (
-                    <Text style={styles.greyText}>Device Reading: {Number(d.DeviceReading).toFixed(1)}</Text>
+                    <Text style={styles.greyText}>{t('device_reading') + ':'} {Number(d.DeviceReading).toFixed(1)}</Text>
                   )}
                   <View style={styles.deviceImgRow}>
                     {[d.DevicePhoto1, d.DevicePhoto2, d.DevicePhoto3].filter(Boolean).map((img, j) => (
@@ -360,14 +362,14 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
 
           <View style={styles.signRow}>
             <View style={styles.signCol}>
-              <Text style={styles.signTitle}>Cust. Sign</Text>
+              <Text style={styles.signTitle}>{t('rn_cust_sign')}</Text>
               <SignaturePreview paths={preview.customerSignPaths} />
               <Text style={styles.greyText}>
                 {t('name_title')}   <Text style={styles.darkText}>{preview.customerName || 'NA'}</Text>
               </Text>
               <Text style={styles.greyText}>
                 {t('mobile_no_title')}  <Text style={styles.mobileText}>
-                  {preview.customerNumber ? `+${countryCode} ${preview.customerNumber}` : 'NA'}
+                  {preview.customerNumber ? `+${countryCode} ${preview.customerNumber}` : tr('NA')}
                 </Text>
               </Text>
               <View style={styles.ratingRow}>
@@ -377,7 +379,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
               {!!preview.ratingRemark && <Text style={styles.greyText}>{preview.ratingRemark}</Text>}
             </View>
             <View style={styles.signCol}>
-              <Text style={styles.signTitle}>Tech. Sign</Text>
+              <Text style={styles.signTitle}>{t('rn_tech_sign')}</Text>
               <SignaturePreview paths={preview.techSignPaths} />
                 <Text style={styles.greyText}>
                   {t('name_title')}   <Text style={styles.darkText}>{techName}</Text>
@@ -391,7 +393,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
               onPress={() => navigation.navigate(returnTo.name, returnTo.params)}
               disabled={submitting}
             >
-              <Text style={styles.editBtnText}>EDIT DETAILS</Text>
+              <Text style={styles.editBtnText}>{t('rn_edit_details')}</Text>
             </Pressable>
           )}
 
@@ -403,7 +405,7 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitBtnText}>SUBMIT</Text>
+              <Text style={styles.submitBtnText}>{t('submit').toUpperCase()}</Text>
             )}
           </Pressable>
         </ScrollView>

@@ -79,6 +79,7 @@ import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import {trf, tr} from '../../i18n/tr';
 Sound.setCategory('Playback');
 
 const BORDER = COLORS.lightGray; // TextInputLayoutStyle boxStrokeColor
@@ -1094,20 +1095,20 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         const stat = await RNFS.stat(audioFile);
         if (Number(stat.size) <= 44) {
           console.warn('[AddTask] Recorded instruction file is empty', audioFile);
-          showFailureMsg('Recording did not capture any audio. Please try again.');
+          showFailureMsg(t('rn_recording_did_not_capture_any_audio_please'));
           setInstructionAudioPath('');
           return;
         }
       } catch (statError) {
         console.warn('[AddTask] Recorded instruction file not found', statError);
-        showFailureMsg('Unable to save the recorded instruction.');
+        showFailureMsg(t('rn_unable_to_save_the_recorded_instruction'));
         setInstructionAudioPath('');
         return;
       }
       setInstructionAudioPath(audioFile);
     } catch (error) {
       console.warn('[AddTask] Unable to save recorded instruction', error);
-      showFailureMsg('Unable to save the recorded instruction.');
+      showFailureMsg(t('rn_unable_to_save_the_recorded_instruction'));
     } finally {
       setIsRecordingInstruction(false);
     }
@@ -1122,7 +1123,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
       );
       if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-        showFailureMsg('Microphone permission is required to record instructions.');
+        showFailureMsg(t('rn_microphone_permission_is_required_to_recor'));
         return;
       }
     }
@@ -1162,14 +1163,14 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
   const playInstructionRecording = useCallback(() => {
     if (isRecordingInstruction) {
-      showFailureMsg('Please stop recording first.');
+      showFailureMsg(t('rn_please_stop_recording_first'));
       return;
     }
     if (isPlayingInstruction) {
       return;
     }
     if (!instructionAudioPath) {
-      showFailureMsg('Please record an instruction first.');
+      showFailureMsg(t('rn_please_record_an_instruction_first'));
       return;
     }
     if (instructionSoundRef.current) {
@@ -1180,7 +1181,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     const sound = new Sound(instructionAudioPath, '', error => {
       if (error) {
         console.warn('[AddTask] Unable to load recorded instruction', error);
-        showFailureMsg('Unable to play the recorded instruction.');
+        showFailureMsg(t('rn_unable_to_play_the_recorded_instruction'));
         instructionSoundRef.current = null;
         return;
       }
@@ -1341,11 +1342,11 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
   const openProductPicker = (kind: 'brand' | 'model' | 'serial' | 'warranty') => {
     if (kind === 'model' && !selectedBrand) {
-      showFailureMsg('Please select a brand first.');
+      showFailureMsg(t('rn_please_select_a_brand_first'));
       return;
     }
     if (kind === 'serial' && !selectedModel) {
-      showFailureMsg('Please select a model first.');
+      showFailureMsg(t('rn_please_select_a_model_first'));
       return;
     }
     setProductPickerOptions([]);
@@ -1470,7 +1471,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       setTaskLatitude(String(location.latitude ?? location.Latitude ?? ''));
       setTaskLongitude(String(location.Longitude ?? location.longitude ?? ''));
     } catch {
-      showFailureMsg('Unable to load the quote details.');
+      showFailureMsg(t('rn_unable_to_load_the_quote_details'));
     }
   };
 
@@ -1723,7 +1724,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       row => row.rowId !== activeItemRowId && row.itemId === option.id,
     );
     if (isDuplicate) {
-      showFailureMsg('This item has already been added.');
+      showFailureMsg(t('rn_this_item_has_already_been_added'));
       return;
     }
     setTaskItemRows(prev =>
@@ -1755,7 +1756,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
           row.availableQuantity > 0 &&
           Number(quantity) > row.availableQuantity
         ) {
-          showFailureMsg(`Quantity should not be greater than available quantity (${row.availableQuantity}).`);
+          showFailureMsg(trf('Quantity should not be greater than available quantity ({{n}}).', { n: row.availableQuantity }));
           return row;
         }
         return {...row, quantity};
@@ -1767,20 +1768,20 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     const lastRow = taskItemRows[taskItemRows.length - 1];
     if (lastRow && lastRow.itemName) {
       if (!lastRow.quantity || Number(lastRow.quantity) <= 0) {
-        showFailureMsg('Item Quantity should not be zero.');
+        showFailureMsg(t('rn_item_quantity_should_not_be_zero'));
         return;
       }
       if (
         lastRow.availableQuantity > 0 &&
         Number(lastRow.quantity) > lastRow.availableQuantity
       ) {
-        showFailureMsg(`Quantity should not be greater than available quantity (${lastRow.availableQuantity}).`);
+        showFailureMsg(trf('Quantity should not be greater than available quantity ({{n}}).', { n: lastRow.availableQuantity }));
         return;
       }
     }
     setTaskItemRows(prev => {
       if (prev.length >= MAX_TASK_ITEM_ROWS) {
-        showFailureMsg(`You can add a maximum of ${MAX_TASK_ITEM_ROWS} items.`);
+        showFailureMsg(trf('You can add a maximum of {{n}} items.', { n: MAX_TASK_ITEM_ROWS }));
         return prev;
       }
       return [...prev, createEmptyTaskItemRow()];
@@ -1901,7 +1902,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       row => row.itemName && Number(row.quantity) <= 0,
     );
     if (hasInvalidItemQuantity) {
-      showFailureMsg('Item Quantity should not be zero.');
+      showFailureMsg(t('rn_item_quantity_should_not_be_zero'));
       return;
     }
 
@@ -1930,7 +1931,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     // Java: no resolved lat/long -> "Please enter address correctly".
     if (!resolvedLatitude || !resolvedLongitude || Number(resolvedLatitude) === 0 || Number(resolvedLongitude) === 0) {
       setIsSubmittingTask(false);
-      showFailureMsg('Please enter address correctly');
+      showFailureMsg(t('please_enter_address_correctly'));
       return;
     }
 
@@ -1953,7 +1954,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         instructionAudioBase64 = await RNFS.readFile(instructionAudioPath, 'base64');
       } catch {
         setIsSubmittingTask(false);
-        showFailureMsg('Unable to read the recorded instruction.');
+        showFailureMsg(t('rn_unable_to_read_the_recorded_instruction'));
         return;
       }
     }
@@ -2047,7 +2048,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         ensureSuccess(
           await updateTask({...payload, ...existingTaskFields} as unknown as Parameters<typeof updateTask>[0]),
         );
-        showSuccessMsg('Task updated successfully.');
+        showSuccessMsg(t('task_updated_successfully'));
       } else if (formMode === 'reassign') {
         ensureSuccess(
           await reassignTaskNew({
@@ -2056,13 +2057,13 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             NewTaskId: initialValues?.newTaskId ?? '',
           } as unknown as Parameters<typeof reassignTaskNew>[0]),
         );
-        showSuccessMsg('Task re-assigned successfully.');
+        showSuccessMsg(t('rn_task_re_assigned_successfully'));
       } else if (formMode === 'reassignCompleted') {
         ensureSuccess(await addTask({...payload, Id: 0, OnHoldTaskId: sourceTaskId}));
-        showSuccessMsg('Task re-assigned successfully.');
+        showSuccessMsg(t('rn_task_re_assigned_successfully'));
       } else {
         ensureSuccess(await addTask(payload));
-        showSuccessMsg('Task created successfully');
+        showSuccessMsg(t('rn_task_created_successfully'));
       }
       onSaved?.();
       onClose();
@@ -2166,7 +2167,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   >
                     {selectedFieldworker
                       ? selectedFieldworker.name
-                      : 'Select Fieldworkers'}
+                      : tr('Select Fieldworkers')}
                   </Text>
                   <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
@@ -2188,7 +2189,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   >
                     {selectedAddTaskTag
                       ? selectedAddTaskTag.label
-                      : 'Select Task Tag'}
+                      : tr('Select Task Tag')}
                   </Text>
                   <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
@@ -2211,7 +2212,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                             : styles.warrantyToggleText
                         }
                       >
-                        In Warranty
+                        {t('rn_in_warranty')}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -2230,7 +2231,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                             : styles.warrantyToggleText
                         }
                       >
-                        Out of Warranty
+                        {t('rn_out_of_warranty')}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -2395,7 +2396,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       }}
                       onFocus={() => {
                         if (!taskStateId) {
-                          showFailureMsg('Please select a State first.');
+                          showFailureMsg(t('rn_please_select_a_state_first'));
                           return;
                         }
                         setShowTaskCitySuggestions(true);
@@ -2697,7 +2698,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     >
                       {selectedTaskService
                         ? selectedTaskService.label
-                        : 'Select Service'}
+                        : tr('Select Service')}
                     </Text>
                     <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                   </TouchableOpacity>
@@ -2717,7 +2718,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       }
                       numberOfLines={1}
                     >
-                      {selectedQuote ? selectedQuote.label : 'Select Quote'}
+                      {selectedQuote ? selectedQuote.label : tr('Select Quote')}
                     </Text>
                     <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                   </TouchableOpacity>
@@ -2737,7 +2738,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       }
                       numberOfLines={1}
                     >
-                      {selectedFsr ? selectedFsr.label : 'Select FSR'}
+                      {selectedFsr ? selectedFsr.label : tr('Select FSR')}
                     </Text>
                     <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                   </TouchableOpacity>
@@ -2747,7 +2748,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       <View key={row.rowId} style={styles.itemRowCard}>
                         <View style={styles.itemRowHeader}>
                           <Text style={styles.itemRowTitle}>
-                            Item #{index + 1}
+                            {t('item') + ' #'}{index + 1}
                           </Text>
                           <TouchableOpacity
                             onPress={() => removeItemRow(row.rowId)}
@@ -2802,7 +2803,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   <>
                     <View style={styles.instructionRecorderBox}>
                       <Text style={styles.instructionRecorderLabel}>
-                        Record your Instructions (Limit up to 30 Sec)
+                        {t('rn_record_your_instructions_limit_up_to_30_se')}
                       </Text>
                       <View style={styles.instructionRecorderButtonsRow}>
                         <TouchableOpacity
@@ -2876,7 +2877,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 ) : (
                   <View style={styles.tabContentPlaceholder}>
                     <Text style={styles.tabContentPlaceholderText}>
-                      No data available.
+                      {t('rn_no_data_available')}
                     </Text>
                   </View>
                 )}
@@ -2931,7 +2932,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
           }}
           onDismiss={() => setTaskPicker(null)}
           positiveButton={{label: t('qr_code_positive_button_know'), textColor: COLORS.primary}}
-          negativeButton={{label: 'CANCEL', textColor: COLORS.primary}}
+          negativeButton={{label: tr('CANCEL'), textColor: COLORS.primary}}
         />
       ) : null}
 
@@ -2958,7 +2959,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         visible={productPicker !== null}
         title={
           productPicker === 'brand'
-            ? 'Select Brand'
+            ? tr('Select Brand')
             : productPicker === 'model'
             ? 'Select Model'
             : productPicker === 'serial'
@@ -3024,7 +3025,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             <View style={styles.serviceSearchWrap}>
               <TextInput
                 style={styles.serviceSearchInput}
-                placeholder="Search..."
+                placeholder={t('rn_search_2')}
                 placeholderTextColor="#757575"
                 value={taskServiceTypeSearch}
                 onChangeText={setTaskServiceTypeSearch}
@@ -3055,7 +3056,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
       <SearchPickerModal
         visible={isQuoteModalOpen}
-        title="Select Quote"
+        title={t('rn_select_quote')}
         options={quoteList}
         loading={isQuoteLoading}
         emptyText={quoteError || 'No quotes found.'}
@@ -3071,7 +3072,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
       <SearchPickerModal
         visible={isFsrModalOpen}
-        title="Select FSR"
+        title={t('rn_select_fsr')}
         options={fsrList}
         loading={isFsrLoading}
         emptyText={fsrError || 'No FSR found.'}

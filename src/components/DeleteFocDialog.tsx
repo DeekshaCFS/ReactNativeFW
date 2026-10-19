@@ -20,7 +20,7 @@ export default function DeleteFocDialog({ visible, onConfirm, onCancel }: Props)
     <BottomSheetDialog visible={visible} onRequestClose={() => {}}>
       <View style={styles.outer}>
         <View style={styles.inner}>
-          <Text style={styles.title}>Are you sure?</Text>
+          <Text style={styles.title}>{t('rn_are_you_sure')}</Text>
           <Text style={styles.message}>{t('delete_foc')}</Text>
 
           <Pressable style={styles.deleteBtn} onPress={onConfirm}>

@@ -21,6 +21,7 @@ import {getCurrentCurrencySymbol} from '../../state/session';
 import { showFailureMsg } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 export type DayFilter = 'Today' | 'Week' | 'Month' | 'Year';
 
 const RING_SIZE = ms(170);
@@ -273,11 +274,11 @@ const OwnerDashboardScreen = ({
       // Completed -> green (#03DE73), Ongoing -> orange (#FF9B00),
       // InActive -> light_gray (#9A9FAA), Rejected -> colorPrimaryDark
       // (#C3002F), OnHold -> onhold (#353935).
-      {key: 'complete', label: 'Completed', value: taskStats.complete, color: '#03DE73'},
-      {key: 'urgent', label: 'Ongoing', value: taskStats.urgent, color: '#FF9B00'},
-      {key: 'inactive', label: 'Inactive', value: taskStats.inactive, color: '#9A9FAA'},
-      {key: 'reject', label: 'Rejected', value: taskStats.reject, color: '#c3002f'},
-      {key: 'onHold', label: 'OnHold', value: taskStats.onHold, color: '#353935'},
+      {key: 'complete', label: tr('Completed'), value: taskStats.complete, color: '#03DE73'},
+      {key: 'urgent', label: tr('Ongoing'), value: taskStats.urgent, color: '#FF9B00'},
+      {key: 'inactive', label: tr('Inactive'), value: taskStats.inactive, color: '#9A9FAA'},
+      {key: 'reject', label: tr('Rejected'), value: taskStats.reject, color: '#c3002f'},
+      {key: 'onHold', label: tr('OnHold'), value: taskStats.onHold, color: '#353935'},
     ],
     [taskStats.complete, taskStats.inactive, taskStats.onHold, taskStats.reject, taskStats.urgent],
   );
@@ -332,7 +333,7 @@ const OwnerDashboardScreen = ({
       <View style={styles.hero} />
       <View style={styles.card}>
         <View style={styles.showingRow}>
-          <Text style={styles.muted}>Showing Data for :</Text>
+          <Text style={styles.muted}>{t('showing_data_for') + ' :'}</Text>
           <Text style={styles.valueStrong}> {filter}</Text>
           <View style={styles.flex1} />
           <Pressable style={styles.ctaButton} onPress={onCreateTask}>
@@ -359,7 +360,7 @@ const OwnerDashboardScreen = ({
                 />
               ))}
               <Text style={styles.taskChartTotal}>{totalTasks}</Text>
-              <Text style={styles.taskChartTotalLabel}>{'Total Task'}</Text>
+              <Text style={styles.taskChartTotalLabel}>{t('total_task')}</Text>
             </View>
           </View>
           <View style={styles.taskChartLegend}>
@@ -379,7 +380,7 @@ const OwnerDashboardScreen = ({
         <View style={styles.metricsRow}>
           <Pressable style={styles.earningsBlock} onPress={onEarningsPress}>
             <View style={styles.metricLabelRow}>
-              <Text style={styles.metricLabel}>{'Earnings'}</Text>
+              <Text style={styles.metricLabel}>{t('earnings')}</Text>
               <View style={styles.infoGap}>{renderInfo()}</View>
             </View>
             <Text style={styles.metricValueGreen}>
@@ -388,7 +389,7 @@ const OwnerDashboardScreen = ({
           </Pressable>
           <Pressable style={styles.amcBlock} onPress={onAmcStatusPress}>
             <View style={styles.metricLabelRow}>
-              <Text style={styles.metricLabel}>{'AMC Status'}</Text>
+              <Text style={styles.metricLabel}>{t('AMC_status')}</Text>
               <View style={styles.infoGap}>{renderInfo()}</View>
             </View>
             <View style={styles.amcRow}>
@@ -396,11 +397,11 @@ const OwnerDashboardScreen = ({
                 <Text style={[styles.amcValue, {color: COLORS.statusOngoing}]}>
                   {amcStatus.upcoming}
                 </Text>
-                <Text style={[styles.amcHint, {color: COLORS.statusOngoing}]}>Upcoming</Text>
+                <Text style={[styles.amcHint, {color: COLORS.statusOngoing}]}>{t('rn_upcoming')}</Text>
               </View>
               <View style={styles.amcCell}>
                 <Text style={[styles.amcValue, {color: COLORS.blue500}]}>{amcStatus.renewal}</Text>
-                <Text style={[styles.amcHint, {color: COLORS.blue500}]}>Renewal</Text>
+                <Text style={[styles.amcHint, {color: COLORS.blue500}]}>{t('rn_renewal')}</Text>
               </View>
             </View>
             <View style={styles.amcRow}>
@@ -408,7 +409,7 @@ const OwnerDashboardScreen = ({
                 <Text style={[styles.amcValue, {color: COLORS.statusRejected}]}>
                   {amcStatus.expired}
                 </Text>
-                <Text style={[styles.amcHint, {color: COLORS.statusRejected}]}>Expired</Text>
+                <Text style={[styles.amcHint, {color: COLORS.statusRejected}]}>{t('rn_expired')}</Text>
               </View>
             </View>
           </Pressable>
@@ -418,11 +419,11 @@ const OwnerDashboardScreen = ({
 
         <View style={styles.summaryRow}>
           <View style={styles.summaryBlock}>
-            <Text style={styles.summaryTitle}>Avg. Task Resolution Time</Text>
+            <Text style={styles.summaryTitle}>{t('rn_avg_task_resolution_time')}</Text>
             <Text style={styles.summaryValue}>{avgResolutionTime}</Text>
           </View>
           <View style={styles.summaryBlock}>
-            <Text style={styles.summaryTitle}>Avg. Customer Rating</Text>
+            <Text style={styles.summaryTitle}>{t('rn_avg_customer_rating')}</Text>
             <View style={styles.ratingRow}>
               <Text style={styles.ratingValue}>{avgRating.toFixed(2)}</Text>
               <View style={styles.starsRow}>
@@ -442,10 +443,10 @@ const OwnerDashboardScreen = ({
         </View>
         <View style={styles.attendanceRow}>
           {[
-            {label: 'Present', value: attendance.present, bg: COLORS.success, fg: COLORS.success},
-            {label: 'Absent', value: attendance.absent, bg: COLORS.attAbsent, fg: COLORS.alertRed},
-            {label: 'Idle', value: attendance.idle, bg: COLORS.statusOngoing, fg: COLORS.statusOngoing},
-            {label: 'On Leave', value: attendance.onLeave, bg: COLORS.attLeave, fg: COLORS.textBlack},
+            {label: tr('Present'), value: attendance.present, bg: COLORS.success, fg: COLORS.success},
+            {label: tr('Absent'), value: attendance.absent, bg: COLORS.attAbsent, fg: COLORS.alertRed},
+            {label: tr('Idle'), value: attendance.idle, bg: COLORS.statusOngoing, fg: COLORS.statusOngoing},
+            {label: tr('On Leave'), value: attendance.onLeave, bg: COLORS.attLeave, fg: COLORS.textBlack},
           ].map(item => (
             <View key={item.label} style={styles.attendanceCell}>
               <View style={[styles.attendanceBox, {backgroundColor: item.bg}]}>
@@ -459,7 +460,7 @@ const OwnerDashboardScreen = ({
       {isLoading ? (
         <View style={styles.loaderRow}>
           <ActivityIndicator color={COLORS.primary} />
-          <Text style={styles.loaderText}>Refreshing dashboard...</Text>
+          <Text style={styles.loaderText}>{t('rn_refreshing_dashboard')}</Text>
         </View>
       ) : null}
     </ScrollView>

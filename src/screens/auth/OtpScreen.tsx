@@ -22,6 +22,7 @@ import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import { SHOW_QA_OTP } from '../../config/qa';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type AuthStackParamList = {
   Otp: {
     mobile: string; serverOtp: number; token: string;
@@ -66,7 +67,7 @@ export default function OtpScreen() {
     if (!sess) return;
     if (enable && (await promptBiometric('Authenticate to enable biometric login'))) {
       await addBiometricAccount(sess.mobile);
-      showSuccessMsg('Biometric Login Enabled');
+      showSuccessMsg(t('rn_biometric_login_enabled'));
     }
     await completeLogin(sess);
   };
@@ -101,10 +102,10 @@ export default function OtpScreen() {
   };
 
   const verifyOtp = async () => {
-    if (otpExpired) { showFailureMsg('Please resend OTP.'); return; }
-    if (!isOtpComplete) { showFailureMsg('Please enter complete OTP'); return; }
+    if (otpExpired) { showFailureMsg(t('rn_please_resend_otp')); return; }
+    if (!isOtpComplete) { showFailureMsg(t('rn_please_enter_complete_otp')); return; }
     if (Number(otp.join('')) !== Number(currentOtp)) {
-      showFailureMsg('Please enter correct OTP'); return;
+      showFailureMsg(t('rn_please_enter_correct_otp')); return;
     }
     try {
       setLoading(true);
@@ -159,7 +160,7 @@ export default function OtpScreen() {
       setOtpExpired(false);
       setResendTimer(RESEND_COOLDOWN);
       setCurrentOtp(newOtp ?? currentOtp);
-      showSuccessMsg('A new OTP has been sent.');
+      showSuccessMsg(t('rn_a_new_otp_has_been_sent'));
     } catch (err: any) {
       showFailureMsg(err?.message || 'Failed to resend OTP');
     }
@@ -215,7 +216,7 @@ export default function OtpScreen() {
 
           <Text style={GlobalStyles.title}>{t('get_otp_touchless')}</Text>
           <Text style={GlobalStyles.subtitle}>
-            You will receive a {OTP_LENGTH} digit OTP{'\n'}for verification
+            {t('rn_you_will_receive_a')} {OTP_LENGTH} {t('rn_digit_otp')}{'\n'}{t('rn_for_verification')}
           </Text>
 
           <View style={styles.otpRow}>
@@ -236,7 +237,7 @@ export default function OtpScreen() {
           </View>
 
           {otpExpired && (
-            <Text style={styles.expiredText}>OTP expired. Please resend OTP.</Text>
+            <Text style={styles.expiredText}>{t('rn_otp_expired_please_resend_otp')}</Text>
           )}
 
           <Pressable
@@ -244,7 +245,7 @@ export default function OtpScreen() {
             onPress={verifyOtp}
             disabled={!isOtpComplete || otpExpired || loading}
           >
-            <Text style={styles.verifyText}>{loading ? 'Verifying...' : 'VERIFY'}</Text>
+            <Text style={styles.verifyText}>{loading ? tr('Verifying...') : tr('VERIFY')}</Text>
           </Pressable>
 
           <View style={styles.resendRow}>
@@ -252,7 +253,7 @@ export default function OtpScreen() {
             <Text style={styles.resendText}>{t('please_enter_4_digit_otp_touchless')}</Text>
             <Pressable onPress={resendOtp} disabled={resendTimer > 0} hitSlop={8}>
               <Text style={[styles.resendLink, resendTimer > 0 && { color: 'gray' }]}>
-                {resendTimer > 0 ? `Resend in ${formatTime(resendTimer)}` : 'Resend'}
+                {resendTimer > 0 ? `Resend in ${formatTime(resendTimer)}` : tr('Resend')}
               </Text>
             </Pressable>
           </View>

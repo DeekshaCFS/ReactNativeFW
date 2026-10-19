@@ -26,6 +26,7 @@ import DeleteFocDialog from '../../../components/DeleteFocDialog';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 const formatDate = (iso?: string): string => {
   if (!iso) return 'NA';
   const d = new Date(iso);
@@ -155,10 +156,10 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
 
   const openAttachment = (url?: string) => {
     if (!url) {
-      showToast('No Attachment!!');
+      showToast(t('rn_no_attachment'));
       return;
     }
-    Linking.openURL(url).catch(() => showFailureMsg('Could not open the attachment.'));
+    Linking.openURL(url).catch(() => showFailureMsg(t('rn_could_not_open_the_attachment')));
   };
 
   // Java: "Update All" posts every locally-touched item in one
@@ -180,7 +181,7 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
       });
 
     if (touched.length === 0) {
-      showFailureMsg('Please provide an Item status to proceed !');
+      showFailureMsg(t('rn_please_provide_an_item_status_to_proceed'));
       return;
     }
 
@@ -220,7 +221,7 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
-              <Text style={styles.updateAllText}>Update All</Text>
+              <Text style={styles.updateAllText}>{t('rn_update_all')}</Text>
               <ResetIcon size={ms(24)} />
             </>
           )}
@@ -229,19 +230,19 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
 
         <View style={[styles.infoBlock, admin && { marginTop: ms(32) }]}>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Request Id:</Text>
-            <Text style={styles.infoValue}>REQ{focRequest?.FocRequestId}</Text>
+            <Text style={styles.infoLabel}>{t('rn_request_id')}</Text>
+            <Text style={styles.infoValue}>{t('rn_req')}{focRequest?.FocRequestId}</Text>
           </View>
           <View style={[styles.infoRow, { marginTop: ms(8) }]}>
-            <Text style={styles.infoLabel}>Status:</Text>
+            <Text style={styles.infoLabel}>{t('status') + ':'}</Text>
             <Text style={styles.infoValue}>{focRequest?.FOCStatusName || 'NA'}</Text>
           </View>
           <View style={[styles.infoRow, { marginTop: ms(8) }]}>
-            <Text style={styles.infoLabel}>Req. Date:</Text>
+            <Text style={styles.infoLabel}>{t('rn_req_date')}</Text>
             <Text style={styles.infoValue}>{formatDate(items[0]?.CreatedDate)}</Text>
           </View>
           <View style={[styles.infoRow, { marginTop: ms(8) }]}>
-            <Text style={styles.infoLabel}>Status Notes:</Text>
+            <Text style={styles.infoLabel}>{t('rn_status_notes')}</Text>
             <Text style={styles.infoValue} numberOfLines={3}>{focRequest?.Notes ?? 'NA'}</Text>
           </View>
         </View>
@@ -274,19 +275,19 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
               <Text style={[styles.statusValue, { flex: 1 }]} numberOfLines={1}>
                 {it.ItemRequestStatusTagName || 'NA'}
               </Text>
-              <Text style={[styles.lblBlack, { flex: 0.9 }]}>Req. Qty :</Text>
+              <Text style={[styles.lblBlack, { flex: 0.9 }]}>{t('rn_req_qty')}</Text>
               <Text style={[styles.qtyValue, { flex: 0.8 }]}>{it.ItemRequestQty}</Text>
             </View>
 
             <View style={styles.rowSide}>
-              <Text style={[styles.lblGray, { flex: 1.3 }]}>Invoice Date :</Text>
+              <Text style={[styles.lblGray, { flex: 1.3 }]}>{t('rn_invoice_date_2')}</Text>
               <Text style={[styles.valLight, { flex: 1 }]}>{it.ItemRequestInvoice_Date ? formatDate(it.ItemRequestInvoice_Date) : ''}</Text>
-              <Text style={[styles.lblGray, { flex: 0.9 }]}>Install Date :</Text>
+              <Text style={[styles.lblGray, { flex: 0.9 }]}>{t('rn_install_date')}</Text>
               <Text style={[styles.valLight, { flex: 0.8 }]}>{it.ItemRequestInstall_date ? formatDate(it.ItemRequestInstall_date) : ''}</Text>
             </View>
 
             <View style={[styles.rowSide, { marginTop: ms(10) }]}>
-              <Text style={[styles.lblGray, { flex: 0.975 }]}>Attachment Type :</Text>
+              <Text style={[styles.lblGray, { flex: 0.975 }]}>{t('rn_attachment_type')}</Text>
               <Text style={[styles.valLight, { flex: 0.75 }]}>{it.AttachmentTypeName || 'NA'}</Text>
               <Pressable
                 style={[styles.attachLink, { flex: 1.275 }, it.AttachmentDoc == null && { opacity: 0 }]}
@@ -294,18 +295,18 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
                 onPress={() => openAttachment(it.AttachmentDoc)}
               >
                 <AttachIcon size={ms(16)} />
-                <Text style={styles.valLight}>  View Attachment</Text>
+                <Text style={styles.valLight}>  {t('rn_view_attachment')}</Text>
               </Pressable>
             </View>
 
             <View style={[styles.rowSide, { marginTop: ms(10) }]}>
-              <Text style={[styles.lblGray, { flex: 0.65 }]}>Notes :</Text>
+              <Text style={[styles.lblGray, { flex: 0.65 }]}>{t('notes') + ' :'}</Text>
               <Text style={[styles.valLight, { flex: 1.35 }]}>{it.DescribeIssue || 'NA'}</Text>
             </View>
 
             {it.ProductID != null && (
               <View style={[styles.rowSide, { marginTop: ms(10) }]}>
-                <Text style={[styles.lblGray, { flex: 0.65 }]}>Product Id :</Text>
+                <Text style={[styles.lblGray, { flex: 0.65 }]}>{t('rn_product_id')}</Text>
                 <Text style={[styles.valLight, { flex: 1.35 }]}>{it.ProductID}</Text>
               </View>
             )}
@@ -314,12 +315,12 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
               <>
                 <View style={styles.recvRow}>
                   <View style={styles.recvHalf}>
-                    <Text style={[styles.lblBlack, { marginRight: ms(10) }]}>Item Received</Text>
-                    <Text style={styles.adminYesNo}>{received ? 'Yes' : 'No'}</Text>
+                    <Text style={[styles.lblBlack, { marginRight: ms(10) }]}>{t('rn_item_received')}</Text>
+                    <Text style={styles.adminYesNo}>{received ? tr('Yes') : 'No'}</Text>
                   </View>
                   <View style={styles.recvHalf}>
-                    <Text style={[styles.lblBlack, { flex: 1, marginHorizontal: ms(10) }]}>Any Issues</Text>
-                    <Text style={[styles.adminYesNo, { flex: 1 }]}>{issue ? 'Yes' : 'No'}</Text>
+                    <Text style={[styles.lblBlack, { flex: 1, marginHorizontal: ms(10) }]}>{t('rn_any_issues')}</Text>
+                    <Text style={[styles.adminYesNo, { flex: 1 }]}>{issue ? tr('Yes') : 'No'}</Text>
                   </View>
                 </View>
                 {issue && st?.describeIssue ? (
@@ -331,7 +332,7 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
             {/* Item Received + Any Issues */}
             <View style={styles.recvRow}>
               <View style={styles.recvHalf}>
-                <Text style={[styles.lblBlack, { marginRight: ms(10) }]}>Item Received</Text>
+                <Text style={[styles.lblBlack, { marginRight: ms(10) }]}>{t('rn_item_received')}</Text>
                 <YesNoSegment
                   width={ms(93)}
                   value={st?.itemReceived ?? false}
@@ -341,7 +342,7 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
               </View>
               {received && (
                 <View style={styles.recvHalf}>
-                  <Text style={[styles.lblBlack, { marginHorizontal: ms(10) }]}>Any Issues</Text>
+                  <Text style={[styles.lblBlack, { marginHorizontal: ms(10) }]}>{t('rn_any_issues')}</Text>
                   <YesNoSegment
                     width={ms(103)}
                     value={st?.anyIssue ?? false}
@@ -355,7 +356,7 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
             {received && issue && (
               <TextInput
                 style={styles.descInput}
-                placeholder="Describe Issue"
+                placeholder={t('rn_describe_issue')}
                 placeholderTextColor="#9a9faa"
                 value={st?.describeIssue ?? ''}
                 editable={!st?.issueLocked}

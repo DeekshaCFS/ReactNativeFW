@@ -34,6 +34,7 @@ import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
 import { getCurrentCurrencySymbol } from '../../../state/session';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
+import { tr } from '../../../i18n/tr';
 import { getNetworkQuality, isPostable } from '../../../offline/networkQuality';
 import { savePendingTask, getPendingTask } from '../../../offline/offlineStore';
 import DecimalInput from '../../../components/DecimalInput';
@@ -99,7 +100,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
         setProofPhoto({ uri: asset.uri, base64: asset.base64 });
       }
     }).catch(() => {
-      showFailureMsg('Could not load the photo.');
+      showFailureMsg(t('rn_could_not_load_the_photo_2'));
     });
   };
 
@@ -224,13 +225,13 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
   // ── Adjustment rows (Task_Excess_Amount_Dtls), capped at 5 ──
   const addAdjustmentRow = () => {
     if (adjustments.length >= 5) {
-      showFailureMsg('You can add up to 5 adjustment entries.');
+      showFailureMsg(t('rn_you_can_add_up_to_5_adjustment_entries'));
       return;
     }
     // Java: a new service row is only added once the previous one has been filled in.
     const last = adjustments[adjustments.length - 1];
     if (last && !last.description.trim() && !last.amount.trim()) {
-      showFailureMsg('Please Enter Amount and Description!!');
+      showFailureMsg(t('rn_please_enter_amount_and_description'));
       return;
     }
     setAdjustments(prev => [...prev, { description: '', amount: '' }]);
@@ -253,13 +254,13 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
     if (!markPendingParam) {
       // Java onClick: nothing typed -> "Please enter the Amount Received!!".
       if (!earnedAmount.trim() || Number.isNaN(Number(earnedAmount))) {
-        showFailureMsg('Please enter the Amount Received!!');
+        showFailureMsg(t('rn_please_enter_the_amount_received'));
         return;
       }
       // Java: the received amount may not exceed the Total Task Amount shown (which already holds
       // the services and the discount); the field is cleared.
       if (round3(Number(earnedAmount)) > grandTotal) {
-        showFailureMsg('Received Amount Can not be greater than Total Task Amount!');
+        showFailureMsg(t('rn_received_amount_can_not_be_greater_than_to'));
         setEarnedAmount('');
         return;
       }
@@ -270,16 +271,16 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
 
     if (!markPending) {
       if (!paymentMode) {
-        showFailureMsg('Select Payment Mode');
+        showFailureMsg(t('rn_select_payment_mode'));
         return;
       }
       if (paymentMode === MODE_OFFLINE && !paymentType) {
-        showFailureMsg('Select Payment Type');
+        showFailureMsg(t('rn_select_payment_type'));
         return;
       }
       for (const row of adjustments) {
         if (row.amount.trim() && !row.description.trim()) {
-          showFailureMsg('Please Enter Description !');
+          showFailureMsg(t('rn_please_enter_description'));
           return;
         }
       }
@@ -289,7 +290,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
       setSubmitting(true);
       const uid = await AsyncStorage.getItem('uid');
       if (!uid) {
-        showFailureMsg('User session not found. Please log in again.');
+        showFailureMsg(t('rn_user_session_not_found_please_log_in_again'));
         return;
       }
       const userId = Number(uid);
@@ -346,7 +347,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
           { taskId: routeTask.Id as number, newTaskId: routeTask.NewTaskId ?? String(routeTask.Id), userId },
           { payment: paymentBody },
         );
-        showSuccessMsg('Payment saved offline. Sync it from the Task tab when the network is back.');
+        showSuccessMsg(t('rn_payment_saved_offline_sync_it_from_the_tas'));
         resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task: routeTask } });
         return;
       }
@@ -358,7 +359,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
         return;
       }
 
-      showSuccessMsg('Payment recorded and the task has been closed.');
+      showSuccessMsg(t('rn_payment_recorded_and_the_task_has_been_clo'));
       // Java: after payment the Tasks tab is shown with the Document Upload sheet on top.
       resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task: routeTask } });
     } catch (err: any) {
@@ -370,7 +371,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
 
   // ── Gateway placeholder ──
   const handlePayViaGateway = () => {
-    showFailureMsg('Online payment via gateway is not yet enabled — order creation needs to be implemented server-side first. Please collect payment manually for now.');
+    showFailureMsg(tr('Online payment via gateway is not yet enabled — order creation needs to be implemented server-side first. Please collect payment manually for now.'));
   };
 
   const selectMode = (mode: string) => {
@@ -382,7 +383,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
     }
     if (mode === MODE_ONLINE && !pgActive) {
       // Java: Online Payment Mode is not activated for your account.
-      showFailureMsg('Online Payment Mode is not activated for your account !');
+      showFailureMsg(t('rn_online_payment_mode_is_not_activated_for_y'));
       setPaymentMode('');
       setPaymentType('');
       return;
@@ -463,7 +464,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
           ))}
 
           <Pressable onPress={addAdjustmentRow} style={styles.addRowButton}>
-            <Text style={styles.addRowText}>+ Add Services</Text>
+            <Text style={styles.addRowText}>{t('rn_add_services')}</Text>
           </Pressable>
         </View>
 
@@ -509,7 +510,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
           <Text style={[styles.sectionTitle, { marginTop: vs(5) }]}>{t('payment_details')}</Text>
           <View style={styles.detailsBox}>
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total Task Amount</Text>
+              <Text style={styles.totalLabel}>{t('rn_total_task_amount')}</Text>
               <Text style={styles.totalCurrency}>{totalCurrency}</Text>
               <Text style={styles.totalValue}>{formatAmount(grandTotal)}</Text>
             </View>
@@ -520,13 +521,13 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
               <Text style={styles.amountReceivedLabel}>{t('discount_if_any')}</Text>
               <DecimalInput
                 style={styles.amountReceivedInput}
-                placeholder="Discount"
+                placeholder={t('discount')}
                 placeholderTextColor="#9CA3AF"
                 value={discount}
                 onChangeText={text => {
                   // Java: a discount above the actual amount is refused and cleared.
                   if (Number(text) > grossTotal) {
-                    showToast('Discount cannot be greater than the actual amount.');
+                    showToast(t('rn_discount_cannot_be_greater_than_the_actual'));
                     setDiscount('');
                     return;
                   }
@@ -536,10 +537,10 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
             </View>
 
             <View style={styles.amountReceivedRow}>
-              <Text style={styles.amountReceivedLabel}>Amount Received</Text>
+              <Text style={styles.amountReceivedLabel}>{t('rn_amount_received_2')}</Text>
               <DecimalInput
                 style={styles.amountReceivedInput}
-                placeholder="Amount"
+                placeholder={t('amount')}
                 placeholderTextColor="#9CA3AF"
                 value={earnedAmount}
                 onChangeText={t => setEarnedAmount(sanitizeDecimalInput(t))}
@@ -564,7 +565,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
                 )}
                 {!proofPhoto && !proofBoxOpen && (
                   <Pressable onPress={() => setProofBoxOpen(true)}>
-                    <Text style={styles.addRowText}>+ Add Proof of Payment</Text>
+                    <Text style={styles.addRowText}>{t('rn_add_proof_of_payment')}</Text>
                   </Pressable>
                 )}
               </View>
@@ -582,7 +583,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
             {submitting ? (
               <ActivityIndicator color={COLORS.white} />
             ) : (
-              <Text style={styles.actionButtonText}>CLOSE TASK</Text>
+              <Text style={styles.actionButtonText}>{t('close_task').toUpperCase()}</Text>
             )}
           </Pressable>
         )}

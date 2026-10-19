@@ -42,6 +42,7 @@ import {getTaskClosureDetails} from '../../api/taskList/taskListService';
 import { showFailureMsg } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type TaskDetailsTask = TasksListResultData | TaskListItem;
 
 type TaskDetailsScreenProps = {
@@ -509,7 +510,7 @@ const TaskDetailsScreen = ({
         showFailureMsg(response?.Message || 'Could not generate the task report.');
       }
     } catch (err) {
-      showFailureMsg(err instanceof Error ? err.message : 'Could not download the report.');
+      showFailureMsg(err instanceof Error ? err.message : tr('Could not download the report.'));
     }
   };
 
@@ -642,7 +643,7 @@ const TaskDetailsScreen = ({
             </>
           ) : null}
 
-          <Text style={[styles.sectionHeading, styles.sectionSpacing]}>Code's Detail</Text>
+          <Text style={[styles.sectionHeading, styles.sectionSpacing]}>{t('rn_code_s_detail')}</Text>
           {renderRows([
             ['Response Code:', valueOrNA(responseCode)],
             ['Satisfaction Code:', valueOrNA(satisfactionCode)],
@@ -854,7 +855,7 @@ const TaskDetailsScreen = ({
             <Text style={styles.fieldValue}>{valueOrNA(taskName)}</Text>
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Task Tag</Text>
+            <Text style={styles.fieldLabel}>{t('rn_task_tag')}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(taskTag)}</Text>
           </View>
           {/* Row order follows dialog_crm_task_details.xml. Task Type is
@@ -895,7 +896,7 @@ const TaskDetailsScreen = ({
               </View>
               {netEarnedAmount ? (
                 <View style={styles.fieldRow}>
-                  <Text style={styles.fieldLabel}>Net Amount</Text>
+                  <Text style={styles.fieldLabel}>{t('rn_net_amount')}</Text>
                   <Text style={styles.fieldValue}>{netEarnedAmount}</Text>
                 </View>
               ) : null}
@@ -986,14 +987,14 @@ const TaskDetailsScreen = ({
           )}
 
           <Text style={[styles.sectionHeading, styles.sectionSpacing]}>
-            Code's Detail
+            {t('rn_code_s_detail')}
           </Text>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Response Code:</Text>
+            <Text style={styles.fieldLabel}>{t('enter_response_code') + ':'}</Text>
             <Text style={styles.fieldValue}>{valueOrNA(responseCode)}</Text>
           </View>
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Satisfaction Code:</Text>
+            <Text style={styles.fieldLabel}>{t('enter_satisfaction_code') + ':'}</Text>
             <Text style={styles.fieldValue}>
               {valueOrNA(satisfactionCode)}
             </Text>

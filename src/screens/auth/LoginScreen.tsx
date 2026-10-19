@@ -99,7 +99,7 @@ export default function LoginScreen() {
         navigation.navigate('Signup');
         return;
       }
-      if (!result.OTP) { showFailureMsg('OTP not received'); return; }
+      if (!result.OTP) { showFailureMsg(t('rn_otp_not_received')); return; }
 
       // Java LoginTouchlessActivity: Toast "OTP IS::<otp>" (LENGTH_SHORT).
       if (SHOW_QA_OTP) showToast(`OTP IS::${result.OTP}`);
@@ -136,7 +136,7 @@ export default function LoginScreen() {
       setLoading(true);
       const session = await fetchBiometricSession(loginId);
       if (!session) { navigation.navigate('Signup'); return; }
-      if (enable) { await addBiometricAccount(loginId); showSuccessMsg('Biometric Login Enabled'); }
+      if (enable) { await addBiometricAccount(loginId); showSuccessMsg(t('rn_biometric_login_enabled')); }
       await completeLogin(session);
     } catch (err: any) {
       showFailureMsg(err?.message || 'Something went wrong');
@@ -159,7 +159,7 @@ export default function LoginScreen() {
         ? PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION
         : PERMISSIONS.IOS.LOCATION_WHEN_IN_USE;
       const result = await request(permission);
-      if (result !== RESULTS.GRANTED) showToast('Location permission is required');
+      if (result !== RESULTS.GRANTED) showToast(t('rn_location_permission_is_required'));
     } catch (e) { console.log(e); }
   };
 
@@ -189,7 +189,7 @@ export default function LoginScreen() {
 
           <Text style={GlobalStyles.title}>{t('welcome')}</Text>
           <Text style={GlobalStyles.subtitle}>
-            Please enter your details{'\n'}to access your account
+            {t('please_enter_details')}{'\n'}{t('rn_to_access_your_account')}
           </Text>
 
           <View style={GlobalStyles.form}>
@@ -208,12 +208,12 @@ export default function LoginScreen() {
             />
             {!!error && <Text style={GlobalStyles.errorText}>{error}</Text>}
 
-            <AppButton title="GET OTP" onPress={handleGetOtp} loading={loading} />
+            <AppButton title={t('login_with_otp').toUpperCase()} onPress={handleGetOtp} loading={loading} />
 
             {bioAvailable && (<>
             <View style={styles.orRow}>
               <View style={styles.orLine} />
-              <Text style={styles.orText}>OR</Text>
+              <Text style={styles.orText}>{t('rn_or')}</Text>
               <View style={styles.orLine} />
             </View>
 
@@ -222,7 +222,7 @@ export default function LoginScreen() {
               onPress={handleBiometric}
             >
               <Ionicons name="finger-print" size={dp(28)} color={COLORS.primary} />
-              <Text style={styles.bioText}>Login with Biometric</Text>
+              <Text style={styles.bioText}>{t('rn_login_with_biometric')}</Text>
             </Pressable>
             </>)}
           </View>
@@ -233,7 +233,7 @@ export default function LoginScreen() {
           </Pressable>
 
           <View style={GlobalStyles.footerRow}>
-            <Text style={GlobalStyles.footerText}>New to FieldWeb?</Text>
+            <Text style={GlobalStyles.footerText}>{t('rn_new_to_fieldweb')}</Text>
             <Text style={GlobalStyles.link} onPress={() => navigation.navigate('Signup')}>
               {t('register_here')}
             </Text>

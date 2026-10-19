@@ -43,6 +43,9 @@ import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { useOpenTask } from '../../../hooks/useOpenTask';
 import { countUnread, decrementUnreadCount, setUnreadCount } from '../../../state/notificationBadge';
 import { showFailureMsg, showToast } from '../../../utils/toast';
+import { useTranslation } from 'react-i18next';
+import { tr } from '../../../i18n/tr';
+import { nseg } from '../../../i18n/notifText';
 
 // Util/TaskStatus.java, Util/TaskState.java, Constant.PaymentMode.
 const STATUS = { COMPLETED: 1, REJECTED: 2, ON_GOING: 3, IN_ACTIVE: 4, ONHOLD: 5 };
@@ -56,8 +59,6 @@ type RowModel = {
   subtitle: Segment[];
 };
 
-const b = (text: string): Segment => ({ text, bold: true });
-const t = (text: string): Segment => ({ text });
 
 const buildRow = (n: NotificationResultData): RowModel | null => {
   const task = String(n.TaskName ?? '');
@@ -67,32 +68,32 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
     case 'Task':
       switch (n.TaskStatusId) {
         case STATUS.IN_ACTIVE:
-          return { title: 'InActive', color: COLORS.tagBlue, icon: 'inactive', subtitle: [t('Task '), b(task), t(' is assign to you.')] };
+          return { title: tr('InActive'), color: COLORS.tagBlue, icon: 'inactive', subtitle: nseg('Task {{b_task}} is assign to you.', { b_task: task }) };
         case STATUS.COMPLETED:
-          return { title: 'Completed', color: COLORS.statusCompleted, icon: 'completed', subtitle: [t('Task '), b(task), t(' is completed by you.')] };
+          return { title: tr('Completed'), color: COLORS.statusCompleted, icon: 'completed', subtitle: nseg('Task {{b_task}} is completed by you.', { b_task: task }) };
         case STATUS.ONHOLD:
           return {
-            title: 'OnHold',
+            title: tr('OnHold'),
             color: COLORS.textBlack,
             icon: 'ongoing',
-            subtitle: [t('Task '), b(task), t(' is put on hold by '), b(who), t('.')],
+            subtitle: nseg('Task {{b_task}} is put on hold by {{b_who}}.', { b_task: task, b_who: who }),
           };
         case STATUS.REJECTED:
           return {
-            title: 'Rejected',
+            title: tr('Rejected'),
             color: COLORS.alertRed,
             icon: 'reject',
-            subtitle: [t('Task '), b(task), t(' has rejected by '), b(who), t('.')],
+            subtitle: nseg('Task {{b_task}} has rejected by {{b_who}}.', { b_task: task, b_who: who }),
           };
         case STATUS.ON_GOING:
           return {
-            title: 'Ongoing',
+            title: tr('Ongoing'),
             color: COLORS.statusOngoing,
             icon: 'ongoing',
             // Java shows a sub-title only for the technician when payment must be collected.
             subtitle:
               n.TaskState === STATE.ENDED_NO_PAYMENT && n.PaymentModeId === PAYMENT_RATE
-                ? [t('Task '), b(task), t(' is completed by you please collect cash')]
+                ? nseg('Task {{b_task}} is completed by you please collect cash', { b_task: task })
                 : [],
           };
         default:
@@ -100,35 +101,28 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
       }
     case 'Earning':
       return {
-        title: 'Earnings',
+        title: tr('Earnings'),
         color: COLORS.statusCompleted,
         icon: 'earnings',
-        subtitle: [
-          t('You have earned '),
-          // Java prints the raw EarningAmount ("Rs 1000.65").
-          b(`Rs ${n.EarningAmount ?? 0}`),
-          t(' for the task '),
-          b(task),
-          t('.'),
-        ],
+        // Java prints the raw EarningAmount ("Rs 1000.65").
+        subtitle: nseg('You have earned {{b_amount}} for the task {{b_task}}.', { b_amount: `Rs ${n.EarningAmount ?? 0}`, b_task: task }),
       };
     case 'AMC': {
       const amc = n.AMCServiceDetailDtoObj;
       if (!amc) return null;
       return {
-        title: 'AMC Reminder',
+        title: tr('AMC Reminder'),
         color: COLORS.alertRed,
         icon: 'amc',
-        subtitle: [
-          t(`You have a ${amc.AMCTypeName ?? ''} ${amc.ServiceOccuranceType ?? ''} `),
-          b(String(amc.AMCName ?? '')),
-          t(' AMC for '),
-          b(String(amc.CustomerName ?? '')),
-        ],
+        subtitle: nseg('You have a {{kind}} {{b_amc}} AMC for {{b_cust}}', {
+          kind: `${amc.AMCTypeName ?? ''} ${amc.ServiceOccuranceType ?? ''}`.trim(),
+          b_amc: String(amc.AMCName ?? ''),
+          b_cust: String(amc.CustomerName ?? ''),
+        }),
       };
     }
     case 'FOC':
-      return { title: 'Requested Items', color: COLORS.tagBlue, icon: 'requestedItems', subtitle: htmlToSegments(task) };
+      return { title: tr('Requested Items'), color: COLORS.tagBlue, icon: 'requestedItems', subtitle: htmlToSegments(task) };
     default:
       // UserInfo ("new technician added") is an owner notification.
       return null;
@@ -165,6 +159,7 @@ const formatWhen = (n: NotificationResultData) => {
 };
 
 export default function NotificationScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
 
   const [userId, setUserId] = useState<number | null>(null);
@@ -192,7 +187,7 @@ export default function NotificationScreen() {
         setItems(list);
         setUnreadCount(countUnread(list));
       } catch (error) {
-        showFailureMsg(error instanceof Error ? error.message : 'Unable to load notifications.');
+        showFailureMsg(error instanceof Error ? error.message : tr('Unable to load notifications.'));
       } finally {
         isRefresh ? setRefreshing(false) : setLoading(false);
       }
@@ -238,7 +233,7 @@ export default function NotificationScreen() {
       markLocallyRead(n);
       openTask(task);
     } catch (error) {
-      showFailureMsg(error instanceof Error ? error.message : 'Unable to load the task.');
+      showFailureMsg(error instanceof Error ? error.message : tr('Unable to load the task.'));
     }
   };
 
@@ -296,7 +291,7 @@ export default function NotificationScreen() {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
-          ListEmptyComponent={<Text style={styles.empty}>No notifications found.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>{t('rn_no_notifications_found')}</Text>}
         />
       )}
     </NotificationSheet>

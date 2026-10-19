@@ -20,6 +20,7 @@ import { CompositeNavigationProp } from '@react-navigation/native';
 import { usePassbookTabOrder } from '../../../state/passbookTabOrder';
 import { getCurrentUserId } from '../../../state/session';
 import { usePassbook } from '../../../hooks/usePassbook';
+import { useTranslation } from 'react-i18next';
 
 // Passbook is a real tab, but also needs to push 'Expenditure', which now
 // lives one level up in TechnicianStack — so the nav type is a composite.
@@ -29,6 +30,7 @@ type NavigationProp = CompositeNavigationProp<
 >;
 
 export default function PassbookScreen() {
+  const { t } = useTranslation();
   const headerHeight = useAppHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
   const tabOrder = usePassbookTabOrder();
@@ -52,14 +54,14 @@ export default function PassbookScreen() {
     <View style={styles.root}>
       {/* Tab Row */}
       <View style={[styles.tabRow, { paddingTop: headerHeight + vs(4) }]}>
-        {(tabOrder === 'passbookFirst' ? ['passbook', 'expenditure'] : ['expenditure', 'passbook']).map(t =>
-          t === 'passbook' ? (
-            <Pressable key={t} style={styles.activeTab}>
-              <Text style={styles.activeTabText}>PASSBOOK</Text>
+        {(tabOrder === 'passbookFirst' ? ['passbook', 'expenditure'] : ['expenditure', 'passbook']).map(tab =>
+          tab === 'passbook' ? (
+            <Pressable key={tab} style={styles.activeTab}>
+              <Text style={styles.activeTabText}>{t('title_passbook').toUpperCase()}</Text>
             </Pressable>
           ) : (
-            <Pressable key={t} style={styles.inactiveTab} onPress={() => navigation.navigate('Expenditure')}>
-              <Text style={styles.inactiveTabText}>EXPENDITURE</Text>
+            <Pressable key={tab} style={styles.inactiveTab} onPress={() => navigation.navigate('Expenditure')}>
+              <Text style={styles.inactiveTabText}>{t('expenditure').toUpperCase()}</Text>
             </Pressable>
           ),
         )}

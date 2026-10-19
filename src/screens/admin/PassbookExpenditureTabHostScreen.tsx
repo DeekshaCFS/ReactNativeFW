@@ -33,6 +33,7 @@ import ManageBalanceModal from './ManageBalanceModal';
 import TechnicianExpenseDetails from './TechnicianExpenseDetailsModal';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type PassbookExpenditureTabHostScreenProps = {
   userId: number;
 };
@@ -292,7 +293,7 @@ const PassbookExpenditureTabHostScreen = ({
         <UnderlineSearch
           value={expenseSearch}
           onChangeText={setExpenseSearch}
-          placeholder="Search"
+          placeholder={t('rn_search')}
           style={styles.expenseSearchBox}
         />
         <Pressable
@@ -305,7 +306,7 @@ const PassbookExpenditureTabHostScreen = ({
       {isExpenseLoading ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading expenditure...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading_expenditure')}</Text>
         </View>
       ) : null}
 
@@ -327,7 +328,7 @@ const PassbookExpenditureTabHostScreen = ({
         ListEmptyComponent={
           isExpenseLoading ? null : expenseError ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>Unable to Load Expenditure</Text>
+              <Text style={styles.emptyTitle}>{t('rn_unable_to_load_expenditure')}</Text>
               <Text style={styles.emptyText}>{expenseError}</Text>
             </View>
           ) : (
@@ -360,8 +361,8 @@ const PassbookExpenditureTabHostScreen = ({
     <View style={styles.shell}>
       <TabStrip
         tabs={[
-          {key: 'passbook', label: 'PASSBOOK'},
-          {key: 'expenditure', label: 'EXPENDITURE'},
+          {key: 'passbook', label: tr('PASSBOOK')},
+          {key: 'expenditure', label: tr('EXPENDITURE')},
         ]}
         active={activeTab}
         onChange={setActiveTab}

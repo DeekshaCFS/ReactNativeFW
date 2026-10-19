@@ -31,6 +31,7 @@ import { setPassbookTabOrder } from '../state/passbookTabOrder';
 import { showFailureMsg, showSuccessMsg } from '../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../i18n/tr';
 // Same local-date key Home writes on check-in (see utils/attendanceKey.ts).
 const todayKey = checkedInTodayKey;
 
@@ -39,8 +40,8 @@ const requestLocationPermission = async (): Promise<boolean> => {
   const granted = await PermissionsAndroid.request(
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     {
-      title: 'Location Permission',
-      message: 'FieldWeb needs your location to record check-out.',
+      title: tr('Location Permission'),
+      message: tr('FieldWeb needs your location to record check-out.'),
       buttonPositive: 'OK',
     },
   );
@@ -113,7 +114,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
 
       const hasPermission = await requestLocationPermission();
       if (!hasPermission) {
-        showFailureMsg('Location permission is required to check out.');
+        showFailureMsg(t('rn_location_permission_is_required_to_check_o'));
         return;
       }
       const { latitude, longitude } = await getCurrentPosition();
@@ -269,12 +270,12 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
       <Modal transparent visible={showLogoutModal} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + ms(16) }]}>
-            <Text style={styles.modalTitle}>Oh no! You are leaving...{'\n'}Are you sure?</Text>
+            <Text style={styles.modalTitle}>{t('rn_oh_no_you_are_leaving')}{'\n'}{t('rn_are_you_sure')}</Text>
             <Pressable
               style={styles.confirmBtn}
               onPress={async () => { setShowLogoutModal(false); await handleLogout(); }}
             >
-              <Text style={styles.confirmText}>LOGOUT</Text>
+              <Text style={styles.confirmText}>{t('title_logout').toUpperCase()}</Text>
             </Pressable>
             <Pressable onPress={() => setShowLogoutModal(false)}>
               <Text style={styles.cancelText}>{t('cancel')}</Text>
@@ -287,9 +288,9 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
       <Modal transparent visible={showCheckOutModal} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + ms(16) }]}>
-            <Text style={styles.modalTitle}>Do you want to Check-Out for Today?</Text>
+            <Text style={styles.modalTitle}>{t('do_you_want_checkout')}</Text>
             <Pressable style={styles.confirmBtn} onPress={handleCheckOut}>
-              <Text style={styles.confirmText}>CHECK-OUT</Text>
+              <Text style={styles.confirmText}>{t('title_check_out').toUpperCase()}</Text>
             </Pressable>
             <Pressable onPress={() => setShowCheckOutModal(false)}>
               <Text style={styles.cancelText}>{t('cancel')}</Text>

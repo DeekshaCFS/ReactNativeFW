@@ -12,6 +12,7 @@ import {EnquiryIcon} from './FabIcons';
 import {COLORS} from '../theme/theme';
 import {ms, sp} from '../utils/responsive';
 
+import i18n from 'i18next';
 type DeleteProps = {
   visible: boolean;
   message: string;
@@ -26,10 +27,10 @@ export const AccountsDeleteSheet = ({visible, message, onNo, onYes}: DeleteProps
       <Text style={styles.delMessage}>{message}</Text>
       <View style={styles.delButtons}>
         <Pressable style={styles.delNo} onPress={onNo}>
-          <Text style={styles.delNoText}>NO</Text>
+          <Text style={styles.delNoText}>{i18n.t('no')}</Text>
         </Pressable>
         <Pressable style={styles.delYes} onPress={onYes}>
-          <Text style={styles.delYesText}>YES</Text>
+          <Text style={styles.delYesText}>{i18n.t('yes').toUpperCase()}</Text>
         </Pressable>
       </View>
     </View>

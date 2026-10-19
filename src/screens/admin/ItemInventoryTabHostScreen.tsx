@@ -52,6 +52,7 @@ import { showFailureMsg } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import {tr, trf} from '../../i18n/tr';
 type ItemInventoryTabHostScreenProps = {
   ownerId: number;
   isFieldWorker?: boolean;
@@ -772,20 +773,20 @@ const ItemInventoryTabHostScreen = ({
     // otherwise asks for confirmation (SureTodeleteItemDialog) first.
     const assigned = getItemNumber(item, ['assignedQuantity', 'AssignedQuantity']);
     if (assigned > 0) {
-      showFailureMsg('This item is assigned to fieldworkers. Return it before deleting.');
+      showFailureMsg(t('rn_this_item_is_assigned_to_fieldworkers_retu'));
       return;
     }
-    Alert.alert('Delete item', 'Are you sure do you want to delete the item ?', [
-      {text: 'No', style: 'cancel'},
+    Alert.alert(tr('Delete item'), tr('Are you sure do you want to delete the item ?'), [
+      {text: tr('No'), style: 'cancel'},
       {
-        text: 'Yes',
+        text: tr('Yes'),
         style: 'destructive',
         onPress: async () => {
           try {
             ensureSuccess(await getDeleteItemPortal({Id: getItemId(item)}));
             loadFirstItemPage(true);
           } catch (error) {
-            showFailureMsg(error instanceof Error ? error.message : 'Unable to delete item.');
+            showFailureMsg(error instanceof Error ? error.message : tr('Unable to delete item.'));
           }
         },
       },
@@ -804,15 +805,15 @@ const ItemInventoryTabHostScreen = ({
     }
     const quantity = Math.trunc(Number(returnQuantity));
     if (!quantity || quantity <= 0) {
-      showFailureMsg('Please enter a valid quantity.');
+      showFailureMsg(t('please_enter_valid_quantity'));
       return;
     }
     if (quantity > getAssignedQuantity(returningRow)) {
-      showFailureMsg('Quantity cannot exceed the issued quantity.');
+      showFailureMsg(t('rn_quantity_cannot_exceed_the_issued_quantity'));
       return;
     }
     if (!returnNotes.trim()) {
-      showFailureMsg('Please enter notes.');
+      showFailureMsg(t('please_enter_notes'));
       return;
     }
     const workerId = getAssignedNumber(returningRow, ['userId', 'UserId']);
@@ -835,7 +836,7 @@ const ItemInventoryTabHostScreen = ({
       handleIssuedDetailsPress();
       loadFirstItemPage(true);
     } catch (error) {
-      showFailureMsg(error instanceof Error ? error.message : 'Unable to return item.');
+      showFailureMsg(error instanceof Error ? error.message : tr('Unable to return item.'));
     } finally {
       setIsReturning(false);
     }
@@ -997,11 +998,11 @@ const ItemInventoryTabHostScreen = ({
         </View>
 
         <View style={styles.quantityRow}>
-            <Text style={[styles.quantityLabel, {marginLeft: 0}]}>Available:</Text>
+            <Text style={[styles.quantityLabel, {marginLeft: 0}]}>{t('rn_available')}</Text>
             <Text style={styles.quantityValue}>{getAvailableQuantity(item)}</Text>
-            <Text style={styles.quantityLabel}>Issued:</Text>
+            <Text style={styles.quantityLabel}>{t('rn_issued')}</Text>
             <Text style={styles.quantityValue}>{getIssuedQuantity(item)}</Text>
-            <Text style={styles.quantityLabel}>Used:</Text>
+            <Text style={styles.quantityLabel}>{t('rn_used')}</Text>
             <Text style={styles.quantityValue}>{getUsedQuantity(item)}</Text>
         </View>
 
@@ -1054,14 +1055,14 @@ const ItemInventoryTabHostScreen = ({
           </Pressable>
         </View>
         <Pressable style={styles.addItemButton} onPress={() => setIsAddingItem(true)}>
-          <Text style={styles.addItemButtonText}>+ Item</Text>
+          <Text style={styles.addItemButtonText}>{t('item')}</Text>
         </Pressable>
       </View>
 
       {isItemInitialLoading ? (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading items...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading_items')}</Text>
         </View>
       ) : null}
 
@@ -1081,7 +1082,7 @@ const ItemInventoryTabHostScreen = ({
         ListEmptyComponent={
           isItemInitialLoading ? null : itemErrorMessage ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>Unable to Load Items</Text>
+              <Text style={styles.emptyTitle}>{t('rn_unable_to_load_items')}</Text>
               <Text style={styles.emptyText}>{itemErrorMessage}</Text>
             </View>
           ) : (
@@ -1150,7 +1151,7 @@ const ItemInventoryTabHostScreen = ({
               ) : (
                 <View style={styles.noImageBox}>
                   <NoImageCameraIcon size={ms(130)} />
-                  <Text style={styles.noImageText}>No Image Available</Text>
+                  <Text style={styles.noImageText}>{t('rn_no_image_available')}</Text>
                 </View>
               )}
             </View>
@@ -1160,13 +1161,13 @@ const ItemInventoryTabHostScreen = ({
                 style={[styles.detailPill, styles.detailPillDark]}
                 onPress={handleIssuedDetailsPress}>
                 <IssueItemDialogIcon size={ms(30)} color="#FFFFFF" />
-                <Text style={styles.detailPillText}>Issued details</Text>
+                <Text style={styles.detailPillText}>{t('rn_issued_details')}</Text>
               </Pressable>
               <Pressable
                 style={[styles.detailPill, styles.detailPillPrimary]}
                 onPress={handleUsedDetailsPress}>
                 <JavaItemOptionIcon size={ms(30)} color="#FFFFFF" />
-                <Text style={styles.detailPillText}>Used details</Text>
+                <Text style={styles.detailPillText}>{t('rn_used_details')}</Text>
               </Pressable>
             </View>
 
@@ -1192,7 +1193,7 @@ const ItemInventoryTabHostScreen = ({
             {renderDetailRow('Unit', getItemUnit(selectedItem), undefined, 5)}
             {renderDetailRow('Description', getItemDescription(selectedItem), undefined, 5)}
 
-            <Text style={[styles.detailSectionTitle, {marginTop: ms(15)}]}>QTY. Details</Text>
+            <Text style={[styles.detailSectionTitle, {marginTop: ms(15)}]}>{t('rn_qty_details')}</Text>
             {renderDetailRow('Available', availableQuantity, undefined, 15)}
             {renderDetailRow('Issued', issuedQuantity, undefined, 5)}
             {renderDetailRow('Used', usedQuantity, undefined, 5)}
@@ -1213,7 +1214,7 @@ const ItemInventoryTabHostScreen = ({
         <Text numberOfLines={1} style={[styles.assignedValue, styles.assignedCol]}>
           {getAssignedTaskId(item)}
         </Text>
-        <Text style={[styles.assignedLabel, styles.assignedCol]}>Issued Qty :</Text>
+        <Text style={[styles.assignedLabel, styles.assignedCol]}>{t('issued_qty') + ' :'}</Text>
         <Text numberOfLines={1} style={[styles.assignedValue, styles.assignedCol]}>
           {getAssignedQuantity(item)}
         </Text>
@@ -1243,7 +1244,7 @@ const ItemInventoryTabHostScreen = ({
         </Text>
       </View>
       <View style={styles.usedQtyRow}>
-        <Text style={styles.usedQtyLabel}>Assigned Qty</Text>
+        <Text style={styles.usedQtyLabel}>{t('rn_assigned_qty')}</Text>
         <Text style={styles.usedQtyLabel}>{t('issued_qty')}</Text>
         <Text style={styles.usedQtyLabel}>{t('used_qty')}</Text>
       </View>
@@ -1274,7 +1275,7 @@ const ItemInventoryTabHostScreen = ({
               source: 'crm',
             })
           }>
-          <Text style={styles.usedViewTaskText}>View Task {'>>'}</Text>
+          <Text style={styles.usedViewTaskText}>{t('rn_view_task')} {'>>'}</Text>
         </Pressable>
       </View>
       <Pressable
@@ -1312,12 +1313,12 @@ const ItemInventoryTabHostScreen = ({
           <Text numberOfLines={1} style={styles.issuedItemName}>
             {getItemName(selectedItem)}
           </Text>
-          <Text style={styles.issuedTotalLabel}>Total Issued Qty:</Text>
+          <Text style={styles.issuedTotalLabel}>{t('rn_total_issued_qty')}</Text>
           <Text style={styles.issuedTotalValue}>{totalIssuedQuantity}</Text>
         </View>
 
         <Text style={styles.issuedPriceText}>
-          Total Issued Item Price : {totalIssuedPrice}
+          {t('rn_total_issued_item_price')} {totalIssuedPrice}
         </Text>
 
         <View style={styles.issuedSearchRow}>
@@ -1325,7 +1326,7 @@ const ItemInventoryTabHostScreen = ({
           <TextInput
             value={assignedSearchText}
             onChangeText={setAssignedSearchText}
-            placeholder="Search by Fieldworker name..."
+            placeholder={t('rn_search_by_fieldworker_name')}
             placeholderTextColor={COLORS.lightGray}
             style={styles.searchInput}
           />
@@ -1337,7 +1338,7 @@ const ItemInventoryTabHostScreen = ({
         {isAssignedLoading ? (
           <View style={styles.issuedStatusBlock}>
             <ActivityIndicator color={THEME_PRIMARY} />
-            <Text style={styles.issuedStatusText}>Loading issued details...</Text>
+            <Text style={styles.issuedStatusText}>{t('rn_loading_issued_details')}</Text>
           </View>
         ) : null}
 
@@ -1355,7 +1356,7 @@ const ItemInventoryTabHostScreen = ({
           ListEmptyComponent={
             isAssignedLoading ? null : assignedErrorMessage ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>Unable to Load Issued Items</Text>
+                <Text style={styles.emptyTitle}>{t('rn_unable_to_load_issued_items')}</Text>
                 <Text style={styles.emptyText}>{assignedErrorMessage}</Text>
               </View>
             ) : (
@@ -1399,12 +1400,12 @@ const ItemInventoryTabHostScreen = ({
           <Text numberOfLines={1} style={styles.issuedItemName}>
             {responseItemName || getItemName(selectedItem)}
           </Text>
-          <Text style={styles.issuedTotalLabel}>Total Used Qty:</Text>
+          <Text style={styles.issuedTotalLabel}>{t('rn_total_used_qty')}</Text>
           <Text style={styles.issuedTotalValue}>{totalUsedQuantity}</Text>
         </View>
 
         <Text style={styles.issuedPriceText}>
-          Total Used Item Price : {totalUsedPrice}
+          {t('rn_total_used_item_price')} {totalUsedPrice}
         </Text>
 
         <View style={styles.issuedSearchRow}>
@@ -1412,7 +1413,7 @@ const ItemInventoryTabHostScreen = ({
           <TextInput
             value={usedSearchText}
             onChangeText={setUsedSearchText}
-            placeholder="Search by Fieldworker name..."
+            placeholder={t('rn_search_by_fieldworker_name')}
             placeholderTextColor={COLORS.lightGray}
             style={styles.searchInput}
           />
@@ -1424,7 +1425,7 @@ const ItemInventoryTabHostScreen = ({
         {isUsedLoading ? (
           <View style={styles.issuedStatusBlock}>
             <ActivityIndicator color={THEME_PRIMARY} />
-            <Text style={styles.issuedStatusText}>Loading used details...</Text>
+            <Text style={styles.issuedStatusText}>{t('rn_loading_used_details')}</Text>
           </View>
         ) : null}
 
@@ -1442,7 +1443,7 @@ const ItemInventoryTabHostScreen = ({
           ListEmptyComponent={
             isUsedLoading ? null : usedErrorMessage ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>Unable to Load Used Items</Text>
+                <Text style={styles.emptyTitle}>{t('rn_unable_to_load_used_items')}</Text>
                 <Text style={styles.emptyText}>{usedErrorMessage}</Text>
               </View>
             ) : (
@@ -1463,7 +1464,7 @@ const ItemInventoryTabHostScreen = ({
   const renderPlaceholderTab = () => (
     <View style={styles.card}>
       <View style={styles.emptyState}>
-        <Text style={styles.emptyTitle}>No Issued Items</Text>
+        <Text style={styles.emptyTitle}>{t('rn_no_issued_items')}</Text>
         <Text style={styles.emptyText}>
           TechItemsInventoryFragmentNew is not migrated yet.
         </Text>
@@ -1541,10 +1542,10 @@ const ItemInventoryTabHostScreen = ({
         onRequestClose={() => setReturningRow(null)}>
         <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: ms(24)}}>
           <View style={{backgroundColor: '#FFFFFF', borderRadius: ms(12), padding: ms(16)}}>
-            <Text style={{fontSize: sp(16), fontWeight: '700', marginBottom: ms(10)}}>Return Item</Text>
+            <Text style={{fontSize: sp(16), fontWeight: '700', marginBottom: ms(10)}}>{t('rn_return_item')}</Text>
             <Text style={{marginBottom: ms(4)}}>{selectedItem ? getItemName(selectedItem) : ''}</Text>
             <Text style={{color: '#6B7280', marginBottom: ms(10)}}>
-              {returningRow ? getAssignedFieldWorkerName(returningRow) : ''} · Issued{' '}
+              {returningRow ? getAssignedFieldWorkerName(returningRow) : ''} {t('rn_issued_2')}{' '}
               {returningRow ? getAssignedQuantity(returningRow) : 0}
             </Text>
             <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: ms(10)}}>
@@ -1576,7 +1577,7 @@ const ItemInventoryTabHostScreen = ({
               onPress={submitReturn}
               disabled={isReturning}
               style={{backgroundColor: THEME_PRIMARY, borderRadius: ms(24), paddingVertical: ms(12), alignItems: 'center', marginBottom: ms(8)}}>
-              <Text style={{color: '#FFFFFF', fontWeight: '700'}}>{isReturning ? 'RETURNING...' : 'RETURN'}</Text>
+              <Text style={{color: '#FFFFFF', fontWeight: '700'}}>{isReturning ? tr('RETURNING...') : tr('RETURN')}</Text>
             </Pressable>
             <Pressable onPress={() => setReturningRow(null)} style={{alignItems: 'center', padding: ms(6)}}>
               <Text style={{color: '#6B7280'}}>{t('cancel')}</Text>

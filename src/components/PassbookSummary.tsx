@@ -10,6 +10,8 @@ import {COLORS} from '../theme/theme';
 import {ms, scale, sp, vs} from '../utils/responsive';
 import {formatAmount} from '../utils/decimal';
 
+import i18n from 'i18next';
+import { tr } from '../i18n/tr';
 export type PassbookPeriod = 'today' | 'monthly' | 'yearly';
 
 export type PassbookFields = {
@@ -106,21 +108,21 @@ const PassbookSummary = ({
           </View>
 
           <View style={styles.estRow}>
-            <Text style={styles.estLabel}>Estimated Earnings</Text>
+            <Text style={styles.estLabel}>{i18n.t('estimated_earnings')}</Text>
             <Text style={styles.estValue}>{money(fields.estimated)}</Text>
             <Text style={styles.percentText}>80%</Text>
           </View>
 
           <View style={styles.rowsBlock}>
             <View style={styles.rowBetween}>
-              <Text style={styles.creditText}>Credit Given</Text>
+              <Text style={styles.creditText}>{i18n.t('rn_credit_given')}</Text>
               <Text style={styles.creditText}>{money(fields.credit)}</Text>
             </View>
 
             {[
-              {label: 'Expenses', value: fields.expenses},
-              {label: 'Received', value: fields.received},
-              {label: 'Remaining Amount', value: fields.remaining},
+              {label: tr('Expenses'), value: fields.expenses},
+              {label: tr('Received'), value: fields.received},
+              {label: tr('Remaining Amount'), value: fields.remaining},
             ].map(({label, value}) => (
               <View key={label}>
                 <View style={styles.divider} />

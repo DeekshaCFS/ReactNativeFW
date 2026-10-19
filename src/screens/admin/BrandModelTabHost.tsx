@@ -45,6 +45,8 @@ import AddEditModelModal from './AddEditModelModal';
 import AddEditSerialNoModal from './AddEditSerialNoModal';
 import { showFailureMsg } from '../../utils/toast';
 
+import { useTranslation } from 'react-i18next';
+import {tr, trf} from '../../i18n/tr';
 type Props = {
   ownerId: number;
 };
@@ -55,6 +57,7 @@ type ViewState =
   | {level: 'serial'; brand: BrandItem; model: ModelItem};
 
 const BrandModelInner: React.FC<Props> = ({ownerId}) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<ViewState>({level: 'brand'});
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -161,17 +164,17 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
   };
 
   const handleDeleteBrand = (brand: BrandItem) => {
-    Alert.alert('Delete Brand', `Delete "${brand.BrandName}"? This also removes its models and serial numbers.`, [
-      {text: 'Cancel', style: 'cancel'},
+    Alert.alert(tr('Delete Brand'), trf('Delete "{{name}}"? This also removes its models and serial numbers.', {name: brand.BrandName}), [
+      {text: tr('Cancel'), style: 'cancel'},
       {
-        text: 'Delete',
+        text: tr('Delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await ensureSuccess(await deleteBrand({BrandId: brand.BrandId ?? 0, ownerId}));
             fetchBrands();
           } catch (e) {
-            showFailureMsg(e instanceof Error ? e.message : 'Unable to delete brand.');
+            showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete brand.'));
           }
         },
       },
@@ -179,17 +182,17 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
   };
 
   const handleDeleteModel = (model: ModelItem) => {
-    Alert.alert('Delete Model', `Delete "${model.ModelName}"? This also removes its serial numbers.`, [
-      {text: 'Cancel', style: 'cancel'},
+    Alert.alert(tr('Delete Model'), trf('Delete "{{name}}"? This also removes its serial numbers.', {name: model.ModelName}), [
+      {text: tr('Cancel'), style: 'cancel'},
       {
-        text: 'Delete',
+        text: tr('Delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await ensureSuccess(await deleteModel({ModelId: model.ModelId ?? 0, ownerId}));
             if (view.level === 'model') fetchModels(view.brand.BrandId ?? 0);
           } catch (e) {
-            showFailureMsg(e instanceof Error ? e.message : 'Unable to delete model.');
+            showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete model.'));
           }
         },
       },
@@ -197,17 +200,17 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
   };
 
   const handleDeleteSerial = (serial: SerialNoItem) => {
-    Alert.alert('Delete Serial Number', `Delete "${serial.SerialNo}"?`, [
-      {text: 'Cancel', style: 'cancel'},
+    Alert.alert(tr('Delete Serial Number'), trf('Delete "{{name}}"?', {name: serial.SerialNo}), [
+      {text: tr('Cancel'), style: 'cancel'},
       {
-        text: 'Delete',
+        text: tr('Delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await ensureSuccess(await deleteSerialNo({SerialNoId: serial.SerialNoId ?? 0, ownerId}));
             if (view.level === 'serial') fetchSerials(view.brand.BrandId ?? 0, view.model.ModelId ?? 0);
           } catch (e) {
-            showFailureMsg(e instanceof Error ? e.message : 'Unable to delete serial number.');
+            showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete serial number.'));
           }
         },
       },
@@ -261,9 +264,9 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
     return (
       <View style={styles.root}>
         <View style={styles.searchRow}>
-          <UnderlineSearch value={search} onChangeText={setSearch} placeholder="Search Brand by Name.." style={styles.searchFlex} />
+          <UnderlineSearch value={search} onChangeText={setSearch} placeholder={t('search_brand_name')} style={styles.searchFlex} />
           <Pressable style={styles.addPill} onPress={() => setBrandModal({editing: null})}>
-            <Text style={styles.addPillText}>+ Brand</Text>
+            <Text style={styles.addPillText}>{t('rn_brand')}</Text>
           </Pressable>
         </View>
         <FlatList
@@ -320,7 +323,7 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
 
   const brandLine = (name?: string) => (
     <Text style={styles.brandLine}>
-      Brand Name : <Text style={styles.brandLineRed}>{name}</Text>
+      {t('label_brand_name') + ' :'} <Text style={styles.brandLineRed}>{name}</Text>
     </Text>
   );
 
@@ -329,7 +332,7 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
     return (
       <View style={styles.root}>
         <View style={styles.searchRow}>
-          <UnderlineSearch value={search} onChangeText={setSearch} placeholder="Search Model by Name.." style={styles.searchFlex} />
+          <UnderlineSearch value={search} onChangeText={setSearch} placeholder={t('search_model_name')} style={styles.searchFlex} />
         </View>
         {brandLine(view.brand.BrandName)}
         <FlatList
@@ -394,12 +397,12 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
   return (
     <View style={styles.root}>
       <View style={styles.searchRow}>
-        <UnderlineSearch value={search} onChangeText={setSearch} placeholder="Search Serial Number.." style={styles.searchFlex} />
+        <UnderlineSearch value={search} onChangeText={setSearch} placeholder={t('search_serial_number')} style={styles.searchFlex} />
         <Pressable style={styles.addPill} onPress={() => setSerialModal({editing: null, model: view.model})}>
-          <Text style={styles.addPillText}>+ Serial</Text>
+          <Text style={styles.addPillText}>{t('rn_serial')}</Text>
         </Pressable>
       </View>
-      <Text style={styles.brandLine}> Brand/Model Name : 
+      <Text style={styles.brandLine}> {t('rn_brand_model_name')} 
         <Text style={styles.brandLineRed}>
           {view.brand.BrandName}/{view.model.ModelName}
         </Text>

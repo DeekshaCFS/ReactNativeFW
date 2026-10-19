@@ -10,6 +10,8 @@ import {COLORS} from '../theme/theme';
 import {ms, sp} from '../utils/responsive';
 import {DeleteAccIcon} from './JavaIcons';
 
+import i18n from 'i18next';
+import { tr } from '../i18n/tr';
 // dd-mm-yyyy from an ISO date, '' when unparsable.
 export const formatFocDate = (iso?: string | null): string => {
   const d = new Date(String(iso ?? ''));
@@ -65,9 +67,9 @@ export const FocRequestCard = ({
         {(status || 'NA').toUpperCase()}
       </Text>
       <Text style={styles.reqText}>#REQ {requestId}</Text>
-      <Text style={styles.issueLabel}>Issue: </Text>
-      <Text style={styles.issueValue}>{isIssue ? 'Yes' : 'No'}</Text>
-      <Text style={styles.dateLabel}>Date</Text>
+      <Text style={styles.issueLabel}>{i18n.t('issue') + ':'} </Text>
+      <Text style={styles.issueValue}>{isIssue ? tr('Yes') : 'No'}</Text>
+      <Text style={styles.dateLabel}>{i18n.t('date')}</Text>
       <Text style={styles.dateValue}>{date}</Text>
       <View style={styles.flexGrow} />
     </View>
@@ -75,13 +77,13 @@ export const FocRequestCard = ({
     {taskCode ? (
       <Text style={[styles.taskIdText, {color: COLORS.primary}]}>{taskCode}</Text>
     ) : (
-      <Text style={[styles.taskIdText, {color: '#000'}]}>DIRECT</Text>
+      <Text style={[styles.taskIdText, {color: '#000'}]}>{i18n.t('rn_direct')}</Text>
     )}
 
     <View style={styles.notesWrap}>
       <View style={styles.notesRow}>
         <Text style={styles.notesLabel} numberOfLines={1}>
-          Notes
+          {i18n.t('notes')}
         </Text>
         <Text style={styles.notesText} numberOfLines={4}>
           {notes}
@@ -136,7 +138,7 @@ export const FocFilterRow = ({
       style={styles.refreshItem}
       onPress={onRefreshPress}
       hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-      <Text style={styles.refreshText}>Refresh List</Text>
+      <Text style={styles.refreshText}>{i18n.t('rn_refresh_list')}</Text>
       {refreshing ? (
         <ActivityIndicator
           size="small"

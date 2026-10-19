@@ -12,6 +12,8 @@ import {FieldErrorDot, FieldErrorTip} from './BottomSheetDialog';
 import {COLORS} from '../theme/theme';
 import {ms, sp} from '../utils/responsive';
 
+import { useTranslation } from 'react-i18next';
+import { tr } from '../i18n/tr';
 export type PreviewLine = {name: string; qty: number | string; unit: number; total: number};
 
 export type QuotePreviewData = {
@@ -101,6 +103,7 @@ export default function AddQuotePreview({
   paymentTypeLabel = '',
   onPickPaymentType,
 }: Props) {
+  const { t } = useTranslation();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -113,19 +116,19 @@ export default function AddQuotePreview({
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingHorizontal: ms(5)}}>
             <View style={{marginTop: ms(12), marginBottom: ms(50), marginHorizontal: ms(5)}}>
-              <Row first label="Customer Name" value={data.customerName} />
-              <Row label="Customer Mobile" value={data.mobile} />
-              <Row clip label="Customer Address" value={data.address} />
-              <Row clip label="Landmark" value={data.landmark} />
-              <Row clip label="Flat/House No." value={data.flat} />
-              <Row label={isInvoice ? 'Invoice Date' : 'Quotation Date'} value={data.createdDate} />
-              <Row label="Valid till" value={data.validityDate} />
+              <Row first label={t('customer_name')} value={data.customerName} />
+              <Row label={t('rn_customer_mobile')} value={data.mobile} />
+              <Row clip label={t('customer_address')} value={data.address} />
+              <Row clip label={t('landmark')} value={data.landmark} />
+              <Row clip label={t('rn_flat_house_no')} value={data.flat} />
+              <Row label={isInvoice ? tr('Invoice Date') : tr('Quotation Date')} value={data.createdDate} />
+              <Row label={t('rn_valid_till')} value={data.validityDate} />
 
               <View style={styles.tableHead}>
-                <Text style={styles.headCell}>Service/Item Description</Text>
-                <Text style={styles.headCell}>Qty</Text>
-                <Text style={styles.headCell}>Unit Price</Text>
-                <Text style={styles.headCell}>Total</Text>
+                <Text style={styles.headCell}>{t('rn_service_item_description')}</Text>
+                <Text style={styles.headCell}>{t('rn_qty')}</Text>
+                <Text style={styles.headCell}>{t('rn_unit_price')}</Text>
+                <Text style={styles.headCell}>{t('rn_total')}</Text>
               </View>
               {data.lines.map((line, index) => (
                 <View key={`${line.name}-${index}`} style={styles.line}>
@@ -137,13 +140,13 @@ export default function AddQuotePreview({
               ))}
 
               <View style={styles.inset}>
-                <SumRow top={10} label="Sub Total" value={data.subTotal} />
-                <SumRow top={3} label="Discount" value={data.discount} />
-                <SumRow top={10} label="Amt. After Discount" value={data.amountAfterDiscount} />
+                <SumRow top={10} label={t('rn_sub_total')} value={data.subTotal} />
+                <SumRow top={3} label={t('discount')} value={data.discount} />
+                <SumRow top={10} label={t('rn_amt_after_discount')} value={data.amountAfterDiscount} />
                 <SumRow top={5} bottom={12} small label={data.taxName} value={data.tax} />
                 {isInvoice ? (
                   <View style={[styles.sumRow, {marginTop: ms(15), marginBottom: ms(12), alignItems: 'center'}]}>
-                    <Text style={[styles.label, {flex: 0.3, fontSize: sp(14)}]}>Grand Total</Text>
+                    <Text style={[styles.label, {flex: 0.3, fontSize: sp(14)}]}>{t('rn_grand_total')}</Text>
                     <Text style={[styles.sumValue, {flex: 0.3, textAlign: 'left', fontWeight: '700'}]}>
                       {data.grandTotal}
                     </Text>
@@ -152,20 +155,20 @@ export default function AddQuotePreview({
                         style={[styles.receivedInput, !!receivedError && {borderColor: COLORS.primary}]}
                         value={receivedAmount}
                         onChangeText={onReceivedChange}
-                        placeholder="Amount Received *"
+                        placeholder={t('rn_amount_received')}
                         placeholderTextColor={COLORS.lightGray}
                         keyboardType="decimal-pad"
                         maxLength={10}
                       />
                       {!!receivedAmount && (
-                        <Text style={styles.floatLabel}>Amount Received *</Text>
+                        <Text style={styles.floatLabel}>{t('rn_amount_received')}</Text>
                       )}
                       {!!receivedError && <FieldErrorDot />}
                       {!!receivedError && <FieldErrorTip message={receivedError} bottom={ms(44)} />}
                     </View>
                   </View>
                 ) : (
-                  <SumRow top={10} bottom={12} small bold label="Grand Total" value={data.grandTotal} />
+                  <SumRow top={10} bottom={12} small bold label={t('rn_grand_total')} value={data.grandTotal} />
                 )}
                 {isInvoice ? (
                   <Pressable style={styles.spinner} onPress={onPickPaymentType}>
@@ -175,16 +178,16 @@ export default function AddQuotePreview({
                     <Ionicons name="chevron-down" size={ms(18)} color={DARK} />
                   </Pressable>
                 ) : null}
-                <SumRow top={10} bottom={12} small label="Terms & Conditions" value={data.terms || '-NA-'} />
+                <SumRow top={10} bottom={12} small label={t('rn_terms_conditions')} value={data.terms || '-NA-'} />
               </View>
             </View>
 
             <View style={styles.buttons}>
               <TouchableOpacity style={[styles.button, {backgroundColor: COLORS.lightGray}]} onPress={onClose}>
-                <Text style={styles.buttonText}>CLOSE</Text>
+                <Text style={styles.buttonText}>{t('close').toUpperCase()}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.button, {backgroundColor: BAR}]} onPress={onSave} disabled={saving}>
-                <Text style={styles.buttonText}>{saving ? 'SAVING...' : 'SAVE'}</Text>
+                <Text style={styles.buttonText}>{saving ? tr('SAVING...') : tr('SAVE')}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>

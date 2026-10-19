@@ -17,6 +17,7 @@ import SettingsScreenBase, {type SettingsRow} from '../../components/SettingsScr
 import LanguagePickerModal from '../../components/LanguagePickerModal';
 import RateUsModal from '../../components/RateUsModal';
 import {setAppLanguage, type LanguageCode} from '../../i18n';
+import { tr } from '../../i18n/tr';
 
 // Java HomeActivityNew.AppGuideForOwner_Skippable + OwnerDashboardFragment.OwnerAppTour_Skippable:
 // + button, its first sheet row, Task tab, CRM tab, Employee tab, header menu, help icon, then
@@ -111,7 +112,7 @@ export default function AdminSettingScreen() {
     // change with the selected language -- stays "Accounts" in every
     // locale, matching Java exactly. Icon is ic_miscellaneous_settings (a
     // bank/columns glyph); same BankDetailsAndTaxFragmentTabHost target.
-    {icon: AccountsRowIcon, iconSize: 28, title: 'Accounts', route: 'BankDetailsTax'},
+    {icon: AccountsRowIcon, iconSize: 28, title: tr('Accounts'), route: 'BankDetailsTax'},
   ];
 
   return (

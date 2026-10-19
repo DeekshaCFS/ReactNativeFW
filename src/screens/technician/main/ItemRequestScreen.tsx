@@ -30,6 +30,7 @@ import { showToast } from '../../../utils/toast';
 import DecimalInput from '../../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 // Local request-body shapes for FOC_Item_Request/Add_FOC_Request_Details — kept
 // inline since the generated DTO (AddFocDTOResultData) is missing several
 // fields the live endpoint expects (ProductID, ItemDescription, etc).
@@ -489,7 +490,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
         >
           {/* ── Title + close ── */}
           <View style={styles.titleRow}>
-            <Text style={styles.title}>Item Request</Text>
+            <Text style={styles.title}>{t('rn_item_request')}</Text>
           </View>
           <Pressable style={styles.closeBtn} onPress={leaveSheet} hitSlop={8}>
             <ClosePopupIcon size={ms(30)} />
@@ -503,7 +504,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
               <View key={item.id} style={idx > 0 && { marginTop: ms(16) }}>
                 {/* ── # Item N + cross (hidden once the next block is open) ── */}
                 <View style={styles.itemHeader}>
-                  <Text style={styles.itemHeaderText}># Item {idx + 1}</Text>
+                  <Text style={styles.itemHeaderText}>{t('item')} {idx + 1}</Text>
                   {!locked && (
                     <Pressable onPress={() => removeItem(item.id)} hitSlop={8}>
                       <Ionicons name="close" size={ms(26)} color={COLORS.primary} />
@@ -592,7 +593,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                         {item.invoiceDate || 'Invoice Date'}
                       </Text>
                     </View>
-                    {!!item.invoiceDate && <Text style={styles.floatLabel}>Invoice Date</Text>}
+                    {!!item.invoiceDate && <Text style={styles.floatLabel}>{t('rn_invoice_date')}</Text>}
                   </Pressable>
 
                   <Pressable
@@ -605,7 +606,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                         {item.installDate || 'Install Date'}
                       </Text>
                     </View>
-                    {!!item.installDate && <Text style={styles.floatLabel}>Install Date</Text>}
+                    {!!item.installDate && <Text style={styles.floatLabel}>{t('rn_install_date_2')}</Text>}
                   </Pressable>
                 </View>
 
@@ -663,7 +664,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
           {/* ── + Add Item (gone after the 5th block) ── */}
           {items.length < MAX_ITEMS ? (
             <Pressable style={styles.addItemBtn} onPress={addItem}>
-              <Text style={styles.addItemText}>+ Add Item</Text>
+              <Text style={styles.addItemText}>{t('add_item')}</Text>
             </Pressable>
           ) : (
             <View style={styles.addItemBtn} />
@@ -678,7 +679,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitBtnText}>SUBMIT</Text>
+              <Text style={styles.submitBtnText}>{t('submit').toUpperCase()}</Text>
             )}
           </Pressable>
         </ScrollView>
@@ -693,7 +694,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
               onPress={() => setDatePickerVisible(false)}
             >
               <Pressable style={styles.dateSheet} onPress={e => e.stopPropagation()}>
-                <Text style={styles.dateSheetTitle}>Select Date</Text>
+                <Text style={styles.dateSheetTitle}>{t('rn_select_date')}</Text>
                 <DateTimePicker
                   value={datePickerValue}
                   mode="date"
@@ -737,7 +738,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
               pendingDateRef.current = null;
             }}
             positiveButton={{ label: t('qr_code_positive_button_know'), textColor: COLORS.primary }}
-            negativeButton={{ label: 'CANCEL', textColor: COLORS.primary }}
+            negativeButton={{ label: tr('CANCEL'), textColor: COLORS.primary }}
           />
         )
       )}
@@ -747,7 +748,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
         visible={picker !== null}
         title={
           picker?.kind === 'item'
-            ? 'Select Item'
+            ? tr('Select Item')
             : picker?.kind === 'product'
               ? 'Select Product Id'
               : 'Select Attachment Type'

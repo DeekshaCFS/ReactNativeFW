@@ -36,6 +36,7 @@ import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 // Same Java dialog sheet / header / spinner metrics as the Add Task form.
 const styles = {...sharedStyles, ...taskStyles};
 
@@ -218,15 +219,15 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
 
   const handleAssignSubmit = async () => {
     if (!selectedItem) {
-      showFailureMsg('Please select an item.');
+      showFailureMsg(t('rn_please_select_an_item_2'));
       return;
     }
     if (!selectedFieldworker) {
-      showFailureMsg('Please select a fieldworker.');
+      showFailureMsg(t('rn_please_select_a_fieldworker'));
       return;
     }
     if (!quantity || Number(quantity) <= 0) {
-      showFailureMsg('Please enter a valid quantity.');
+      showFailureMsg(t('please_enter_valid_quantity'));
       return;
     }
 
@@ -247,7 +248,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
     setIsSubmitting(true);
     try {
       ensureSuccess(await issueItem(payload));
-      showSuccessMsg('Item assigned successfully.');
+      showSuccessMsg(t('item_assigned_successfully'));
       resetForm();
       onAssigned?.();
       onClose();
@@ -308,7 +309,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                   }
                   numberOfLines={1}
                 >
-                  {selectedItem ? selectedItem.name : 'Select Item'}
+                  {selectedItem ? selectedItem.name : tr('Select Item')}
                 </Text>
                 <Ionicons name="chevron-down" style={styles.dropdownChevron} />
               </TouchableOpacity>
@@ -331,7 +332,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                 >
                   {selectedFieldworker
                     ? selectedFieldworker.name
-                    : 'Select Fieldworkers'}
+                    : tr('Select Fieldworkers')}
                 </Text>
                 <Ionicons name="chevron-down" style={styles.dropdownChevron} />
               </TouchableOpacity>
@@ -369,7 +370,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                     <View style={styles.addButtonIconWrap}>
                       <AssignItemIcon size={ms(30)} color="#FFFFFF" />
                     </View>
-                    <Text style={styles.darkAddButtonText}>ASSIGN</Text>
+                    <Text style={styles.darkAddButtonText}>{t('assign').toUpperCase()}</Text>
                   </>
                 )}
               </TouchableOpacity>

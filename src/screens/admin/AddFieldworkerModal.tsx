@@ -24,6 +24,7 @@ import {ensureSuccess} from '../../utils/apiResponse';
 import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type FieldworkerBulkInsertItem = {
   AE_FW_Contact: string;
   AE_FW_Firstname: string;
@@ -164,7 +165,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
 
   const handleAddMore = () => {
     if (rows.length >= MAX_FIELDWORKERS) {
-      showFailureMsg('Not allowed.');
+      showFailureMsg(t('not_allowed'));
       return;
     }
 
@@ -180,7 +181,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
 
   const handleRemoveRow = (index: number) => {
     if (index < 1) {
-      showFailureMsg('Not allowed.');
+      showFailureMsg(t('not_allowed'));
       return;
     }
 
@@ -224,12 +225,12 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
 
     if (Object.keys(nextRowErrors).length > 0) {
       setRowErrors(nextRowErrors);
-      showFailureMsg('Invalid data.');
+      showFailureMsg(t('rn_invalid_data'));
       return;
     }
 
     if (hasDuplicateContactsAcrossRows()) {
-      showFailureMsg('Duplicate Contact number not allowed !');
+      showFailureMsg(t('rn_duplicate_contact_number_not_allowed'));
       return;
     }
 
@@ -253,7 +254,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
     setIsSubmitting(true);
     try {
       ensureSuccess(await addBulkFieldworkers([payload]));
-      showSuccessMsg('Fieldworker(s) added successfully.');
+      showSuccessMsg(t('rn_fieldworker_s_added_successfully'));
       resetForm();
       onAdded?.();
       onClose();
@@ -313,7 +314,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
                 <View style={fieldworkerCardStyle}>
                   <View style={fieldworkerCardHeaderStyle}>
                     <Text style={fieldworkerCardTitleStyle}>
-                      Fieldworker #{index + 1}
+                      {t('technician') + ' #'}{index + 1}
                     </Text>
                     <TouchableOpacity
                       hitSlop={10}
@@ -366,7 +367,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
                         contact: isIndia ? value.replace(/[^0-9]/g, '') : value,
                       })
                     }
-                    placeholder={isIndia ? 'Phone Number' : 'Email Id'}
+                    placeholder={isIndia ? tr('Phone Number') : tr('Email Id')}
                     placeholderTextColor={COLORS.lightGray}
                     keyboardType={isIndia ? 'phone-pad' : 'email-address'}
                     autoCapitalize="none"

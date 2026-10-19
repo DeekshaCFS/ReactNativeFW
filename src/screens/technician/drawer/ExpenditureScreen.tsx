@@ -39,6 +39,7 @@ import DecimalInput from '../../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
 import { showImageSourceDialog } from '../../../components/ImageSourceHost';
+import { tr } from '../../../i18n/tr';
 type NavigationProp = NativeStackNavigationProp<TechnicianStackParamList, 'Expenditure'>;
 
 const toApiDate = toExpenseApiDate;
@@ -120,7 +121,7 @@ export default function ExpenditureScreen() {
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64) {
-      showToast('Unable to read the selected image. Please try again.');
+      showToast(t('rn_unable_to_read_the_selected_image_please_t'));
       return;
     }
     setExpensePhoto(asset);
@@ -165,12 +166,12 @@ export default function ExpenditureScreen() {
       return;
     }
     if (!expenseName.trim()) {
-      showFailureMsg('Please enter an expense name.');
+      showFailureMsg(t('rn_please_enter_an_expense_name'));
       return;
     }
     const amount = Number(expenseAmount);
     if (!expenseAmount || !Number.isFinite(amount) || amount <= 0) {
-      showFailureMsg('Please enter a valid amount.');
+      showFailureMsg(t('rn_please_enter_a_valid_amount'));
       return;
     }
     setSaving(true);
@@ -188,7 +189,7 @@ export default function ExpenditureScreen() {
         showFailureMsg(res?.Message || 'Unable to add expense right now.');
       }
     } catch (e) {
-      showFailureMsg(e instanceof Error ? e.message : 'Unable to add expense right now.');
+      showFailureMsg(e instanceof Error ? e.message : tr('Unable to add expense right now.'));
     } finally {
       setSaving(false);
     }
@@ -202,14 +203,14 @@ export default function ExpenditureScreen() {
       >
         {/* Tab Row — order depends on how the screen was opened (see passbookTabOrder.ts) */}
         <View style={[styles.tabRow, { paddingTop: headerHeight + vs(4) }]}>
-          {(tabOrder === 'passbookFirst' ? ['passbook', 'expenditure'] : ['expenditure', 'passbook']).map(t =>
-            t === 'expenditure' ? (
-              <Pressable key={t} style={styles.activeTab}>
-                <Text style={styles.activeTabText}>EXPENDITURE</Text>
+          {(tabOrder === 'passbookFirst' ? ['passbook', 'expenditure'] : ['expenditure', 'passbook']).map(tab =>
+            tab === 'expenditure' ? (
+              <Pressable key={tab} style={styles.activeTab}>
+                <Text style={styles.activeTabText}>{t('expenditure').toUpperCase()}</Text>
               </Pressable>
             ) : (
-              <Pressable key={t} style={styles.inactiveTab} onPress={() => navigation.navigate('Passbook')}>
-                <Text style={styles.inactiveTabText}>PASSBOOK</Text>
+              <Pressable key={tab} style={styles.inactiveTab} onPress={() => navigation.navigate('Passbook')}>
+                <Text style={styles.inactiveTabText}>{t('title_passbook').toUpperCase()}</Text>
               </Pressable>
             ),
           )}
@@ -275,7 +276,7 @@ export default function ExpenditureScreen() {
               onPress={submitExpense}
               disabled={saving}
             >
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmText}>ADD</Text>}
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmText}>{t('add').toUpperCase()}</Text>}
             </Pressable>
 
             <Pressable onPress={closeAddExpenseModal}>
@@ -292,7 +293,7 @@ export default function ExpenditureScreen() {
         <Modal visible={showDatePicker} transparent animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
           <Pressable style={styles.overlay} onPress={() => setShowDatePicker(false)} />
           <View style={styles.centerModal}>
-            <Text style={styles.datePickerTitle}>Select Date</Text>
+            <Text style={styles.datePickerTitle}>{t('rn_select_date')}</Text>
             <DateTimePicker
               value={tempDate}
               mode="date"

@@ -39,6 +39,7 @@ import { COLORS } from '../theme/theme';
 import type { AdminStackParamList } from './AdminStack';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../i18n/tr';
 export type AdminTabParamList = {
   // Optional `drawerSection` lets CustomDrawerContent open a specific
   // internal section of HomeActivityNewScreen (Leads, AMC, etc.) directly,
@@ -229,7 +230,7 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
       ...STATIC_PUSHED_SCREENS,
       {
         name: 'BankDetailsTax',
-        title: 'Tax Details',
+        title: tr('Tax Details'),
         component: unmountOnBlur(() => (
           <BankDetailsTaxScreen ownerId={ownerId as number} />
         )),

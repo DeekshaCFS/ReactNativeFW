@@ -26,6 +26,7 @@ import {showFailureMsg} from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type Props = {
   row: GetUsedItemListResultData | null;
   onClose: () => void;
@@ -55,7 +56,7 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
   const step = (delta: number) => {
     const next = (Number(qty) || 0) + delta;
     if (next <= 0) {
-      showFailureMsg('Quantity should not less than 0');
+      showFailureMsg(t('rn_quantity_should_not_less_than_0'));
       return;
     }
     setQty(String(next));
@@ -64,15 +65,15 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
   const submit = async () => {
     const quantity = Number(qty) || 0;
     if (quantity === 0) {
-      showFailureMsg('Please enter valid quantity');
+      showFailureMsg(t('rn_please_enter_valid_quantity'));
       return;
     }
     if (!note.trim()) {
-      showFailureMsg('Please enter notes');
+      showFailureMsg(t('please_enter_notes'));
       return;
     }
     if (quantity > (Number(row.AssignedQty) || 0)) {
-      showFailureMsg('Used quantity is greater than Updated assign quantity!');
+      showFailureMsg(t('rn_used_quantity_is_greater_than_updated_assi'));
       return;
     }
     const payload = {
@@ -93,7 +94,7 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
       }
       onUpdated();
     } catch (error) {
-      showFailureMsg(error instanceof Error ? error.message : 'Unable to update used item.');
+      showFailureMsg(error instanceof Error ? error.message : tr('Unable to update used item.'));
     } finally {
       setSubmitting(false);
     }
@@ -122,7 +123,7 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
           )}
         </View>
         <Text style={[styles.segmentText, {color: selected ? '#FFFFFF' : BACKGROUND_GRAY}]}>
-          Used Item Qty
+          {t('rn_used_item_qty')}
         </Text>
       </Pressable>
     );
@@ -145,7 +146,7 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
             </View>
 
             <View style={styles.qtyRow}>
-              <Text style={styles.qtyLabel}>Task Assigned Qty</Text>
+              <Text style={styles.qtyLabel}>{t('rn_task_assigned_qty')}</Text>
               <Text style={styles.qtyLabel}>{t('issued_qty')}</Text>
               <Text style={styles.qtyLabel}>{t('used_qty')}</Text>
             </View>
@@ -160,7 +161,7 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
               {segment('deduct')}
             </View>
 
-            <Text style={styles.enterQty}>Enter Quantity</Text>
+            <Text style={styles.enterQty}>{t('rn_enter_quantity')}</Text>
             <View style={styles.stepper}>
               <Pressable style={styles.stepSide} onPress={() => step(-1)}>
                 <Text style={styles.stepSign}>-</Text>

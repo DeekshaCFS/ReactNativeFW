@@ -78,13 +78,13 @@ export default function IssuedItems() {
       {/* Tabs */}
       <View style={styles.tabRow}>
         <Pressable style={styles.activeTab}>
-          <Text style={styles.activeTabText}>ISSUED ITEMS</Text>
+          <Text style={styles.activeTabText}>{t('rn_issued_items')}</Text>
         </Pressable>
         <Pressable
           style={styles.inactiveTab}
           onPress={() => navigation.navigate('Requested Items')}
         >
-          <Text style={styles.inactiveTabText}>REQUESTED ITEMS</Text>
+          <Text style={styles.inactiveTabText}>{t('requested_items').toUpperCase()}</Text>
         </Pressable>
       </View>
 
@@ -92,7 +92,7 @@ export default function IssuedItems() {
       <View style={styles.searchRow}>
         <Ionicons name="search" size={scale(20)} color="#888" />
         <TextInput
-          placeholder="Search here"
+          placeholder={t('rn_search_here')}
           style={styles.searchInput}
           placeholderTextColor="#888"
           returnKeyType="search"
@@ -136,7 +136,7 @@ export default function IssuedItems() {
                   <View style={styles.info}>
                     <Text style={styles.itemTitle} numberOfLines={1}>{item.Name}</Text>
                     <View style={styles.availRow}>
-                      <Text style={[styles.itemSub, { flex: 0.3 }]}>Available:</Text>
+                      <Text style={[styles.itemSub, { flex: 0.3 }]}>{t('rn_available')}</Text>
                       <Text style={[styles.itemSub, { flex: 0.7 }]}>{item.Quantity}</Text>
                     </View>
                     <View style={styles.noteRow}>

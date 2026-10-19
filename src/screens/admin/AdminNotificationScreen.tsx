@@ -33,6 +33,9 @@ import {
   type NotificationSegment as Segment,
 } from '../../components/NotificationCard';
 import { showFailureMsg, showToast } from '../../utils/toast';
+import { useTranslation } from 'react-i18next';
+import { tr } from '../../i18n/tr';
+import { nseg } from '../../i18n/notifText';
 
 type Props = {ownerId: number};
 
@@ -52,8 +55,6 @@ type RowModel = {
   viewDetails?: boolean;
 };
 
-const b = (text: string): Segment => ({text, bold: true});
-const t = (text: string): Segment => ({text});
 
 // Java renders TaskName with Html.fromHtml for Requested Items: <b> -> bold, <br> -> newline.
 const htmlToSegments = (html: string): Segment[] => {
@@ -86,100 +87,95 @@ const buildRow = (n: NotificationResultData): RowModel | null => {
       switch (n.TaskStatusId) {
         case STATUS.REJECTED:
           return {
-            title: 'Rejected',
+            title: tr('Rejected'),
             color: COLORS.alertRed,
             icon: 'reject',
-            subtitle: [t('Task '), b(task), t(' has rejected by '), b(who), t('.')],
+            subtitle: nseg('Task {{b_task}} has rejected by {{b_who}}.', {b_task: task, b_who: who}),
             action: 'reassign',
             viewDetails: true,
           };
         case STATUS.ON_GOING: {
           const state = n.TaskState;
           const mode = n.PaymentModeId;
-          let tail: Segment[] = [];
+          let tail: string | null = null;
           if (state === STATE.NOT_STARTED) {
-            tail = [t(' is accepted by '), b(who), t('.')];
+            tail = 'Task {{b_task}} is accepted by {{b_who}}.';
           } else if (state === STATE.STARTED_NOT_ENDED) {
-            tail = [t(' is in progress by '), b(who), t('.')];
+            tail = 'Task {{b_task}} is in progress by {{b_who}}.';
           } else if (state === STATE.ENDED_NO_PAYMENT && mode === PAYMENT_AMC) {
-            tail = [t(' is completed by '), b(who), t(' and is waiting for closure.')];
+            tail = 'Task {{b_task}} is completed by {{b_who}} and is waiting for closure.';
           } else if (state === STATE.ENDED_NO_PAYMENT && mode === PAYMENT_RATE) {
-            tail = [t(' is completed by '), b(who), t(' and is waiting for payment.')];
+            tail = 'Task {{b_task}} is completed by {{b_who}} and is waiting for payment.';
           } else if (state === STATE.PAYMENT_RECEIVED && mode === PAYMENT_RATE) {
-            tail = [t(' is completed by '), b(who), t(' and is waiting for closure.')];
+            tail = 'Task {{b_task}} is completed by {{b_who}} and is waiting for closure.';
           }
           return {
-            title: 'Ongoing',
+            title: tr('Ongoing'),
             color: COLORS.statusOngoing,
             icon: 'ongoing',
-            subtitle: tail.length ? [t('Task '), b(task), ...tail] : [],
+            subtitle: tail ? nseg(tail, {b_task: task, b_who: who}) : [],
           };
         }
         case STATUS.COMPLETED:
           return {
-            title: 'Completed',
+            title: tr('Completed'),
             color: COLORS.statusCompleted,
             icon: 'completed',
-            subtitle: [t('Task '), b(task), t(' is completed by '), b(who), t('.')],
+            subtitle: nseg('Task {{b_task}} is completed by {{b_who}}.', {b_task: task, b_who: who}),
           };
         case STATUS.IN_ACTIVE:
           return {
-            title: 'InActive',
+            title: tr('InActive'),
             color: COLORS.tagBlue,
             icon: 'inactive',
-            subtitle: [t('Task '), b(task), t(' is assign to you.')],
+            subtitle: nseg('Task {{b_task}} is assign to you.', {b_task: task}),
           };
         case STATUS.ONHOLD:
           return {
-            title: 'OnHold',
+            title: tr('OnHold'),
             color: COLORS.textBlack,
             icon: 'ongoing',
-            subtitle: [t('Task '), b(task), t(' is put on hold by '), b(who), t('.')],
+            subtitle: nseg('Task {{b_task}} is put on hold by {{b_who}}.', {b_task: task, b_who: who}),
           };
         default:
           return null;
       }
     case 'UserInfo':
       return {
-        title: 'Info',
+        title: tr('Info'),
         color: COLORS.statusCompleted,
         addTechIcon: true,
-        subtitle: [t('New technician '), b(who), t(' is added into your technician list.')],
+        subtitle: nseg('New technician {{b_who}} is added into your technician list.', {b_who: who}),
         action: 'assign',
       };
     case 'Earning':
       return {
-        title: 'Earnings',
+        title: tr('Earnings'),
         color: COLORS.statusCompleted,
         icon: 'earnings',
-        subtitle: [
-          t('Technician '),
-          b(who),
-          t(' earned '),
-          // Java prints the raw EarningAmount ("Rs 1000.65"), not the 3-decimal money format.
-          b(`Rs ${n.EarningAmount ?? 0}`),
-          t(' for the task '),
-          b(task),
-          t('.'),
-        ],
+        // Java prints the raw EarningAmount ("Rs 1000.65"), not the 3-decimal money format.
+        subtitle: nseg('Technician {{b_who}} earned {{b_amount}} for the task {{b_task}}.', {
+          b_who: who,
+          b_amount: `Rs ${n.EarningAmount ?? 0}`,
+          b_task: task,
+        }),
       };
     case 'AMC': {
       const amc = n.AMCServiceDetailDtoObj;
       return {
-        title: 'AMC Reminder',
+        title: tr('AMC Reminder'),
         color: COLORS.alertRed,
         icon: 'amc',
-        subtitle: [
-          t(`You have a ${amc?.AMCTypeName ?? ''} ${amc?.ServiceOccuranceType ?? ''} `),
-          b(String(amc?.AMCName ?? '')),
-          t(' AMC for '),
-          b(String(amc?.CustomerName ?? '')),
-        ],
+        subtitle: nseg('You have a {{kind}} {{b_amc}} AMC for {{b_cust}}', {
+          kind: `${amc?.AMCTypeName ?? ''} ${amc?.ServiceOccuranceType ?? ''}`.trim(),
+          b_amc: String(amc?.AMCName ?? ''),
+          b_cust: String(amc?.CustomerName ?? ''),
+        }),
         viewDetails: true,
       };
     }
     case 'FOC':
-      return {title: 'Requested Items', color: COLORS.tagBlue, icon: 'requestedItems', subtitle: htmlToSegments(task)};
+      return {title: tr('Requested Items'), color: COLORS.tagBlue, icon: 'requestedItems', subtitle: htmlToSegments(task)};
     default:
       return null;
   }
@@ -200,6 +196,7 @@ const formatWhen = (n: NotificationResultData) => {
 };
 
 const AdminNotificationScreen: React.FC<Props> = ({ownerId}) => {
+  const { t } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<AdminStackParamList>>();
   const [items, setItems] = useState<NotificationResultData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -215,7 +212,7 @@ const AdminNotificationScreen: React.FC<Props> = ({ownerId}) => {
         setItems(list);
         setUnreadCount(countUnread(list));
       } catch (error) {
-        showFailureMsg(error instanceof Error ? error.message : 'Unable to load notifications.');
+        showFailureMsg(error instanceof Error ? error.message : tr('Unable to load notifications.'));
       } finally {
         isRefresh ? setRefreshing(false) : setLoading(false);
       }
@@ -241,18 +238,18 @@ const AdminNotificationScreen: React.FC<Props> = ({ownerId}) => {
       const response = await getTaskById({UserId: ownerId, TaskID: n.TaskId});
       const task = Array.isArray(response?.ResultData) ? response.ResultData[0] : response?.ResultData;
       if (!task) {
-        showToast('Task details are not available.');
+        showToast(t('rn_task_details_are_not_available'));
         return;
       }
       setTaskFormValues(buildTaskFormValues(task as never, 'reassign'));
     } catch (error) {
-      showFailureMsg(error instanceof Error ? error.message : 'Unable to load the task.');
+      showFailureMsg(error instanceof Error ? error.message : tr('Unable to load the task.'));
     }
   };
 
   const openAssign = (n: NotificationResultData) => {
     if (!n.IsRegistered) {
-      showFailureMsg('You can not assign task to this technician.');
+      showFailureMsg(t('rn_you_can_not_assign_task_to_this_technician'));
       return;
     }
     markRead(n);
@@ -337,7 +334,7 @@ const AdminNotificationScreen: React.FC<Props> = ({ownerId}) => {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
-          ListEmptyComponent={<Text style={styles.empty}>No notifications found.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>{t('rn_no_notifications_found')}</Text>}
         />
       )}
       <AddTaskModal

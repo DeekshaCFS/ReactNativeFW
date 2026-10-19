@@ -23,6 +23,7 @@ import {addSerialNo, updateSerialNo} from '../../api/brandModel/brandModelServic
 import type {SerialNoItem} from '../../api/brandModel/brandModelService';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type Props = {
   visible: boolean;
   ownerId: number;
@@ -79,7 +80,7 @@ const AddEditSerialNoModal: React.FC<Props> = ({visible, ownerId, brandId, model
   return (
     <BrandDialogSheet
       visible={visible}
-      title={isEditing ? 'Edit Serial Number' : 'Add Serial Number'}
+      title={isEditing ? tr('Edit Serial Number') : tr('Add Serial Number')}
       subtitle={brandName || modelName ? `Brand/Model Name : ${brandName ?? ''}/${modelName ?? ''}` : undefined}
       submitLabel={(isEditing ? t('update') : 'Submit').toUpperCase()}
       submitting={submitting}
@@ -93,8 +94,8 @@ const AddEditSerialNoModal: React.FC<Props> = ({visible, ownerId, brandId, model
         }
         handleSubmit();
       }}>
-      <FieldLabel>Serial Number *</FieldLabel>
-      <PillInput placeholder="Enter Serial Number *" value={serialNo} onChangeText={setSerialNo} autoFocus />
+      <FieldLabel>{t('serial_number_config')}</FieldLabel>
+      <PillInput placeholder={t('enter_serial_num')} value={serialNo} onChangeText={setSerialNo} autoFocus />
     </BrandDialogSheet>
   );
 };

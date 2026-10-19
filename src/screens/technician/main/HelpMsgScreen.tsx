@@ -12,10 +12,12 @@ import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp } from '../../../utils/responsive';
 import { useNavigation } from '@react-navigation/native';
 
+import { useTranslation } from 'react-i18next';
 // Only the admin stack still uses this screen (technician Help is HelpChatScreen).
 type NavigationProp = any;
 
 export default function HelpMessagesScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp>();
 
   return (
@@ -29,21 +31,21 @@ export default function HelpMessagesScreen() {
           color="#fff"
           onPress={() => navigation.navigate('help')}
         />
-        <Text style={styles.subHeaderTitle}>Messages</Text>
+        <Text style={styles.subHeaderTitle}>{t('rn_messages')}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
 
-        <Text style={styles.title}>Start a new chat</Text>
+        <Text style={styles.title}>{t('rn_start_a_new_chat')}</Text>
 
         <Pressable
           style={styles.newCard}
           onPress={() => navigation.navigate('helpChat')}
         >
           <View>
-            <Text style={styles.newTitle}>New Conversation</Text>
+            <Text style={styles.newTitle}>{t('rn_new_conversation')}</Text>
             <Text style={styles.newSubtitle}>
-              We typically reply in a few minutes
+              {t('rn_we_typically_reply_in_a_few_minutes')}
             </Text>
           </View>
 
@@ -54,9 +56,9 @@ export default function HelpMessagesScreen() {
           />
         </Pressable>
 
-        <Text style={styles.recentTitle}>Recent</Text>
+        <Text style={styles.recentTitle}>{t('rn_recent')}</Text>
         <Text style={styles.emptyText}>
-          Your conversation history opens inside the chat above once you start one.
+          {t('rn_your_conversation_history_opens_inside_the')}
         </Text>
 
       </ScrollView>
@@ -79,7 +81,7 @@ export default function HelpMessagesScreen() {
             />
           </Pressable>
         </View>
-        <Text style={styles.footerText}>Powered by tawk.to</Text>
+        <Text style={styles.footerText}>{t('rn_powered_by_tawk_to')}</Text>
       </View>
 
     </View>

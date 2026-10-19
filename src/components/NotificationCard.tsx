@@ -10,6 +10,7 @@ import {COLORS} from '../theme/theme';
 import {ms, sp, vs, useAppHeaderHeight} from '../utils/responsive';
 import NotificationIcon, {type NotificationIconName} from './NotificationIcons';
 
+import i18n from 'i18next';
 export type NotificationSegment = {text: string; bold?: boolean};
 
 export type NotificationCardAction = {label: string; onPress: () => void};
@@ -56,7 +57,7 @@ export const NotificationCard = ({
             <Text style={[styles.title, {color}]} numberOfLines={1}>
               {title}
             </Text>
-            {isNew ? <Text style={styles.newFlag}>NEW</Text> : null}
+            {isNew ? <Text style={styles.newFlag}>{i18n.t('rn_new')}</Text> : null}
           </View>
           <Text style={styles.time}>{when}</Text>
         </View>
@@ -74,13 +75,13 @@ export const NotificationCard = ({
         {amc && (
           <View style={styles.amcRow}>
             <View style={styles.amcCell}>
-              <Text style={[styles.amcText, styles.bold]}>Due Date :</Text>
+              <Text style={[styles.amcText, styles.bold]}>{i18n.t('due_date')}</Text>
               <Text style={[styles.amcText, styles.amcValue]} numberOfLines={1}>
                 {amc.dueDate}
               </Text>
             </View>
             <View style={styles.amcCell}>
-              <Text style={[styles.amcText, styles.bold]}>Total Service :</Text>
+              <Text style={[styles.amcText, styles.bold]}>{i18n.t('total_service')}</Text>
               <Text style={[styles.amcText, styles.amcValue]} numberOfLines={1}>
                 {amc.service}
               </Text>

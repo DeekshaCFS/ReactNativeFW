@@ -50,6 +50,7 @@ import PlaceSearchModal from '../../components/PlaceSearchModal';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 /** Java AMCDialog.addAMCFromQuoteDialog: the Add AMC form opened from a quotation, pre-filled from it. */
 export type AddAmcPrefill = {
   name: string;
@@ -1026,67 +1027,67 @@ const AMCDashboardScreen = ({
     const owner = ownerId || getCurrentUserId();
 
     if (!amcName.trim()) {
-      showFailureMsg('Please enter AMC Name.');
+      showFailureMsg(t('please_enter_amc_name'));
       return;
     }
 
     if (!customerName.trim()) {
-      showFailureMsg('Please enter Customer Name.');
+      showFailureMsg(t('please_enter_cust_name'));
       return;
     }
 
     if (!customerNumber.trim()) {
-      showFailureMsg('Please enter Customer Number.');
+      showFailureMsg(t('please_enter_cust_number'));
       return;
     }
 
     if (!customerAddress.trim()) {
-      showFailureMsg('Please enter Address.');
+      showFailureMsg(t('please_enter_address'));
       return;
     }
 
     if (!customerLandmark.trim()) {
-      showFailureMsg('Please enter Landmark.');
+      showFailureMsg(t('please_enter_landmark'));
       return;
     }
 
     if (!brandName.trim()) {
-      showFailureMsg('Please enter Brand Name.');
+      showFailureMsg(t('rn_please_enter_brand_name'));
       return;
     }
 
     if (!modelName.trim()) {
-      showFailureMsg('Please enter Model Name.');
+      showFailureMsg(t('rn_please_enter_model_name'));
       return;
     }
 
     if (!serialNo.trim()) {
-      showFailureMsg('Please enter Serial No.');
+      showFailureMsg(t('rn_please_enter_serial_no'));
       return;
     }
 
     if (!activationDate) {
-      showFailureMsg('Please select Activation Date.');
+      showFailureMsg(t('rn_please_select_activation_date'));
       return;
     }
 
     if (!contractDate) {
-      showFailureMsg('Please select Contract Date.');
+      showFailureMsg(t('rn_please_select_contract_date'));
       return;
     }
 
     if (!serviceTime) {
-      showFailureMsg('Please select Service Time.');
+      showFailureMsg(t('rn_please_select_service_time'));
       return;
     }
 
     if (!selectedServiceCount) {
-      showFailureMsg('Please select number of services.');
+      showFailureMsg(t('rn_please_select_number_of_services'));
       return;
     }
 
     if (!selectedOccurrence) {
-      showFailureMsg('Please select occurrence.');
+      showFailureMsg(t('rn_please_select_occurrence'));
       return;
     }
 
@@ -1096,11 +1097,11 @@ const AMCDashboardScreen = ({
     const amcAmountValue = underWarranty ? 0 : Number(amcAmount) || 0;
     const receivedAmountValue = underWarranty ? 0 : Number(receivedAmount) || 0;
     if (!underWarranty && !amcAmount.trim()) {
-      showFailureMsg('Please enter service amount.');
+      showFailureMsg(t('rn_please_enter_service_amount'));
       return;
     }
     if (receivedAmountValue > amcAmountValue) {
-      showFailureMsg('Received amount cannot be greater than service amount !');
+      showFailureMsg(t('rn_received_amount_cannot_be_greater_than_ser'));
       return;
     }
 
@@ -1175,7 +1176,7 @@ const AMCDashboardScreen = ({
         UserId: owner,
       }));
 
-      showSuccessMsg('AMC added successfully.');
+      showSuccessMsg(t('rn_amc_added_successfully'));
       setAddModalVisible(false);
       onAddAmcModalClose?.();
       resetAddAMCForm();
@@ -1526,20 +1527,20 @@ const AMCDashboardScreen = ({
   const getActiveAddDropdownConfig = () => {
     if (activeAddDropdown === 'services') {
       return {
-        title: 'Select No. of Services',
+        title: tr('Select No. of Services'),
         options: serviceCountOptions,
         selected: selectedServiceCount,
       };
     }
     if (activeAddDropdown === 'occurrence') {
       return {
-        title: 'Select Occurrence',
+        title: tr('Select Occurrence'),
         options: occurrenceOptions,
         selected: selectedOccurrence,
       };
     }
     return {
-      title: 'Select Reminder',
+      title: tr('Select Reminder'),
       options: reminderOptions,
       selected: selectedReminder,
     };
@@ -1620,7 +1621,7 @@ const AMCDashboardScreen = ({
           <View style={styles.customerSuggestionStatus}>
             <ActivityIndicator color={THEME_PRIMARY} size="small" />
             <Text style={styles.customerSuggestionStatusText}>
-              Loading customers...
+              {t('rn_loading_customers')}
             </Text>
           </View>
         ) : (
@@ -1819,7 +1820,7 @@ const AMCDashboardScreen = ({
 
               <View style={styles.dialogActionRow}>
                 <Pressable onPress={() => setActiveDateField(null)}>
-                  <Text style={styles.dialogActionText}>CANCEL</Text>
+                  <Text style={styles.dialogActionText}>{t('cancel').toUpperCase()}</Text>
                 </Pressable>
                 <Pressable onPress={confirmDatePicker}>
                   <Text style={styles.dialogActionText}>{t('qr_code_positive_button_know')}</Text>
@@ -1917,7 +1918,7 @@ const AMCDashboardScreen = ({
                 <Text style={styles.keyboardIcon}>⌨</Text>
                 <View style={styles.timeActionButtons}>
                   <Pressable onPress={() => setTimePickerVisible(false)}>
-                    <Text style={styles.dialogActionText}>CANCEL</Text>
+                    <Text style={styles.dialogActionText}>{t('cancel').toUpperCase()}</Text>
                   </Pressable>
                   <Pressable onPress={confirmTimePicker}>
                     <Text style={styles.dialogActionText}>{t('qr_code_positive_button_know')}</Text>
@@ -2152,7 +2153,7 @@ const AMCDashboardScreen = ({
               <View style={styles.submitAMCIconWrap}>
                 <AmcIcon size={ms(30)} color="#FFFFFF" />
               </View>
-              <Text style={styles.submitAMCText}>ADD</Text>
+              <Text style={styles.submitAMCText}>{t('add').toUpperCase()}</Text>
             </Pressable>
 
             <Pressable
@@ -2220,7 +2221,7 @@ const AMCDashboardScreen = ({
         <Ionicons name="search" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search AMC"
+          placeholder={t('rn_search_amc')}
           placeholderTextColor={COLORS.lightGray}
           value={search}
           onChangeText={setSearch}
@@ -2236,7 +2237,7 @@ const AMCDashboardScreen = ({
           style={styles.addButton}
           onPress={() => setAddModalVisible(true)}
         >
-          <Text style={styles.addButtonText}>+ AMC</Text>
+          <Text style={styles.addButtonText}>{t('title_amc').toUpperCase()}</Text>
         </Pressable>
         <View style={{flex: 0.06}} />
       </View>
@@ -2244,7 +2245,7 @@ const AMCDashboardScreen = ({
       {loading ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading AMC...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading_amc')}</Text>
         </View>
       ) : (
         <FlatList
@@ -2266,7 +2267,7 @@ const AMCDashboardScreen = ({
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyMark}>!</Text>
-              <Text style={styles.emptyTitle}>No AMC records found</Text>
+              <Text style={styles.emptyTitle}>{t('rn_no_amc_records_found')}</Text>
             </View>
           }
         />

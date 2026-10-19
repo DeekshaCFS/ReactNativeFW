@@ -90,7 +90,7 @@ const AddEditServiceModal: React.FC<Props> = ({
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      showToast('Unable to read the selected image. Please try again.');
+      showToast(t('rn_unable_to_read_the_selected_image_please_t'));
       return;
     }
     const picked = {
@@ -193,7 +193,7 @@ const AddEditServiceModal: React.FC<Props> = ({
     <View style={styles.body}>
       <OutlinedInput
         style={styles.pill}
-        placeholder="Service Name *"
+        placeholder={t('service_name_add_task') + ' *'}
         placeholderTextColor={COLORS.lightGray}
         value={name}
         maxLength={25}
@@ -203,14 +203,14 @@ const AddEditServiceModal: React.FC<Props> = ({
       <View style={styles.pairRow}>
         <DecimalInput
           style={[styles.pill, styles.half]}
-          label="Service Price *"
+          label={t('rn_service_price')}
           placeholderTextColor={COLORS.lightGray}
           value={price}
           onChangeText={v => setPrice(sanitizeDecimalInput(v))}
         />
         <OutlinedInput
           style={[styles.pill, styles.half]}
-          placeholder="SAC Code"
+          placeholder={t('rn_sac_code')}
           placeholderTextColor={COLORS.lightGray}
           value={sacCode}
           maxLength={10}
@@ -221,7 +221,7 @@ const AddEditServiceModal: React.FC<Props> = ({
 
       <OutlinedInput
         style={styles.pill}
-        placeholder="Service Contact Number"
+        placeholder={t('rn_service_contact_number')}
         placeholderTextColor={COLORS.lightGray}
         value={contactNo}
         onChangeText={v => setContactNo(v.replace(/[^0-9]/g, ''))}
@@ -245,7 +245,7 @@ const AddEditServiceModal: React.FC<Props> = ({
 
       <OutlinedInput
         style={[styles.pill, styles.descPill]}
-        placeholder="Service Description *"
+        placeholder={t('rn_service_description')}
         placeholderTextColor={COLORS.lightGray}
         value={description}
         onChangeText={setDescription}
@@ -286,11 +286,11 @@ const AddEditServiceModal: React.FC<Props> = ({
               <Pressable style={styles.editClose} onPress={onClose} hitSlop={12}>
                 <Ionicons name="close" size={ms(30)} color={COLORS.primary} />
               </Pressable>
-              <Text style={styles.editTitle}>Edit Service</Text>
+              <Text style={styles.editTitle}>{t('rn_edit_service')}</Text>
             </View>
           ) : (
             <View style={styles.header}>
-              <Text style={styles.headerTitle}>Add Service</Text>
+              <Text style={styles.headerTitle}>{t('rn_add_service')}</Text>
               <Pressable onPress={onClose} hitSlop={12}>
                 <Ionicons name="close" size={ms(30)} color="#fff" />
               </Pressable>

@@ -60,7 +60,7 @@ export default function CompanyDetailsScreen() {
     if (!sess) return;
     if (enable && (await promptBiometric('Authenticate to enable biometric login'))) {
       await addBiometricAccount(sess.mobile);
-      showSuccessMsg('Biometric Login Enabled');
+      showSuccessMsg(t('rn_biometric_login_enabled'));
     }
     await completeLogin(sess);
   };
@@ -238,7 +238,7 @@ export default function CompanyDetailsScreen() {
             </View>
             {!!errors.noOfFieldWorkers && <Text style={GlobalStyles.errorText}>{errors.noOfFieldWorkers}</Text>}
 
-            <AppButton title="PROCEED" onPress={registerOwner} loading={loading} />
+            <AppButton title={t('proceed').toUpperCase()} onPress={registerOwner} loading={loading} />
           </View>
 
           <View style={{ margin: dp(20) }}>

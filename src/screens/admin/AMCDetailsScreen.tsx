@@ -36,6 +36,7 @@ import DecimalInput from '../../components/DecimalInput';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
 
 import {useTranslation} from 'react-i18next';
+import {trf, tr} from '../../i18n/tr';
 type AMCDetailsScreenProps = NativeStackScreenProps<AdminStackParamList, 'AMCDetails'>;
 
 const THEME_PRIMARY = '#d30035';
@@ -627,7 +628,7 @@ const SERVICE_COUNT_OPTIONS: PickerOption[] = Array.from({length: 20}, (_, i) =>
 const DetailRow = ({label, value, first}: {label: string; value?: string | number | null; first?: boolean}) => (
   <View style={[styles.detailRow, !first && {marginTop: 5}]}>
     <Text style={styles.detailLabel}>{label}</Text>
-    <Text style={styles.detailValue}>{value === undefined || value === null || value === '' ? 'NA' : String(value)}</Text>
+    <Text style={styles.detailValue}>{value === undefined || value === null || value === '' ? tr('NA') : String(value)}</Text>
   </View>
 );
 
@@ -839,7 +840,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
 
   const submitRenewal = async () => {
     if (!renewActivationDate.trim() || !renewContractDate.trim()) {
-      showFailureMsg('Please enter activation and contract dates.');
+      showFailureMsg(t('rn_please_enter_activation_and_contract_dates'));
       return;
     }
     const sourceData = (amcData || amcItem || {}) as Record<string, unknown>;
@@ -881,11 +882,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           UnderWarranty: Boolean(getFirstValue(productDetail, ['UnderWarranty'])),
         }),
       );
-      showSuccessMsg('AMC renewed successfully.');
+      showSuccessMsg(t('rn_amc_renewed_successfully'));
       setRenewModalVisible(false);
       fetchAMCDetails();
     } catch (error) {
-      showFailureMsg(error instanceof Error ? error.message : 'Unable to renew AMC.');
+      showFailureMsg(error instanceof Error ? error.message : tr('Unable to renew AMC.'));
     } finally {
       setIsRenewing(false);
     }
@@ -919,7 +920,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     const userId = ownerId || toNumberValue(getFirstValue((amcData || amcItem || {}) as Record<string, unknown>, ['UserId', 'userId']));
 
     if (!editAmcsId || !userId) {
-      showFailureMsg('No data available for editing');
+      showFailureMsg(t('rn_no_data_available_for_editing'));
       return;
     }
 
@@ -932,7 +933,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       const fetchedData = response.ResultData ? (response.ResultData as unknown as Record<string, unknown>) : (amcData as Record<string, unknown>);
 
       if (!fetchedData) {
-        showFailureMsg('No edit data received from server');
+        showFailureMsg(t('rn_no_edit_data_received_from_server'));
         return;
       }
 
@@ -998,7 +999,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       const occurrenceId = editFormData.occurrenceId || getNumberFromPaths(sourceRecord, OCCURRENCE_ID_PATHS);
 
       if (toNumberValue(editFormData.receivedAmount) > toNumberValue(editFormData.amcAmount)) {
-        showFailureMsg('Received amount cannot be greater than service amount !');
+        showFailureMsg(t('rn_received_amount_cannot_be_greater_than_ser'));
         return;
       }
 
@@ -1012,7 +1013,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       ].filter(Boolean);
 
       if (missingFields.length > 0) {
-        showFailureMsg(`Unable to update AMC. Missing ${missingFields.join(', ')}.`);
+        showFailureMsg(trf('Unable to update AMC. Missing {{field}}.', { field: missingFields.join(', ') }));
         return;
       }
 
@@ -1075,7 +1076,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
 
       ensureSuccess(await putAmcDetails(payload));
 
-      showSuccessMsg('AMC updated successfully');
+      showSuccessMsg(t('rn_amc_updated_successfully'));
       setEditModalVisible(false);
       setEditSourceData(null);
       // Refresh the details
@@ -1246,23 +1247,23 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   const handleCallPress = () => {
     const phone = String(details?.contactNo || '').trim();
     if (!phone || phone.toUpperCase() === 'NA') {
-      showToast('Contact number is not available');
+      showToast(t('contact_no_is_not_available'));
       return;
     }
     Linking.openURL(`tel:${phone}`).catch(() => {
-      showToast('Unable to open the dialer');
+      showToast(t('rn_unable_to_open_the_dialer'));
     });
   };
 
   const handleWhatsAppPress = () => {
     const phone = String(details?.contactNoWhatsapp || '').trim();
     if (!phone || phone.toUpperCase() === 'NA') {
-      showToast('Contact number is not available');
+      showToast(t('contact_no_is_not_available'));
       return;
     }
     const digits = phone.replace(/[^0-9]/g, '');
     Linking.openURL(`https://wa.me/${digits}`).catch(() => {
-      showToast('Unable to open WhatsApp');
+      showToast(t('rn_unable_to_open_whatsapp'));
     });
   };
 
@@ -1271,7 +1272,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     const userId = getResolvedUserId();
 
     if (!downloadAmcId) {
-      showToast('AMC report is not available');
+      showToast(t('rn_amc_report_is_not_available'));
       return;
     }
 
@@ -1296,7 +1297,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     const userId = getResolvedUserId();
 
     if (!deleteAmcId) {
-      showToast('AMC id is not available.');
+      showToast(t('rn_amc_id_is_not_available'));
       return;
     }
 
@@ -1339,7 +1340,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         return;
       }
     } catch (err) {
-      showFailureMsg(err instanceof Error ? err.message : 'Can not add task at this moment');
+      showFailureMsg(err instanceof Error ? err.message : tr('Can not add task at this moment'));
       return;
     }
 
@@ -1423,7 +1424,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={THEME_PRIMARY} />
-          <Text style={{ marginTop: vs(10), color: THEME_GRAY_TEXT }}>Loading AMC Details...</Text>
+          <Text style={{ marginTop: vs(10), color: THEME_GRAY_TEXT }}>{t('rn_loading_amc_details')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -1435,7 +1436,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable style={styles.retryButton} onPress={fetchAMCDetails}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('rn_retry')}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -1446,7 +1447,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>No AMC data available</Text>
+          <Text style={styles.errorText}>{t('rn_no_amc_data_available')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -1530,11 +1531,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
 
         {/* Services Details (Java ServiceListAdapter -- service_details_custom.xml). */}
         <Text style={[styles.sectionTitle, {marginTop: 20}]}>
-          {details.serviceTasks.length ? 'Services Details' : 'Services Details : NA'}
+          {details.serviceTasks.length ? tr('Services Details') : tr('Services Details : NA')}
         </Text>
         {details.serviceTasks.map((task, index) => (
           <View key={index} style={styles.serviceBlock}>
-            <Text style={styles.serviceTitle}>{`Service ${index + 1}`}</Text>
+            <Text style={styles.serviceTitle}>{trf('Service {{n}}', { n: index + 1 })}</Text>
             <DetailRow label={t('tech_name')} value={task.TechnicianName || 'NA'} first />
             <DetailRow label={t('date')} value={String(task.TaskDate ?? '').split('T')[0] || 'NA'} />
             <DetailRow label={t('time')} value={task.TaskTime || 'NA'} />
@@ -1547,18 +1548,18 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       <Modal visible={historyVisible} animationType="slide" transparent={false} onRequestClose={() => setHistoryVisible(false)}>
         <SafeAreaView style={styles.histRoot}>
           <View style={styles.histHeader}>
-            <Text style={styles.histTitle}>AMC History</Text>
+            <Text style={styles.histTitle}>{t('rn_amc_history')}</Text>
             <Pressable onPress={() => setHistoryVisible(false)} hitSlop={10} style={styles.histClose}>
               <Ionicons name="close" size={ms(28)} color={COLORS.ink} />
             </Pressable>
           </View>
           <Text style={styles.histAmcName}>{details?.amcName}</Text>
           <View style={styles.histDivider} />
-          <Text style={styles.histSubTitle}>Renewal History Details</Text>
+          <Text style={styles.histSubTitle}>{t('rn_renewal_history_details')}</Text>
           {isHistoryLoading ? (
             <ActivityIndicator color={THEME_PRIMARY} style={{marginVertical: 24}} />
           ) : historyRows.length === 0 ? (
-            <Text style={styles.modalEmptyText}>No renewal history found.</Text>
+            <Text style={styles.modalEmptyText}>{t('rn_no_renewal_history_found')}</Text>
           ) : (
             <ScrollView>
               <View style={styles.histTable}>
@@ -1610,34 +1611,34 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>Renew AMC</Text>
+              <Text style={styles.modalTitle}>{t('rn_renew_amc')}</Text>
               <Pressable onPress={() => setRenewModalVisible(false)} hitSlop={10}>
                 <Text style={styles.modalCloseIcon}>✕</Text>
               </Pressable>
             </View>
-            <Text style={styles.label}>Activation Date (YYYY-MM-DD) *</Text>
+            <Text style={styles.label}>{t('rn_activation_date_yyyy_mm_dd')}</Text>
             <TextInput
               style={styles.editInput}
               value={renewActivationDate}
               onChangeText={setRenewActivationDate}
-              placeholder="YYYY-MM-DD"
+              placeholder={t('rn_yyyy_mm_dd')}
             />
-            <Text style={styles.label}>Contract Date (YYYY-MM-DD) *</Text>
+            <Text style={styles.label}>{t('rn_contract_date_yyyy_mm_dd')}</Text>
             <TextInput
               style={styles.editInput}
               value={renewContractDate}
               onChangeText={setRenewContractDate}
-              placeholder="YYYY-MM-DD"
+              placeholder={t('rn_yyyy_mm_dd')}
             />
-            <Text style={styles.label}>Expiry Date (YYYY-MM-DD)</Text>
+            <Text style={styles.label}>{t('rn_expiry_date_yyyy_mm_dd')}</Text>
             <TextInput
               style={styles.editInput}
               value={renewExpiryDate}
               onChangeText={setRenewExpiryDate}
-              placeholder="YYYY-MM-DD"
+              placeholder={t('rn_yyyy_mm_dd')}
             />
             <Pressable style={styles.saveButton} onPress={submitRenewal} disabled={isRenewing}>
-              <Text style={styles.saveButtonText}>{isRenewing ? 'RENEWING...' : 'RENEW'}</Text>
+              <Text style={styles.saveButtonText}>{isRenewing ? tr('RENEWING...') : tr('RENEW')}</Text>
             </Pressable>
           </View>
         </View>
@@ -1652,7 +1653,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         <View style={styles.editModalRoot}>
           <View style={styles.editModalPanel}>
             <View style={styles.editModalHeader}>
-              <Text style={styles.editModalTitle}>Update AMC</Text>
+              <Text style={styles.editModalTitle}>{t('rn_update_amc')}</Text>
               <Pressable
                 style={styles.editModalClose}
                 onPress={() => setEditModalVisible(false)}
@@ -1743,7 +1744,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                   {editLoading ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.editSaveButtonText}>UPDATE</Text>
+                    <Text style={styles.editSaveButtonText}>{t('update').toUpperCase()}</Text>
                   )}
                 </Pressable>
 
@@ -1798,11 +1799,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       <BottomSheetDialog visible={deleteVisible} onRequestClose={() => setDeleteVisible(false)}>
         <View style={styles.delOuter}>
           <Text style={styles.delMessage}>
-            Do you want to delete this AMC ? It will delete all AMC history.
+            {t('rn_do_you_want_to_delete_this_amc_it_will_del')}
           </Text>
           <View style={styles.delButtons}>
             <Pressable style={styles.delNo} onPress={() => setDeleteVisible(false)}>
-              <Text style={styles.delNoText}>No</Text>
+              <Text style={styles.delNoText}>{t('no')}</Text>
             </Pressable>
             <Pressable
               style={styles.delYes}
@@ -1811,7 +1812,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 confirmDeleteAmc();
               }}
             >
-              <Text style={styles.delYesText}>YES</Text>
+              <Text style={styles.delYesText}>{t('yes').toUpperCase()}</Text>
             </Pressable>
           </View>
         </View>

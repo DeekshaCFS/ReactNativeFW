@@ -16,12 +16,14 @@ import SearchPickerModal from '../../../components/SearchPickerModal';
 import { FocRequestCard, FocFilterRow, formatFocDate } from '../../../components/FocRequestCard';
 import { showFailureMsg, showToast } from '../../../utils/toast';
 
+import { useTranslation } from 'react-i18next';
 const ISSUE_OPTIONS = [
   { id: 1, label: 'Yes' },
   { id: 2, label: 'No' },
 ];
 
 export default function RequestedItems() {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
 
   const [requests, setRequests] = useState<GetFOCListResultData[]>([]);
@@ -137,10 +139,10 @@ export default function RequestedItems() {
           style={styles.inactiveTab}
           onPress={() => navigation.navigate('Issued Items')}
         >
-          <Text style={styles.inactiveTabText}>ISSUED ITEMS</Text>
+          <Text style={styles.inactiveTabText}>{t('rn_issued_items')}</Text>
         </Pressable>
         <Pressable style={styles.activeTab}>
-          <Text style={styles.activeTabText}>REQUESTED ITEMS</Text>
+          <Text style={styles.activeTabText}>{t('requested_items').toUpperCase()}</Text>
         </Pressable>
       </View>
 
@@ -150,7 +152,7 @@ export default function RequestedItems() {
           style={styles.requestButton}
           onPress={() => navigation.navigate('ItemRequest')}
         >
-          <Text style={styles.requestText}>+ Request</Text>
+          <Text style={styles.requestText}>{t('rn_request')}</Text>
         </Pressable>
       </View>
 
@@ -210,7 +212,7 @@ export default function RequestedItems() {
 
       <SearchPickerModal
         visible={activeDropdown === 'STATUS'}
-        title="Select Status Tag"
+        title={t('rn_select_status_tag')}
         options={statusTagList.map((t, i) => ({ id: i + 1, label: t.FocStatusName ?? '' }))}
         onClose={() => setActiveDropdown(null)}
         onSelect={option => {
@@ -222,7 +224,7 @@ export default function RequestedItems() {
 
       <SearchPickerModal
         visible={activeDropdown === 'ISSUE'}
-        title="Select Issue"
+        title={t('rn_select_issue')}
         options={ISSUE_OPTIONS}
         onClose={() => setActiveDropdown(null)}
         onSelect={option => {

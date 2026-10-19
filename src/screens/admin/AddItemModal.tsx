@@ -44,6 +44,7 @@ import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
 import { showImageSourceDialog } from '../../components/ImageSourceHost';
+import { tr } from '../../i18n/tr';
 // Same Java dialog sheet / header / outlined-field metrics as the Add Task form.
 const styles = {...sharedStyles, ...taskStyles};
 
@@ -269,7 +270,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      showToast('Unable to read the selected image. Please try again.');
+      showToast(t('rn_unable_to_read_the_selected_image_please_t'));
       return;
     }
     const picked: PickedImage = {
@@ -335,7 +336,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
 
   const handleAddItemSubmit = async () => {
     if (!itemName.trim()) {
-      showFailureMsg('Please enter item name.');
+      showFailureMsg(t('rn_please_enter_item_name'));
       return;
     }
 
@@ -345,7 +346,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
       const sales = Number(salesPrice) || 0;
       // Java's edit dialog blocks saving when sales price < purchase price.
       if (sales < purchase) {
-        showFailureMsg('Sales price should be greater than or equal to purchase price.');
+        showFailureMsg(t('rn_sales_price_should_be_greater_than_or_equa'));
         return;
       }
       setIsSubmitting(true);
@@ -370,12 +371,12 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
             UpdatedBy: ownerId,
           } as unknown as Parameters<typeof editItem>[0]),
         );
-        showSuccessMsg('Item updated successfully.');
+        showSuccessMsg(t('item_updated_successfully'));
         resetForm();
         onSaved?.();
         onClose();
       } catch (error) {
-        showFailureMsg(error instanceof Error ? error.message : 'Unable to update item right now.');
+        showFailureMsg(error instanceof Error ? error.message : tr('Unable to update item right now.'));
       } finally {
         setIsSubmitting(false);
       }
@@ -412,7 +413,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
     setIsSubmitting(true);
     try {
       ensureSuccess(await addItem(payload as Partial<AddItem>));
-      showSuccessMsg('Item added successfully.');
+      showSuccessMsg(t('item_added_successfully'));
       resetForm();
       onSaved?.();
       onClose();
@@ -501,7 +502,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   >
                     {selectedItemGroup
                       ? selectedItemGroup.name
-                      : 'Select Item Group'}
+                      : tr('Select Item Group')}
                   </Text>
                   <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
@@ -549,7 +550,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                       }
                       numberOfLines={1}
                     >
-                      {selectedItemUnit ? selectedItemUnit.name : 'Select Unit'}
+                      {selectedItemUnit ? selectedItemUnit.name : tr('Select Unit')}
                     </Text>
                     <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                   </TouchableOpacity>
@@ -634,7 +635,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                         <QuoteIcon size={ms(30)} color="#FFFFFF" />
                       </View>
                       <Text style={styles.darkAddButtonText}>
-                        {isEditMode ? 'UPDATE' : 'ADD'}
+                        {isEditMode ? tr('UPDATE') : tr('ADD')}
                       </Text>
                     </>
                   )}
@@ -669,7 +670,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
 
       <SearchPickerModal
         visible={isItemUnitModalOpen}
-        title="Select Unit"
+        title={t('rn_select_unit')}
         wrapContent
         options={itemUnits.map(option => ({id: option.id, label: option.name}))}
         loading={isItemUnitLoading}

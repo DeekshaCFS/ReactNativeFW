@@ -21,6 +21,8 @@ import { getQRScannedData, postQRScannedData } from '../../../api/taskList/taskL
 import type { QRPostDataDTOField } from '../../../api/taskList/taskList.types';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
+import { useTranslation } from 'react-i18next';
+import { trf } from '../../../i18n/tr';
 // Java: MAX_SCAN_LIMIT = 15
 const MAX_SCAN_LIMIT = 15;
 
@@ -64,6 +66,7 @@ async function requestCameraPermission(): Promise<boolean> {
 }
 
 export default function QRScanHistoryScreen({ route, navigation }: any) {
+  const { t } = useTranslation();
   const { task } = route.params ?? {};
   const taskId: number = task?.Id;
 
@@ -112,7 +115,7 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
 
     setScans(prev => {
       if (prev.length >= MAX_SCAN_LIMIT) {
-        showFailureMsg(`You can scan a maximum of ${MAX_SCAN_LIMIT} QR codes.`);
+        showFailureMsg(trf('You can scan a maximum of {{n}} QR codes.', { n: MAX_SCAN_LIMIT }));
         return prev;
       }
       const next: QRScan = { no: prev.length + 1, fields: parseQRText(value), rawText: value };
@@ -122,12 +125,12 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
 
   const openScanner = async () => {
     if (scans.length >= MAX_SCAN_LIMIT) {
-      showFailureMsg(`You can scan a maximum of ${MAX_SCAN_LIMIT} QR codes.`);
+      showFailureMsg(trf('You can scan a maximum of {{n}} QR codes.', { n: MAX_SCAN_LIMIT }));
       return;
     }
     const granted = await requestCameraPermission();
     if (!granted) {
-      showToast('Please allow camera access to scan QR codes.');
+      showToast(t('rn_please_allow_camera_access_to_scan_qr_code'));
       return;
     }
     setScannerOpen(true);
@@ -139,7 +142,7 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
 
   const handlePost = async () => {
     if (scans.length === 0) {
-      showFailureMsg('Scan the QR Code to submit the data!');
+      showFailureMsg(t('rn_scan_the_qr_code_to_submit_the_data'));
       return;
     }
     setPosting(true);
@@ -167,7 +170,7 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
       showSuccessMsg(response?.Message || 'Success');
       navigation.goBack();
     } catch {
-      showFailureMsg('Could not post scanned data. Please try again.');
+      showFailureMsg(t('rn_could_not_post_scanned_data_please_try_aga'));
     } finally {
       setPosting(false);
     }
@@ -178,7 +181,7 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
   return (
     <View style={styles.root}>
       <View style={styles.card}>
-        <Text style={styles.title}>QR Code Scanner</Text>
+        <Text style={styles.title}>{t('rn_qr_code_scanner')}</Text>
         <View style={styles.divider} />
 
         <Pressable
@@ -186,7 +189,7 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
           onPress={openScanner}
           disabled={!canScanMore}
         >
-          <Text style={styles.scanButtonText}>SCAN QR</Text>
+          <Text style={styles.scanButtonText}>{t('rn_scan_qr')}</Text>
           <Ionicons name="qr-code-outline" size={sp(20)} color="#fff" />
         </Pressable>
 
@@ -197,13 +200,13 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
             {scans.map(scan => (
               <View key={scan.no} style={styles.scanCard}>
                 <View style={styles.scanCardHeader}>
-                  <Text style={styles.scanCardTitle}>Scan #{scan.no}</Text>
+                  <Text style={styles.scanCardTitle}>{t('title_activity_scan_qr_code') + ' #'}{scan.no}</Text>
                   <Pressable onPress={() => removeScan(scan.no)} hitSlop={8}>
                     <Ionicons name="close-circle" size={sp(22)} color={COLORS.primary} />
                   </Pressable>
                 </View>
                 {scan.fields.length === 0 ? (
-                  <Text style={styles.fieldRow}>(no readable fields in this code)</Text>
+                  <Text style={styles.fieldRow}>{t('rn_no_readable_fields_in_this_code')}</Text>
                 ) : (
                   scan.fields.map((field, idx) => (
                     <Text key={idx} style={styles.fieldRow}>
@@ -223,7 +226,7 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
               {posting ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.postButtonText}>SUBMIT</Text>
+                <Text style={styles.postButtonText}>{t('submit').toUpperCase()}</Text>
               )}
             </Pressable>
           </ScrollView>
@@ -248,7 +251,7 @@ export default function QRScanHistoryScreen({ route, navigation }: any) {
             <Ionicons name="close" size={sp(28)} color="#fff" />
           </Pressable>
           <View style={styles.cameraHint}>
-            <Text style={styles.cameraHintText}>Align the QR code within the frame</Text>
+            <Text style={styles.cameraHintText}>{t('rn_align_the_qr_code_within_the_frame')}</Text>
           </View>
         </View>
       </Modal>

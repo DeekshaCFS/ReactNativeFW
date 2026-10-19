@@ -156,12 +156,12 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
         const result = rec(response?.ResultData);
         const files = arr(result.Files).length ? arr(result.Files) : result.FilePath ? [result] : [];
         if (!files.length) {
-          showToast('You have no attachment!');
+          showToast(t('rn_you_have_no_attachment'));
           return;
         }
         setDocs(files);
       } catch {
-        showToast('You have no attachment!');
+        showToast(t('rn_you_have_no_attachment'));
       }
     };
 
@@ -271,9 +271,9 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
             <Text style={styles.heading}>{t('device_list')}</Text>
             {devices.map((device, i) => (
               <View key={i} style={styles.deviceCard}>
-                <Text style={styles.deviceText}>Device: {str(device.DeviceName)}</Text>
-                <Text style={styles.deviceText}>Company/Model: {str(device.ModelNumber)}</Text>
-                <Text style={styles.deviceText}>Device Reading: {javaDouble(device.DeviceReading)}</Text>
+                <Text style={styles.deviceText}>{t('device') + ':'} {str(device.DeviceName)}</Text>
+                <Text style={styles.deviceText}>{t('company_model') + ':'} {str(device.ModelNumber)}</Text>
+                <Text style={styles.deviceText}>{t('device_reading') + ':'} {javaDouble(device.DeviceReading)}</Text>
                 <View style={styles.devicePhotos}>
                   {[device.DevicePhoto1, device.DevicePhoto2, device.DevicePhoto3].map((photo, idx) => {
                     const uri = str(photo);
@@ -293,16 +293,16 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
 
         {str(closure.DocPath) ? (
           <View style={styles.row}>
-            <Text style={styles.label}>Attachment : </Text>
+            <Text style={styles.label}>{t('attachment') + ' :'} </Text>
             <Text style={styles.link} onPress={() => Linking.openURL(str(closure.DocPath)).catch(() => {})}>
-              View Task Attachment
+              {t('rn_view_task_attachment')}
             </Text>
           </View>
         ) : null}
 
         <View style={styles.signRow}>
           <View style={styles.signCol}>
-            <Text style={styles.signLabel}>Cust. Sign</Text>
+            <Text style={styles.signLabel}>{t('rn_cust_sign')}</Text>
             {str(closure.CustomerSignatureImage) ? (
               <Image source={{uri: str(closure.CustomerSignatureImage)}} style={styles.sign} resizeMode="contain" />
             ) : (
@@ -311,7 +311,7 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
             <Text style={styles.subText}>{t('name_title')} {str(closure.SignedBy) || NA}</Text>
           </View>
           <View style={styles.signCol}>
-            <Text style={styles.signLabel}>Tech. Sign</Text>
+            <Text style={styles.signLabel}>{t('rn_tech_sign')}</Text>
             {str(closure.TechSignatureImage) ? (
               <>
                 <Image source={{uri: str(closure.TechSignatureImage)}} style={styles.sign} resizeMode="contain" />
@@ -327,7 +327,7 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
           <Text style={styles.value}>{mobileNo ? String(mobileNo) : NA}</Text>
         </View>
         <View style={styles.row}>
-          <Text style={styles.label}>Rating</Text>
+          <Text style={styles.label}>{t('rn_rating')}</Text>
           <Text style={styles.value}>
             {'★'.repeat(Math.round(rating))}
             {'☆'.repeat(Math.max(0, 5 - Math.round(rating)))} {rating.toFixed(1)}
@@ -344,7 +344,7 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
           <>
             <Text style={styles.heading}>{t('payment_details')}</Text>
             <View style={styles.tableHead}>
-              <Text style={[styles.cellSr, styles.bold]}>Sr.No </Text>
+              <Text style={[styles.cellSr, styles.bold]}>{t('rn_sr_no')} </Text>
               <Text style={[styles.cellDesc, styles.bold]}>{t('description')}</Text>
               <Text style={[styles.cellAmt, styles.bold]}>{t('amount')}</Text>
             </View>
@@ -357,11 +357,11 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
             ))}
             {/* Java (lnlDiscount): shown with the payment details, in green. */}
             <View style={styles.totalLine}>
-              <Text style={[styles.totalLabel, {color: COLORS.success}]}>Discount Amount :</Text>
+              <Text style={[styles.totalLabel, {color: COLORS.success}]}>{t('rn_discount_amount')}</Text>
               <Text style={[styles.totalValue, {color: COLORS.success}]}>{symbol} {formatAmount(discount)}</Text>
             </View>
             <View style={styles.totalLine}>
-              <Text style={[styles.totalLabel, {color: COLORS.primary}]}>Grand Total :</Text>
+              <Text style={[styles.totalLabel, {color: COLORS.primary}]}>{t('rn_grand_total_2')}</Text>
               <Text style={[styles.totalValue, {color: COLORS.primary}]}>{symbol} {formatAmount(netTotal)}</Text>
             </View>
           </>
@@ -418,7 +418,7 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
         <Modal visible={qrOpen} transparent animationType="fade" onRequestClose={() => setQrOpen(false)}>
           <Pressable style={styles.backdrop} onPress={() => setQrOpen(false)}>
             <Pressable style={styles.dialog}>
-              <Text style={styles.dialogTitle}>QR Code Scanned Details</Text>
+              <Text style={styles.dialogTitle}>{t('rn_qr_code_scanned_details')}</Text>
               <Text style={styles.subText}>
                 {taskName} / {newTaskId}
               </Text>

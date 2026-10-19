@@ -45,6 +45,7 @@ import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import { showImageSourceDialog } from '../../components/ImageSourceHost';
+import { tr } from '../../i18n/tr';
 type Photo = { base64: string; uri: string; fileName: string };
 
 const MAX_SUGGESTIONS = 6;
@@ -193,7 +194,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
 
   const setPhoto = (slot: number, asset: { base64?: string; uri?: string }) => {
     if (!asset.base64) {
-      showToast('Unable to read the selected image. Please try again.');
+      showToast(t('rn_unable_to_read_the_selected_image_please_t'));
       return;
     }
     setPhotos(prev => {
@@ -297,7 +298,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
       onSuccess?.();
       onClose();
     } catch (e) {
-      showFailureMsg(e instanceof Error ? e.message : 'Failed to update, please try again');
+      showFailureMsg(e instanceof Error ? e.message : tr('Failed to update, please try again'));
     } finally {
       setSubmitting(false);
     }
@@ -479,7 +480,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.btnPrimaryText}>ADD</Text>
+              <Text style={styles.btnPrimaryText}>{t('add').toUpperCase()}</Text>
             )}
           </Pressable>
           <Pressable style={[styles.btn]} onPress={onClose}>
@@ -511,7 +512,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
           />
           <SearchPickerModal
             visible={picker === 'state'}
-            title="Select State"
+            title={t('rn_select_state')}
             options={states}
             onSelect={o => {
               setStateText(o.label);
@@ -523,7 +524,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
           />
           <SearchPickerModal
             visible={picker === 'city'}
-            title="Select City"
+            title={t('rn_select_city')}
             options={cities}
             loading={cityLoading}
             emptyText="Select a state first."

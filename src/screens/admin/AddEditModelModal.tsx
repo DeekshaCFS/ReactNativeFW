@@ -30,6 +30,7 @@ import { showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import { showImageSourceDialog } from '../../components/ImageSourceHost';
+import { tr } from '../../i18n/tr';
 type Props = {
   visible: boolean;
   ownerId: number;
@@ -67,7 +68,7 @@ const AddEditModelModal: React.FC<Props> = ({visible, ownerId, brandId, brandNam
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      showToast('Unable to read the selected image. Please try again.');
+      showToast(t('rn_unable_to_read_the_selected_image_please_t'));
       return;
     }
     setImage({
@@ -134,7 +135,7 @@ const AddEditModelModal: React.FC<Props> = ({visible, ownerId, brandId, brandNam
   return (
     <BrandDialogSheet
       visible={visible}
-      title={isEditing ? 'Edit Model' : 'Add Model'}
+      title={isEditing ? tr('Edit Model') : tr('Add Model')}
       subtitle={brandName ? `Brand Name : ${brandName}` : undefined}
       submitLabel={(isEditing ? t('update') : 'Create Model').toUpperCase()}
       submitting={submitting}
@@ -148,14 +149,14 @@ const AddEditModelModal: React.FC<Props> = ({visible, ownerId, brandId, brandNam
         }
         handleSubmit();
       }}>
-      <FieldLabel>Model Name *</FieldLabel>
-      <PillInput placeholder="Enter Model Name *" value={name} onChangeText={setName} />
+      <FieldLabel>{t('model_name')}</FieldLabel>
+      <PillInput placeholder={t('enter_model_name')} value={name} onChangeText={setName} />
 
-      <FieldLabel>Model Image</FieldLabel>
+      <FieldLabel>{t('rn_model_image')}</FieldLabel>
       <ImageUploadBox uri={image?.uri ?? editing?.ImagePath} onPress={showImagePickerOptions} />
 
-      <FieldLabel>Model Description</FieldLabel>
-      <DescriptionInput placeholder="Enter Model Description Here.." value={description} onChangeText={setDescription} />
+      <FieldLabel>{t('model_description')}</FieldLabel>
+      <DescriptionInput placeholder={t('enter_model_description')} value={description} onChangeText={setDescription} />
     </BrandDialogSheet>
   );
 };

@@ -30,6 +30,7 @@ import { showToast } from '../../../utils/toast';
 import DecimalInput from '../../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 const FIELD_TYPE = {
   NUMBER: 1,
   TEXT: 2,
@@ -95,7 +96,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
         });
         setValues(prefill);
       } catch (err) {
-        showToast('Could not load task input fields.');
+        showToast(t('rn_could_not_load_task_input_fields'));
       } finally {
         setLoading(false);
       }
@@ -150,7 +151,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
   const handleSubmit = async () => {
     // Java: nothing entered at all -> one failure message, before any required-field check.
     if (Object.keys(values).length === 0) {
-      showToast('Please Provide an Input to proceed !!');
+      showToast(t('rn_please_provide_an_input_to_proceed'));
       return;
     }
 
@@ -207,7 +208,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
         return (
           <DecimalInput
             style={styles.box}
-            label="Number"
+            label={t('rn_number')}
             placeholderTextColor={COLORS.lightGray}
             value={values[id] ?? ''}
             onChangeText={t => {
@@ -221,7 +222,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
         return (
           <OutlinedInput
             style={styles.box}
-            placeholder="Text"
+            placeholder={t('rn_text')}
             placeholderTextColor={COLORS.lightGray}
             autoCapitalize="words"
             value={values[id] ?? ''}
@@ -272,7 +273,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
                 <View style={[styles.radioOuter, isBooleanValue(id, v) && styles.radioOuterActive]}>
                   {isBooleanValue(id, v) && <View style={styles.radioInner} />}
                 </View>
-                <Text style={styles.radioLabel}>{v === 'True' ? 'Yes' : 'NO'}</Text>
+                <Text style={styles.radioLabel}>{v === 'True' ? tr('Yes') : tr('NO')}</Text>
               </Pressable>
             ))}
           </View>
@@ -305,7 +306,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
         style={styles.sheet}
       >
         <View style={styles.titleRow}>
-          <Text style={styles.title}>Add Task Input</Text>
+          <Text style={styles.title}>{t('rn_add_task_input')}</Text>
           <Pressable style={styles.closeBtn} onPress={closeSheet} hitSlop={8}>
             <Ionicons name="close" size={ms(18)} color="#fff" />
           </Pressable>
@@ -322,9 +323,9 @@ export default function TaskInputScreen({ navigation, route }: any) {
             contentContainerStyle={{ paddingBottom: ms(30) }}
           >
             <View style={styles.columnHeaderRow}>
-              <Text style={[styles.columnHeaderText, styles.colSrNo]}>Sr.No</Text>
-              <Text style={[styles.columnHeaderText, styles.colLabel]}>Label</Text>
-              <Text style={[styles.columnHeaderText, styles.colInput, { textAlign: 'center' }]}>Input</Text>
+              <Text style={[styles.columnHeaderText, styles.colSrNo]}>{t('rn_sr_no')}</Text>
+              <Text style={[styles.columnHeaderText, styles.colLabel]}>{t('rn_label')}</Text>
+              <Text style={[styles.columnHeaderText, styles.colInput, { textAlign: 'center' }]}>{t('rn_input')}</Text>
             </View>
 
             <View style={styles.list}>
@@ -345,7 +346,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
               {submitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.updateBtnText}>UPDATE</Text>
+                <Text style={styles.updateBtnText}>{t('update').toUpperCase()}</Text>
               )}
             </Pressable>
           </ScrollView>

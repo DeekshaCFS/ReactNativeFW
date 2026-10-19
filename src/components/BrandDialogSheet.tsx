@@ -20,6 +20,7 @@ import Modal from './AppModal';
 import {COLORS} from '../theme/theme';
 import {ms, sp} from '../utils/responsive';
 
+import i18n from 'i18next';
 export const GREEN = '#4CAF50';
 
 type SheetProps = {
@@ -103,8 +104,8 @@ export const ImageUploadBox = ({uri, onPress}: {uri?: string | null; onPress: ()
     ) : (
       <>
         <Ionicons name="camera-outline" size={ms(60)} color="#9AA0AA" />
-        <Text style={styles.uploadHint}>Tap to upload image</Text>
-        <Text style={styles.uploadOptional}>Optional</Text>
+        <Text style={styles.uploadHint}>{i18n.t('rn_tap_to_upload_image')}</Text>
+        <Text style={styles.uploadOptional}>{i18n.t('rn_optional')}</Text>
       </>
     )}
   </Pressable>

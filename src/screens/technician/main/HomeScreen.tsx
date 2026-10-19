@@ -211,7 +211,7 @@ export default function HomeScreen({ navigation }: any) {
         const todayKey = checkedInTodayKey();
         await AsyncStorage.setItem(todayKey, 'true');
         setShowCheckInModal(false);
-        if (!alreadyAdded) showSuccessMsg('Check-In Successfully'); // Java: R.string.check_in_successfully
+        if (!alreadyAdded) showSuccessMsg(t('check_in_successfully')); // Java: R.string.check_in_successfully
         // Java: disclaimer is checked right after a successful (or already-added) check-in.
         checkDisclaimer();
       } else {
@@ -438,13 +438,13 @@ export default function HomeScreen({ navigation }: any) {
       });
       const files = response?.ResultData?.Files ?? [];
       if (files.length === 0) {
-        showToast('You have no attachment!');
+        showToast(t('rn_you_have_no_attachment'));
         return;
       }
       setAttachmentFiles(files);
       setAttachmentTask(task);
     } catch {
-      showToast('You have no attachment!');
+      showToast(t('rn_you_have_no_attachment'));
     }
   };
 
@@ -501,7 +501,7 @@ export default function HomeScreen({ navigation }: any) {
 
       {/* Greeting row */}
       <View style={styles.greetingRow}>
-        <Text style={styles.headerGreeting}>Hello, {name ?? '...'}</Text>
+        <Text style={styles.headerGreeting}>{t('rn_hello')}, {name ?? '...'}</Text>
         <Pressable style={styles.filterButton} onPress={() => setDropdownVisible(true)}>
           <Text style={styles.headerSub}>{filter}</Text>
           <Ionicons name="chevron-down" size={sp(20)} color="#FEE2E2" />
@@ -588,7 +588,7 @@ export default function HomeScreen({ navigation }: any) {
         }
         ListEmptyComponent={
           !loadingToday ? (
-            <Text style={styles.emptyText}>No tasks for today</Text>
+            <Text style={styles.emptyText}>{t('rn_no_tasks_for_today')}</Text>
           ) : null
         }
       />
@@ -633,7 +633,7 @@ export default function HomeScreen({ navigation }: any) {
               })}
             </Text>
             <Pressable style={styles.confirmBtn} onPress={handleCheckIn}>
-              <Text style={styles.confirmText}>CHECK-IN</Text>
+              <Text style={styles.confirmText}>{t('rn_check_in_2')}</Text>
             </Pressable>
           </View>
         </View>

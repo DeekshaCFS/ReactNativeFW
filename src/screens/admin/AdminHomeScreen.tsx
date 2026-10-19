@@ -55,7 +55,7 @@ const LANGUAGE_GREETINGS: Record<string, string> = {
   Kannada: 'ನಮಸ್ಕಾರ',
   Tamil: 'வணக்கம்',
   Telugu: 'హలో',
-  Malayalam: 'മലയാളം',
+  Malayalam: 'നമസ്കാരം',
   Arabic: 'مرحبا',
 };
 
@@ -257,7 +257,7 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
   }, [userDetails]);
 
   const greetingText = useMemo(() => {
-    return `${LANGUAGE_GREETINGS[CODE_TO_NAME[i18n.language] ?? "English"]}, ${firstName}`;
+    return `${i18n.t('rn_hello')}, ${firstName}`;
   }, [firstName, i18n.language]);
 
   const primaryContact = useMemo(() => {
@@ -463,7 +463,7 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
             <View style={styles.headerLoaderRow}>
               <ActivityIndicator color="#FFFFFF" size="small" />
               <Text style={styles.headerLoaderText}>
-                Refreshing profile...
+                {t('rn_refreshing_profile')}
               </Text>
             </View>
           ) : null}

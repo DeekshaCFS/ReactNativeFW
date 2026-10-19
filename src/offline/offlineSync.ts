@@ -14,6 +14,7 @@ import { uploadTaskDoc } from '../api/taskList/taskListService';
 import { getTaskListValidate } from '../api';
 import { isNetworkAvailable } from './networkQuality';
 import { getPendingTask, getPendingTasks, removePendingSection, removePendingTask } from './offlineStore';
+import { tr } from '../i18n/tr';
 
 export type SyncResult = { ok: boolean; message: string };
 
@@ -49,11 +50,11 @@ export const purgeDeletedPendingTasks = async (userId?: number): Promise<{ taskI
 
 export const syncPendingTask = async (taskId: number): Promise<SyncResult> => {
   const task = await getPendingTask(taskId);
-  if (!task) return { ok: true, message: 'Nothing to sync.' };
+  if (!task) return { ok: true, message: tr('Nothing to sync.') };
 
   if (await isTaskDeletedOnServer(task.taskId, task.newTaskId, task.userId)) {
     await removePendingTask(taskId);
-    return { ok: false, message: 'This task was removed by the admin, so its offline data was cleared.' };
+    return { ok: false, message: tr('This task was removed by the admin, so its offline data was cleared.') };
   }
 
   try {
@@ -115,7 +116,7 @@ export const syncPendingTask = async (taskId: number): Promise<SyncResult> => {
     }
 
     await removePendingTask(taskId);
-    return { ok: true, message: 'Task updated successfully.' };
+    return { ok: true, message: tr('Task updated successfully.') };
   } catch (err: any) {
     return { ok: false, message: err?.response?.data?.Message || err?.message || 'Sync failed.' };
   }

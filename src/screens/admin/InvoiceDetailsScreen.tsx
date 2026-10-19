@@ -37,6 +37,7 @@ import { showFailureMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
 const GREEN_AMOUNT = '#2E7D32';
@@ -193,7 +194,7 @@ const InvoiceDetailsScreen = ({
       const response = await getInvoicePdf({UserId: ownerId, invoiceId: invoiceId});
       const pdfUrl = String(response.ResultData?.InvoicePdfPath ?? '').trim();
       if (!pdfUrl) {
-        showToast('PDF is not available for this invoice.');
+        showToast(t('rn_pdf_is_not_available_for_this_invoice'));
         return;
       }
       await Linking.openURL(pdfUrl);
@@ -233,12 +234,12 @@ const InvoiceDetailsScreen = ({
       return;
     }
     if (!paymentType) {
-      showToast('Please select a payment type!');
+      showToast(t('rn_please_select_a_payment_type'));
       return;
     }
     const remaining = Number(paymentStatus?.remaining ?? details?.RemainingAmount ?? 0);
     if (amount > remaining) {
-      showToast('Entered amount is greater than remaining amount');
+      showToast(t('rn_entered_amount_is_greater_than_remaining_a'));
       return;
     }
 
@@ -343,8 +344,8 @@ const InvoiceDetailsScreen = ({
 
               <SectionTitle first>{t('invoice_details')}</SectionTitle>
               <DetailRow first label={t('task_name')} value={details?.QuotationCode ?? initialTaskName ?? ''} />
-              <DetailRow label="Invoice Date " value={formatDateOnly(details?.InvoiceDateTime)} />
-              <DetailRow label="Invoice ID" value={details?.InvoiceCode ?? ''} />
+              <DetailRow label={t('rn_invoice_date')} value={formatDateOnly(details?.InvoiceDateTime)} />
+              <DetailRow label={t('rn_invoice_id')} value={details?.InvoiceCode ?? ''} />
 
               <SectionTitle>{t('customer_details')}</SectionTitle>
               <DetailRow first label={t('customer_name')} value={details?.CustomerName ?? ''} />
@@ -353,14 +354,14 @@ const InvoiceDetailsScreen = ({
                 value={'+' + getCurrentCountryCode() + ' ' + (details?.MobileNumber ?? '')}
               />
               <DetailRow clip label={t('address')} value={details?.CustAddress ?? ''} />
-              <DetailRow label="Flat/Building/Parcel" value={details?.BuildingNumber ?? ''} />
+              <DetailRow label={t('rn_flat_building_parcel')} value={details?.BuildingNumber ?? ''} />
               <DetailRow label={t('landmark')} value={details?.Landmark ?? ''} />
 
               <View style={[styles.tableHeaderRow, {marginTop: ms(5)}]}>
                 <Text style={[styles.tableHeaderCell, styles.eq, {textAlign: 'left'}]}>{t('item_details')}</Text>
-                <Text style={[styles.tableHeaderCell, styles.eq]}>Qty</Text>
-                <Text style={[styles.tableHeaderCell, styles.eq]}>Unit Price</Text>
-                <Text style={[styles.tableHeaderCell, styles.eq]}>Total Price</Text>
+                <Text style={[styles.tableHeaderCell, styles.eq]}>{t('rn_qty')}</Text>
+                <Text style={[styles.tableHeaderCell, styles.eq]}>{t('rn_unit_price')}</Text>
+                <Text style={[styles.tableHeaderCell, styles.eq]}>{t('rn_total_price')}</Text>
               </View>
               {itemList.map((line, index) => (
                 <View key={`item-${index}`} style={styles.listRow}>
@@ -373,8 +374,8 @@ const InvoiceDetailsScreen = ({
 
               <View style={[styles.tableHeaderRow, {marginTop: ms(10)}]}>
                 <Text style={[styles.tableHeaderCell, {flex: 0.4}]}>{t('service_name_add_task')}</Text>
-                <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>Qty</Text>
-                <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>Service Price</Text>
+                <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>{t('rn_qty')}</Text>
+                <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>{t('rn_service_price_2')}</Text>
               </View>
               {serviceList.map((line, index) => (
                 <View key={`service-${index}`} style={styles.listRow}>
@@ -384,8 +385,8 @@ const InvoiceDetailsScreen = ({
                 </View>
               ))}
 
-              <SectionTitle>Tax,Discounts & Quote Amount</SectionTitle>
-              <DetailRow first label="Total Amount" value={`₹ ${formatAmount(details?.InvoiceAmount ?? details?.SubTotalAmount)}`} />
+              <SectionTitle>{t('rn_tax_discounts_quote_amount')}</SectionTitle>
+              <DetailRow first label={t('rn_total_amount')} value={`₹ ${formatAmount(details?.InvoiceAmount ?? details?.SubTotalAmount)}`} />
               <DetailRow
                 label={t('discount')}
                 value={`₹ ${javaDouble(details?.DiscountAmounnt)}(${javaDouble(details?.Discount)}%)`}
@@ -396,24 +397,24 @@ const InvoiceDetailsScreen = ({
               />
               {taskDiscountAmount !== 0 ? (
                 <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
-                  <Text style={{flex: 0.4, fontSize: sp(14), color: DETAIL_DARK}}>Task Discount Amount</Text>
+                  <Text style={{flex: 0.4, fontSize: sp(14), color: DETAIL_DARK}}>{t('rn_task_discount_amount')}</Text>
                   <Text style={{flex: 0.6, fontSize: sp(14), color: DETAIL_GREEN, fontWeight: '700'}}>
                     ₹ {formatAmount(taskDiscountAmount)}
                   </Text>
                 </View>
               ) : null}
               <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
-                <Text style={{flex: 0.4, fontSize: sp(14), color: DETAIL_DARK}}>Grand Total Amount</Text>
+                <Text style={{flex: 0.4, fontSize: sp(14), color: DETAIL_DARK}}>{t('rn_grand_total_amount')}</Text>
                 <Text style={{flex: 0.6, fontSize: sp(14), color: DETAIL_GREEN, fontWeight: '700'}}>
                   ₹ {formatAmount(details?.GrandTotalAmount)}
                 </Text>
               </View>
 
-              <SectionTitle>Payment History</SectionTitle>
+              <SectionTitle>{t('rn_payment_history')}</SectionTitle>
               <View style={[styles.tableHeaderRow, {marginTop: ms(5)}]}>
                 <Text style={[styles.tableHeaderCell, styles.eq, {textAlign: 'left'}]}>{t('date')}</Text>
-                <Text style={[styles.tableHeaderCell, styles.eq, {textAlign: 'left'}]}>Payment Type</Text>
-                <Text style={[styles.tableHeaderCell, styles.eq]}>Received Amount</Text>
+                <Text style={[styles.tableHeaderCell, styles.eq, {textAlign: 'left'}]}>{t('rn_payment_type')}</Text>
+                <Text style={[styles.tableHeaderCell, styles.eq]}>{t('received_amount')}</Text>
               </View>
               {paymentList.map((payment, index) => (
                 <View key={`payment-${index}`} style={styles.listRow}>
@@ -425,7 +426,7 @@ const InvoiceDetailsScreen = ({
 
               {isPaid ? null : (
                 <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
-                  <Text style={{flex: 0.4, fontSize: sp(14), fontWeight: '700', color: DETAIL_DARK}}>Pending Amount</Text>
+                  <Text style={{flex: 0.4, fontSize: sp(14), fontWeight: '700', color: DETAIL_DARK}}>{t('rn_pending_amount')}</Text>
                   <Text style={{flex: 0.6, fontSize: sp(14), fontWeight: '700', color: THEME_PRIMARY}}>
                     ₹ {formatAmount(details?.RemainingAmount)}
                   </Text>
@@ -438,7 +439,7 @@ const InvoiceDetailsScreen = ({
 
       <AccountsDeleteSheet
         visible={isDeleteOpen}
-        message="Do you want to delete this Invoice ? It will delete all invoice history."
+        message={t('rn_do_you_want_to_delete_this_invoice_it_will')}
         onNo={() => setIsDeleteOpen(false)}
         onYes={confirmDelete}
       />
@@ -446,7 +447,7 @@ const InvoiceDetailsScreen = ({
       {/* Java dialog_update_payment_status.xml */}
       <AccountsFormSheet
         visible={isPaymentModalOpen}
-        title="Update Payment Status"
+        title={t('rn_update_payment_status')}
         onClose={() => setIsPaymentModalOpen(false)}
         actionLabel={t('add').toUpperCase()}
         bodyPaddingTop={0}
@@ -454,19 +455,19 @@ const InvoiceDetailsScreen = ({
         onAction={handleSavePayment}
         cancelLabel={t('cancel')}>
         <View style={styles.amountRow}>
-          <Text style={styles.amountLabel}>Total Amount</Text>
+          <Text style={styles.amountLabel}>{t('rn_total_amount')}</Text>
           <Text style={styles.amountValue}>
             ₹ {formatAmount(paymentStatus?.total ?? details?.GrandTotalAmount)}
           </Text>
         </View>
         <View style={styles.amountRow}>
-          <Text style={styles.amountLabel}>Received Amount</Text>
+          <Text style={styles.amountLabel}>{t('received_amount')}</Text>
           <Text style={styles.amountValue}>
             ₹ {formatAmount(paymentStatus?.received ?? details?.ReceivedAmount)}
           </Text>
         </View>
         <View style={styles.amountRow}>
-          <Text style={styles.amountLabel}>Remaining Amount</Text>
+          <Text style={styles.amountLabel}>{t('remaining_amt')}</Text>
           <Text style={styles.amountValue}>
             ₹ {formatAmount(paymentStatus?.remaining ?? details?.RemainingAmount)}
           </Text>
@@ -482,7 +483,7 @@ const InvoiceDetailsScreen = ({
         />
         <OutlinedSelect
           style={[sheetPill, {height: ms(35), marginHorizontal: -ms(2), marginBottom: 0, color: COLORS.ink}]}
-          label="Select Payment Type"
+          label={t('rn_select_payment_type')}
           value={paymentType || 'Select Payment Type'}
           chevron
           onPress={() => setIsPaymentTypeOpen(true)}
@@ -491,7 +492,7 @@ const InvoiceDetailsScreen = ({
 
       <SearchPickerModal
         visible={isPaymentTypeOpen}
-        title="Select Payment Type"
+        title={t('rn_select_payment_type')}
         hideSearch
         options={PAYMENT_TYPES.map((label, id) => ({id: id + 1, label}))}
         onSelect={o => {
@@ -504,7 +505,7 @@ const InvoiceDetailsScreen = ({
       {/* Java dialog_invoice_follow_up.xml */}
       <AccountsFormSheet
         visible={isFollowUpModalOpen}
-        title="Invoice Follow up Date"
+        title={t('rn_invoice_follow_up_date')}
         onClose={() => setIsFollowUpModalOpen(false)}
         actionLabel={t('submit').toUpperCase()}
         loading={isSavingFollowUp}
@@ -514,7 +515,7 @@ const InvoiceDetailsScreen = ({
           <View pointerEvents="none">
             <OutlinedInput
               style={[sheetPill, {marginTop: ms(6), marginBottom: ms(21), height: ms(42)}]}
-              placeholder="Date *"
+              placeholder={t('star_date')}
               placeholderTextColor={COLORS.lightGray}
               value={followUpDate}
               editable={false}
@@ -526,7 +527,7 @@ const InvoiceDetailsScreen = ({
         </TouchableOpacity>
         <OutlinedInput
           style={styles.notesPill}
-          placeholder="Follow up notes"
+          placeholder={t('rn_follow_up_notes')}
           placeholderTextColor={COLORS.lightGray}
           multiline
           maxLength={60}
@@ -549,7 +550,7 @@ const InvoiceDetailsScreen = ({
           }}
           onDismiss={() => setIsFollowUpDatePickerOpen(false)}
           positiveButton={{label: t('qr_code_positive_button_know'), textColor: COLORS.primary}}
-          negativeButton={{label: 'CANCEL', textColor: COLORS.primary}}
+          negativeButton={{label: tr('CANCEL'), textColor: COLORS.primary}}
         />
       ) : null}
     </View>

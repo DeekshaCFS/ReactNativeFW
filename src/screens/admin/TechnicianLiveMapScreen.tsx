@@ -16,6 +16,8 @@ import {ms, sp} from '../../utils/responsive';
 import {getLiveLocation, type LiveLocation} from '../../utils/firebaseLiveLocation';
 import type {EmployeeListItem} from './adminLegacyApiTypes';
 
+import { useTranslation } from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type Props = {
   visible: boolean;
   employee: EmployeeListItem | null;
@@ -28,6 +30,7 @@ const getEmployeeName = (item: EmployeeListItem) =>
   String(item.FirstNameM ?? '').trim() || `Employee ${item.EmployeeNumber ?? '-'}`;
 
 const TechnicianLiveMapScreen: React.FC<Props> = ({visible, employee, onClose}) => {
+  const { t } = useTranslation();
   const [location, setLocation] = useState<LiveLocation | null>(null);
   const [loading, setLoading] = useState(true);
   const mapRef = useRef<MapView | null>(null);
@@ -73,7 +76,7 @@ const TechnicianLiveMapScreen: React.FC<Props> = ({visible, employee, onClose}) 
       <View style={styles.root}>
         <View style={styles.header}>
           <Text numberOfLines={1} style={styles.headerTitle}>
-            {employee ? getEmployeeName(employee) : 'Track'}
+            {employee ? getEmployeeName(employee) : tr('Track')}
           </Text>
           <Pressable hitSlop={10} onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={sp(20)} color={COLORS.white} />
@@ -103,7 +106,7 @@ const TechnicianLiveMapScreen: React.FC<Props> = ({visible, employee, onClose}) 
         ) : (
           <View style={styles.centerContainer}>
             <Ionicons name="location-outline" size={sp(40)} color={COLORS.textMuted} />
-            <Text style={styles.emptyText}>Location not available yet.</Text>
+            <Text style={styles.emptyText}>{t('rn_location_not_available_yet')}</Text>
           </View>
         )}
       </View>

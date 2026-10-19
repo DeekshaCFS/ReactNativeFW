@@ -27,10 +27,13 @@ import type { CustomerListResultData } from '../../../api/customerList/customerL
 import { useOpenTask } from '../../../hooks/useOpenTask';
 import { showFailureMsg } from '../../../utils/toast';
 
+import { useTranslation } from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 type FilterType = 'Asset' | 'Customer No.';
 const FILTER_OPTIONS: FilterType[] = ['Asset', 'Customer No.'];
 
 export default function ServiceScreen({ navigation }: any) {
+  const { t } = useTranslation();
   const [filter, setFilter] = useState<FilterType>('Asset');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -77,7 +80,7 @@ export default function ServiceScreen({ navigation }: any) {
   // Opening a task the technician picked in the accept sheet (same routing as tapping it in
   // the task list).
   const openTask = useOpenTask(navigation, {
-    onLateInactive: () => showFailureMsg("It's too late to accept this task."),
+    onLateInactive: () => showFailureMsg(t('rn_it_s_too_late_to_accept_this_task')),
   });
 
   const handleSubmit = async () => {
@@ -131,7 +134,7 @@ export default function ServiceScreen({ navigation }: any) {
       {/* White content sheet */}
       <View style={styles.whiteSheet}>
         <Text style={styles.titleText}>
-          Enter Asset Id/Model No. or Customer Number
+          {t('rn_enter_asset_id_model_no_or_customer_number')}
         </Text>
 
         {/* Dropdown trigger */}
@@ -157,7 +160,7 @@ export default function ServiceScreen({ navigation }: any) {
               >
                 {pickedCustomer
                   ? `${pickedCustomer.MobileNumber} - ${pickedCustomer.CustomerName}`
-                  : 'Select Customer Mobile Number'}
+                  : tr('Select Customer Mobile Number')}
               </Text>
             )}
             <Ionicons name="chevron-down" size={scale(20)} color="#000" />
@@ -167,7 +170,7 @@ export default function ServiceScreen({ navigation }: any) {
         {/* Text input -- Java: routineAssetId is textCapCharacters restricted to
             A-Z0-9 (android:digits), routineCutomerNo is numeric. Both maxLength 10. */}
         <TextInput
-          placeholder={filter === 'Asset' ? 'Enter Asset ID/Model No.' : 'Enter Customer Mobile Number'}
+          placeholder={filter === 'Asset' ? tr('Enter Asset ID/Model No.') : tr('Enter Customer Mobile Number')}
           placeholderTextColor="#9ca3af"
           style={styles.input}
           cursorColor={COLORS.primary}
@@ -199,7 +202,7 @@ export default function ServiceScreen({ navigation }: any) {
           {submitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitText}>SUBMIT</Text>
+            <Text style={styles.submitText}>{t('submit').toUpperCase()}</Text>
           )}
         </Pressable>
       </View>
@@ -224,7 +227,7 @@ export default function ServiceScreen({ navigation }: any) {
 
       <SearchPickerModal
         visible={customerPickerOpen}
-        title="Select Customer"
+        title={t('rn_select_customer')}
         searchHint="Search by number or name"
         options={customerOptions}
         loading={customersLoading}

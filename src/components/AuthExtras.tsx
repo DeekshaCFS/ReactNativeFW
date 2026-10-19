@@ -9,10 +9,13 @@ import Svg, { Path } from 'react-native-svg';
 import { GlobalStyles } from '../styles/globalStyles';
 import { dp } from '../utils/responsive';
 
+import { useTranslation } from 'react-i18next';
+import { tr } from '../i18n/tr';
 const WHATSAPP_NUMBER = '+919315228028';
 const HELP_VIDEO_URL = 'https://www.youtube.com/watch?v=zju3Ot7udf4';
 
 export function AuthHelp({ topic }: { topic: 'logging in' | 'signing up' }) {
+  const { t } = useTranslation();
   const openWhatsapp = () => {
     const message = `Hello, I am having trouble ${topic === 'logging in' ? 'logging in to' : 'signing up in'} FieldWeb. Please help`;
     Linking.openURL(`https://wa.me/${WHATSAPP_NUMBER}/?text=${encodeURIComponent(message)}`).catch(() => {});
@@ -21,19 +24,19 @@ export function AuthHelp({ topic }: { topic: 'logging in' | 'signing up' }) {
   return (
     <>
       <Text style={GlobalStyles.helpText}>
-        {topic === 'logging in' ? 'If you are having trouble Logging in' : 'If you are having trouble in Signup'}
+        {topic === 'logging in' ? tr('If you are having trouble Logging in') : tr('If you are having trouble in Signup')}
       </Text>
       <View style={GlobalStyles.helpButtonsRow}>
         <Pressable style={[GlobalStyles.helpButton, GlobalStyles.whatsappButton]} onPress={openWhatsapp}>
           <Ionicons name="logo-whatsapp" size={dp(22)} color="#FFFFFF" />
-          <Text style={GlobalStyles.helpButtonText}>WhatsApp</Text>
+          <Text style={GlobalStyles.helpButtonText}>{t('rn_whatsapp')}</Text>
         </Pressable>
         <Pressable
           style={[GlobalStyles.helpButton, GlobalStyles.videoButton]}
           onPress={() => Linking.openURL(HELP_VIDEO_URL).catch(() => {})}
         >
           <Ionicons name="play-circle" size={dp(22)} color="#C22032" />
-          <Text style={GlobalStyles.helpButtonText}>Video</Text>
+          <Text style={GlobalStyles.helpButtonText}>{t('rn_video')}</Text>
         </Pressable>
       </View>
     </>

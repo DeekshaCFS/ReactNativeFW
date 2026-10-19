@@ -29,6 +29,7 @@ import {scale, sp, vs} from '../../utils/responsive';
 import {formatAmount} from '../../utils/decimal';
 
 import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
 const BLUE_CODE = '#1877F2';
@@ -334,7 +335,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
             </Text>
             <View style={styles.detailLine}>
               <Text style={styles.detailLabel} numberOfLines={1}>
-                Customer :
+                {t('rn_customer')}
               </Text>
               <Text style={[styles.detailValue, {color: THEME_PRIMARY}]} numberOfLines={1}>
                 {getQuoteCustomerName(item)}
@@ -343,7 +344,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
           </View>
           <View style={[styles.cardRight, {flex: 0.35, marginRight: scale(2)}]}>
             <Text style={styles.detailLabel} numberOfLines={1}>
-              Amount :{' '}
+              {t('amount') + ' :'}{' '}
               <Text style={[styles.detailBold, {color: GREEN_500}]}>₹ {formatAmount(getQuoteAmount(item))}</Text>
             </Text>
           </View>
@@ -377,7 +378,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
             </Text>
             <View style={styles.detailLine}>
               <Text style={styles.detailLabel} numberOfLines={1}>
-                Cust. Name :
+                {t('rn_cust_name')}
               </Text>
               <Text style={[styles.detailValue, {color: THEME_PRIMARY}]} numberOfLines={1}>
                 {getInvoiceCustomerName(item)}
@@ -395,7 +396,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
           <View style={[styles.cardRight, {flex: 0.4, alignItems: 'flex-start'}]}>
             {isPartial ? (
               <Text style={[styles.pendingText, {color: '#ff9b00'}]} numberOfLines={1}>
-                Pending Amt :{' '}
+                {t('rn_pending_amt')}{' '}
                 <Text style={[styles.detailBold, {color: THEME_PRIMARY, fontSize: sp(12)}]}>
                   ₹ {formatAmount(Number((item as any).RemainingAmount ?? 0))}
                 </Text>
@@ -467,8 +468,8 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
           AdminHomeScreen (which this screen is embedded in). */}
       <TabStrip
         tabs={[
-          { key: 'quotation', label: 'QUOTATION' },
-          { key: 'invoice', label: 'INVOICE' },
+          { key: 'quotation', label: tr('QUOTATION') },
+          { key: 'invoice', label: tr('INVOICE') },
         ]}
         active={activeTab}
         onChange={setActiveTab}
@@ -484,13 +485,13 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
           onSubmitEditing={submitSearch}
           maxLength={10}
           fontSize={sp(16)}
-          placeholder={activeTab === 'quotation' ? 'Customer Name,Quote Id' : 'Search By Invoice Id, Customer name'}
+          placeholder={activeTab === 'quotation' ? tr('Customer Name,Quote Id') : tr('Search By Invoice Id, Customer name')}
           style={styles.searchFlex}
         />
         <TouchableOpacity
           style={styles.addQuoteButton}
           onPress={() => (activeTab === 'quotation' ? setIsAddQuoteModalOpen(true) : setIsAddInvoiceModalOpen(true))}>
-          <Text style={styles.addQuoteButtonText}>{activeTab === 'quotation' ? '+ Quote' : '+ Invoice'}</Text>
+          <Text style={styles.addQuoteButtonText}>{activeTab === 'quotation' ? tr('+ Quote') : tr('+ Invoice')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -499,7 +500,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
         onLayout={e => setStatusSelectorY(e.nativeEvent.layout.y)}
         onPress={() => setIsStatusModalOpen(true)}>
         <Text style={styles.statusSelectorText} numberOfLines={1}>
-          {selectedStatus.label}
+          {tr(selectedStatus.label)}
         </Text>
         <Ionicons name="chevron-down" style={styles.statusSelectorChevron} />
       </Pressable>
@@ -562,7 +563,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
                   setSubmittedSearch('');
                   setIsStatusModalOpen(false);
                 }}>
-                <Text style={styles.statusModalItemText}>{option.label}</Text>
+                <Text style={styles.statusModalItemText}>{tr(option.label)}</Text>
               </TouchableOpacity>
             ))}
           </View>

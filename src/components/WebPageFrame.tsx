@@ -7,7 +7,9 @@ import {WebView} from 'react-native-webview';
 import {COLORS} from '../theme/theme';
 import {ms, sp} from '../utils/responsive';
 
+import { useTranslation } from 'react-i18next';
 export default function WebPageFrame({uri}: {uri: string}) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -26,7 +28,7 @@ export default function WebPageFrame({uri}: {uri: string}) {
         />
         {error && (
           <View style={styles.errorBox}>
-            <Text style={styles.errorText}>Error loading page</Text>
+            <Text style={styles.errorText}>{t('rn_error_loading_page')}</Text>
           </View>
         )}
       </View>
@@ -34,7 +36,7 @@ export default function WebPageFrame({uri}: {uri: string}) {
         <View style={styles.dim}>
           <View style={styles.dialog}>
             <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.dialogText}>Loading...</Text>
+            <Text style={styles.dialogText}>{t('rn_loading')}</Text>
           </View>
         </View>
       )}

@@ -29,6 +29,7 @@ import { showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import { showImageSourceDialog } from '../../components/ImageSourceHost';
+import { tr } from '../../i18n/tr';
 type Props = {
   visible: boolean;
   ownerId: number;
@@ -63,7 +64,7 @@ const AddEditBrandModal: React.FC<Props> = ({visible, ownerId, editing, onClose,
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      showToast('Unable to read the selected image. Please try again.');
+      showToast(t('rn_unable_to_read_the_selected_image_please_t'));
       return;
     }
     setImage({
@@ -129,7 +130,7 @@ const AddEditBrandModal: React.FC<Props> = ({visible, ownerId, editing, onClose,
   return (
     <BrandDialogSheet
       visible={visible}
-      title={isEditing ? 'Edit Brand' : 'Create Brand'}
+      title={isEditing ? tr('Edit Brand') : tr('Create Brand')}
       submitLabel={(isEditing ? t('update') : 'Create Brand').toUpperCase()}
       submitting={submitting}
       error={error}
@@ -142,14 +143,14 @@ const AddEditBrandModal: React.FC<Props> = ({visible, ownerId, editing, onClose,
         }
         handleSubmit();
       }}>
-      <FieldLabel>Brand Name *</FieldLabel>
+      <FieldLabel>{t('star_product_brand')}</FieldLabel>
       <PillInput placeholder={t('label_brand_name')} value={name} onChangeText={setName} />
 
-      <FieldLabel>Brand Image</FieldLabel>
+      <FieldLabel>{t('rn_brand_image')}</FieldLabel>
       <ImageUploadBox uri={image?.uri ?? editing?.ImagePath} onPress={showImagePickerOptions} />
 
-      <FieldLabel>Brand Description</FieldLabel>
-      <DescriptionInput placeholder="Enter Brand Description Here.." value={description} onChangeText={setDescription} />
+      <FieldLabel>{t('rn_brand_description')}</FieldLabel>
+      <DescriptionInput placeholder={t('brand_description')} value={description} onChangeText={setDescription} />
     </BrandDialogSheet>
   );
 };
