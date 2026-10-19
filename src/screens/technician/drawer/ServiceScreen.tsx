@@ -14,18 +14,23 @@ import {
 import Modal from '../../../components/AppModal';
 import { COLORS } from '../../../theme/theme';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ms, sp, scale, hp, vs, wp, wps } from '../../../utils/responsive';
 import { getRoutineCustomerList } from '../../../api/fsrManagement/fsrManagementService';
 import type { RoutineServiceCustomerListDTOResultData } from '../../../api/fsrManagement/fsrManagement.types';
 import RoutineServiceAcceptModal from './RoutineServiceAcceptModal';
+import SearchPickerModal from '../../../components/SearchPickerModal';
+import { getCustomerList } from '../../../api/customerList/customerListService';
+import type { CustomerListResultData } from '../../../api/customerList/customerList.types';
+import { useOpenTask } from '../../../hooks/useOpenTask';
+import { showFailureMsg } from '../../../utils/toast';
 
 type FilterType = 'Asset' | 'Customer No.';
 const FILTER_OPTIONS: FilterType[] = ['Asset', 'Customer No.'];
 
-export default function ServiceScreen() {
+export default function ServiceScreen({ navigation }: any) {
   const [filter, setFilter] = useState<FilterType>('Asset');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -34,8 +39,49 @@ export default function ServiceScreen() {
   const [lookupResult, setLookupResult] = useState<RoutineServiceCustomerListDTOResultData | null>(null);
   const insets = useSafeAreaInsets();
 
+  // Added on top of Java: the owner's customers as a dropdown for "Customer No." (Java: free
+  // text only). Same call Java's Accounts screens make for a field worker:
+  // CustomerList/GetAllCustomerListForMobile with the OWNER's id.
+  const [customers, setCustomers] = useState<CustomerListResultData[]>([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [customersFailed, setCustomersFailed] = useState(false);
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
+  const [pickedCustomer, setPickedCustomer] = useState<CustomerListResultData | null>(null);
+
+  useEffect(() => {
+    if (filter !== 'Customer No.' || customers.length > 0 || customersLoading) return;
+    (async () => {
+      setCustomersLoading(true);
+      setCustomersFailed(false);
+      try {
+        const ownerId = Number(await AsyncStorage.getItem('owner_id')) || 0;
+        const res = await getCustomerList({ UserId: ownerId, CustomerTagId: 0 });
+        const rows = (res?.ResultData ?? []).filter(c => !!c.MobileNumber && !!c.CustomerName);
+        setCustomers(rows);
+        setCustomersFailed(rows.length === 0);
+      } catch {
+        setCustomersFailed(true);
+      } finally {
+        setCustomersLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
+  const customerOptions = useMemo(
+    () => customers.map((c, i) => ({ id: i, label: `${c.MobileNumber} - ${c.CustomerName}` })),
+    [customers],
+  );
+  const useCustomerDropdown = filter === 'Customer No.' && !customersFailed;
+
+  // Opening a task the technician picked in the accept sheet (same routing as tapping it in
+  // the task list).
+  const openTask = useOpenTask(navigation, {
+    onLateInactive: () => showFailureMsg("It's too late to accept this task."),
+  });
+
   const handleSubmit = async () => {
-    const value = inputValue.trim();
+    const value = (useCustomerDropdown ? pickedCustomer?.MobileNumber ?? '' : inputValue).trim();
     if (!value || submitting) return;
 
     setErrorText('');
@@ -59,6 +105,12 @@ export default function ServiceScreen() {
       const result = response?.ResultData;
 
       if (!result || (!result.CustomerName && !result.Address)) {
+        // A customer picked from the owner's list is known to exist; use its details if the
+        // lookup cannot find it by number.
+        if (useCustomerDropdown && pickedCustomer) {
+          setLookupResult(pickedCustomer as any);
+          return;
+        }
         setErrorText('Customer does not exist.');
         return;
       }
@@ -91,6 +143,27 @@ export default function ServiceScreen() {
           <Ionicons name="chevron-down" size={scale(20)} color="#000" />
         </Pressable>
 
+        {useCustomerDropdown ? (
+          <Pressable
+            style={[styles.dropdownTrigger, { marginBottom: ms(20) }]}
+            onPress={() => setCustomerPickerOpen(true)}
+          >
+            {customersLoading ? (
+              <ActivityIndicator color={COLORS.primary} />
+            ) : (
+              <Text
+                style={[styles.dropdownValue, !pickedCustomer && { color: '#9ca3af', fontSize: sp(15) }]}
+                numberOfLines={1}
+              >
+                {pickedCustomer
+                  ? `${pickedCustomer.MobileNumber} - ${pickedCustomer.CustomerName}`
+                  : 'Select Customer Mobile Number'}
+              </Text>
+            )}
+            <Ionicons name="chevron-down" size={scale(20)} color="#000" />
+          </Pressable>
+        ) : (
+          <>
         {/* Text input -- Java: routineAssetId is textCapCharacters restricted to
             A-Z0-9 (android:digits), routineCutomerNo is numeric. Both maxLength 10. */}
         <TextInput
@@ -113,13 +186,16 @@ export default function ServiceScreen() {
           returnKeyType="done"
         />
 
+          </>
+        )}
+
         {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
         {/* Submit */}
         <Pressable
-          style={[styles.submitBtn, (!inputValue.trim() || submitting) && styles.submitBtnDisabled]}
+          style={[styles.submitBtn, (!(useCustomerDropdown ? pickedCustomer : inputValue.trim()) || submitting) && styles.submitBtnDisabled]}
           onPress={handleSubmit}
-          disabled={!inputValue.trim() || submitting}>
+          disabled={!(useCustomerDropdown ? pickedCustomer : inputValue.trim()) || submitting}>
           {submitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
@@ -135,7 +211,29 @@ export default function ServiceScreen() {
         onCreated={() => {
           setLookupResult(null);
           setInputValue('');
+          setPickedCustomer(null);
         }}
+        navigation={navigation}
+        onOpenTask={task => {
+          setLookupResult(null);
+          setInputValue('');
+          setPickedCustomer(null);
+          openTask(task);
+        }}
+      />
+
+      <SearchPickerModal
+        visible={customerPickerOpen}
+        title="Select Customer"
+        searchHint="Search by number or name"
+        options={customerOptions}
+        loading={customersLoading}
+        onSelect={option => {
+          setPickedCustomer(customers[option.id] ?? null);
+          setErrorText('');
+          setCustomerPickerOpen(false);
+        }}
+        onClose={() => setCustomerPickerOpen(false)}
       />
 
       {/* Dropdown Modal */}

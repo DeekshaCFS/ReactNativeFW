@@ -18,6 +18,8 @@ import { getFsrBindList } from '../../../api/fsrManagement/fsrManagementService'
 import type { FSRBindListDTOResultData } from '../../../api/fsrManagement/fsrManagement.types';
 import type { RoutineServiceCustomerListDTOResultData } from '../../../api/fsrManagement/fsrManagement.types';
 import { addTaskRoutineService, updateTaskStatus } from '../../../api/task/taskService';
+import { getTaskListSearchNew } from '../../../api/taskList/taskListService';
+import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { TASK_STATUS_ID } from '../../../constants/taskStatus';
 import { nowAsJavaTime } from '../../../utils/taskStatus.utils';
 import { getCurrentUserId } from '../../../state/session';
@@ -32,9 +34,12 @@ interface Props {
   customer: RoutineServiceCustomerListDTOResultData | null;
   onClose: () => void;
   onCreated: () => void;
+  navigation?: any;
+  /** The technician picked one of the customer's existing tasks instead of typing a new name. */
+  onOpenTask?: (task: Task) => void;
 }
 
-export default function RoutineServiceAcceptModal({ visible, customer, onClose, onCreated }: Props) {
+export default function RoutineServiceAcceptModal({ visible, customer, onClose, onCreated, navigation, onOpenTask }: Props) {
   const {t} = useTranslation();
   const [taskName, setTaskName] = useState('');
   const [taskNameError, setTaskNameError] = useState('');
@@ -45,6 +50,11 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
   const [selectedFsr, setSelectedFsr] = useState<FSRBindListDTOResultData | null>(null);
   const [fsrPickerOpen, setFsrPickerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Added on top of Java: the customer's existing tasks as a dropdown for "Task Name".
+  const [customerTasks, setCustomerTasks] = useState<Task[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [taskPickerOpen, setTaskPickerOpen] = useState(false);
+  const [pickedTask, setPickedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -55,8 +65,38 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
     setWages('');
     setWagesError('');
     setSelectedFsr(null);
+    setPickedTask(null);
+    setCustomerTasks([]);
 
     const userId = getCurrentUserId();
+    // Tasks of this customer assigned to the technician: the task search (Java: TaskList/
+    // AllTasksListByUserId, searchable by customer name) narrowed to this customer, keeping
+    // only tasks that can still be worked on.
+    if (customer?.CustomerName) {
+      setTasksLoading(true);
+      const now = new Date();
+      getTaskListSearchNew({
+        UserId: userId,
+        searchparam: customer.CustomerName,
+        TaskStatusID: 0,
+        TaskTypeID: 0,
+        pageIndex: 1,
+        TaskMonth: now.getMonth() + 1,
+        TaskYear: now.getFullYear(),
+        TaskTagId: 0,
+        AllData: true,
+      })
+        .then(res => {
+          const rows = (res?.ResultData ?? []).filter(
+            (t: Task) =>
+              (customer.CustomerDetailsid ? t.CustomerDetailsid === customer.CustomerDetailsid : true) &&
+              ['InActive', 'Ongoing', 'OnHold'].includes(t.TaskStatus ?? ''),
+          );
+          setCustomerTasks(rows);
+        })
+        .catch(() => setCustomerTasks([]))
+        .finally(() => setTasksLoading(false));
+    }
     getFsrBindList({ UserId: userId })
       .then(res => setFsrList(res.ResultData ?? []))
       .catch(() => setFsrList([]));
@@ -72,6 +112,12 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
   };
 
   const handleProceed = async () => {
+    // Picked one of the customer's existing tasks: open it, nothing is created.
+    if (pickedTask && taskName === pickedTask.Name) {
+      onOpenTask?.(pickedTask);
+      return;
+    }
+
     const trimmedName = taskName;
     if (!trimmedName.trim()) {
       setTaskNameError('Please Enter Task Name');
@@ -155,19 +201,42 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
 
       const newTaskId = res.ResultData?.NewAddedTaskId ?? res.ResultData?.Id;
       if (newTaskId) {
-        // Java flips the freshly-created self task straight to Ongoing.
+        // Java (updateTaskStatusRetroSelfTask): the freshly-created self task goes straight to
+        // Ongoing with TaskState 0 (NOT_STARTED) so the Start button shows on the countdown screen.
         await updateTaskStatus({
           TaskId: newTaskId,
           UserId: userId,
           TaskStatus: TASK_STATUS_ID.Ongoing,
-          TaskState: 1,
+          TaskState: 0,
           TotalDistance: 0,
           Time: nowAsJavaTime(),
         });
       }
 
       showSuccessMsg(res?.Message || 'Task created successfully.');
-      onCreated();
+
+      // Java (getTaskListForSelfTask -> navigateToStartTaskCountDown): find the new task by its
+      // name among the technician's Ongoing tasks and open the start screen.
+      try {
+        const list = await getTaskListSearchNew({
+          UserId: userId,
+          searchparam: res.ResultData?.Name ?? trimmedName,
+          TaskStatusID: TASK_STATUS_ID.Ongoing,
+          TaskTypeID: 1,
+          pageIndex: 1,
+          TaskMonth: now.getMonth() + 1,
+          TaskYear: now.getFullYear(),
+          TaskTagId: 0,
+          AllData: true,
+        });
+        // Names can repeat (Java takes the first hit by name); prefer the task we just created.
+        const found = list?.ResultData ?? [];
+        const created = found.find((t: Task) => t.Id === newTaskId) ?? found[0];
+        onCreated();
+        if (created && navigation) navigation.navigate('TaskExecution', { task: created });
+      } catch {
+        onCreated();
+      }
     } catch (e: any) {
       showFailureMsg(e?.message || 'Could not create the task.');
     } finally {
@@ -205,15 +274,28 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
           <Text style={styles.sectionLabel}>{t('landmark')}</Text>
           <Text style={styles.landmarkText}>{customer?.Description}</Text>
 
-          <TextInput
-            value={taskName}
-            onChangeText={text => { setTaskName(text); if (taskNameError) setTaskNameError(''); }}
-            placeholder={t('task_name')}
-            placeholderTextColor="#9ca3af"
-            style={styles.input}
-            maxLength={100}
-            autoCapitalize="words"
-          />
+          <View style={[styles.input, styles.taskNameRow]}>
+            <TextInput
+              value={taskName}
+              onChangeText={text => {
+                setTaskName(text);
+                if (pickedTask && text !== pickedTask.Name) setPickedTask(null);
+                if (taskNameError) setTaskNameError('');
+              }}
+              placeholder={t('task_name')}
+              placeholderTextColor="#9ca3af"
+              style={styles.taskNameInput}
+              maxLength={100}
+              autoCapitalize="words"
+            />
+            {tasksLoading ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : customerTasks.length > 0 ? (
+              <Pressable onPress={() => setTaskPickerOpen(true)} hitSlop={10}>
+                <Ionicons name="chevron-down" size={scale(20)} color="#111" />
+              </Pressable>
+            ) : null}
+          </View>
           {!!taskNameError && <Text style={styles.errorText}>{taskNameError}</Text>}
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -267,6 +349,24 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
         </View>
       </View>
 
+      {/* Existing tasks of this customer. */}
+      <SearchPickerModal
+        visible={taskPickerOpen}
+        title="Select Task"
+        searchHint="Search task"
+        options={customerTasks.map((task, i) => ({ id: i, label: `${task.Name}  [${task.NewTaskId ?? task.Id}]` }))}
+        onSelect={option => {
+          const task = customerTasks[option.id];
+          if (task) {
+            setPickedTask(task);
+            setTaskName(task.Name ?? '');
+            setTaskNameError('');
+          }
+          setTaskPickerOpen(false);
+        }}
+        onClose={() => setTaskPickerOpen(false)}
+      />
+
       {/* FSR picker -- Java dialog_searchable_spinner ("Select FSR"), the shared dialog. */}
       <SearchPickerModal
         visible={fsrPickerOpen}
@@ -286,6 +386,8 @@ export default function RoutineServiceAcceptModal({ visible, customer, onClose, 
 }
 
 const styles = StyleSheet.create({
+  taskNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 0 },
+  taskNameInput: { flex: 1, height: '100%', fontSize: sp(15), color: '#111', padding: 0 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: { backgroundColor: '#fff', borderTopLeftRadius: ms(24), borderTopRightRadius: ms(24), padding: ms(20) },
   header: { alignItems: 'center', marginBottom: ms(12) },
