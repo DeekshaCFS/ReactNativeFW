@@ -36,6 +36,7 @@ import SearchPickerModal from '../../../components/SearchPickerModal';
 import { showFailureMsg, showToast } from '../../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import ImageSourceDialog from '../../../components/ImageSourceDialog';
 // `UserResultData` / `KycDocType` are just local aliases for the api-layer
 // DTO shapes, kept so the rest of this screen reads the same as before.
 // DocTypeId/DocTypeName are narrowed back to required — every entry the KYC
@@ -674,33 +675,12 @@ export default function TechProfileScreen() {
       </ScrollView>
 
       {/* Photo source picker */}
-      <Modal visible={showPhotoSourceModal} transparent animationType="fade" onRequestClose={() => setShowPhotoSourceModal(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowPhotoSourceModal(false)}>
-          <Pressable style={styles.modalSheetWrap} onPress={() => {}}>
-            <View style={styles.photoSourceSheet}>
-              <Text style={styles.photoSourceTitle}>Select Image Source</Text>
-              <View style={styles.photoSourceDivider} />
-              <TouchableOpacity style={styles.photoSourceOption} onPress={() => handleProfilePhoto('camera')}>
-                <View style={[styles.photoSourceIconWrap, { backgroundColor: COLORS.primary }]}>
-                  <Ionicons name="camera-outline" size={sp(20)} color="#fff" />
-                </View>
-                <Text style={styles.photoSourceOptionText}>Camera</Text>
-              </TouchableOpacity>
-              <View style={styles.photoSourceDivider} />
-              <TouchableOpacity style={styles.photoSourceOption} onPress={() => handleProfilePhoto('gallery')}>
-                <View style={[styles.photoSourceIconWrap, { backgroundColor: '#6366F1' }]}>
-                    <Ionicons name="images-outline" size={sp(20)} color="#fff" />
-                </View>
-                <Text style={styles.photoSourceOptionText}>Gallery</Text>
-              </TouchableOpacity>
-              <View style={styles.photoSourceDivider} />
-              <TouchableOpacity style={[styles.photoSourceOption, { justifyContent: 'center' }]} onPress={() => setShowPhotoSourceModal(false)}>
-                <Text style={[styles.photoSourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>{t('cancel')}</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <ImageSourceDialog
+        visible={showPhotoSourceModal}
+        onCamera={() => handleProfilePhoto('camera')}
+        onGallery={() => handleProfilePhoto('gallery')}
+        onClose={() => setShowPhotoSourceModal(false)}
+      />
 
       {/* Address search (Java's full-screen Places Autocomplete) */}
       {/* Java ProfileFragmentNew: dialog_searchable_spinner_kyc -- the shared dialog. */}
@@ -939,12 +919,6 @@ const styles = StyleSheet.create({
   // width: without one, the sheet inside (which is itself width:'100%') has nothing to resolve
   // its percentage against and collapses to a sliver.
   modalSheetWrap:        { width: '100%' },
-  photoSourceSheet:      { backgroundColor: '#fff', borderRadius: scale(16), width: '100%', maxWidth: scale(360), paddingVertical: vs(8), elevation: 10 },
-  photoSourceTitle:      { fontSize: sp(17), fontWeight: '600', color: '#111', paddingHorizontal: scale(20), paddingVertical: vs(14) },
-  photoSourceDivider:    { height: 1, backgroundColor: '#F3F4F6' },
-  photoSourceOption:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: scale(20), paddingVertical: vs(14), gap: scale(14) },
-  photoSourceIconWrap:   { width: scale(34), height: scale(34), borderRadius: scale(17), alignItems: 'center', justifyContent: 'center' },
-  photoSourceOptionText: { fontSize: sp(15), color: '#1F2937' },
 
   /* OTP modal (Java: single card, field + OTP row, Validate/Submit) */
   otpSheet: {

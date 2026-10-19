@@ -43,6 +43,7 @@ import { finishTaskFlowToHome } from '../../../navigation/taskFlowNavigation';
 import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { showImageSourceDialog } from '../../../components/ImageSourceHost';
 // Java: DocumentUploadFragment limits.
 const MAX_TOTAL_MB = 5;
 const MAX_FILES = 10;
@@ -209,11 +210,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
 
   // Java: showImageSourceChooser() -> "Select Image Source" with Camera / Gallery.
   const pickSlotPhoto = (index: number) =>
-    Alert.alert('Select Image Source', undefined, [
-      { text: 'Camera', onPress: () => captureIntoSlot(index, 'camera') },
-      { text: 'Gallery', onPress: () => captureIntoSlot(index, 'gallery') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    showImageSourceDialog(() => captureIntoSlot(index, 'camera'), () => captureIntoSlot(index, 'gallery'));
 
   const setFileType = (key: string, type: DocAttachmentType) => {
     const apply = (f: SelectedFile): SelectedFile =>

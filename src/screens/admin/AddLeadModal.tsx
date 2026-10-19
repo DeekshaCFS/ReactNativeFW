@@ -44,6 +44,7 @@ import { postExternalLeadForm, postExternalLeadFormByTech } from '../../api/lead
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { showImageSourceDialog } from '../../components/ImageSourceHost';
 type Photo = { base64: string; uri: string; fileName: string };
 
 const MAX_SUGGESTIONS = 6;
@@ -213,14 +214,10 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
       const asset = result.assets?.[0];
       if (asset) setPhoto(slot, asset);
     };
-    Alert.alert(t('add_capture_image'), 'Choose an option', [
-      { text: 'Camera', onPress: async () => handle(await launchCameraWithPermission(options), 'Camera') },
-      {
-        text: 'Gallery',
-        onPress: async () => handle(await launchImageLibrary({ ...options, selectionLimit: 1 }), 'Gallery'),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    showImageSourceDialog(
+      async () => handle(await launchCameraWithPermission(options), 'Camera'),
+      async () => handle(await launchImageLibrary({ ...options, selectionLimit: 1 }), 'Gallery'),
+    );
   };
 
   // Java's validation chain, in the same order.

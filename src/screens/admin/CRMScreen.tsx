@@ -223,6 +223,7 @@ import TabStrip from '../../components/TabStrip';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { showImageSourceDialog } from '../../components/ImageSourceHost';
 // Enquiry form: same Java dialog sheet / header / outlined-field metrics as the Add Task form
 // (dialog_enquiry_new), layered over the CRM-wide styles.
 const eq = {...styles, ...taskStyles};
@@ -1060,11 +1061,7 @@ const CRMScreen = ({
   };
 
   const handlePhotoBoxPress = (slotIndex: number) => {
-    Alert.alert('Add Photo', 'Choose an option', [
-      {text: 'Camera', onPress: () => capturePhotoFromCamera(slotIndex)},
-      {text: 'Gallery', onPress: () => pickPhotoFromGallery(slotIndex)},
-      {text: 'Cancel', style: 'cancel'},
-    ]);
+    showImageSourceDialog(() => capturePhotoFromCamera(slotIndex), () => pickPhotoFromGallery(slotIndex));
   };
 
   const removePhoto = (slotIndex: number) => {

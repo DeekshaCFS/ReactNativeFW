@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import RootNavigator from './src/navigation/RootNavigator';
 import AppContainer from './src/components/AppContainer';
 import ToastHost from './src/components/ToastHost';
+import ImageSourceHost from './src/components/ImageSourceHost';
 import { loadStoredLanguage } from './src/i18n';
 import { TourProvider } from './src/tour/TourContext';
 import SpotlightOverlay from './src/tour/SpotlightOverlay';
@@ -51,6 +52,7 @@ export default function App() {
         </AppContainer>
         <SpotlightOverlay />
         {/* Java-style success / failure banner (CommonFunction.showSuccessMsg / showFailureMsg). */}
+        <ImageSourceHost />
         <ToastHost />
       </View>
     </TourProvider>

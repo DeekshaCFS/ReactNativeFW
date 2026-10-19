@@ -43,6 +43,7 @@ import TabStrip from '../../components/TabStrip';
 import {OutlinedInput} from '../../components/OutlinedInput';
 
 import {useTranslation} from 'react-i18next';
+import { showImageSourceDialog } from '../../components/ImageSourceHost';
 type Props = {
   ownerId: number;
 };
@@ -147,25 +148,18 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
   };
 
   const showImagePickerOptions = () => {
-    Alert.alert('QR Code', 'Add a QR code image', [
-      {
-        text: 'Camera',
-        onPress: async () => {
-          const result = await launchCameraWithPermission({mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true});
-          const asset = result.assets?.[0];
-          if (asset) applyPickedImage(asset);
-        },
+    showImageSourceDialog(
+      async () => {
+        const result = await launchCameraWithPermission({mediaType: 'photo', includeBase64: true, quality: 0.6, saveToPhotos: true});
+        const asset = result.assets?.[0];
+        if (asset) applyPickedImage(asset);
       },
-      {
-        text: 'Gallery',
-        onPress: async () => {
-          const result = await launchImageLibrary({mediaType: 'photo', includeBase64: true, quality: 0.6, selectionLimit: 1});
-          const asset = result.assets?.[0];
-          if (asset) applyPickedImage(asset);
-        },
+      async () => {
+        const result = await launchImageLibrary({mediaType: 'photo', includeBase64: true, quality: 0.6, selectionLimit: 1});
+        const asset = result.assets?.[0];
+        if (asset) applyPickedImage(asset);
       },
-      {text: 'Cancel', style: 'cancel'},
-    ]);
+    );
   };
 
   const handlePay = () => {

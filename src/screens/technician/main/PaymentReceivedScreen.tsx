@@ -39,6 +39,7 @@ import { savePendingTask, getPendingTask } from '../../../offline/offlineStore';
 import DecimalInput from '../../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { showImageSourceDialog } from '../../../components/ImageSourceHost';
 // Java (TechPaymentReceivedFragmentNew): first spinner is the mode, the type spinner only
 // appears for Offline.
 const PAYMENT_MODES = ['Select Payment Mode', 'Online', 'Offline'] as const;
@@ -103,11 +104,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
   };
 
   const openProofPicker = () =>
-    Alert.alert('Proof of Payment', 'Select an option', [
-      { text: 'Take Photo', onPress: () => pickProofPhoto('camera') },
-      { text: 'Choose from Gallery', onPress: () => pickProofPhoto('gallery') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    showImageSourceDialog(() => pickProofPhoto('camera'), () => pickProofPhoto('gallery'));
   const [earnedAmount, setEarnedAmount] = useState('');
   const [adjustments, setAdjustments] = useState<AdjustmentRow[]>([]);
   const [pickerOpen, setPickerOpen] = useState<'mode' | 'type' | null>(null);

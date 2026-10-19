@@ -35,6 +35,7 @@ import {
 import { showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { showImageSourceDialog } from '../../components/ImageSourceHost';
 export type ServiceGroupKind = 'category' | 'subcategory';
 
 export type EditingServiceGroup = {
@@ -122,11 +123,7 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
   };
 
   const showImagePickerOptions = () => {
-    Alert.alert('Photo', 'Add a photo', [
-      {text: 'Camera', onPress: () => captureImageFromCamera()},
-      {text: 'Gallery', onPress: () => pickImageFromGallery()},
-      {text: 'Cancel', style: 'cancel'},
-    ]);
+    showImageSourceDialog(() => captureImageFromCamera(), () => pickImageFromGallery());
   };
 
   // Java (addCategory/addSubCategory) requires both name and description.

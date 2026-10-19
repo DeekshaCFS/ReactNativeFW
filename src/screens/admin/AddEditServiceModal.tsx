@@ -36,6 +36,7 @@ import { showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { showImageSourceDialog } from '../../components/ImageSourceHost';
 type Props = {
   visible: boolean;
   ownerId: number;
@@ -124,11 +125,7 @@ const AddEditServiceModal: React.FC<Props> = ({
 
   const showImagePickerOptions = (slot: number) => {
     pickingSlot.current = slot;
-    Alert.alert('Photo', 'Add a photo', [
-      {text: 'Camera', onPress: () => captureImageFromCamera()},
-      {text: 'Gallery', onPress: () => pickImageFromGallery()},
-      {text: 'Cancel', style: 'cancel'},
-    ]);
+    showImageSourceDialog(() => captureImageFromCamera(), () => pickImageFromGallery());
   };
 
   // Java requires name, price and description (phone validation is commented out there).

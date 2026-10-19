@@ -38,6 +38,7 @@ import { showFailureMsg, showToast } from '../../../utils/toast';
 import DecimalInput from '../../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
+import { showImageSourceDialog } from '../../../components/ImageSourceHost';
 type NavigationProp = NativeStackNavigationProp<TechnicianStackParamList, 'Expenditure'>;
 
 const toApiDate = toExpenseApiDate;
@@ -148,11 +149,7 @@ export default function ExpenditureScreen() {
   };
 
   const choosePhotoSource = () => {
-    Alert.alert(t('add_capture_image'), 'Choose an option', [
-      { text: 'Camera', onPress: () => captureImageFromCamera() },
-      { text: 'Gallery', onPress: () => pickImageFromGallery() },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    showImageSourceDialog(() => captureImageFromCamera(), () => pickImageFromGallery());
   };
 
   const closeAddExpenseModal = () => {

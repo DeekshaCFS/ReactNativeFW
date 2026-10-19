@@ -29,6 +29,7 @@ import type {ModelItem} from '../../api/brandModel/brandModelService';
 import { showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
+import { showImageSourceDialog } from '../../components/ImageSourceHost';
 type Props = {
   visible: boolean;
   ownerId: number;
@@ -99,11 +100,7 @@ const AddEditModelModal: React.FC<Props> = ({visible, ownerId, brandId, brandNam
   };
 
   const showImagePickerOptions = () => {
-    Alert.alert('Photo', 'Add a photo', [
-      {text: 'Camera', onPress: () => captureImageFromCamera()},
-      {text: 'Gallery', onPress: () => pickImageFromGallery()},
-      {text: 'Cancel', style: 'cancel'},
-    ]);
+    showImageSourceDialog(() => captureImageFromCamera(), () => pickImageFromGallery());
   };
 
   const isValid = name.trim().length > 0;
