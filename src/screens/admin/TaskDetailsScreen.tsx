@@ -22,6 +22,9 @@ import type {
 import type {TaskListItem} from './adminLegacyApiTypes';
 import {getStringField, getNumberField} from './crmShared';
 import {ms, sp} from '../../utils/responsive';
+import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
+import {FieldWebLocationPin} from '../../components/MapMarkers';
+import {FIELDWEB_MAP_STYLE} from '../../config/mapStyle';
 import {formatAmount} from '../../utils/decimal';
 import BackBar from '../../components/BackBar';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
@@ -155,7 +158,42 @@ const getIssuedQty = (item: TasksListMultipleItemAssigned) => {
 
 const getUsedQty = (item: TasksListMultipleItemAssigned) => {
   const value = item.UsedItemQty;
-  return value === undefined || value === null ? NA : String(value);
+  return value === undefined || value === null ? '0' : String(value);
+};
+
+/** dialog_task_details.xml: the 300dp map with the task's pin (title = task, snippet = customer). */
+const CompletedTaskMap = ({latitude, longitude, title, customerName}: {
+  latitude: number;
+  longitude: number;
+  title: string;
+  customerName: string;
+}) => {
+  const markerRef = useRef<React.ComponentRef<typeof Marker> | null>(null);
+  if (!latitude || !longitude) {
+    return <View style={styles.completedMapEmpty} />;
+  }
+  return (
+    <View style={styles.completedMap}>
+      <MapView
+        style={StyleSheet.absoluteFill}
+        provider={PROVIDER_GOOGLE}
+        customMapStyle={FIELDWEB_MAP_STYLE}
+        showsUserLocation
+        showsMyLocationButton={false}
+        zoomControlEnabled
+        onMapReady={() => markerRef.current?.showCallout()}
+        initialRegion={{latitude, longitude, latitudeDelta: 0.2, longitudeDelta: 0.2}}>
+        <Marker
+          ref={markerRef}
+          coordinate={{latitude, longitude}}
+          anchor={{x: 0.5, y: 0.5}}
+          title={title}
+          description={customerName}>
+          <FieldWebLocationPin size={ms(35)} />
+        </Marker>
+      </MapView>
+    </View>
+  );
 };
 
 const getItemName = (item: TasksListMultipleItemAssigned) =>
@@ -636,16 +674,24 @@ const TaskDetailsScreen = ({
           ) : null}
         </ScrollView>
       ) : showCompletedLayout && task ? (
-        // TaskDetailsFragmentNew / dialog_task_details.xml, in XML order.
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        // TaskDetailsFragmentNew / dialog_task_details.xml, in XML order: a 300dp map and the
+        // status row stay in place, everything below scrolls.
+        <View style={styles.body}>
+        <CompletedTaskMap
+          latitude={taskLat || geocodedDestination?.latitude || 0}
+          longitude={taskLng || geocodedDestination?.longitude || 0}
+          title={taskName}
+          customerName={custName}
+        />
+        <View style={styles.completedStatusRow}>
           <View style={styles.statusActionsRow}>
             <Text style={[styles.statusLabel, {color: getStatusColor(status)}]}>{status || NA}</Text>
             <View style={styles.actionIconsRow}>
               <TouchableOpacity style={styles.actionIconButton} onPress={() => openWhatsapp(custPhoneWhatsapp)}>
-                <Ionicons name="logo-whatsapp" style={styles.actionIconText} />
+                <Ionicons name="logo-whatsapp" size={ms(24)} color={COLORS.primary} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionIconButton} onPress={() => openCall(custPhone)}>
-                <Ionicons name="call-outline" style={styles.actionIconText} />
+                <Ionicons name="call-outline" size={ms(24)} color={COLORS.primary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.actionIconButton}
@@ -654,7 +700,7 @@ const TaskDetailsScreen = ({
                     buildTaskFormValues(task as never, isCompleted ? 'reassignCompleted' : 'reassign'),
                   )
                 }>
-                <Ionicons name="refresh" style={styles.actionIconText} />
+                <Ionicons name="refresh" size={ms(24)} color={COLORS.primary} />
               </TouchableOpacity>
               {hasQrScans ? (
                 <TouchableOpacity style={styles.actionIconButton} onPress={() => closureRef.current?.openQrHistory()}>
@@ -668,7 +714,8 @@ const TaskDetailsScreen = ({
               ) : null}
             </View>
           </View>
-
+        </View>
+        <ScrollView style={styles.body} contentContainerStyle={styles.completedBodyContent}>
           <View style={styles.titleRow}>
             <Text style={styles.sectionHeading}>{t('task_details_title')}</Text>
             {displayTaskId ? <Text style={styles.taskIdText}> [{displayTaskId}]</Text> : null}
@@ -678,13 +725,8 @@ const TaskDetailsScreen = ({
               ['Task Name', valueOrNA(taskName)],
               ['Task Tag', valueOrNA(taskTag)],
               ['Employee Name', valueOrNA(employeeName)],
-              ...(wagesPerHour ? [['Estimated Amount', estimatedAmount]] : []),
-              ...(closureLoaded && paymentModeId !== 1 && earningAmount
-                ? [['Earned Amount', earnedAmount]]
-                : []),
-              ...(closureLoaded && paymentModeId !== 1 && earningAmount && discountText
-                ? [['Discount', discountText], ...(netEarnedAmount ? [['Net Amount', netEarnedAmount]] : [])]
-                : []),
+              // dialog_task_details.xml hides the Estimated / Earned Amount rows (visibility=gone);
+              // the amounts are shown under Payment Details instead.
               ['Payment Mode', valueOrNA(paymentMode)],
               ['Start Date & Time', valueOrNA(startDateTime)],
               ['End Date & Time', valueOrNA(endDateTime)],
@@ -740,11 +782,14 @@ const TaskDetailsScreen = ({
             isRejected={isRejected}
             paymentMode={rawPaymentMode}
             earningAmount={earningAmount}
+            discountAmount={taskDiscount}
+            currencySymbol={currencySymbol}
             assignedTo={employeeName}
             onClosureLoaded={setClosureLoaded}
             onQrAvailable={setHasQrScans}
           />
         </ScrollView>
+        </View>
       ) : (
         <ScrollView
           style={[styles.body, sheetStyle ? styles.bodySheet : null]}
@@ -1096,6 +1141,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: ms(12),
   },
+  completedMap: {width: '100%', height: ms(300), borderTopLeftRadius: ms(30), borderTopRightRadius: ms(30), overflow: 'hidden', backgroundColor: '#EDE9E0'},
+  completedMapEmpty: {width: '100%', height: ms(40)},
+  completedStatusRow: {paddingHorizontal: ms(20), paddingTop: ms(14), backgroundColor: '#FFFFFF'},
+  completedBodyContent: {paddingHorizontal: ms(20), paddingBottom: ms(110), width: '100%', maxWidth: ms(640), alignSelf: 'center'},
   statusLabel: {
     fontSize: sp(16),
   },

@@ -27,6 +27,8 @@ import {
 import {getAllChkpointInputformData} from '../../api/fsrManagement/fsrManagementService';
 import {formatAmount} from '../../utils/decimal';
 import {ms, sp, vs} from '../../utils/responsive';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {COLORS} from '../../theme/theme';
 import { showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
@@ -47,6 +49,10 @@ type Props = {
   /** Task-list PaymentMode ("Rate" shows the Payment Details block). */
   paymentMode: string;
   earningAmount: number;
+  /** Discount given at payment (Java: TaskDiscountedAmount). */
+  discountAmount?: number;
+  /** Currency shown before the amounts (Java: ₹ for Rs.). */
+  currencySymbol?: string;
   assignedTo: string;
   /** Called once closure data loads (Java only shows Earned Amount after that). */
   onClosureLoaded?: (loaded: boolean) => void;
@@ -55,6 +61,12 @@ type Props = {
 };
 
 const NA = 'NA';
+// Java prints a double reading as "2.0" (Double.toString), never "2".
+const javaDouble = (v: unknown) => {
+  const text = (v === null || v === undefined ? '' : String(v)).trim();
+  const n = Number(text);
+  return text !== '' && Number.isFinite(n) && Number.isInteger(n) ? `${n}.0` : text;
+};
 const str = (v: unknown) => (v === null || v === undefined ? '' : String(v)).trim();
 const arr = (v: unknown) => (Array.isArray(v) ? (v as AnyRecord[]) : []);
 const rec = (v: unknown) => (v && typeof v === 'object' ? (v as AnyRecord) : {});
@@ -76,6 +88,8 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
       isRejected,
       paymentMode,
       earningAmount,
+      discountAmount,
+      currencySymbol,
       assignedTo,
       onClosureLoaded,
       onQrAvailable,
@@ -183,6 +197,12 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
     const isRate = paymentMode.toLowerCase() === 'rate';
     const grandTotal =
       earningAmount !== 0 ? excess.reduce((sum, e) => sum + (Number(e.Excess_Amount) || 0), 0) : earningAmount;
+    const symbol = currencySymbol || '₹';
+    // Java: mResultData.getTaskDiscountedAmount() -- a field of the closure details response.
+    const closureDiscount = Number(closure.TaskDiscountedAmount) || 0;
+    const discount = closureDiscount > 0 ? closureDiscount : discountAmount && discountAmount > 0 ? discountAmount : 0;
+    // The total after the discount (Java's Grand Total is the total minus the discount).
+    const netTotal = Math.max(grandTotal - discount, 0);
     const mobileNo = Number(closure.MobileNo) || 0;
     const rating = Number(closure.RatingBar) || 0;
     const fsr = arr(chkPoint?.lstFSRManagement)[0];
@@ -229,16 +249,17 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
         {photoRow('Before', beforePhotos)}
         {photoRow('After', afterPhotos)}
 
-        <View style={styles.row}>
-          <Text style={styles.label}>{t('work_mode_without_colon')}</Text>
-          <Text style={styles.value}>: {str(closure.WorkModeType) || NA}</Text>
+        <View style={styles.workModeRow}>
+          <Text style={styles.workModeText}>{t('work_mode_without_colon')}</Text>
+          <Text style={styles.workModeText}> : </Text>
+          <Text style={[styles.workModeText, {color: COLORS.primary}]}>{str(closure.WorkModeType) || NA}</Text>
         </View>
 
         {notes.length ? (
           <>
             <Text style={styles.heading}>{t('technical_note')}</Text>
             {notes.map((note, i) => (
-              <Text key={i} style={styles.listText}>
+              <Text key={i} style={styles.noteText}>
                 {i + 1}. {str(note.TechnicalNote1)}
               </Text>
             ))}
@@ -250,16 +271,20 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
             <Text style={styles.heading}>{t('device_list')}</Text>
             {devices.map((device, i) => (
               <View key={i} style={styles.deviceCard}>
-                <Text style={styles.listText}>{str(device.DeviceName)}</Text>
-                <Text style={styles.subText}>{str(device.ModelNumber)}</Text>
-                <Text style={styles.subText}>{str(device.DeviceReading)}</Text>
+                <Text style={styles.deviceText}>Device: {str(device.DeviceName)}</Text>
+                <Text style={styles.deviceText}>Company/Model: {str(device.ModelNumber)}</Text>
+                <Text style={styles.deviceText}>Device Reading: {javaDouble(device.DeviceReading)}</Text>
                 <View style={styles.devicePhotos}>
-                  {[device.DevicePhoto1, device.DevicePhoto2, device.DevicePhoto3]
-                    .map(str)
-                    .filter(Boolean)
-                    .map(uri => (
-                      <Image key={uri} source={{uri}} style={styles.devicePhoto} />
-                    ))}
+                  {[device.DevicePhoto1, device.DevicePhoto2, device.DevicePhoto3].map((photo, idx) => {
+                    const uri = str(photo);
+                    return uri ? (
+                      <Image key={idx} source={{uri}} style={styles.devicePhoto} resizeMode="stretch" />
+                    ) : (
+                      <View key={idx} style={[styles.devicePhoto, styles.devicePhotoEmpty]}>
+                        <Ionicons name="camera-outline" size={ms(56)} color="#9AA0A6" />
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
             ))}
@@ -277,7 +302,7 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
 
         <View style={styles.signRow}>
           <View style={styles.signCol}>
-            <Text style={styles.subLabel}>Cust. Sign</Text>
+            <Text style={styles.signLabel}>Cust. Sign</Text>
             {str(closure.CustomerSignatureImage) ? (
               <Image source={{uri: str(closure.CustomerSignatureImage)}} style={styles.sign} resizeMode="contain" />
             ) : (
@@ -286,7 +311,7 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
             <Text style={styles.subText}>{t('name_title')} {str(closure.SignedBy) || NA}</Text>
           </View>
           <View style={styles.signCol}>
-            <Text style={styles.subLabel}>Tech. Sign</Text>
+            <Text style={styles.signLabel}>Tech. Sign</Text>
             {str(closure.TechSignatureImage) ? (
               <>
                 <Image source={{uri: str(closure.TechSignatureImage)}} style={styles.sign} resizeMode="contain" />
@@ -324,15 +349,20 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
               <Text style={[styles.cellAmt, styles.bold]}>{t('amount')}</Text>
             </View>
             {excess.map((e, i) => (
-              <View key={i} style={styles.tableRow}>
+              <View key={i} style={styles.payCard}>
                 <Text style={styles.cellSr}>{i + 1}.</Text>
                 <Text style={styles.cellDesc}>{str(e.Excess_Amount_Des)}</Text>
-                <Text style={styles.cellAmt}>Rs. {formatAmount(e.Excess_Amount)}</Text>
+                <Text style={styles.cellAmt}>{symbol} {formatAmount(e.Excess_Amount)}</Text>
               </View>
             ))}
-            <View style={styles.tableRow}>
-              <Text style={[styles.cellDesc, styles.bold]}>Grand Total :</Text>
-              <Text style={[styles.cellAmt, styles.bold]}>Rs. {formatAmount(grandTotal)}</Text>
+            {/* Java (lnlDiscount): shown with the payment details, in green. */}
+            <View style={styles.totalLine}>
+              <Text style={[styles.totalLabel, {color: COLORS.success}]}>Discount Amount :</Text>
+              <Text style={[styles.totalValue, {color: COLORS.success}]}>{symbol} {formatAmount(discount)}</Text>
+            </View>
+            <View style={styles.totalLine}>
+              <Text style={[styles.totalLabel, {color: COLORS.primary}]}>Grand Total :</Text>
+              <Text style={[styles.totalValue, {color: COLORS.primary}]}>{symbol} {formatAmount(netTotal)}</Text>
             </View>
           </>
         ) : null}
@@ -422,20 +452,43 @@ const styles = StyleSheet.create({
   subLabel: {fontSize: sp(12), color: '#5f6368', marginBottom: vs(4)},
   subText: {fontSize: sp(12), color: '#5f6368'},
   listText: {fontSize: sp(13), color: '#20283A', paddingVertical: vs(2)},
+  workModeRow: {flexDirection: 'row', alignItems: 'center', paddingVertical: vs(8)},
+  workModeText: {fontSize: sp(15), color: COLORS.ink},
+  noteText: {fontSize: sp(12), color: COLORS.lightGray, paddingLeft: ms(10), paddingVertical: vs(3)},
+  deviceText: {fontSize: sp(12), color: COLORS.lightGray, paddingLeft: ms(5)},
+  signLabel: {fontSize: sp(14), fontWeight: '700', color: COLORS.ink, marginBottom: vs(6)},
+  payCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: ms(10),
+    paddingVertical: ms(14),
+    paddingHorizontal: ms(6),
+    marginTop: vs(6),
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: {width: 0, height: 1},
+  },
+  totalLine: {flexDirection: 'row', alignItems: 'center', marginTop: ms(16), paddingHorizontal: ms(6)},
+  totalLabel: {flex: 1, fontSize: sp(16), fontWeight: '700'},
+  totalValue: {flex: 1, fontSize: sp(16), fontWeight: '700', textAlign: 'center'},
   photoBlock: {marginBottom: vs(8)},
   photo: {width: ms(76), height: ms(76), borderRadius: ms(8), marginRight: ms(8), backgroundColor: '#f1f3f4'},
-  deviceCard: {borderWidth: 1, borderColor: '#eceff1', borderRadius: ms(8), padding: ms(8), marginBottom: vs(6)},
-  devicePhotos: {flexDirection: 'row', gap: ms(6), marginTop: vs(4)},
-  devicePhoto: {width: ms(56), height: ms(56), borderRadius: ms(10), backgroundColor: '#f1f3f4'},
+  deviceCard: {padding: ms(5), marginBottom: vs(6)},
+  devicePhotos: {flexDirection: 'row', gap: ms(15), marginTop: vs(15)},
+  devicePhoto: {flex: 1, height: ms(100), borderRadius: ms(10)},
+  devicePhotoEmpty: {alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF'},
   link: {fontSize: sp(13), color: '#1a73e8', textDecorationLine: 'underline', marginVertical: vs(6)},
   signRow: {flexDirection: 'row', gap: ms(12), marginTop: vs(12)},
   signCol: {flex: 1},
-  sign: {height: vs(70), borderWidth: 1, borderColor: '#eceff1', borderRadius: ms(6), marginBottom: vs(4)},
-  tableHead: {flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#dadce0', paddingVertical: vs(4)},
+  sign: {width: ms(150), height: ms(80), borderWidth: 1, borderColor: '#eceff1', borderRadius: ms(6), marginBottom: vs(4)},
+  tableHead: {flexDirection: 'row', paddingVertical: vs(4), paddingHorizontal: ms(6)},
   tableRow: {flexDirection: 'row', paddingVertical: vs(4)},
-  cellSr: {width: ms(48), fontSize: sp(13), color: '#20283A'},
-  cellDesc: {flex: 1, fontSize: sp(13), color: '#20283A'},
-  cellAmt: {width: ms(110), fontSize: sp(13), color: '#20283A', textAlign: 'right'},
+  cellSr: {flex: 1, fontSize: sp(13), color: '#20283A'},
+  cellDesc: {flex: 1, fontSize: sp(13), color: '#20283A', textAlign: 'center'},
+  cellAmt: {flex: 1, fontSize: sp(13), color: '#20283A', textAlign: 'center'},
   bold: {fontWeight: '700', color: '#20283A'},
   backdrop: {flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: ms(20)},
   dialog: {backgroundColor: '#fff', borderRadius: ms(12), padding: ms(16), maxHeight: '80%'},
