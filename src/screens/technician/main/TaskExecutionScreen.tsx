@@ -42,7 +42,7 @@ import { TASK_STATUS_ID } from '../../../constants/taskStatus';
 import { buildImagesPayload } from '../../../utils/imagePayload';
 import { nowAsJavaTime } from '../../../utils/taskStatus.utils';
 import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
-import { showFailureMsg, showToast } from '../../../utils/toast';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 type Task = TasksListResultData;
@@ -498,6 +498,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       showFailureMsg(err?.message || 'Could not end the task. Please try again.');
       return;
     }
+    showSuccessMsg('Task Updated Successfully');
     // Java sets TaskState = ENDED_NO_PAYMENT before opening Closure (HomeActivityNew
     // updateTaskStatus success). Closure derives Rate-mode handling from this state, so
     // it must not receive the stale pre-end task.
