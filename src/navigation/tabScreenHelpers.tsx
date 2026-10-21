@@ -74,13 +74,15 @@ const TranslatedHeaderTitle = ({ text, color }: { text: string; color?: string }
  * `backTo` is the tab the arrow returns to when the screen was not opened from another screen
  * (`returnTo`); without it the tab navigator's own back behaviour applies (Home).
  */
-export const pushedScreenOptions = (title: string, navigation: any, route?: any, backTo?: string) => ({
+export const pushedScreenOptions = (title: string, navigation: any, route?: any, backTo?: string, topInset = 0) => ({
   headerShown: true,
   title,
   headerTitle: ({ children, tintColor }: { children: string; tintColor?: string }) => (
     <TranslatedHeaderTitle text={children} color={tintColor} />
   ),
-  headerStyle: { backgroundColor: COLORS.primary, height: HEADER_BAR_HEIGHT },
+  // The header pads itself by the status-bar inset, so its total height must include it
+  // (edge-to-edge phones report a non-zero inset; the emulator often reports 0).
+  headerStyle: { backgroundColor: COLORS.primary, height: topInset + HEADER_BAR_HEIGHT },
   headerTintColor: '#fff',
   headerTitleStyle: { fontWeight: '600' as const },
   headerTitleAlign: 'left' as const,

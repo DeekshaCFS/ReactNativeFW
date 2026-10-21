@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from 'react-native-geolocation-service';
 
 import AppHeader from '../components/AppHeader';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePassbookTabOrder } from '../state/passbookTabOrder';
 import BottomTabBar, { QuickAction } from '../components/BottomTabBar';
 import AddQuoteModal from '../screens/admin/AddQuoteModal';
@@ -117,6 +118,7 @@ const SHEET_SCREENS = ['TaskRouteMap', 'ItemRequest', 'TaskInput'];
 const PushedTabScreen = Tab.Screen as any;
 
 export default function TechnicianTabs() {
+  const insets = useSafeAreaInsets();
   const {t} = useTranslation();
   // Java opens Passbook/Expenditure in one tab host: from the Passbook bottom tab it is titled
   // "Passbook" with Passbook highlighted; from the drawer it stays on Home ("FieldWeb").
@@ -261,7 +263,7 @@ export default function TechnicianTabs() {
               name === 'Leave' || name === 'Expenditure' || name === 'Leads' || name === 'Profile' || name === 'FieldWeb AI' || SHEET_SCREENS.includes(name)
                 ? { headerShown: false }
                 // Task Details: the header arrow goes back to the task list, not Home.
-                : pushedScreenOptions(title, navigation, route, name === 'TaskClosure' ? 'Task' : undefined)}
+                : pushedScreenOptions(title, navigation, route, name === 'TaskClosure' ? 'Task' : undefined, insets.top)}
           />
         ))}
       </Tab.Navigator>

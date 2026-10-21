@@ -417,7 +417,7 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
             options={({ navigation, route }: any) =>
               MAIN_HEADER_SCREENS.includes(name)
                 ? { headerShown: false }
-                : pushedScreenOptions(title, navigation, route)}
+                : pushedScreenOptions(title, navigation, route, undefined, insets.top)}
           />
         ))}
       </Tab.Navigator>
