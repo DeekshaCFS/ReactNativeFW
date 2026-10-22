@@ -390,7 +390,13 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
           {returnTo && (
             <Pressable
               style={[styles.editBtn, submitting && { opacity: 0.6 }]}
-              onPress={() => navigation.navigate(returnTo.name, returnTo.params)}
+              // Go back to the existing closure screen so everything already entered (signatures,
+              // photos, notes, devices, items) is kept; navigate() would open a blank copy.
+              onPress={() =>
+                navigation.canGoBack()
+                  ? navigation.goBack()
+                  : navigation.navigate(returnTo.name, returnTo.params)
+              }
               disabled={submitting}
             >
               <Text style={styles.editBtnText}>{t('rn_edit_details')}</Text>
