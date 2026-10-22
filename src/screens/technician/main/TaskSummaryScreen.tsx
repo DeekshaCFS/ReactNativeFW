@@ -13,12 +13,12 @@ import Svg, { Path } from 'react-native-svg';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp } from '../../../utils/responsive';
-import { addTaskClosure, getBeforeAfterOnHoldTaskImages } from '../../../api/task/taskService';
+import { addTaskClosure, getBeforeAfterOnHoldTaskImages, updateReissuedItems } from '../../../api/task/taskService';
 import { getAllChkpointInputformData } from '../../../api/fsrManagement/fsrManagementService';
 import type { AllChkPointInputFormDTOResultData } from '../../../api/fsrManagement/fsrManagement.types';
 import { getCurrentCountryCode, getCurrentCurrencySymbol, getCurrentUserProfile } from '../../../state/session';
 import { getIsHNGClient } from '../../../api/users/usersService';
-import type { TasksListResultData as Task, TaskClosureResultData as TaskClosurePayload } from '../../../api/task/task.types';
+import type { TasksListResultData as Task, TaskClosureResultData as TaskClosurePayload, UpdateReIssuedItemsMultipleItemAssigned } from '../../../api/task/task.types';
 import { resetToTabsThen, finishTaskFlowToHome } from '../../../navigation/taskFlowNavigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
@@ -105,12 +105,14 @@ function StarsReadOnly({ value }: { value: number }) {
 
 export default function TaskSummaryScreen({ navigation, route }: any) {
   const {t} = useTranslation();
-  const { task, elapsedSeconds = 0, payload, preview, returnTo } = route.params as {
+  const { task, elapsedSeconds = 0, payload, preview, returnTo, addMoreItems = [] } = route.params as {
     returnTo?: { name: string; params?: any };
     task: Task;
     elapsedSeconds?: number;
     payload: TaskClosurePayload;
     preview: SummaryPreview;
+    /** Items picked during closure that are not on the task yet (Java ADD_MORE_USED_ITEM). */
+    addMoreItems?: UpdateReIssuedItemsMultipleItemAssigned[];
   };
 
   const [submitting, setSubmitting] = useState(false);
@@ -192,6 +194,33 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
           { closure: payload },
         );
       } else {
+        // Java (SummaryDetailsFragment.updateReissuedItems): items added during the closure are
+        // first registered on the task via Task/UpdateReIssuedItems. The server answers with the
+        // ItemIssuedId of each, which replaces the one in the closure payload (matched by ItemId);
+        // closing with the picker's stock-record id fails with "id does not exist".
+        if (addMoreItems.length > 0) {
+          try {
+            const reissueRes = await updateReissuedItems({
+              TaskId: task.Id as number,
+              FieldWorkerUserId: Number(freshUid),
+              CreatedBy: Number(freshUid),
+              MultipleItemAssigned: addMoreItems,
+            });
+            if (reissueRes.Code !== '200') {
+              showFailureMsg(reissueRes.Message || 'Unable to update items');
+              return;
+            }
+            const issued = reissueRes.ResultData?.MultipleItemAssigned ?? [];
+            (payload.UsedItemDetailsDto ?? []).forEach(used => {
+              const match = issued.find(i => i.ItemId === used.ItemId);
+              if (match?.ItemIssuedId) used.ItemIssuedId = match.ItemIssuedId;
+            });
+          } catch (err: any) {
+            showFailureMsg(err?.response?.data?.Message || err?.message || 'Unable to update items');
+            return;
+          }
+        }
+
         // Step 1: Add closure details (Android: updateTask() → updateTaskClosure API)
         try {
           const closureRes = await addTaskClosure(payload);

@@ -936,8 +936,10 @@ export default function TaskClosure({ navigation, route }: any) {
           ItemId:       s.itemId,
           ItemIssuedId: s.itemIssuedId,
           TaskId:       routeTask.Id,
-          AvlQty:       s.avlQty,
-          AssignedQty:  0,
+          // Java rebuildUsedItemDetailsForPost: add-more items go out with AvlQty 0 and the used
+          // quantity as the assigned quantity.
+          AvlQty:       0,
+          AssignedQty:  Number(s.usedQty),
           UsedQty:      Number(s.usedQty),
           UserId:       Number(freshUid),
           CreatedBy:    Number(freshUid),
@@ -1035,6 +1037,16 @@ export default function TaskClosure({ navigation, route }: any) {
         task: routeTask,
         elapsedSeconds,
         payload,
+        // Java UpdateUsedItems_FW -> ADD_MORE_USED_ITEM: ItemId = the item, ItemIssuedId = the
+        // issue-list record id, quantity = used qty. Posted to Task/UpdateReIssuedItems on submit.
+        addMoreItems: filledAdHoc.map(s => ({
+          ItemId: s.itemId,
+          ItemIssuedId: s.itemIssuedId,
+          ItemName: s.itemName,
+          SalesPrice: s.salesPrice,
+          ItemQuantity: Number(s.usedQty),
+          UsedItemQty: Number(s.usedQty),
+        })),
         preview: {
           workModeType: selectedWorkMode!.WorkModeType,
           customerName,
@@ -1512,14 +1524,10 @@ export default function TaskClosure({ navigation, route }: any) {
             onPress={pickAttachment}
           >
             {attachment ? (
-              attachment.type.startsWith('image/') ? (
-                <Image source={{ uri: attachment.uri }} style={styles.attachThumb} />
-              ) : (
-                <View style={styles.dashedInner}>
-                  <Ionicons name="document-outline" size={sp(24)} color={COLORS.primary} />
-                  <Text style={styles.attachLabel} numberOfLines={1}>{attachment.name}</Text>
-                </View>
-              )
+              <View style={styles.dashedInner}>
+                <Ionicons name="document-outline" size={sp(24)} color={COLORS.primary} />
+                <Text style={styles.attachLabel} numberOfLines={1}>{attachment.name}</Text>
+              </View>
             ) : (
               <View style={styles.dashedInner}>
                 <Ionicons name="share-outline" size={ms(26)} color={COLORS.primary} />
@@ -2803,6 +2811,8 @@ const styles = StyleSheet.create({
     marginBottom: ms(20),
   },
   dashedBox: {
+    width: '100%',
+    height: '50%',
     marginTop: ms(12),
     alignSelf: 'center',
     borderWidth: 1,

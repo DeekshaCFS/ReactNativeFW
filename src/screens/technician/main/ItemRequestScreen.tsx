@@ -535,7 +535,6 @@ export default function ItemRequestScreen({ navigation, route }: any) {
                         placeholderTextColor={COLORS.lightGray}
                         style={styles.qtyInput}
                       />
-                      {!!item.quantity && <Text style={styles.floatLabel}>{t('quantity')}</Text>}
                     </View>
                   </View>
                 </View>
@@ -833,7 +832,7 @@ const styles = StyleSheet.create({
   },
   qtyCell: { flex: 1, marginLeft: ms(11), justifyContent: 'center' },
   qtyBox: {
-    height: ms(34),
+    height: ms(35),
     borderWidth: 1,
     borderColor: COLORS.lightGray,
     borderRadius: ms(34),
@@ -861,7 +860,7 @@ const styles = StyleSheet.create({
   },
   floatLabel: {
     position: 'absolute',
-    top: -ms(8),
+    top: -ms(10),
     left: ms(14),
     paddingHorizontal: ms(4),
     backgroundColor: COLORS.white,

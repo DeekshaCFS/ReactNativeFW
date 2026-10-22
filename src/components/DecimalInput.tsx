@@ -120,7 +120,7 @@ function omitWrapperKeys(style: any) {
 const styles = StyleSheet.create({
   floatLabel: {
     position: 'absolute',
-    top: -ms(8),
+    top: -ms(15),
     left: ms(14),
     paddingHorizontal: ms(4),
     fontSize: sp(12),
