@@ -347,7 +347,8 @@ export const normalizeCustomerOption = (
     state: getStringField(record, CUSTOMER_STATE_KEYS),
     city: getStringField(record, CUSTOMER_CITY_KEYS),
     pinCode: getStringField(record, CUSTOMER_PINCODE_KEYS),
-    landmark: getStringField(record, CUSTOMER_LANDMARK_KEYS),
+    // Customer/GetCustomerList returns the landmark as "Description" (see CustomerListResultData).
+    landmark: getStringField(record, [...CUSTOMER_LANDMARK_KEYS, 'description', 'Description']),
     productBrand: getStringField(record, CUSTOMER_BRAND_KEYS),
     emailId: getStringField(record, ['emailId', 'EmailId', 'emailID', 'EmailID', 'email', 'Email']),
     locationId: getNumberField(record, ['locationId', 'LocationId', 'customerLocationId', 'CustomerLocationId']) || undefined,

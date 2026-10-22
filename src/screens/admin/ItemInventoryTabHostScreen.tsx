@@ -1554,7 +1554,7 @@ const ItemInventoryTabHostScreen = ({
                 style={{padding: ms(10)}}>
                 <Text style={{fontSize: sp(20)}}>−</Text>
               </Pressable>
-              <DecimalInput
+              <DecimalInput integer
                 style={{flex: 1, borderWidth: 1, borderColor: '#d5d7db', borderRadius: ms(8), textAlign: 'center', padding: ms(6)}}
                 value={returnQuantity}
                 onChangeText={setReturnQuantity}

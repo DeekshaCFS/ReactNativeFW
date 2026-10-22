@@ -1381,7 +1381,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                         ) : (
                           <>
                             {renderItemDropdown(row)}
-                            <DecimalInput
+                            <DecimalInput integer
                               style={[styles.pillInput, styles.thirdInput]}
                               label={t('rn_qty_2')}
                               placeholderTextColor={COLORS.lightGray}

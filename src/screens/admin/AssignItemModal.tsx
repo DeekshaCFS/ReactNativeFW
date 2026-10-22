@@ -345,7 +345,7 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                 >
                   <Text style={assignStyles.quantityButtonText}>-</Text>
                 </TouchableOpacity>
-                <DecimalInput
+                <DecimalInput integer
                   style={assignStyles.quantityInput}
                   value={quantity}
                   onChangeText={setQuantity}

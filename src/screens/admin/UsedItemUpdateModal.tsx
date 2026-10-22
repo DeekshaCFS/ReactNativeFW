@@ -166,7 +166,7 @@ const UsedItemUpdateModal: React.FC<Props> = ({row, onClose, onUpdated}) => {
               <Pressable style={styles.stepSide} onPress={() => step(-1)}>
                 <Text style={styles.stepSign}>-</Text>
               </Pressable>
-              <DecimalInput
+              <DecimalInput integer
                 style={styles.stepInput}
                 value={qty}
                 onChangeText={t => setQty(t)}

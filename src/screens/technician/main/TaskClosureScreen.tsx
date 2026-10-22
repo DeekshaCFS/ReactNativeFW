@@ -1776,7 +1776,7 @@ export default function TaskClosure({ navigation, route }: any) {
                       <View style={usedItemStyles.assignedPlain}>
                         <Text style={usedItemStyles.assignedQtyText}>{slot.AssignedQty}</Text>
                       </View>
-                      <DecimalInput
+                      <DecimalInput integer
                         value={slot.usedQty}
                         onChangeText={val => {
                           const num = Number(val);
@@ -1848,7 +1848,7 @@ export default function TaskClosure({ navigation, route }: any) {
                           </View>
 
                           {/* Used qty input */}
-                          <DecimalInput
+                          <DecimalInput integer
                             value={slot?.usedQty ?? ''}
                             onChangeText={val => {
                               const num = Number(val);

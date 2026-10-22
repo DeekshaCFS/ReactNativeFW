@@ -527,7 +527,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
 
                   <View style={styles.qtyCell}>
                     <View style={styles.qtyBox}>
-                      <DecimalInput
+                      <DecimalInput integer
                         value={item.quantity}
                         onChangeText={val => updateItem(item.id, { quantity: val })}
                         editable={!locked}

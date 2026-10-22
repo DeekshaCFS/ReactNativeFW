@@ -40,13 +40,16 @@ type Props = Omit<React.ComponentProps<typeof TextInput>, 'keyboardType' | 'maxL
   /** Digits allowed before the point (default 9). */
   maxIntDigits?: number;
   decimals?: number;
+  /** Whole numbers only (quantities): number keyboard, digits only, no "0.000" padding. */
+  integer?: boolean;
 };
 
 export default function DecimalInput({
   label,
   labelBackground = COLORS.white,
   maxIntDigits = 9,
-  decimals = AMOUNT_DECIMALS,
+  decimals: decimalsProp = AMOUNT_DECIMALS,
+  integer = false,
   value,
   onChangeText,
   onFocus,
@@ -55,23 +58,28 @@ export default function DecimalInput({
   style,
   ...rest
 }: Props) {
+  const decimals = integer ? 0 : decimalsProp;
   const [focused, setFocused] = useState(false);
   const raw = value ?? '';
-  const shown = focused ? raw : padDecimal(raw, decimals);
+  const shown = integer ? raw : focused ? raw : padDecimal(raw, decimals);
 
   const input = (
     <TextInput
       {...rest}
       style={label ? [omitWrapperKeys(style), { marginBottom: 0 }] : style}
       value={shown}
-      keyboardType="decimal-pad"
-      placeholder={placeholder ?? padDecimal('0', decimals)}
+      keyboardType={integer ? 'number-pad' : 'decimal-pad'}
+      placeholder={placeholder ?? (integer ? '0' : padDecimal('0', decimals))}
       placeholderTextColor={rest.placeholderTextColor ?? COLORS.lightGray}
       onFocus={e => {
         setFocused(true);
         onFocus?.(e);
       }}
       onChangeText={t => {
+        if (integer) {
+          onChangeText?.(t.replace(/\D/g, '').slice(0, maxIntDigits));
+          return;
+        }
         const clean = sanitizeDecimalInput(t, decimals);
         const [whole, frac] = clean.split('.');
         const capped = whole.length > maxIntDigits ? whole.slice(0, maxIntDigits) : whole;
@@ -79,7 +87,7 @@ export default function DecimalInput({
       }}
       onBlur={e => {
         setFocused(false);
-        const padded = padDecimal(raw, decimals);
+        const padded = integer ? raw : padDecimal(raw, decimals);
         if (padded && padded !== raw) onChangeText?.(padded);
         onBlur?.(e);
       }}

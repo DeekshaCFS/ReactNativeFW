@@ -579,7 +579,6 @@ type ItemOption = {
   id: number;
   name: string;
   availableQuantity: number;
-  price: number;
 };
 
 const normalizeItemOption = (item: ItemsListResultData): ItemOption => {
@@ -594,12 +593,8 @@ const normalizeItemOption = (item: ItemsListResultData): ItemOption => {
       'AvailableQty',
       'unAssignedQuantity',
       'UnAssignedQuantity',
-    ]),
-    price: getNumberField(record, [
-      'salesPrice',
-      'SalesPrice',
-      'purchasePrice',
-      'PurchasePrice',
+      'quantity',
+      'Quantity',
     ]),
   };
 };
@@ -671,7 +666,6 @@ type TaskItemRow = {
   itemId: number;
   itemName: string;
   availableQuantity: number;
-  price: number;
   quantity: string;
 };
 
@@ -683,7 +677,6 @@ const createEmptyTaskItemRow = (): TaskItemRow => {
     itemId: 0,
     itemName: '',
     availableQuantity: 0,
-    price: 0,
     quantity: '',
   };
 };
@@ -1667,7 +1660,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       getLargeItemAssignedUnassigned({ownerId, searchParam})
         .then(response => {
           const items = extractArray<ItemsListResultData>(response);
-          const options = items.map(normalizeItemOption).filter(option => option.name);
+          const options = items.map(normalizeItemOption)
+            .filter(option => option.name && option.availableQuantity > 0);
           if (searchParam) {
             setAllItemOptions(options);
           } else {
@@ -1735,7 +1729,6 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
               itemId: option.id,
               itemName: option.name,
               availableQuantity: option.availableQuantity,
-              price: option.price,
             }
           : row,
       ),
@@ -2775,10 +2768,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                           </TouchableOpacity>
                           <View style={styles.itemAvailableQtyBox}>
                             <Text style={styles.itemAvailableQtyText}>
-                              {row.price}
+                              {row.itemId > 0 ? row.availableQuantity : ''}
                             </Text>
                           </View>
-                          <DecimalInput
+                          <DecimalInput integer
                             style={[styles.pillInput, styles.itemQuantityInput]}
                             label={t('item_quantity')}
                             placeholderTextColor="#9aa0a6"

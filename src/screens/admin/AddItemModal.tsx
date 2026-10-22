@@ -519,7 +519,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                       style={itemStyles.quantityMinusArea}
                       onPress={handleQuantityDecrement}
                     />
-                    <DecimalInput
+                    <DecimalInput integer
                       style={itemStyles.quantityInput}
                       value={quantity}
                       onChangeText={setQuantity}
