@@ -75,7 +75,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (currentPosition && destination) {
       mapRef.current?.fitToCoordinates([currentPosition, destination], {
-        edgePadding: { top: ms(100), right: ms(40), bottom: ms(100), left: ms(40) },
+        edgePadding: { top: ms(100), right: ms(50), bottom: ms(100), left: ms(50) },
         animated: true,
       });
     }
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: ms(90),
     right: ms(90),
-    bottom: ms(48) + ms(5),
+    bottom: ms(90) + ms(15),
     height: ms(48),
     alignItems: 'center',
     justifyContent: 'center',
@@ -411,17 +411,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     elevation: 2,
   },
-  startBtnText: { color: '#fff', fontSize: sp(16), fontWeight: '500' },
+  startBtnText: { color: '#fff', fontSize: sp(18), fontWeight: '500' },
   skipBtn: {
     position: 'absolute',
     left: ms(100),
     right: ms(100),
-    bottom: 0,
+    bottom: ms(50),
     height: ms(48),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  skipBtnText: { color: COLORS.primary, fontSize: sp(16), fontWeight: '500' },
+  skipBtnText: { color: COLORS.primary, fontSize: sp(20), fontWeight: '500' },
 
   promptCard: {
     position: 'absolute',
