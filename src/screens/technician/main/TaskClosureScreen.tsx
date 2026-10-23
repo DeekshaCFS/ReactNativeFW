@@ -25,7 +25,6 @@ import { getUsedItemIssueListByUserid } from '../../../api/item/itemService';
 import { scale, vs, sp, ms } from '../../../utils/responsive';
 import ImageSourceDialog from '../../../components/ImageSourceDialog';
 import SearchPickerModal from '../../../components/SearchPickerModal';
-import { sanitizeDecimalInput } from '../../../utils/decimal';
 import {
   GetAllTaskListDTOResultData as Task,
   GetAllTaskListDTODeviceInfoList as DeviceInfo,
@@ -1352,13 +1351,14 @@ export default function TaskClosure({ navigation, route }: any) {
                       placeholderTextColor="#ABABAB"
                       style={styles.deviceInput}
                     />
-                    <DecimalInput
+                    <DecimalInput integer
                       value={
                         device.DeviceReadingText ??
                         (device.DeviceReading ? String(device.DeviceReading) : '')
                       }
                       onChangeText={val => {
-                        const text = sanitizeDecimalInput(val);
+                        // Device reading is a whole number: digits only.
+                        const text = val.replace(/\D/g, '');
                         setDevices(prev =>
                           prev.map((d, i) =>
                             i === idx
@@ -2074,7 +2074,7 @@ const usedItemStyles = StyleSheet.create({
     borderTopLeftRadius: ms(30),
     borderTopRightRadius: ms(30),
     paddingBottom: ms(4),
-    maxHeight: '82%',
+    maxHeight: '85%',
   },
   header: {
     // gradient_addtask: solid #353935, 20dp corners
@@ -2093,7 +2093,7 @@ const usedItemStyles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: ms(10),
-    paddingTop: ms(10),
+    paddingTop: ms(30),
     paddingBottom: ms(10),
     gap: ms(10),
   },

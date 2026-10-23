@@ -206,7 +206,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
     switch (field.FieldTypeId) {
       case FIELD_TYPE.NUMBER:
         return (
-          <DecimalInput
+          <DecimalInput integer
             style={styles.box}
             label={t('rn_number')}
             placeholderTextColor={COLORS.lightGray}
