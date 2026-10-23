@@ -6,6 +6,7 @@ import {sanitizeDecimalInput} from '../../utils/decimal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   PermissionsAndroid,
   Platform,
@@ -83,6 +84,11 @@ import {trf, tr} from '../../i18n/tr';
 Sound.setCategory('Playback');
 
 const BORDER = COLORS.lightGray; // TextInputLayoutStyle boxStrokeColor
+const ERROR_BORDER = '#D32F2F';
+type TaskFieldKey =
+  | 'title' | 'date' | 'time' | 'fieldworker' | 'tag' | 'address' | 'landmark'
+  | 'state' | 'city' | 'pinCode' | 'customerName' | 'customerNumber' | 'email' | 'rate'
+  | 'specialInstructions';
 const SEGMENT_DARK = COLORS.ink; // SegmentedGroup sc_tint_color @color/background_gray
 
 // dialog_add_task_new.xml: 20dp margins, Material outlined (34dp-radius) fields with the 20dp
@@ -816,6 +822,31 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   const [selectedFsr, setSelectedFsr] = useState<FSROption | null>(null);
 
   const [isSubmittingTask, setIsSubmittingTask] = useState(false);
+  // Required-field errors from the last submit: the field's border turns red and the
+  // message (which names the field) is shown in the toast.
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<TaskFieldKey, string>>>({});
+  const errBorder = (key: TaskFieldKey) => (fieldErrors[key] ? {borderColor: ERROR_BORDER} : null);
+  // A field's error clears as soon as it has a value again.
+  useEffect(() => {
+    const filled: Partial<Record<TaskFieldKey, boolean>> = {
+      title: !!taskTitle, date: !!taskDate, time: !!taskTime, fieldworker: !!selectedFieldworker,
+      tag: !!selectedAddTaskTag, address: !!taskAddress, landmark: !!taskLandmark, state: !!taskState,
+      city: !!taskCity, pinCode: !!taskPinCode, customerName: !!taskCustomerName,
+      customerNumber: !!taskCustomerNumber, rate: !!amcAmount,
+    };
+    setFieldErrors(prev => {
+      const next = {...prev};
+      let changed = false;
+      (Object.keys(prev) as TaskFieldKey[]).forEach(key => {
+        if (filled[key]) {
+          delete next[key];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [taskTitle, taskDate, taskTime, selectedFieldworker, selectedAddTaskTag, taskAddress,
+    taskLandmark, taskState, taskCity, taskPinCode, taskCustomerName, taskCustomerNumber, amcAmount]);
 
   const [taskSpecialInstructions, setTaskSpecialInstructions] = useState('');
   const [isRecordingInstruction, setIsRecordingInstruction] = useState(false);
@@ -1264,6 +1295,34 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     [allCustomerOptions, isCustomerLoading, ownerId],
   );
 
+  // Loads the full customer list (used by the phone-number suggestions) without needing a
+  // name query first.
+  const ensureCustomerList = useCallback(async () => {
+    if (allCustomerOptions.length > 0 || isCustomerLoading) {
+      return;
+    }
+    setIsCustomerLoading(true);
+    try {
+      const response = await getCustomerList({
+        userId: ownerId,
+        customerTagId: 0,
+      });
+      const normalized = extractArray<CustomerListResultData>(response)
+        .map((item, index) =>
+          normalizeCustomerOption(
+            item as unknown as Parameters<typeof normalizeCustomerOption>[0],
+            index,
+          ),
+        )
+        .filter((option): option is CustomerOption => Boolean(option));
+      setAllCustomerOptions(normalized);
+    } catch {
+      // Suggestions stay empty; the number can still be typed by hand.
+    } finally {
+      setIsCustomerLoading(false);
+    }
+  }, [allCustomerOptions.length, isCustomerLoading, ownerId]);
+
   useEffect(() => {
     const query = taskCustomerName.trim();
     if (!showTaskCustomerSuggestions || query.length < 2) {
@@ -1414,6 +1473,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setTaskLongitude(customer.longitude || '');
     setTaskCustomerSuggestions([]);
     setShowTaskCustomerSuggestions(false);
+    // Autofilled: close both customer dropdowns and drop focus from the name/number fields so
+    // nothing reopens them. Tapping either field brings its dropdown back.
+    setShowTaskNumberSuggestions(false);
+    Keyboard.dismiss();
   };
 
   // Java TaskDialogNew quote spinner + getQuotationIdWiseDetails(): picking a quote names the task
@@ -1854,43 +1917,50 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     const [timeH, timeM, timeS] = taskTime.split(':').map(part => parseInt(part, 10) || 0);
     const taskMoment = new Date(`${taskDate}T00:00:00`);
     taskMoment.setHours(timeH === 0 && timeM === 0 && timeS === 0 ? 24 : timeH, timeM, timeS);
-    const validationError = (() => {
-      if (!taskTitle) return 'Please Enter Task Name';
-      if (hasLeadingSpace(taskTitle)) return 'Space is not allowed';
-      if (taskCustomerName && hasLeadingSpace(taskCustomerName)) return 'Space is not allowed';
-      if (!selectedFieldworker) return 'Please select a option';
-      if (!taskAddress) return 'Please Enter Address';
-      if (!taskLandmark) return 'Please Enter Landmark';
-      if (hasLeadingSpace(taskLandmark)) return 'Space is not allowed';
-      if (!taskDate) return 'Please Enter Date';
-      if (!taskTime) return 'Please Enter Time';
-      if (!(taskMoment.getTime() > Date.now())) return 'Please Enter Valid Date/Time';
-      if (taskSpecialInstructions && hasLeadingSpace(taskSpecialInstructions)) return 'Space is not allowed';
-      if (taskCustomerName && !customerNumber) return 'Please Enter Customer Number';
-      if (!taskCustomerName && customerNumber) return 'Please Enter Customer Name';
-      if (isStateEnable && !taskState) return 'Please Enter State';
-      if (isCityEnable && !taskCity) return 'Please Enter City';
-      if (isPincodeEnable && !taskPinCode) return 'Please Enter Pin Code';
-      if (isTaskTagEnable && !selectedAddTaskTag) return 'Please Select Valid Tag';
-      if (taskEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(taskEmail.trim())) {
-        return 'Please enter a valid email ID';
+    // Collect every failing field so all of them can be highlighted; the toast names the first.
+    const errors: Partial<Record<TaskFieldKey, string>> = {};
+    const fail = (key: TaskFieldKey, message: string) => {
+      if (!errors[key]) errors[key] = message;
+    };
+    if (!taskTitle) fail('title', 'Please Enter Task Name');
+    else if (hasLeadingSpace(taskTitle)) fail('title', 'Space is not allowed');
+    if (taskCustomerName && hasLeadingSpace(taskCustomerName)) fail('customerName', 'Space is not allowed');
+    if (!selectedFieldworker) fail('fieldworker', 'Please Select a Fieldworker');
+    if (!taskAddress) fail('address', 'Please Enter Address');
+    if (!taskLandmark) fail('landmark', 'Please Enter Landmark');
+    else if (hasLeadingSpace(taskLandmark)) fail('landmark', 'Space is not allowed');
+    if (!taskDate) fail('date', 'Please Enter Date');
+    if (!taskTime) fail('time', 'Please Enter Time');
+    else if (taskDate && !(taskMoment.getTime() > Date.now())) fail('time', 'Please Enter Valid Date/Time');
+    if (taskSpecialInstructions && hasLeadingSpace(taskSpecialInstructions)) {
+      fail('specialInstructions', 'Space is not allowed');
+    }
+    if (!taskCustomerName) fail('customerName', 'Please Enter Customer Name');
+    if (!customerNumber) fail('customerNumber', 'Please Enter Customer Number');
+    if (isStateEnable && !taskState) fail('state', 'Please Enter State');
+    if (isCityEnable && !taskCity) fail('city', 'Please Enter City');
+    if (isPincodeEnable && !taskPinCode) fail('pinCode', 'Please Enter Pin Code');
+    if (isTaskTagEnable && !selectedAddTaskTag) fail('tag', 'Please Select Valid Tag');
+    if (taskEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(taskEmail.trim())) {
+      fail('email', 'Please enter a valid email ID');
+    }
+    if (customerNumber) {
+      if (Number(customerNumber) === 0) fail('customerNumber', 'Please Enter a Valid Number');
+      else if (isIndiaCountryDetailsId() ? !/^\d{10,12}$/.test(customerNumber) : customerNumber.length <= 6) {
+        fail('customerNumber', 'Please Enter a Valid Number');
       }
-      if (customerNumber) {
-        if (Number(customerNumber) === 0) return 'Please Enter a Valid Number';
-        if (isIndiaCountryDetailsId() ? !/^\d{10,12}$/.test(customerNumber) : customerNumber.length <= 6) {
-          return 'Please Enter a Valid Number';
-        }
-      }
-      if (warrantyMode === 'out') {
-        if (!amcAmount) return 'Please Enter Rate';
-        if (Number(amcAmount) === 0) return 'Please Enter valid Amount';
-      }
-      return null;
-    })();
-    if (validationError) {
-      showFailureMsg(validationError);
+    }
+    if (warrantyMode === 'out') {
+      if (!amcAmount) fail('rate', 'Please Enter Rate');
+      else if (Number(amcAmount) === 0) fail('rate', 'Please Enter valid Amount');
+    }
+    const errorMessages = Object.values(errors);
+    if (errorMessages.length > 0) {
+      setFieldErrors(errors);
+      showFailureMsg(errorMessages[0] as string);
       return;
     }
+    setFieldErrors({});
     const hasInvalidItemQuantity = taskItemRows.some(
       row => row.itemName && Number(row.quantity) <= 0,
     );
@@ -2101,7 +2171,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
               >
                 <View style={styles.fieldWrap}>
                   <OutlinedInput
-                    style={styles.pillInput}
+                    style={[styles.pillInput, errBorder('title')]}
                     placeholder={t('star_task_title')}
                     placeholderTextColor={COLORS.lightGray}
                     value={taskTitle}
@@ -2118,7 +2188,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     onPress={() => openTaskPicker('date')}
                   >
                     <OutlinedInput
-                      style={styles.pillInput}
+                      style={[styles.pillInput, errBorder('date')]}
                       placeholder={t('star_date')}
                       placeholderTextColor={COLORS.lightGray}
                       value={taskDate}
@@ -2132,7 +2202,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     onPress={() => openTaskPicker('time')}
                   >
                     <OutlinedInput
-                      style={styles.pillInput}
+                      style={[styles.pillInput, errBorder('time')]}
                       placeholder={t('star_time')}
                       placeholderTextColor={COLORS.lightGray}
                       value={taskTime}
@@ -2143,7 +2213,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 </View>
 
                 <TouchableOpacity
-                  style={[styles.dropdownPill, styles.technicianPill]}
+                  style={[styles.dropdownPill, styles.technicianPill, errBorder('fieldworker')]}
                   disabled={initialValues?.lockAssignedFieldworker}
                   onPress={() => {
                     loadFieldworkers();
@@ -2166,7 +2236,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.dropdownPill, styles.tagPill]}
+                  style={[styles.dropdownPill, styles.tagPill, errBorder('tag')]}
                   onPress={() => {
                     loadTaskTags();
                     setIsAddTaskTagModalOpen(true);
@@ -2232,7 +2302,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     <DecimalInput
                       style={[
                         styles.amcDisabledInput,
-                        warrantyMode === 'out' ? styles.amcEnabledInput : null,
+                          warrantyMode === 'out' ? styles.amcEnabledInput : null,
+                        errBorder('rate'),
                       ]}
                       value={warrantyMode === 'out' ? amcAmount : ''}
                       onChangeText={text =>
@@ -2314,7 +2385,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   <Pressable onPress={() => setIsPlaceSearchOpen(true)}>
                     <View pointerEvents="none">
                       <OutlinedInput
-                        style={styles.pillInput}
+                        style={[styles.pillInput, errBorder('address')]}
                         placeholder={t('star_customer_address')}
                         placeholderTextColor={COLORS.lightGray}
                         value={taskAddress}
@@ -2327,7 +2398,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 <View style={[styles.fieldRow, styles.stateCityFieldRow]}>
                   <View style={[styles.halfField, styles.stateFieldWrap]}>
                     <OutlinedInput
-                      style={styles.pillInput}
+                      style={[styles.pillInput, errBorder('state')]}
                       placeholder={t('state')}
                       placeholderTextColor={COLORS.lightGray}
                       value={taskState}
@@ -2378,7 +2449,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   </View>
                   <View style={[styles.halfField, styles.cityFieldWrap]}>
                     <OutlinedInput
-                      style={styles.pillInput}
+                      style={[styles.pillInput, errBorder('city')]}
                       placeholder={t('cityy')}
                       placeholderTextColor={COLORS.lightGray}
                       value={taskCity}
@@ -2437,7 +2508,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 <View style={styles.fieldRow}>
                   <View style={styles.halfField}>
                     <OutlinedInput
-                      style={styles.pillInput}
+                      style={[styles.pillInput, errBorder('pinCode')]}
                       placeholder={t('pincode')}
                       placeholderTextColor={COLORS.lightGray}
                       value={taskPinCode}
@@ -2453,7 +2524,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
                 <View style={styles.fieldWrap}>
                   <OutlinedInput
-                    style={styles.pillInput}
+                    style={[styles.pillInput, errBorder('landmark')]}
                     placeholder={t('star_landmark')}
                     placeholderTextColor={COLORS.lightGray}
                     value={taskLandmark}
@@ -2550,10 +2621,17 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
                 {activeTaskFormTab === 'cust' ? (
                   <>
-                    <View style={[styles.customerNameWrap, styles.customerFieldWrap]}>
+                    <View
+                      style={[styles.customerNameWrap, styles.customerFieldWrap]}
+                      onTouchStart={() => {
+                        // A deliberate tap opens the name dropdown.
+                        setShowTaskCustomerSuggestions(true);
+                        setShowTaskNumberSuggestions(false);
+                      }}
+                    >
                       <TextInput
-                        style={[styles.pillInput, styles.pillInputMuted]}
-                        placeholder={t('customer_name')}
+                        style={[styles.pillInput, styles.pillInputMuted, errBorder('customerName')]}
+                        placeholder={t('star_customer_name')}
                         placeholderTextColor={COLORS.lightGray}
                         editable={!initialValues?.leadId}
                         value={taskCustomerName}
@@ -2567,7 +2645,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                           }
                         }}
                         onFocus={() => {
-                          setShowTaskCustomerSuggestions(true);
+                          // Focus alone must not open the dropdown: selecting a customer moves
+                          // focus to the next field, which would otherwise reopen this list.
                           setShowTaskNumberSuggestions(false);
                         }}
                       />
@@ -2608,10 +2687,17 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     </View>
 
                     <View style={[styles.fieldWrap, {zIndex: 25, elevation: 25}]}>
-                      <View>
+                      <View
+                        onTouchStart={() => {
+                          // A deliberate tap opens the number dropdown.
+                          setShowTaskNumberSuggestions(true);
+                          setShowTaskCustomerSuggestions(false);
+                          ensureCustomerList();
+                        }}
+                      >
                         <OutlinedInput
-                          style={[styles.pillInput, styles.pillInputMuted, {paddingRight: ms(52)}]}
-                          placeholder={t('customer_number')}
+                          style={[styles.pillInput, styles.pillInputMuted, {paddingRight: ms(52)}, errBorder('customerNumber')]}
+                          placeholder={t('star_customer_number')}
                           placeholderTextColor={COLORS.lightGray}
                           value={taskCustomerNumber}
                           onChangeText={text => {
@@ -2623,13 +2709,14 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                               setTaskLocationId(0);
                             }
                             // the customer list is fetched lazily; start it as soon as digits are typed
-                            if (allCustomerOptions.length === 0 && text.replace(/\D/g, '').length >= 3) {
-                              loadTaskCustomerSuggestions(text);
+                            if (text.replace(/\D/g, '').length >= 1) {
+                              ensureCustomerList();
                             }
                           }}
                           onFocus={() => {
-                            setShowTaskNumberSuggestions(true);
+                            // Focus alone must not open the dropdown (see name field).
                             setShowTaskCustomerSuggestions(false);
+                            ensureCustomerList();
                           }}
                           keyboardType="number-pad"
                           maxLength={15}
@@ -2663,7 +2750,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
                     <View style={styles.fieldWrap}>
                       <OutlinedInput
-                        style={styles.pillInput}
+                        style={[styles.pillInput, errBorder('email')]}
                         placeholder={t('email_id')}
                         placeholderTextColor={COLORS.lightGray}
                         value={taskEmail}
