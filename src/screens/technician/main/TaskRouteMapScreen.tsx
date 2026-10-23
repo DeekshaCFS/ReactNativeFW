@@ -438,8 +438,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 12,
   },
-  promptText: { fontSize: sp(14), textAlign: 'center', color: COLORS.ink },
-  promptBtns: { flexDirection: 'row', paddingHorizontal: ms(15), paddingTop: ms(3), paddingBottom: ms(4) },
+  promptText: { fontSize: sp(15), textAlign: 'center', color: COLORS.ink },
+  promptBtns: { flexDirection: 'row', paddingHorizontal: ms(15), paddingTop: ms(3), paddingBottom: ms(30) },
   yesBtn: {
     flex: 1,
     marginVertical: ms(10),
