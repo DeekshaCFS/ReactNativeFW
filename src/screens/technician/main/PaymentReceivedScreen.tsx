@@ -8,7 +8,6 @@ import {
   StyleSheet,
   TextInput,
   Pressable,
-  Alert,
   ScrollView,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -34,13 +33,14 @@ import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
 import { getCurrentCurrencySymbol } from '../../../state/session';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
-import { tr } from '../../../i18n/tr';
 import { getNetworkQuality, isPostable } from '../../../offline/networkQuality';
 import { savePendingTask, getPendingTask } from '../../../offline/offlineStore';
 import DecimalInput from '../../../components/DecimalInput';
+import { DEV_PG_KEYS } from '../../../payments/devPgKeys';
 
-import {useTranslation} from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { showImageSourceDialog } from '../../../components/ImageSourceHost';
+
 // Java (TechPaymentReceivedFragmentNew): first spinner is the mode, the type spinner only
 // appears for Offline.
 const PAYMENT_MODES = ['Select Payment Mode', 'Online', 'Offline'] as const;
@@ -63,13 +63,14 @@ interface AdjustmentRow {
 }
 
 export default function PaymentReceivedScreen({ navigation, route }: any) {
-  const {t} = useTranslation();
-  const { task: routeTask, elapsedSeconds = 0 } = route.params as {
+  const { t } = useTranslation();
+  const { task: routeTask } = route.params as {
     task: Task;
     elapsedSeconds?: number;
   };
 
   const [loadingContext, setLoadingContext] = useState(true);
+  const [employeeName, setEmployeeName] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const [taskAmount, setTaskAmount] = useState<number | null>(
@@ -106,6 +107,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
 
   const openProofPicker = () =>
     showImageSourceDialog(() => pickProofPhoto('camera'), () => pickProofPhoto('gallery'));
+
   const [earnedAmount, setEarnedAmount] = useState('');
   const [adjustments, setAdjustments] = useState<AdjustmentRow[]>([]);
   const [pickerOpen, setPickerOpen] = useState<'mode' | 'type' | null>(null);
@@ -126,6 +128,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
       try {
         const uid = await AsyncStorage.getItem('uid');
         const userId = Number(uid) || 0;
+        setEmployeeName((await AsyncStorage.getItem('name')) ?? '');
 
         const results = await Promise.allSettled([
           getTaskClosureDetails({ UserId: userId, TaskID: routeTask.Id }),
@@ -340,6 +343,18 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
         }),
       };
 
+      if (paymentMode === MODE_ONLINE && !markPending) {
+        navigation.navigate('OnlinePaymentDetails', {
+          task: routeTask,
+          paymentBody,
+          amount: Number(grandTotal),
+          employeeName,
+          customerName: routeTask.CustomerName ?? '',
+          customerContact: routeTask.ContactNo ?? '',
+        });
+        return;
+      }
+
       // Java: an Offline-mode payment on a Poor link is stored on the device (RateModeTsk /
       // Excess amount tables) and posted after the closure from the Sync screen.
       if (!markPending && paymentMode === MODE_OFFLINE && !isPostable(await getNetworkQuality())) {
@@ -369,26 +384,55 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
     }
   };
 
-  // ── Gateway placeholder ──
-  const handlePayViaGateway = () => {
-    showFailureMsg(tr('Online payment via gateway is not yet enabled — order creation needs to be implemented server-side first. Please collect payment manually for now.'));
+  const checkPgActivation = async (): Promise<boolean> => {
+    // DEV ONLY: lets the payment screens be tested before the account is activated on the backend.
+    // devPgKeys.ts must hold test keys (rzp_test_...) for this to take effect.
+    if (__DEV__ && DEV_PG_KEYS) {
+      setPgActive(true);
+      setPgName('Online Payment Gateway (dev)');
+      return true;
+    }
+    try {
+      const uid = await AsyncStorage.getItem('uid');
+      const res = await getPgActivationStatus({ UserId: Number(uid) || 0 });
+      const pg = res?.ResultData;
+      const active = !!pg && !!pg.APIKey && !!pg.SecretKey; // same test as Java
+      setPgActive(active);
+      if (active) setPgName(pg?.PaymentGatewayName || 'Online Payment Gateway');
+      if (__DEV__ && !active) console.warn('PG not active, response:', JSON.stringify(res));
+      return active;
+    } catch (err) {
+      if (__DEV__) console.warn('PG activation check failed', err);
+      setPgActive(false);
+      return false;
+    }
   };
 
-  const selectMode = (mode: string) => {
+  const selectMode = async (mode: string) => {
     setPickerOpen(null);
+
     if (mode === 'Select Payment Mode') {
       setPaymentMode('');
       setPaymentType('');
       return;
     }
-    if (mode === MODE_ONLINE && !pgActive) {
-      // Java: Online Payment Mode is not activated for your account.
+
+    if (mode === MODE_OFFLINE) {
+      setPaymentMode(MODE_OFFLINE);
+      setPaymentType('');
+      setProofBoxOpen(false);
+      return;
+    }
+
+    // Online: check the account on every selection, as Java getPG_ActivationStatus() does
+    const active = await checkPgActivation();
+    if (!active) {
       showFailureMsg(t('rn_online_payment_mode_is_not_activated_for_y'));
       setPaymentMode('');
       setPaymentType('');
       return;
     }
-    setPaymentMode(mode);
+    setPaymentMode(MODE_ONLINE);
     setPaymentType('');
     setProofBoxOpen(false);
   };
@@ -543,7 +587,7 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
                 placeholder={t('amount')}
                 placeholderTextColor="#9CA3AF"
                 value={earnedAmount}
-                onChangeText={t => setEarnedAmount(sanitizeDecimalInput(t))}
+                onChangeText={value => setEarnedAmount(sanitizeDecimalInput(value))}
                 onBlur={() => {
                   if (earnedAmount.trim() && !Number.isNaN(Number(earnedAmount))) {
                     setEarnedAmount(formatAmount(earnedAmount));
@@ -588,7 +632,11 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
           </Pressable>
         )}
         {paymentMode === MODE_ONLINE && (
-          <Pressable style={styles.actionButton} onPress={handlePayViaGateway}>
+          <Pressable
+            style={[styles.actionButton, submitting && styles.submitButtonDisabled]}
+            onPress={() => handleSubmit(false)}
+            disabled={submitting}
+          >
             <Text style={styles.actionButtonText}>{t('make_payment')}</Text>
           </Pressable>
         )}

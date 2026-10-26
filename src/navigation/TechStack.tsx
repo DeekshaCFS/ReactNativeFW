@@ -6,7 +6,7 @@ import TechnicianTabs, { TechnicianTabParamList } from './TechnicianTabs';
 
 import PrivacyPolicyScreen from '../screens/technician/drawer/PrivacyPolicyScreen';
 import DocumentUploadScreen from '../screens/technician/main/DocumentUploadScreen';
-
+import OnlinePaymentDetailsScreen from '../screens/technician/main/OnlinePaymentDetailsScreen';
 import { COLORS } from '../theme/theme';
 import { tr } from '../i18n/tr';
 
@@ -47,6 +47,7 @@ export type TechnicianStackParamList = {
   TodayTasksMap: undefined;
   TaskExecution: { task: any };
   TaskTracking: { task: any; autoReject?: boolean; resumeOnHold?: boolean };
+  OnlinePaymentDetails: { task: any; paymentBody: any; amount: number; employeeName: string; customerName: string; customerContact: string };
   PaymentReceived: { task: any; elapsedSeconds?: number };
   TaskClosure: { task: any; elapsedSeconds?: number };
   TaskSummary: { task: any; elapsedSeconds?: number; payload: any; preview: any };
@@ -80,6 +81,14 @@ export default function TechnicianStack() {
           headerShown: false,
           presentation: 'transparentModal',
           animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
+        name="OnlinePaymentDetails"
+        component={OnlinePaymentDetailsScreen}
+        options={{
+          title: tr('Online Payment Details'),
+          headerShown: false,
         }}
       />
     </Stack.Navigator>

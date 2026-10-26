@@ -76,3 +76,6 @@ yarn-error.log
 
 # Google API key for Directions/Places (see src/config/mapsKey.example.ts)
 src/config/mapsKey.ts
+
+#Dev testing Payment keys
+src/payments/devPgKeys.ts
