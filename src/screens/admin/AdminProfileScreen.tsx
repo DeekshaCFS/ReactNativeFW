@@ -49,11 +49,12 @@ interface FieldProps {
   /** Read-only tap target (Google Places address search), like TechProfileScreen's Address. */
   onPress?: () => void;
   maxLength?: number;
+  prefix?: string;
 }
 
 const Field: React.FC<FieldProps> = ({
   label, value, keyboard = 'default', showEditIcon = false, editable = true,
-  onChange, onEditIconPress, onPress, maxLength,
+  onChange, onEditIconPress, onPress, maxLength, prefix,
 }) => (
   <View style={fieldStyles.wrapper}>
     <Text style={fieldStyles.floatingLabel}>{label}</Text>
@@ -65,15 +66,23 @@ const Field: React.FC<FieldProps> = ({
       </Pressable>
     ) : (
       <View style={fieldStyles.inputBox}>
-        <TextInput
-          style={fieldStyles.input}
-          value={value ?? ''}
-          keyboardType={keyboard}
-          onChangeText={onChange}
-          editable={editable}
-          maxLength={maxLength}
-          cursorColor={COLORS.primary}
-        />
+        <View style={fieldStyles.inputRow}>
+          {!!prefix && (
+            <>
+              <Text style={fieldStyles.prefixText}>{prefix}</Text>
+              <Text style={fieldStyles.prefixDivider}>|</Text>
+            </>
+          )}
+          <TextInput
+            style={[fieldStyles.input, { flex: 1 }]}
+            value={value ?? ''}
+            keyboardType={keyboard}
+            onChangeText={onChange}
+            editable={editable}
+            maxLength={maxLength}
+            cursorColor={COLORS.primary}
+          />
+        </View>
       </View>
     )}
     {showEditIcon && (
@@ -111,6 +120,8 @@ const isValidEmployeeCount = (value: string) => /^[1-9][0-9]?$|^100$/.test(value
 // Java's Picasso encodes them; React Native's Image on Android does not and silently fails.
 const encodeImageUrl = (url?: string) => (url ?? '').replace(/ /g, '%20');
 
+const CONTACT_COUNTRY_CODE = '+91';
+
 const fieldStyles = StyleSheet.create({
   wrapper:        { marginBottom: ms(16) },
   floatingLabel:  {
@@ -127,6 +138,20 @@ const fieldStyles = StyleSheet.create({
   // Overlaps the field's top border at its right edge, like Java's negative-margin ImageView.
   editIconOverlay: {
     position: 'absolute', top: ms(10), right: ms(10),
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  prefixText: {
+    fontSize: sp(16),
+    color: COLORS.lightGray,
+    marginRight: ms(8),
+  },
+  prefixDivider: {
+    fontSize: sp(16),
+    color: COLORS.lightGray,
+    marginRight: ms(8),
   },
 });
 
@@ -582,6 +607,7 @@ export default function AdminProfileScreen() {
           label={t('contact_no_hint')}
           value={profile?.ContactNo}
           keyboard="phone-pad"
+          prefix={profile?.CountryCode ?? CONTACT_COUNTRY_CODE}
           maxLength={12}
           editable={!profile?.ContactNo}
           showEditIcon={!!profile?.ContactNo}
@@ -675,7 +701,7 @@ export default function AdminProfileScreen() {
         <Field label={t('city')} value={companyCity} maxLength={200} onChange={setCompanyCity} />
         <Field label={t('rn_gst_pan_no')} value={gstOrPan} maxLength={15}
           onChange={(v) => setGstOrPan(v.replace(/[^0-9A-Za-z]/g, '').toUpperCase())} />
-        <Field label={t('company_cont_no_hint')} keyboard="number-pad" maxLength={12}
+        <Field label={t('company_cont_no_hint')} keyboard="number-pad" maxLength={12} prefix={profile?.CountryCode ?? CONTACT_COUNTRY_CODE}
           value={companyContactNo} onChange={setCompanyContactNo} />
         <Field label={t('company_website_hint')} keyboard="url" maxLength={50}
           value={companyWebsite} onChange={setCompanyWebsite} />

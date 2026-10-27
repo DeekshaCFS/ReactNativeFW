@@ -61,11 +61,12 @@ interface FieldProps {
   onEditIconPress?: () => void;
   onPress?: () => void;
   maxLength?: number;
+  prefix?: string;
 }
 
 const Field: React.FC<FieldProps> = ({
   label, value, keyboard = 'default', showEditIcon = false, editable = true,
-  onChange, onEditIconPress, onPress, maxLength,
+  onChange, onEditIconPress, onPress, maxLength, prefix,
 }) => (
   <View style={fieldStyles.wrapper}>
     <Text style={fieldStyles.floatingLabel}>{label}</Text>
@@ -77,15 +78,23 @@ const Field: React.FC<FieldProps> = ({
       </Pressable>
     ) : (
       <View style={fieldStyles.inputBox}>
-        <TextInput
-          style={fieldStyles.input}
-          value={value ?? ''}
-          keyboardType={keyboard}
-          onChangeText={onChange}
-          editable={editable}
-          maxLength={maxLength}
-          cursorColor={COLORS.primary}
-        />
+        <View style={fieldStyles.inputRow}>
+          {!!prefix && (
+            <>
+              <Text style={fieldStyles.prefixText}>{prefix}</Text>
+              <Text style={fieldStyles.prefixDivider}>|</Text>
+            </>
+          )}
+          <TextInput
+            style={[fieldStyles.input, { flex: 1 }]}
+            value={value ?? ''}
+            keyboardType={keyboard}
+            onChangeText={onChange}
+            editable={editable}
+            maxLength={maxLength}
+            cursorColor={COLORS.primary}
+          />
+        </View>
       </View>
     )}
     {showEditIcon && (
@@ -136,6 +145,8 @@ const formatAadhar = (raw: string) => {
 
 const toast = (msg: string) => showToast(msg);
 
+const CONTACT_COUNTRY_CODE = '+91'; // Java's textView_countryCode hardcodes this, no API call.
+
 const fieldStyles = StyleSheet.create({
   wrapper:        { marginBottom: ms(16) },
   floatingLabel:  {
@@ -152,6 +163,20 @@ const fieldStyles = StyleSheet.create({
   // Overlaps the field's top border at its right edge, like Java's negative-margin ImageView.
   editIconOverlay: {
     position: 'absolute', top: ms(10), right: ms(10),
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  prefixText: {
+    fontSize: sp(16),
+    color: COLORS.lightGray,
+    marginRight: ms(8),
+  },
+  prefixDivider: {
+    fontSize: sp(16),
+    color: COLORS.lightGray,
+    marginRight: ms(8),
   },
 });
 
@@ -564,6 +589,7 @@ export default function TechProfileScreen() {
           label={t('contact_no_hint')}
           value={profile?.ContactNo}
           keyboard="phone-pad"
+          prefix={profile?.CountryCode ?? CONTACT_COUNTRY_CODE}
           editable={!profile?.ContactNo}
           showEditIcon={!!profile?.ContactNo}
           onChange={(v) => setProfile(prev => prev ? { ...prev, ContactNo: v } : prev)}
