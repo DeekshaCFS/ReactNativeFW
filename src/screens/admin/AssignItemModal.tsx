@@ -1,10 +1,11 @@
 // src/screens/admin/AssignItemModal.tsx
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {ms, sp} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
 import {
   ActivityIndicator,
-  Alert,
-  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -12,26 +13,40 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {getAllItemAssignedUnassigned, issueItem} from '../../api/item/itemService';
 import type {IssueItemResultData, ItemsListResultData} from '../../api/item/item.types';
-import {getExpenseUserList} from '../../api/expenditure/expenditureService';
-import type {ExpenseTechListResultData} from '../../api/expenditure/expenditure.types';
+import {getAllUsersList} from '../../api/users/usersService';
+import type {UsersListResultData} from '../../api/users/users.types';
 
 type AssignItemRequest = IssueItemResultData;
-type ExpenseTechnicianItem = ExpenseTechListResultData;
 type ItemInventoryListItem = ItemsListResultData;
 import {
   THEME_PRIMARY,
   extractArray,
   getNumberField,
   getStringField,
-  styles,
-} from './CRMScreen';
+  styles as sharedStyles,
+} from './crmShared';
+import {isFieldworkerRecord, taskStyles} from './AddTaskModal';
+import {AssignItemIcon} from '../../components/FabIcons';
+import SearchPickerModal from '../../components/SearchPickerModal';
+import {COLORS} from '../../theme/theme';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
+
+import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
+// Same Java dialog sheet / header / spinner metrics as the Add Task form.
+const styles = {...sharedStyles, ...taskStyles};
 
 type AssignItemModalProps = {
   visible: boolean;
   onClose: () => void;
   ownerId: number;
+  /** Opens with this item already chosen (assign from an inventory row). */
+  initialItem?: {id: number; name: string} | null;
+  onAssigned?: () => void;
 };
 
 type ItemOption = {
@@ -49,29 +64,26 @@ const normalizeAssignItemOption = (
   };
 };
 
-const getFieldworkerName = (item: ExpenseTechnicianItem) => {
+const getFieldworkerName = (item: UsersListResultData) => {
   const record = item as Record<string, unknown>;
   const fullName = `${getStringField(record, [
     'firstName',
     'FirstName',
   ])} ${getStringField(record, ['lastName', 'LastName'])}`.trim();
 
+  // FirstName/LastName first -- UserName on this endpoint is the login (phone number).
   return (
-    getStringField(record, [
-      'employeeName',
-      'EmployeeName',
-      'userName',
-      'UserName',
-    ]) ||
-    getStringField(record, ['name', 'Name']) ||
     fullName ||
+    getStringField(record, ['employeeName', 'EmployeeName']) ||
+    getStringField(record, ['name', 'Name']) ||
+    getStringField(record, ['userName', 'UserName']) ||
     'Fieldworker'
   );
 };
 
-const getFieldworkerId = (item: ExpenseTechnicianItem) => {
+const getFieldworkerId = (item: UsersListResultData) => {
   const record = item as Record<string, unknown>;
-  const value = record.userId ?? record.UserId;
+  const value = record.userId ?? record.UserId ?? record.id ?? record.Id;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
@@ -80,7 +92,10 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
   visible,
   onClose,
   ownerId,
+  initialItem = null,
+  onAssigned,
 }) => {
+  const {t} = useTranslation();
   const [selectedItem, setSelectedItem] = useState<ItemOption | null>(null);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [itemSearchQuery, setItemSearchQuery] = useState('');
@@ -93,10 +108,9 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
   } | null>(null);
   const [isFieldworkerModalOpen, setIsFieldworkerModalOpen] = useState(false);
   const [allFieldworkers, setAllFieldworkers] = useState<
-    ExpenseTechnicianItem[]
+    UsersListResultData[]
   >([]);
   const [isFieldworkerLoading, setIsFieldworkerLoading] = useState(false);
-  const [fieldworkerSearch, setFieldworkerSearch] = useState('');
 
   const [quantity, setQuantity] = useState('0');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,7 +120,6 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
     setItemSearchQuery('');
     setItemOptions([]);
     setSelectedFieldworker(null);
-    setFieldworkerSearch('');
     setQuantity('0');
   }, []);
 
@@ -115,7 +128,13 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
       return;
     }
     resetForm();
-  }, [visible, resetForm]);
+    if (initialItem) {
+      setSelectedItem(initialItem);
+    }
+    // Keyed on the id: callers build initialItem inline, so its identity changes
+    // every render and would otherwise reset the form under the user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, resetForm, initialItem?.id]);
 
   const handleClose = () => {
     resetForm();
@@ -170,31 +189,24 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
       return;
     }
     setIsFieldworkerLoading(true);
-    getExpenseUserList({OwnerId: ownerId})
+    // Java: Users/AllUsersList (HomeActivityNew.getUserList) feeds this spinner -- fieldworkers
+    // only, not every employee.
+    getAllUsersList({OwnerId: ownerId, RoleId: 2, OnlyList: false})
       .then(response => {
-        setAllFieldworkers(extractArray<ExpenseTechnicianItem>(response));
+        setAllFieldworkers(
+          extractArray<UsersListResultData>(response).filter(isFieldworkerRecord),
+        );
       })
       .catch(() => setAllFieldworkers([]))
       .finally(() => setIsFieldworkerLoading(false));
   }, [allFieldworkers.length, isFieldworkerLoading, ownerId]);
 
-  const displayedFieldworkers = useMemo(() => {
-    const query = fieldworkerSearch.trim().toLowerCase();
-    if (!query) {
-      return allFieldworkers;
-    }
-    return allFieldworkers.filter(item =>
-      getFieldworkerName(item).toLowerCase().includes(query),
-    );
-  }, [allFieldworkers, fieldworkerSearch]);
-
-  const handleFieldworkerSelect = (item: ExpenseTechnicianItem) => {
+  const handleFieldworkerSelect = (item: UsersListResultData) => {
     setSelectedFieldworker({
       id: getFieldworkerId(item),
       name: getFieldworkerName(item),
     });
     setIsFieldworkerModalOpen(false);
-    setFieldworkerSearch('');
   };
 
   const handleQuantityIncrement = () => {
@@ -207,15 +219,15 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
 
   const handleAssignSubmit = async () => {
     if (!selectedItem) {
-      Alert.alert('Assign Item', 'Please select an item.');
+      showFailureMsg(t('rn_please_select_an_item_2'));
       return;
     }
     if (!selectedFieldworker) {
-      Alert.alert('Assign Item', 'Please select a fieldworker.');
+      showFailureMsg(t('rn_please_select_a_fieldworker'));
       return;
     }
     if (!quantity || Number(quantity) <= 0) {
-      Alert.alert('Assign Item', 'Please enter a valid quantity.');
+      showFailureMsg(t('please_enter_valid_quantity'));
       return;
     }
 
@@ -235,16 +247,17 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await issueItem(payload);
-      Alert.alert('Assign Item', 'Item assigned successfully.');
+      ensureSuccess(await issueItem(payload));
+      showSuccessMsg(t('item_assigned_successfully'));
       resetForm();
+      onAssigned?.();
       onClose();
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : 'Unable to assign item right now.';
-      Alert.alert('Assign Item', message);
+      showFailureMsg(message || 'Assign Item');
     } finally {
       setIsSubmitting(false);
     }
@@ -261,25 +274,31 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalHeaderTitle}>Assign Item</Text>
+              <Text style={styles.modalHeaderTitle}>{t('assign_item')}</Text>
               <TouchableOpacity onPress={handleClose}>
-                <Text style={styles.modalCloseIcon}>✕</Text>
+                <Ionicons name="close" style={styles.modalCloseIcon} />
               </TouchableOpacity>
             </View>
 
             <ScrollView
-              contentContainerStyle={styles.modalScrollContent}
+              contentContainerStyle={assignStyles.scrollContent}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={styles.howToRow}>
-                <View style={styles.howToPlayIcon}>
-                  <Text style={styles.howToPlayIconText}>▶</Text>
+              <View style={assignStyles.howToRow}>
+                <View style={assignStyles.howToPlayIcon}>
+                  <Ionicons name="play" size={ms(11)} color="#FFFFFF" />
                 </View>
-                <Text style={styles.howToText}>How to assign item?</Text>
+                <Text style={assignStyles.howToText}>{t('hassignitem')}</Text>
               </View>
 
+              {initialItem ? (
+                // Java: opened from a specific item, the name is a plain label (no spinner).
+                <Text style={assignStyles.fixedItemName} numberOfLines={1}>
+                  {selectedItem ? selectedItem.name : initialItem.name}
+                </Text>
+              ) : (
               <TouchableOpacity
-                style={styles.dropdownPill}
+                style={[styles.dropdownPill, assignStyles.itemPill]}
                 onPress={openItemModal}
               >
                 <Text
@@ -290,13 +309,14 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                   }
                   numberOfLines={1}
                 >
-                  {selectedItem ? selectedItem.name : 'Select Item'}
+                  {selectedItem ? selectedItem.name : tr('Select Item')}
                 </Text>
-                <Text style={styles.dropdownChevron}>⌄</Text>
+                <Ionicons name="chevron-down" style={styles.dropdownChevron} />
               </TouchableOpacity>
+              )}
 
               <TouchableOpacity
-                style={styles.dropdownPill}
+                style={[styles.dropdownPill, assignStyles.fieldworkerPill]}
                 onPress={() => {
                   loadFieldworkers();
                   setIsFieldworkerModalOpen(true);
@@ -312,27 +332,26 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                 >
                   {selectedFieldworker
                     ? selectedFieldworker.name
-                    : 'Select Fieldworkers'}
+                    : tr('Select Fieldworkers')}
                 </Text>
-                <Text style={styles.dropdownChevron}>⌄</Text>
+                <Ionicons name="chevron-down" style={styles.dropdownChevron} />
               </TouchableOpacity>
 
-              <Text style={assignStyles.quantityLabel}>Quantity</Text>
+              <Text style={assignStyles.quantityLabel}>{t('quantity')}</Text>
               <View style={assignStyles.quantityPill}>
                 <TouchableOpacity
-                  style={assignStyles.quantityMinusButton}
+                  style={assignStyles.quantityButton}
                   onPress={handleQuantityDecrement}
                 >
-                  <Text style={assignStyles.quantityButtonText}>−</Text>
+                  <Text style={assignStyles.quantityButtonText}>-</Text>
                 </TouchableOpacity>
-                <TextInput
+                <DecimalInput integer
                   style={assignStyles.quantityInput}
-                  keyboardType="numeric"
                   value={quantity}
                   onChangeText={setQuantity}
                 />
                 <TouchableOpacity
-                  style={assignStyles.quantityPlusButton}
+                  style={assignStyles.quantityButton}
                   onPress={handleQuantityIncrement}
                 >
                   <Text style={assignStyles.quantityButtonText}>+</Text>
@@ -348,187 +367,148 @@ const AssignItemModal: React.FC<AssignItemModalProps> = ({
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
                   <>
-                    <Text style={styles.addButtonIcon}>📦</Text>
-                    <Text style={styles.addButtonText}>ASSIGN</Text>
+                    <View style={styles.addButtonIconWrap}>
+                      <AssignItemIcon size={ms(30)} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.darkAddButtonText}>{t('assign').toUpperCase()}</Text>
                   </>
                 )}
               </TouchableOpacity>
+
+              {initialItem ? null : (
+                <TouchableOpacity onPress={handleClose}>
+                  <Text style={styles.cancelText}>{t('cancel')}</Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
           </View>
         </View>
       </Modal>
 
-      <Modal
+      {/* Java ItemDialog: dialog_searchable_spinner_item / _technician -- the shared dialog. */}
+      <SearchPickerModal
         visible={isItemModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsItemModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsItemModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Item</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Pls Enter Min 3 Characters."
-                placeholderTextColor="#9aa0a6"
-                value={itemSearchQuery}
-                onChangeText={setItemSearchQuery}
-                autoFocus
-              />
-            </View>
-            {isItemLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : itemSearchQuery.trim().length < 3 ? (
-              <Text style={styles.itemSearchHintText}>
-                Pls Enter Min 3 Characters.
-              </Text>
-            ) : (
-              <ScrollView
-                style={styles.taskTagModalScroll}
-                keyboardShouldPersistTaps="handled"
-              >
-                {itemOptions.map(option => (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={styles.taskTagItem}
-                    onPress={() => handleItemSelect(option)}
-                  >
-                    <Text style={styles.taskTagItemText}>{option.name}</Text>
-                  </TouchableOpacity>
-                ))}
-                {itemOptions.length === 0 ? (
-                  <Text style={styles.emptyText}>No items found.</Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title={t('select_item')}
+        options={itemOptions.map(option => ({id: option.id, label: option.name}))}
+        loading={isItemLoading}
+        searchHint="Pls Enter Min 3 Characters."
+        minChars={3}
+        emptyText="No items found."
+        onSearch={setItemSearchQuery}
+        onSelect={picked => {
+          const option = itemOptions.find(o => o.id === picked.id);
+          if (option) {
+            handleItemSelect(option);
+          }
+        }}
+        onClose={() => setIsItemModalOpen(false)}
+      />
 
-      <Modal
+      <SearchPickerModal
         visible={isFieldworkerModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsFieldworkerModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsFieldworkerModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Fieldworker</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
-                value={fieldworkerSearch}
-                onChangeText={setFieldworkerSearch}
-              />
-            </View>
-            {isFieldworkerLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : (
-              <ScrollView style={styles.taskTagModalScroll}>
-                {displayedFieldworkers.map(item => {
-                  const name = getFieldworkerName(item);
-                  const isSelected =
-                    selectedFieldworker?.id === getFieldworkerId(item);
-                  return (
-                    <TouchableOpacity
-                      key={getFieldworkerId(item) || name}
-                      style={styles.taskTagItem}
-                      onPress={() => handleFieldworkerSelect(item)}
-                    >
-                      <Text
-                        style={[
-                          styles.taskTagItemText,
-                          isSelected ? styles.serviceLeafTextSelected : null,
-                        ]}
-                      >
-                        {name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-                {displayedFieldworkers.length === 0 ? (
-                  <Text style={styles.emptyText}>No fieldworkers found.</Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title={t('select_technicians')}
+        options={allFieldworkers.map(item => ({
+          id: getFieldworkerId(item),
+          label: getFieldworkerName(item),
+        }))}
+        loading={isFieldworkerLoading}
+        emptyText="No fieldworkers found."
+        onSelect={picked => {
+          const item = allFieldworkers.find(i => getFieldworkerId(i) === picked.id);
+          if (item) {
+            handleFieldworkerSelect(item);
+          }
+        }}
+        onClose={() => setIsFieldworkerModalOpen(false)}
+      />
     </>
   );
 };
 
+// dialog_issue_item_new: 10dp side margins, 14sp spinners, rounded_border (20dp) quantity stepper
+// with plain "-" / "+" 30sp text, rounded_button (red, 34dp) ASSIGN with ic_item_option.
 const assignStyles = {
+  scrollContent: {
+    paddingHorizontal: ms(10),
+    paddingTop: ms(20),
+    paddingBottom: ms(10),
+  },
+  howToRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginBottom: ms(20),
+  },
+  howToPlayIcon: {
+    width: ms(20),
+    height: ms(20),
+    borderRadius: ms(10),
+    backgroundColor: COLORS.primary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginRight: ms(10),
+  },
+  howToText: {
+    color: COLORS.primary,
+    fontSize: sp(14),
+  },
+  itemPill: {
+    marginBottom: ms(3),
+  },
+  fieldworkerPill: {
+    marginTop: ms(20),
+    marginBottom: ms(3),
+  },
+  fixedItemName: {
+    fontSize: sp(20),
+    color: '#000000',
+    marginLeft: ms(5),
+    marginTop: ms(0),
+    marginBottom: ms(0),
+  },
   quantityLabel: {
-    fontSize: 11,
-    color: '#8a8f98',
-    marginBottom: 4,
+    fontSize: sp(18),
+    color: '#000000',
+    marginLeft: ms(5),
+    marginTop: ms(10),
   },
   quantityPill: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: 24,
-    height: 46,
-    paddingHorizontal: 6,
-    marginBottom: 14,
+    borderWidth: ms(1),
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(20),
+    height: ms(40),
+    marginTop: ms(10),
+    marginBottom: ms(10),
   },
   quantityInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#222',
+    flex: 0.7,
+    fontSize: sp(16),
+    color: COLORS.ink,
     padding: 0,
     textAlign: 'center' as const,
   },
-  quantityPlusButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: THEME_PRIMARY,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  quantityMinusButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: THEME_PRIMARY,
+  quantityButton: {
+    flex: 0.15,
+    height: '100%' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   quantityButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700' as const,
-    lineHeight: 20,
+    color: COLORS.ink,
+    fontSize: sp(30),
+    lineHeight: sp(36),
   },
   assignButton: {
     flexDirection: 'row' as const,
-    backgroundColor: THEME_PRIMARY,
-    borderRadius: 24,
-    height: 48,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: 14,
-    gap: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    height: ms(48),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
   },
 };
 

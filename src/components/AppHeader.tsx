@@ -1,15 +1,16 @@
 // src/components/AppHeader.tsx
 
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  Platform,
-  StatusBar,
+  AppState,
 } from 'react-native';
+
+import { refreshUnreadCount, useUnreadCount } from '../state/notificationBadge';
 
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -22,30 +23,62 @@ import {
 } from '@react-navigation/native';
 
 import { COLORS } from '../theme/theme';
+import { useTranslation } from 'react-i18next';
+import { tr } from '../i18n/tr';
 
 import {
   sp,
   ms,
-  hp,
-  wp,
+  scale,
+  HEADER_BAR_HEIGHT,
 } from '../utils/responsive';
+
+import TourTarget from '../tour/TourTarget';
+import { useHeaderBack } from '../state/headerBack';
 
 // Exported so screens rendered underneath this (absolutely-positioned)
 // header can pad their own top content by `insets.top + HEADER_CONTENT_HEIGHT`
 // instead of drawing their own duplicate toolbar.
-export const HEADER_CONTENT_HEIGHT = ms(56);
+export const HEADER_CONTENT_HEIGHT = HEADER_BAR_HEIGHT;
 
 type AppHeaderProps = {
   title: string;
   navigation: NavigationProp<ParamListBase>;
+  // Java's admin toolbar has no location icon and no unread badge on the bell.
+  isAdmin?: boolean;
+  // Shows a back arrow instead of the hamburger (pushed screens, and iOS which has no hardware back).
+  onBack?: () => void;
+  // false: ignore the back handler a screen registered via setHeaderBack (other tabs sharing this header).
+  useRegisteredBack?: boolean;
 };
 
 const AppHeader: React.FC<AppHeaderProps> = ({
   title,
   navigation,
+  isAdmin = false,
+  onBack,
+  useRegisteredBack = true,
 }) => {
+  useTranslation();
+  const registeredBack = useHeaderBack();
+  const back = onBack ?? (useRegisteredBack ? registeredBack : null);
 
   const insets = useSafeAreaInsets();
+  const unread = useUnreadCount();
+
+  // Bell badge: refresh on mount, whenever the host screen regains focus (e.g. back from
+  // the notification list) and when the app returns to the foreground.
+  useEffect(() => {
+    refreshUnreadCount();
+    const unsubscribeFocus = navigation.addListener('focus', refreshUnreadCount);
+    const appStateSub = AppState.addEventListener('change', state => {
+      if (state === 'active') refreshUnreadCount();
+    });
+    return () => {
+      unsubscribeFocus();
+      appStateSub.remove();
+    };
+  }, [navigation]);
 
   // Use safe-area insets on both platforms for consistency across devices
   const topInset = insets.top;
@@ -65,15 +98,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     >
       <View style={styles.headerRow}>
         {/* LEFT */}
-        <Pressable
-          onPress={() =>
-            navigation.dispatch(DrawerActions.openDrawer())
-          }
-          hitSlop={10}
-          style={styles.sideBtn}
-        >
-          <Ionicons name="menu-outline" size={ms(26)} color="#fff" />
-        </Pressable>
+        <TourTarget tourKey="headerMenu">
+          <Pressable
+            onPress={() => (back ? back() : navigation.dispatch(DrawerActions.openDrawer()))}
+            hitSlop={10}
+            style={styles.sideBtn}
+          >
+            <Ionicons name={back ? 'arrow-back' : 'menu-outline'} size={ms(26)} color="#fff" />
+          </Pressable>
+        </TourTarget>
 
         {/* CENTER */}
         <View style={styles.centerContainer}>
@@ -82,23 +115,25 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             numberOfLines={1}
             allowFontScaling={false}
           >
-            {title}
+            {tr(title)}
           </Text>
         </View>
 
         {/* RIGHT */}
         <View style={styles.headerIcons}>
-          <Pressable hitSlop={10} style={styles.iconBtn}>
-            <Ionicons name="location-outline" size={ms(22)} color="#fff" />
-          </Pressable>
+          {isAdmin ? null : (
+            <Pressable onPress={() => navigation.navigate('TodayTasksMap')} hitSlop={10} style={styles.iconBtn}>
+              <Ionicons name="location-outline" size={ms(22)} color="#fff" />
+            </Pressable>
+          )}
 
-          <Pressable
-            onPress={() => navigation.navigate('help')}
-            hitSlop={10}
-            style={styles.iconBtn}
-          >
-            <Ionicons name="headset-outline" size={ms(22)} color="#fff" />
-          </Pressable>
+          <TourTarget tourKey="headerHelp">
+            <Pressable onPress={() => navigation.navigate('help')} hitSlop={10} style={styles.iconBtn}>
+              <Ionicons name="headset-outline" size={ms(22)} color="#fff" />
+            </Pressable>
+
+
+          </TourTarget>
 
           <Pressable
             onPress={() => navigation.navigate('notification')}
@@ -110,6 +145,13 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               size={ms(22)}
               color="#fff"
             />
+            {!isAdmin && unread > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText} allowFontScaling={false}>
+                  {unread > 99 ? '99+' : unread}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
         </View>
       </View>
@@ -140,11 +182,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: wp(4),
+    paddingHorizontal: scale(16),
   },
 
   sideBtn: {
-    width: wp(12),
+    width: scale(46),
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
@@ -153,7 +195,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'flex-start',
-    paddingHorizontal: wp(2),
+    paddingHorizontal: scale(8),
   },
 
   headerTitle: {
@@ -170,6 +212,25 @@ const styles = StyleSheet.create({
 
   iconBtn: {
     padding: ms(5),
-    marginLeft: wp(1.5),
+    marginLeft: scale(6),
+  },
+
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    minWidth: ms(16),
+    height: ms(16),
+    borderRadius: ms(8),
+    paddingHorizontal: ms(3),
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  badgeText: {
+    color: COLORS.primary,
+    fontSize: sp(10),
+    fontWeight: '700',
   },
 });

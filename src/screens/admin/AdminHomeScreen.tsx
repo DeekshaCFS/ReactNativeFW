@@ -1,10 +1,9 @@
 // src/screens/admin/AdminHomeScreen.tsx
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ActivityIndicator,
-  Alert,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -12,28 +11,28 @@ import {
   Text,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {getUserDetails} from '../../api/users/usersService';
 import type {UserDetails, UserDetailsResultData} from '../../api/users/users.types';
-import {useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
+import {getCountrySymbol} from '../../api/countryDetails/countryDetailsService';
+import {useFocusEffect, useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import { HEADER_CONTENT_HEIGHT } from '../../components/AppHeader';
+import { useDoubleBackExit } from '../../hooks/useDoubleBackExit';
+import { ms, sp } from '../../utils/responsive';
 import {
   getCurrentUserProfile,
   getCurrentPreferredLanguage,
   getCurrentUserId,
   setCurrentUserProfile,
+  setCurrentCountryDetails,
 } from '../../state/session';
 import type {AdminTabParamList} from '../../navigation/AdminTabs';
 import OwnerDashboardScreen, {type DayFilter} from './OwnerDashboardScreen';
 import ItemInventoryTabHostScreen from './ItemInventoryTabHostScreen';
 import PassbookExpenditureTabHostScreen from './PassbookExpenditureTabHostScreen';
 import LeadListScreen from './LeadListScreen';
-import AddTaskModal from './AddTaskModal';
-import AddItemModal from './AddItemModal';
-import AssignItemModal from './AssignItemModal';
-import AddFieldworkerModal from './AddFieldworkerModal';
-import ManageBalanceModal from './ManageBalanceModal';
 import AccountsScreen from './AccountsScreen';
 
 // Drawer item labels now live in CustomDrawerContent.tsx (the shared,
@@ -42,7 +41,11 @@ import AccountsScreen from './AccountsScreen';
 // 'Services', 'Help & Support' — see the `isXSection` checks below, which
 // compare `selectedDrawerLabel` against them.
 import AMCDashboardScreen from './AMCDashboardScreen';
+import ServiceCategoryTabHost from './ServiceCategoryTabHost';
+import BrandModelTabHost from './BrandModelTabHost';
+import { showFailureMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 const LANGUAGE_GREETINGS: Record<string, string> = {
   English: 'Hello',
   Hindi: 'नमस्ते',
@@ -52,14 +55,19 @@ const LANGUAGE_GREETINGS: Record<string, string> = {
   Kannada: 'ನಮಸ್ಕಾರ',
   Tamil: 'வணக்கம்',
   Telugu: 'హలో',
-  Malayalam: 'മലയാളം',
+  Malayalam: 'നമസ്കാരം',
   Arabic: 'مرحبا',
 };
 
+const CODE_TO_NAME: Record<string, string> = {en: 'English', hi: 'Hindi', pa: 'Punjabi', bn: 'Bengali', mr: 'Marathi', kn: 'Kannada', ta: 'Tamil', te: 'Telugu', ml: 'Malayalam', ar: 'Arabic'};
 const THEME_PRIMARY = '#c3002f';
 const OwnerDashboard = OwnerDashboardScreen as React.ComponentType<{
   ownerId: number;
   filter: DayFilter;
+  onCreateTask?: () => void;
+  onEarningsPress?: () => void;
+  onAmcStatusPress?: () => void;
+  onAttendancePress?: () => void;
 }>;
 
 const DASHBOARD_FILTERS: DayFilter[] = ['Today', 'Week', 'Month', 'Year'];
@@ -104,7 +112,15 @@ const formatPrimaryContact = (userDetails: UserDetailsResultData | null) => {
   return getUserFieldString(userDetails, 'Email') || 'No contact details';
 };
 
-const AdminHomeScreen = () => {
+type AdminHomeScreenProps = {
+  onCreateTask?: () => void;
+};
+
+// NOTE: AdminTabs mounts this as `<AdminHomeScreen onCreateTask={...} />`,
+// but this component previously took no props at all, so that handler was
+// silently dropped -- the dashboard's "Create Task" button called nothing.
+const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
+  const {t, i18n} = useTranslation();
   const navigation =
     useNavigation<BottomTabNavigationProp<AdminTabParamList, 'Home'>>();
   const insets = useSafeAreaInsets();
@@ -131,6 +147,16 @@ const AdminHomeScreen = () => {
     }
   }, [route.params?.drawerSection, navigation]);
 
+  // This tab stays mounted and remembers the drawer section it was showing (AMC, Item Inventory,
+  // Leads...). Tapping the Home tab -- from a section, from another tab or from a pushed screen like
+  // AMC details -- must always land on the dashboard.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      setSelectedDrawerLabel('Dashboard');
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   useEffect(() => {
     const trigger = route.params?.addAmcTrigger;
     if (trigger) {
@@ -150,7 +176,10 @@ const AdminHomeScreen = () => {
 
   const toolbarTitle = useMemo(
     () =>
-      selectedDrawerLabel !== 'Dashboard' ? selectedDrawerLabel : 'FieldWeb',
+      // Java leaves the toolbar on "FieldWeb" while Passbook is open.
+      selectedDrawerLabel !== 'Dashboard' && selectedDrawerLabel !== 'Passbook'
+        ? (selectedDrawerLabel === 'Brand Management' ? 'Brand Config' : selectedDrawerLabel)
+        : 'FieldWeb',
     [selectedDrawerLabel],
   );
 
@@ -166,7 +195,19 @@ const AdminHomeScreen = () => {
   const isAMCSection = selectedDrawerLabel === 'AMC';
   const isLeadSection = selectedDrawerLabel === 'Leads';
   const isAccountsSection = selectedDrawerLabel === 'Accounts';
+  const isServicesSection = selectedDrawerLabel === 'Services';
+  const isBrandManagementSection = selectedDrawerLabel === 'Brand Management';
   const isHomeDashboard = selectedDrawerLabel === 'Dashboard';
+
+  // Back from a drawer section (Leads, Accounts, AMC...) returns to the
+  // dashboard first; only from the dashboard does back reach the exit prompt.
+  useDoubleBackExit(() => {
+    if (selectedDrawerLabel !== 'Dashboard') {
+      setSelectedDrawerLabel('Dashboard');
+      return true;
+    }
+    return false;
+  });
 
   const isFieldWorkerUser = useMemo(() => {
     const roleDetails = userDetails as
@@ -208,9 +249,16 @@ const AdminHomeScreen = () => {
     );
   }, [fullName, userDetails]);
 
+  // Java: mUserDetails.getProgressBarPercentage() (owner_home_fragment_new's profileCompletion bar).
+  const profileCompletionPercent = useMemo(() => {
+    const raw = userDetails?.ProgressBarPercentage;
+    const parsed = raw != null ? parseFloat(String(raw)) : NaN;
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [userDetails]);
+
   const greetingText = useMemo(() => {
-    return `${getGreetingPrefix(preferredLanguage)}, ${firstName}`;
-  }, [firstName, preferredLanguage]);
+    return `${i18n.t('rn_hello')}, ${firstName}`;
+  }, [firstName, i18n.language]);
 
   const primaryContact = useMemo(() => {
     return formatPrimaryContact(userDetails);
@@ -228,7 +276,8 @@ const AdminHomeScreen = () => {
     setUseDefaultAvatar(false);
   }, [profileImageUri]);
 
-  useEffect(() => {
+  // Reload the profile each time the Home tab gains focus (same as the technician Home).
+  useFocusEffect(useCallback(() => {
     let isMounted = true;
 
     const loadUserDetails = async () => {
@@ -253,7 +302,7 @@ const AdminHomeScreen = () => {
           error instanceof Error
             ? error.message
             : 'Unable to load user details right now.';
-        Alert.alert('User details error', message);
+        showFailureMsg(message || 'User details error');
       } finally {
         if (isMounted) {
           setIsUserDetailsLoading(false);
@@ -262,6 +311,37 @@ const AdminHomeScreen = () => {
     };
 
     loadUserDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [ownerId]));
+
+  // Java's HomeActivityNew.onCreate() fetches this once per session
+  // alongside getUSerDetails() and caches it in SharedPrefManager
+  // (CountryCode/CurrencySymbol) -- it's what CRMTaskDetailsFragmentNew /
+  // TaskDetailsFragmentNew use to prefix the customer's phone number
+  // ("+<code> <number>") and to build the wa.me link. Mirror that here so
+  // every admin screen has it available via session getters.
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCountrySymbol = async () => {
+      try {
+        const response = await getCountrySymbol({UserId: ownerId});
+        const resultData = response?.ResultData;
+        if (!isMounted || !resultData) {
+          return;
+        }
+
+        setCurrentCountryDetails(resultData.CountryCode, resultData.CurrencySymbol);
+      } catch {
+        // Non-critical: phone/currency formatting just falls back to raw
+        // values if this fails, same as the rest of this bootstrap effect.
+      }
+    };
+
+    loadCountrySymbol();
 
     return () => {
       isMounted = false;
@@ -296,6 +376,14 @@ const AdminHomeScreen = () => {
       return <AccountsScreen ownerId={ownerId} />;
     }
 
+    if (isServicesSection) {
+      return <ServiceCategoryTabHost ownerId={ownerId} />;
+    }
+
+    if (isBrandManagementSection) {
+      return <BrandModelTabHost ownerId={ownerId} />;
+    }
+
     if (isAMCSection) {
       return (
         <AMCDashboardScreen
@@ -317,7 +405,24 @@ const AdminHomeScreen = () => {
       );
     }
 
-    return <OwnerDashboard ownerId={ownerId} filter={dashboardFilter} />;
+    return (
+      <OwnerDashboard
+        ownerId={ownerId}
+        filter={dashboardFilter}
+        onCreateTask={onCreateTask}
+        // Matches Java's Earnings tap -> HomePassbookFragmentNew: jump to
+        // the Passbook section of this same screen.
+        onEarningsPress={() => setSelectedDrawerLabel('Passbook')}
+        // Matches Java's AMC Status tap -> AMCListFragment.
+        onAmcStatusPress={() => setSelectedDrawerLabel('AMC')}
+        // Java opens LeaveTabHost/PersonalLeaveTabHost here, but this app's
+        // product decision is to land on the Employee List content instead --
+        // an intentional deviation from Java, not a parity gap. The header
+        // still reads "Attendance" for this visit (attendanceEntry), matching
+        // the title Java's Attendance tap uses.
+        onAttendancePress={() => navigation.navigate('Employee', { attendanceEntry: true })}
+      />
+    );
   };
 
   return (
@@ -338,7 +443,9 @@ const AdminHomeScreen = () => {
       isLeadSection ||
       isAccountsSection ||
       isItemInventorySection ||
-      isPassbookSection ? null : (
+      isPassbookSection ||
+      isServicesSection ||
+      isBrandManagementSection ? null : (
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
             <Text numberOfLines={1} style={styles.headerName}>
@@ -349,15 +456,37 @@ const AdminHomeScreen = () => {
               onPress={() => setIsDashboardFilterOpen(true)}
             >
               <Text style={styles.headerFilterLabel}>{dashboardFilter}</Text>
-              <Text style={styles.headerFilterArrow}>▼</Text>
+              <Ionicons name="chevron-down" style={styles.headerFilterArrow} />
             </Pressable>
           </View>
           {isUserDetailsLoading ? (
             <View style={styles.headerLoaderRow}>
               <ActivityIndicator color="#FFFFFF" size="small" />
               <Text style={styles.headerLoaderText}>
-                Refreshing profile...
+                {t('rn_refreshing_profile')}
               </Text>
+            </View>
+          ) : null}
+          {/* Java's owner_home_fragment_new: profileCompletion bar, hidden
+              once the profile reaches 100% (OwnerDashboardFragment). */}
+          {profileCompletionPercent > 0 && profileCompletionPercent < 100 ? (
+            <View style={styles.profileCompletionRow}>
+              <View style={styles.profileCompletionBarTrack}>
+                <View
+                  style={[
+                    styles.profileCompletionBarFill,
+                    {width: `${Math.min(100, profileCompletionPercent)}%`},
+                  ]}
+                />
+              </View>
+              <Text style={styles.profileCompletionText}>
+                {t('title_profile')} {Math.round(profileCompletionPercent)}%
+              </Text>
+              <Pressable
+                onPress={() => (navigation as any).navigate('Profile')}
+              >
+                <Text style={styles.profileCompletionUpdate}>{t('update')}</Text>
+              </Pressable>
             </View>
           ) : null}
         </View>
@@ -366,6 +495,9 @@ const AdminHomeScreen = () => {
       {isItemInventorySection ||
       isPassbookSection ||
       isLeadSection ||
+      isAccountsSection ||
+      isServicesSection ||
+      isBrandManagementSection ||
       isAMCSection ? (
         <View style={styles.taskContentContainer}>{renderContent()}</View>
       ) : (
@@ -446,26 +578,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F3F5',
   },
   toolbar: {
-    height: 48,
+    height: ms(48),
     backgroundColor: THEME_PRIMARY,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
+    paddingHorizontal: ms(8),
   },
   toolbarIconButton: {
-    width: 40,
-    height: 40,
+    width: ms(40),
+    height: ms(40),
     alignItems: 'center',
     justifyContent: 'center',
   },
   toolbarTitle: {
     color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: sp(17),
     fontWeight: '700',
   },
   toolbarRightSpace: {
-    width: 40,
+    width: ms(40),
   },
   toolbarRightIcons: {
     flexDirection: 'row',
@@ -473,71 +605,67 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: THEME_PRIMARY,
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 10 : 14,
-    paddingBottom: 12,
+    paddingHorizontal: ms(16),
+    paddingTop: ms(2),
+    paddingBottom: ms(2),
   },
   headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: ms(12),
   },
   headerName: {
     flexShrink: 1,
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '700',
     color: '#FFFFFF',
   },
   headerFilterControl: {
-    minWidth: 108,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.45)',
-    borderRadius: 8,
-    height: 34,
-    paddingHorizontal: 10,
+    minWidth: ms(108),
+    height: ms(34),
+    paddingHorizontal: ms(10),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   headerFilterLabel: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: sp(16),
+    fontWeight: '500',
   },
   headerFilterArrow: {
     color: '#FFFFFF',
-    fontSize: 10,
-    marginLeft: 8,
+    fontSize: sp(16),
+    marginLeft: ms(8),
   },
   dashboardFilterBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'flex-end',
-    paddingTop: Platform.OS === 'ios' ? 108 : 118,
-    paddingRight: 16,
+    paddingTop: Platform.OS === 'ios' ? ms(108) : ms(118),
+    paddingRight: ms(16),
   },
   dashboardFilterPanel: {
-    width: 140,
+    width: ms(140),
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 6,
+    borderRadius: ms(12),
+    paddingVertical: ms(6),
     elevation: 6,
     shadowColor: '#000000',
     shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: ms(8),
+    shadowOffset: { width: 0, height: ms(4) },
   },
   dashboardFilterItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: ms(10),
+    paddingHorizontal: ms(16),
   },
   dashboardFilterItemSelected: {
     backgroundColor: '#FCE9ED',
   },
   dashboardFilterItemText: {
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '600',
     color: '#111827',
   },
@@ -545,14 +673,43 @@ const styles = StyleSheet.create({
     color: THEME_PRIMARY,
   },
   headerLoaderRow: {
-    marginTop: 10,
+    marginTop: ms(10),
     flexDirection: 'row',
     alignItems: 'center',
   },
   headerLoaderText: {
-    marginLeft: 8,
+    marginLeft: ms(8),
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: sp(12),
+  },
+  profileCompletionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: ms(10),
+  },
+  profileCompletionBarTrack: {
+    flex: 1,
+    height: ms(6),
+    borderRadius: ms(3),
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    overflow: 'hidden',
+    marginRight: ms(8),
+  },
+  profileCompletionBarFill: {
+    height: '100%',
+    borderRadius: ms(3),
+    backgroundColor: '#FFFFFF',
+  },
+  profileCompletionText: {
+    color: '#FFFFFF',
+    fontSize: sp(11),
+    marginRight: ms(10),
+  },
+  profileCompletionUpdate: {
+    color: '#FFFFFF',
+    fontSize: sp(11),
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   homeScrollView: {
     flex: 1,
@@ -560,8 +717,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flexGrow: 1,
-    padding: 16,
-    paddingBottom: 100,
+    paddingBottom: ms(100),
   },
   taskContentContainer: {
     flex: 1,
@@ -570,21 +726,21 @@ const styles = StyleSheet.create({
   },
   contentCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: ms(12),
+    padding: ms(16),
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
   contentTitle: {
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '700',
     color: '#111827',
   },
   contentText: {
-    fontSize: 14,
+    fontSize: sp(14),
     color: '#4B5563',
-    marginTop: 8,
-    lineHeight: 20,
+    marginTop: ms(8),
+    lineHeight: sp(20),
   },
 });
 

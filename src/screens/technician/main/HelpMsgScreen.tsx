@@ -9,17 +9,15 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { scale, vs, sp } from '../../../utils/responsive';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { TechnicianStackParamList } from '../../../navigation/TechStack';
 
-type NavigationProp = NativeStackNavigationProp<
-  TechnicianStackParamList,
-  'helpMessages'
->;
+import { useTranslation } from 'react-i18next';
+// Only the admin stack still uses this screen (technician Help is HelpChatScreen).
+type NavigationProp = any;
 
 export default function HelpMessagesScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp>();
 
   return (
@@ -33,21 +31,21 @@ export default function HelpMessagesScreen() {
           color="#fff"
           onPress={() => navigation.navigate('help')}
         />
-        <Text style={styles.subHeaderTitle}>Messages</Text>
+        <Text style={styles.subHeaderTitle}>{t('rn_messages')}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
 
-        <Text style={styles.title}>Start a new chat</Text>
+        <Text style={styles.title}>{t('rn_start_a_new_chat')}</Text>
 
         <Pressable
           style={styles.newCard}
-          onPress={() => navigation.navigate('help')}
+          onPress={() => navigation.navigate('helpChat')}
         >
           <View>
-            <Text style={styles.newTitle}>New Conversation</Text>
+            <Text style={styles.newTitle}>{t('rn_new_conversation')}</Text>
             <Text style={styles.newSubtitle}>
-              We typically reply in a few minutes
+              {t('rn_we_typically_reply_in_a_few_minutes')}
             </Text>
           </View>
 
@@ -58,28 +56,10 @@ export default function HelpMessagesScreen() {
           />
         </Pressable>
 
-        <Text style={styles.recentTitle}>Recent</Text>
-
-        <Pressable style={styles.recentItem}>
-          <View style={{ flex: 1 }}>
-            <View style={styles.recentTopRow}>
-              <Text style={styles.name}>Walter Chahat</Text>
-              <Text style={styles.time}>now</Text>
-            </View>
-
-            <View style={styles.recentBottomRow}>
-              <Text style={styles.preview}>
-                Welcome to FieldWeb, if you need help simply...
-              </Text>
-
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>1</Text>
-              </View>
-
-              <Ionicons name="chevron-forward" size={sp(18)} color="#888" />
-            </View>
-          </View>
-        </Pressable>
+        <Text style={styles.recentTitle}>{t('rn_recent')}</Text>
+        <Text style={styles.emptyText}>
+          {t('rn_your_conversation_history_opens_inside_the')}
+        </Text>
 
       </ScrollView>
 
@@ -101,7 +81,7 @@ export default function HelpMessagesScreen() {
             />
           </Pressable>
         </View>
-        <Text style={styles.footerText}>Powered by tawk.to</Text>
+        <Text style={styles.footerText}>{t('rn_powered_by_tawk_to')}</Text>
       </View>
 
     </View>
@@ -112,7 +92,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f9f9f9' },
 
   redBg: {
-    height: HEADER_TOP_PADDING,
+    height: vs(15),
     backgroundColor: COLORS.primary,
   },
 
@@ -170,52 +150,9 @@ const styles = StyleSheet.create({
     marginBottom: vs(15),
   },
 
-  recentItem: {
-    paddingVertical: vs(15),
-    borderBottomWidth: 0.5,
-    borderColor: '#ddd',
-  },
-
-  recentTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-
-  name: {
+  emptyText: {
     fontSize: sp(14),
-    color: '#666',
-  },
-
-  time: {
-    fontSize: sp(14),
-    color: '#999',
-  },
-
-  recentBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: vs(8),
-  },
-
-  preview: {
-    flex: 1,
-    fontSize: sp(15),
-    fontWeight: '600',
-  },
-
-  badge: {
-    backgroundColor: COLORS.primary,
-    width: scale(22),
-    height: scale(22),
-    borderRadius: scale(11),
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: scale(8),
-  },
-
-  badgeText: {
-    color: '#fff',
-    fontSize: sp(12),
+    color: '#888',
   },
 
   footer: {

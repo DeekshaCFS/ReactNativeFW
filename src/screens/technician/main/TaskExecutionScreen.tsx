@@ -5,19 +5,28 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   TextInput,
   Image,
   ActivityIndicator,
-  Modal,
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
+  PermissionsAndroid,
+  Linking,
+  } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { scale, vs, sp, wps, ms } from '../../../utils/responsive';
+import { getCurrentUserProfile } from '../../../state/session';
+import { placeTeleCmiCall } from '../../../utils/teleCmiCall';
+import BottomSheetDialog, { FieldErrorDot, FieldErrorTip } from '../../../components/BottomSheetDialog';
+import { UploadPhotoIcon } from '../../../components/DialogIcons';
+import { isNetworkAvailable } from '../../../offline/networkQuality';
+import { savePendingTask, getPendingTask } from '../../../offline/offlineStore';
+import { cachedFetch, fsrCacheKey, refreshCustomFieldsCache } from '../../../offline/offlineCache';
+import { getAllchkpointCategory } from '../../../api/fsrManagement/fsrManagementService';
 import {
   getTaskById,
   addPhotoBeforeTask,
@@ -34,11 +43,29 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import Video, { VideoRef } from 'react-native-video';
 import { TASK_STATUS_ID } from '../../../constants/taskStatus';
+import { buildImagesPayload } from '../../../utils/imagePayload';
+import { nowAsJavaTime } from '../../../utils/taskStatus.utils';
+import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
+import ImageSourceDialog from '../../../components/ImageSourceDialog';
+import { tr } from '../../../i18n/tr';
 type Task = TasksListResultData;
 type AssignedItem = TasksListMultipleItemAssigned;
 
+// Three photo boxes visible at a time, horizontally scrollable to reveal the rest.
+const VISIBLE_PHOTO_BOXES = 3;
+const PHOTO_ROW_GAP = scale(16);
+const PHOTO_BOX_SIZE =
+  Math.min(
+    (wps(100) - scale(20) * 2 - PHOTO_ROW_GAP * (VISIBLE_PHOTO_BOXES - 1)) /
+      VISIBLE_PHOTO_BOXES,
+    scale(130),
+  );
+
 export default function TaskExecutionScreen({ navigation, route }: any) {
+  const {t} = useTranslation();
   const { task: routeTask } = route.params as { task: Task };
 
   const [uid, setUid] = useState<string | null>(null);
@@ -55,11 +82,13 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectPhotos, setRejectPhotos] = useState<{ uri: string; base64?: string }[]>([]);
   const [rejecting, setRejecting] = useState(false);
+  const [rejectReasonError, setRejectReasonError] = useState(false);
 
   const [showOnHoldSheet, setShowOnHoldSheet] = useState(false);
   const [onHoldReason, setOnHoldReason] = useState('');
   const [onHoldPhotos, setOnHoldPhotos] = useState<{ uri: string; base64?: string }[]>([]);
   const [onHolding, setOnHolding] = useState(false);
+  const [onHoldReasonError, setOnHoldReasonError] = useState(false);
 
   const [taskDetail, setTaskDetail] = useState<Task | null>(routeTask ?? null);
   const [trackingDetail, setTrackingDetail] = useState<TasksListResultData | null>(null);
@@ -70,6 +99,15 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
   const [trackingLoading, setTrackingLoading] = useState(false);
 
   const [showContinue, setShowContinue] = useState(false);
+
+  // Java (TaskRequestItems_FW.setRefresh): after items are requested from the on-hold
+  // dialog, the on-hold dialog opens again with what the user had already entered.
+  useEffect(() => {
+    if (route.params?.reopenOnHold) {
+      setShowOnHoldSheet(true);
+      navigation.setParams({ reopenOnHold: undefined });
+    }
+  }, [route.params?.reopenOnHold, navigation]);
 
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
 
@@ -105,19 +143,15 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
     if (routeTask) {
       setTaskDetail(routeTask);
 
-      if (routeTask.StartDate) {
-        const elapsedSeconds = Math.floor(
-          (Date.now() - Number(routeTask.StartDate)) / 1000
-        );
-
-        setSeconds(elapsedSeconds);
-      }
+      // Java: chronometer shows 00:00 until START/CONTINUE; on continue it runs from
+      // (now - StartDate).
+      setSeconds(0);
       setIsRunning(false);
 
       if (
         routeTask.StartDate &&
         (routeTask.TaskState === 1 ||
-          (routeTask.TaskState === 0 && routeTask.TaskStatus === 'On Hold'))
+          (routeTask.TaskState === 0 && routeTask.TaskStatus === 'OnHold'))
       ) {
         setShowContinue(true);
       }
@@ -179,8 +213,30 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       }
     };
 
+    // Before photos + note stored on the device (started offline) are shown from there.
+    const loadOfflineBeforePhotos = async () => {
+      const pending = await getPendingTask(routeTask.Id as number);
+      const before = pending?.beforePhotos;
+      if (!before) return;
+      const toUri = (b64?: string) => (b64 ? { uri: `data:image/jpeg;base64,${b64}`, base64: b64 } : null);
+      const stored = [before.DeviceInfoImagePath, before.DeviceInfoImagePath1, before.DeviceInfoImagePath2]
+        .map(toUri)
+        .filter((x): x is { uri: string; base64: string } => !!x);
+      if (stored.length > 0) setPhotos(stored);
+      if (before.DeviceInfoNotes) setNote(before.DeviceInfoNotes);
+    };
+
+    // Warm what the Closure screen needs while the network is still there (FSR checkpoints).
+    const warmFsr = () => {
+      if (!uid || !routeTask?.Id) return;
+      refreshCustomFieldsCache(Number(uid), routeTask.Id as number);
+      cachedFetch(fsrCacheKey(uid, routeTask.Id as number), () => getAllchkpointCategory({ UserId: Number(uid), TaskId: routeTask.Id })).catch(() => {});
+    };
+
     fetchTrackingDetails();
     fetchTaskImages();
+    loadOfflineBeforePhotos();
+    warmFsr();
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -211,9 +267,36 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
     const { list, setList, index } = pendingPhotoRef.current;
     pendingPhotoRef.current = null;
 
-    const result = source === 'camera'
-      ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7 })
-      : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
+    // The camera intent silently fails on Android if launched while the source Modal is
+    // still dismissing; give it time to close first.
+    if (source === 'camera') await new Promise<void>(r => setTimeout(r, 400));
+
+    // CAMERA is declared in the manifest, so image-picker expects the app to obtain the
+    // runtime permission itself.
+    if (source === 'camera' && Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        showToast(t('rn_camera_permission_is_required_to_take_a_ph'));
+        return;
+      }
+    }
+
+    let result;
+    try {
+      result = source === 'camera'
+        ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7, saveToPhotos: false })
+        : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
+    } catch (e: any) {
+      showToast(e?.message || 'Unable to open the camera');
+      return;
+    }
+
+    if (result.errorCode) {
+      showToast(result.errorCode === 'permission'
+          ? tr('Camera permission is required to take a photo.')
+          : result.errorMessage || 'Unable to open the camera');
+      return;
+    }
 
     if (result.assets?.[0]) {
       const asset = result.assets[0];
@@ -225,17 +308,21 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 
   const handleStart = () => {
     if (showContinue) {
+      // Java: already-running task (STARTED_NOT_ENDED) just resumes the timer from
+      // (now - StartDate) with no API call. An on-hold task restarts from 0.
+      if (routeTask.TaskState === 1 && routeTask.StartDate) {
+        setSeconds(Math.max(0, Math.floor((Date.now() - Number(routeTask.StartDate)) / 1000)));
+        setShowContinue(false);
+        setIsRunning(true);
+        return;
+      }
       setShowContinue(false);
       startTask();
       return;
     }
 
-    if (photos.length === 0 || !photos.some(p => p?.uri)) {
-      setShowUploadSheet(true);
-      return;
-    }
-
-    startTask();
+    // Java: START always opens the before-task photo dialog (captureBeforeTaskPhotoDialog).
+    setShowUploadSheet(true);
   };
 
   const startTask = async () => {
@@ -245,7 +332,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         UserId: Number(uid),
         TaskStatus: TASK_STATUS_ID.Ongoing,
         TaskState: 1,
-        Time: seconds,
+        Time: nowAsJavaTime(),
       });
       console.log('START RESPONSE', response);
 
@@ -262,55 +349,93 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             : prev
         );
       } else {
-        Alert.alert('Error', response?.Message || 'Failed to start task');
+        showFailureMsg(response?.Message || 'Failed to start task');
       }
     } catch (err: any) {
       console.log('START ERROR', err);
-      Alert.alert('Error', err?.message || 'Failed to start task');
+      showFailureMsg(err?.message || 'Failed to start task');
     }
   };
 
   const handleUploadAndStart = async () => {
     const presentPhotos = photos.filter(p => p?.base64);
     if (presentPhotos.length === 0) {
-      Alert.alert('Please Add/Capture Image');
+      showFailureMsg(t('rn_please_add_capture_image'));
       return;
     }
     try {
       setUploading(true);
 
-      const response = await addPhotoBeforeTask({
+      const now = new Date();
+      const p2 = (n: number) => String(n).padStart(2, '0');
+      // Java: mPhotoName = "yyyyMMdd_HHmmss_<which>.jpg"
+      const photoName =
+        `${now.getFullYear()}${p2(now.getMonth() + 1)}${p2(now.getDate())}_` +
+        `${p2(now.getHours())}${p2(now.getMinutes())}${p2(now.getSeconds())}_1.jpg`;
+
+      const photoBody = {
+        DeviceInfoImageName: photoName,
+        Images: buildImagesPayload(presentPhotos.map(p => p.base64)),
         DeviceInfoImagePath: presentPhotos[0]?.base64 || '',
         DeviceInfoImagePath1: presentPhotos[1]?.base64 || '',
         DeviceInfoImagePath2: presentPhotos[2]?.base64 || '',
         DeviceInfoNotes: note,
         CreatedBy: Number(uid),
         TaskId: routeTask.Id,
-      });
+      };
+
+      // Java (CountdownTechFragmentNew): no network -> the before photos + note and the STARTED
+      // status are stored on the device and the timer starts as usual; both sync later.
+      if (!(await isNetworkAvailable())) {
+        await savePendingTask(
+          { taskId: routeTask.Id as number, newTaskId: routeTask.NewTaskId ?? String(routeTask.Id), userId: Number(uid), taskName: routeTask.Name },
+          {
+            beforePhotos: photoBody,
+            statuses: [{
+              TaskId: routeTask.Id as number,
+              UserId: Number(uid),
+              TaskStatus: TASK_STATUS_ID.Ongoing,
+              TaskState: 1,
+              RejectedTaskNotes: '',
+              TotalDistance: 0,
+              Time: nowAsJavaTime(),
+            }],
+          },
+        );
+        setShowUploadSheet(false);
+        setShowContinue(false);
+        setIsRunning(true);
+        setTaskDetail(prev => (prev ? { ...prev, TaskState: 1 } : prev));
+        return;
+      }
+
+      const response = await addPhotoBeforeTask(photoBody);
 
       if (response?.Code !== '200') {
-        Alert.alert('Upload failed', response?.Message || 'Could not upload photos');
+        showFailureMsg(response?.Message || 'Could not upload photos');
         return;
       }
 
       setShowUploadSheet(false);
       await startTask();
     } catch (err: any) {
-      Alert.alert('Upload failed', err?.message || 'Could not upload photos');
+      showFailureMsg(err?.message || 'Could not upload photos');
     } finally {
       setUploading(false);
     }
   };
 
   const handleReject = async () => {
-    if (!rejectReason.trim()) {
-      Alert.alert('Please enter a reason for rejection');
+    // Java buttonUpload.onClick: reason (field error), then at least one image (toast).
+    if (!rejectReason) {
+      setRejectReasonError(true);
       return;
     }
+    setRejectReasonError(false);
 
     const presentRejectPhotos = rejectPhotos.filter(p => p?.base64);
     if (presentRejectPhotos.length === 0) {
-      Alert.alert('At least one image is mandatory to reject the task.');
+      showToast(t('rn_at_least_one_image_is_mandatory_to_reject__2'), true);
       return;
     }
 
@@ -330,33 +455,39 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         TaskState: 0, // TaskState.NOT_STARTED
         RejectedTaskNotes: rejectReason.trim(),
         TotalDistance: 0,
-        Time: seconds,
+        Time: nowAsJavaTime(),
         Task_Rejected_Image_Dtls: taskRejectedImageDtls,
       });
 
       if (response?.Code !== '200') {
-        Alert.alert('Error', response?.Message || 'Failed to reject task');
+        showFailureMsg(response?.Message || 'Failed to reject task');
         return;
       }
 
       setShowRejectSheet(false);
-      navigation.goBack();
+      setRejectReason('');
+      setRejectPhotos([]);
+      showToast(t('task_updated_successfully'), true);
+      // Java returns to the Task tab after a rejection.
+      navigation.navigate('Task');
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to reject task');
+      showFailureMsg(err?.message || 'Failed to reject task');
     } finally {
       setRejecting(false);
     }
   };
 
   const handleOnHold = async () => {
-    if (!onHoldReason.trim()) {
-      Alert.alert('Please enter a reason for on hold');
+    // Java buttonOnhold.onClick: reason (field error), then at least one image.
+    if (!onHoldReason) {
+      setOnHoldReasonError(true);
       return;
     }
+    setOnHoldReasonError(false);
 
     const presentHoldPhotos = onHoldPhotos.filter(p => p?.base64);
     if (presentHoldPhotos.length === 0) {
-      Alert.alert('At least one image is mandatory to put the task on hold.');
+      showFailureMsg(t('rn_at_least_one_image_is_mandatory_to_put_tas'));
       return;
     }
 
@@ -371,27 +502,29 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         Pick1: onHoldPhotos[0]?.base64 || '',
         Pick2: onHoldPhotos[1]?.base64 || '',
         Pick3: onHoldPhotos[2]?.base64 || '',
-        CreatedBy: Number(uid),
-        CreatedDate: new Date().toISOString(),
-        UpdatedBy: Number(uid),
-        UpdatedDate: new Date().toISOString(),
+        Images: buildImagesPayload(presentHoldPhotos.map(p => p.base64), true),
+        // Java copies these from the task (resultData) rather than using "now".
+        CreatedBy: routeTask.CreatedBy ?? Number(uid),
+        CreatedDate: routeTask.CreatedDate ?? new Date().toISOString(),
+        UpdatedBy: Number(routeTask.UpdatedBy ?? uid),
+        UpdatedDate: routeTask.UpdatedDate ?? new Date().toISOString(),
         TaskStatus: 5,
       });
 
       if (response?.Code !== '200') {
-        Alert.alert('Error', response?.Message || 'Failed to put task on hold');
+        showFailureMsg(response?.Message || 'Failed to put task on hold');
         return;
       }
 
       setShowOnHoldSheet(false);
       setIsRunning(false);
-      Alert.alert('Success', 'Task moved to On Hold');
-      navigation.goBack();
+      showToast(t('rn_status_updated_successfully'), true);
+      navigation.navigate('Task');
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to put task on hold');
+      showFailureMsg(err?.message || 'Failed to put task on hold');
     } finally {
       setOnHolding(false);
     }
@@ -400,17 +533,63 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
   const handleEndTask = async () => {
     setIsRunning(false);
     try {
-      await updateTaskStatus({
-        TaskId: routeTask.Id,
-        UserId: Number(uid),
-        TaskStatus: TASK_STATUS_ID.Ongoing,
-        TaskState: 2,
-        Time: seconds,
-      });
+      // Java: no network -> the ENDED status is stored on the device and the flow moves on to
+      // Closure; it is posted from the Sync screen.
+      const offlineEnd = !(await isNetworkAvailable());
+      if (offlineEnd) {
+        await savePendingTask(
+          { taskId: routeTask.Id as number, newTaskId: routeTask.NewTaskId ?? String(routeTask.Id), userId: Number(uid), taskName: routeTask.Name },
+          {
+            statuses: [{
+              TaskId: routeTask.Id as number,
+              UserId: Number(uid),
+              TaskStatus: TASK_STATUS_ID.Ongoing,
+              TaskState: 2,
+              RejectedTaskNotes: '',
+              TotalDistance: 0,
+              Time: nowAsJavaTime(),
+            }],
+          },
+        );
+      }
+      const res: any = offlineEnd
+        ? { Code: '200' }
+        : await updateTaskStatus({
+            TaskId: routeTask.Id,
+            UserId: Number(uid),
+            TaskStatus: TASK_STATUS_ID.Ongoing,
+            TaskState: 2,
+            Time: nowAsJavaTime(),
+          });
+      // Java only moves on to Closure after the server confirms ENDED_NO_PAYMENT.
+      if (res?.Code !== '200') {
+        setIsRunning(true);
+        showFailureMsg(res?.Message || 'Could not end the task. Please try again.');
+        return;
+      }
     } catch (err: any) {
-      console.warn('[TaskExecution] handleEndTask: updateTaskStatus failed, continuing to closure:', err?.message);
+      // Keep the task running so the technician can retry instead of reaching
+      // Closure while the server still thinks the task is in progress.
+      setIsRunning(true);
+      showFailureMsg(err?.message || 'Could not end the task. Please try again.');
+      return;
     }
-    navigation.navigate('TaskClosure', { task: routeTask, elapsedSeconds: seconds });
+    showSuccessMsg(t('task_updated_successfully'));
+    // Java sets TaskState = ENDED_NO_PAYMENT before opening Closure (HomeActivityNew
+    // updateTaskStatus success). Closure derives Rate-mode handling from this state, so
+    // it must not receive the stale pre-end task.
+    const endedTask: Task = {
+      ...routeTask,
+      TaskStatus: 'Ongoing',
+      TaskStatusId: TASK_STATUS_ID.Ongoing,
+      TaskState: 2,
+    };
+    // The task has ended on the server: back from Closure goes to the tab bar, never to
+    // this screen (where START would post TaskState 1 and regress the task).
+    resetToTabsThen(navigation, {
+      name: 'TaskClosure',
+      params: { task: endedTask, elapsedSeconds: seconds },
+    });
   };
 
   const handlePlayAudio = () => {
@@ -419,10 +598,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       routeTask.AudioFilePath;
 
     if (!audioPath) {
-      Alert.alert(
-        'No Audio',
-        'No instruction audio is attached to this task.'
-      );
+      showToast(t('rn_no_instruction_audio_is_attached_to_this_t'));
       return;
     }
 
@@ -436,16 +612,29 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
     setIsPlayingAudio(true);
   };
 
+  const handleCallCustomer = () => {
+    // Java imageView_call (only shown with the TeleCMI module on): bridge the call via TeleCMI.
+    placeTeleCmiCall(taskDetail?.ContactNo ?? routeTask?.ContactNo);
+  };
+
   const handleTaskInput = () => {
     navigation.navigate('TaskInput', { routeTask });
   };
 
+  const MAX_PHOTOS = 12;
+
+  // Java: HorizontalScrollView of 100dp boxes (textview_border_curved) 10dp apart.
   const renderPhotoSlots = (
     list: { uri: string; base64?: string }[],
     setList: React.Dispatch<React.SetStateAction<{ uri: string; base64?: string }[]>>,
   ) => (
-    <View style={styles.photoRow}>
-      {[0, 1, 2].map((i) => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.photoScroll}
+      contentContainerStyle={styles.photoRow}
+    >
+      {Array.from({ length: MAX_PHOTOS }, (_, i) => i).map((i) => (
         <Pressable
           key={i}
           style={styles.photoBox}
@@ -454,11 +643,11 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
           {list[i]?.uri ? (
             <Image source={{ uri: list[i].uri }} style={styles.photoThumb} />
           ) : (
-            <Ionicons name="camera-outline" size={sp(44)} color="#848891" />
+            <Ionicons name="camera-outline" size={ms(56)} color={COLORS.lightGray} />
           )}
         </Pressable>
       ))}
-    </View>
+    </ScrollView>
   );
 
   return (
@@ -472,57 +661,74 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.inputBox}>
+        {/* Task name card (CardView 14dp margin, 10dp radius) */}
+        <View style={styles.nameCard}>
           <Text style={styles.taskName}>{taskDetail?.Name || 'Task'}</Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Instructions</Text>
-        <Text style={styles.sectionValue}>
-          {taskDetail?.Description && taskDetail.Description !== 'undefined' && taskDetail.Description.trim() !== ''
-            ? taskDetail.Description
-            : 'NA'}
-        </Text>
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionTitle}>{t('instructions')}</Text>
+          <Text style={styles.description}>
+            {taskDetail?.Description && taskDetail.Description !== 'undefined' && taskDetail.Description.trim() !== ''
+              ? taskDetail.Description
+              : tr('NA')}
+          </Text>
 
-        {trackingDetail?.OnHoldTaskDtos?.OnHoldNotes && (
-          <>
-            <Text style={styles.sectionTitle}>On Hold Notes</Text>
-            <Text style={styles.sectionValue}>{trackingDetail.OnHoldTaskDtos.OnHoldNotes}</Text>
-          </>
-        )}
+          {/* Java shows the call button only when the TeleCMI module is on. */}
+          {getCurrentUserProfile().teleCmiModuleFlag === 'true' && (
+            <Pressable style={styles.callBtn} onPress={handleCallCustomer}>
+              <Image source={require('../../../../assets/images/ic_phone.png')} style={styles.callIcon} />
+            </Pressable>
+          )}
 
-        <Text style={styles.sectionTitle}>Item Assigned</Text>
-        {taskDetail?.MultipleItemAssigned && taskDetail.MultipleItemAssigned.length > 0 ? (
-          taskDetail.MultipleItemAssigned
-            .filter((a: AssignedItem) => a.ItemName)
-            .map((a: AssignedItem, idx: number) => (
-              <View style={styles.inputBox} key={idx}>
-                <Text style={styles.sectionValue}>{idx + 1}. {a.ItemName}</Text>
-              </View>
-            ))
-        ) : (
-          <Text style={styles.sectionValue}>NA</Text>
-        )}
+          {trackingDetail?.OnHoldTaskDtos?.OnHoldNotes && (
+            <>
+              <Text style={styles.sectionTitle}>{t('rn_on_hold_notes')}</Text>
+              <Text style={styles.sectionValue}>{trackingDetail.OnHoldTaskDtos.OnHoldNotes}</Text>
+            </>
+          )}
 
-        {isRunning && (
-          <>
-            <Text style={styles.sectionTitle}>
-              Picture Before Start Task
-            </Text>
-            {renderPhotoSlots(photos, setPhotos)}
+          <Text style={styles.sectionTitle}>{t('item_assigned')}</Text>
+          {taskDetail?.MultipleItemAssigned && taskDetail.MultipleItemAssigned.length > 0 ? (
+            <View style={styles.itemsCard}>
+              {taskDetail.MultipleItemAssigned
+                .filter((a: AssignedItem) => a.ItemName)
+                .map((a: AssignedItem, idx: number) => (
+                  <View style={styles.itemRow} key={idx}>
+                    <Text style={styles.itemText}>{idx + 1}. {a.ItemName}</Text>
+                  </View>
+                ))}
+            </View>
+          ) : (
+            <Text style={styles.sectionValue}>{t('na')}</Text>
+          )}
 
-            {trackingDetail?.PreDeviceInfoDto?.DeviceInfoNotes || note ? (
-              <>
-                <Text style={styles.sectionTitle}>Note</Text>
-                <Text style={styles.sectionValue}>
-                  {trackingDetail?.PreDeviceInfoDto?.DeviceInfoNotes || note}
-                </Text>
-              </>
-            ) : null}
-          </>
-        )}
+          {(isRunning || showContinue || photos.some(p => p?.uri)) && (
+            <>
+              <Text style={[styles.sectionTitle, { marginTop: ms(10) }]}>
+                {t('before_task')}
+              </Text>
+              {renderPhotoSlots(photos, setPhotos)}
+            </>
+          )}
 
+          {(trackingDetail?.PreDeviceInfoDto?.DeviceInfoNotes ||
+            routeTask?.PreDeviceInfoDto?.DeviceInfoNotes ||
+            note) ? (
+            <>
+              <Text style={[styles.sectionTitle, { marginTop: ms(15) }]}>{t('note')}</Text>
+              <Text style={styles.sectionValue}>
+                {trackingDetail?.PreDeviceInfoDto?.DeviceInfoNotes ||
+                  routeTask?.PreDeviceInfoDto?.DeviceInfoNotes ||
+                  note}
+              </Text>
+            </>
+          ) : null}
+        </View>
+
+        {/* linear_play_audio: bg_closure_border (34dp radius, #f4f4f4), 10dp above */}
         <View style={styles.audioCard}>
-          <Text style={styles.audioText}>Listen your Instructions</Text>
+          <Text style={styles.audioText}>{t('rn_listen_your_instructions')}</Text>
           <Pressable style={styles.playBtn} onPress={handlePlayAudio} disabled={audioLoading}>
             {audioLoading ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -531,25 +737,19 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             )}
           </Pressable>
         </View>
+      </ScrollView>
 
+      {/* linear_start_task: bottom-anchored 30dp-radius card with the timer and action buttons */}
+      <View style={styles.bottomPanel}>
         <Text style={styles.timer}>{formatTime()}</Text>
 
-        <View style={styles.topButtons}>
+        <View style={styles.btnRow}>
           <Pressable style={[styles.btn, styles.reject]} onPress={() => setShowRejectSheet(true)}>
-            <Text style={styles.btnText}>REJECT</Text>
+            <Text style={styles.btnText}>{t('reject_task').toUpperCase()}</Text>
           </Pressable>
 
-          <Pressable
-            style={[styles.btn, styles.onhold]}
-            onPress={() => {
-              if (!isRunning) {
-                Alert.alert('Task not started', 'Start the task before putting it on hold.');
-                return;
-              }
-              setShowOnHoldSheet(true);
-            }}
-          >
-            <Text style={styles.btnText}>ON HOLD</Text>
+          <Pressable style={[styles.btn, styles.onhold]} onPress={() => setShowOnHoldSheet(true)}>
+            <Text style={styles.btnText}>{t('rn_on_hold')}</Text>
           </Pressable>
 
           <Pressable
@@ -557,161 +757,144 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             onPress={isRunning ? handleEndTask : handleStart}
           >
             <Text style={styles.btnText}>
-              {
-                isRunning
-                  ? 'END TASK'
-                  : showContinue
-                    ? 'CONTINUE TASK'
-                    : 'START'
-              }
+              {isRunning ? tr('END TASK') : showContinue ? 'CONTINUE' : 'START'}
             </Text>
           </Pressable>
         </View>
 
-        <View style={styles.bottomButtons}>
-          <Pressable style={styles.bottomBtn} onPress={handleTaskInput}>
-            <Text style={styles.btnText}>TASK INPUT</Text>
+        <View style={styles.btnRow}>
+          <Pressable style={[styles.btn, styles.onhold]} onPress={handleTaskInput}>
+            <Text style={styles.btnText}>{t('rn_task_input')}</Text>
           </Pressable>
-          <Pressable style={styles.bottomBtn} onPress={() => navigation.navigate('ItemRequest', { routeTask })}>
-            <Text style={styles.btnText}>REQUEST ITEMS</Text>
+          <Pressable style={[styles.btn, styles.onhold]} onPress={() => navigation.navigate('ItemRequest', { routeTask })}>
+            <Text style={styles.btnText}>{t('request_items').toUpperCase()}</Text>
           </Pressable>
         </View>
-      </ScrollView>
+      </View>
 
       {/* PHOTO SOURCE PICKER MODAL */}
-      <Modal visible={showPhotoSourceModal} transparent animationType="fade" onRequestClose={() => setShowPhotoSourceModal(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowPhotoSourceModal(false)}>
-          <Pressable>
-            <View style={styles.photoSourceSheet}>
-              <Text style={styles.photoSourceTitle}>Select Image Source</Text>
-              <View style={styles.photoSourceDivider} />
-              <TouchableOpacity style={styles.photoSourceOption} onPress={() => handlePhotoSource('camera')}>
-                <View style={[styles.photoSourceIconWrap, { backgroundColor: COLORS.primary }]}>
-                  <Ionicons name="camera-outline" size={sp(20)} color="#fff" />
-                </View>
-                <Text style={styles.photoSourceOptionText}>Camera</Text>
-              </TouchableOpacity>
-              <View style={styles.photoSourceDivider} />
-              <TouchableOpacity style={styles.photoSourceOption} onPress={() => handlePhotoSource('gallery')}>
-                <View style={[styles.photoSourceIconWrap, { backgroundColor: '#6366F1' }]}>
-                  <Ionicons name="images-outline" size={sp(20)} color="#fff" />
-                </View>
-                <Text style={styles.photoSourceOptionText}>Gallery</Text>
-              </TouchableOpacity>
-              <View style={styles.photoSourceDivider} />
-              <TouchableOpacity style={[styles.photoSourceOption, { justifyContent: 'center' }]} onPress={() => setShowPhotoSourceModal(false)}>
-                <Text style={[styles.photoSourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
+      <ImageSourceDialog
+        visible={showPhotoSourceModal}
+        onCamera={() => handlePhotoSource('camera')}
+        onGallery={() => handlePhotoSource('gallery')}
+        onClose={() => setShowPhotoSourceModal(false)}
+      />
+
+      {/* dialog_before_task_photo.xml */}
+      {/* Java: setCancelable(false) -- only a successful upload dismisses it. */}
+      <BottomSheetDialog visible={showUploadSheet} onRequestClose={() => {}}>
+        <View style={styles.dlgHeader}>
+          <UploadPhotoIcon size={ms(36)} />
+          <View style={styles.dlgHeaderText}>
+            <Text style={styles.dlgTitle}>{t('upload_photo')}</Text>
+            <Text style={styles.dlgSub}>{t('please_take_the_picture_before_starting_the_task')}</Text>
+          </View>
+        </View>
+        {renderPhotoSlots(photos, setPhotos)}
+        <View style={styles.noteField}>
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            placeholder={t('note')}
+            placeholderTextColor={COLORS.lightGray}
+            style={styles.noteInput}
+          />
+        </View>
+        <Pressable style={styles.dlgBtn} onPress={handleUploadAndStart} disabled={uploading}>
+          <Text style={styles.dlgBtnText}>{uploading ? tr('UPLOADING...') : tr('UPLOAD')}</Text>
         </Pressable>
-      </Modal>
+      </BottomSheetDialog>
 
-      {/* UPLOAD BEFORE-PHOTO SHEET */}
-      {showUploadSheet && (
-        <View style={styles.sheetOverlay}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHeader}>
-              <View style={styles.uploadIcon}>
-                <Ionicons name="cloud-upload-outline" size={sp(20)} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetTitle}>Upload Photo</Text>
-                <Text style={styles.sheetSub}>Please take the picture before starting the task</Text>
-              </View>
-              <Pressable style={styles.closeBtn} onPress={() => setShowUploadSheet(false)} hitSlop={10}>
-                <Ionicons name="close" size={sp(22)} color="#fff" />
-              </Pressable>
-            </View>
-            {renderPhotoSlots(photos, setPhotos)}
-            <View style={styles.noteBox}>
-              <TextInput
-                value={note}
-                onChangeText={setNote}
-                placeholder="Note"
-                placeholderTextColor="#9CA3AF"
-                style={{ color: '#111827', fontSize: sp(16) }}
-              />
-            </View>
-            <Pressable style={styles.uploadBtn} onPress={handleUploadAndStart} disabled={uploading}>
-              <Text style={styles.uploadText}>{uploading ? 'UPLOADING...' : 'UPLOAD'}</Text>
+      {/* dialog_reject_task_photo.xml */}
+      <BottomSheetDialog
+        visible={showRejectSheet}
+        onRequestClose={() => { setShowRejectSheet(false); setRejectPhotos([]); setRejectReasonError(false); }}
+        onClose={() => { setShowRejectSheet(false); setRejectPhotos([]); setRejectReason(''); setRejectReasonError(false); }}
+      >
+        <View style={styles.dlgHeader}>
+          <UploadPhotoIcon size={ms(36)} />
+          <View style={styles.dlgHeaderText}>
+            <Text style={styles.dlgTitle}>{t('reject_task')}</Text>
+            <Text style={styles.dlgSub}>{t('please_take_the_picture_before_rejecting_the_task')}</Text>
+          </View>
+        </View>
+        <View style={styles.rejectPhotos}>
+          {[0, 1, 2].map(i => (
+            <Pressable
+              key={i}
+              style={[styles.rejectPhotoBox, i === 1 && { marginHorizontal: ms(20) }]}
+              onPress={() => openPhotoPicker(rejectPhotos, setRejectPhotos, i)}
+            >
+              {rejectPhotos[i]?.uri ? (
+                <Image source={{ uri: rejectPhotos[i].uri }} style={styles.photoThumb} />
+              ) : (
+                <Ionicons name="camera-outline" size={ms(56)} color={COLORS.lightGray} />
+              )}
             </Pressable>
+          ))}
+        </View>
+        <View style={styles.noteFieldWrap}>
+          {rejectReasonError && <FieldErrorTip message={t('enter_reject_reason')} bottom={ms(43)} />}
+          <View style={styles.noteField}>
+            <TextInput
+              value={rejectReason}
+              onChangeText={t => { setRejectReason(t); if (t) setRejectReasonError(false); }}
+              placeholder={t('reject_reason')}
+              placeholderTextColor={COLORS.lightGray}
+              style={styles.noteInput}
+              maxLength={100}
+            />
+            {rejectReasonError && <FieldErrorDot />}
           </View>
         </View>
-      )}
+        <Pressable style={styles.dlgBtn} onPress={handleReject} disabled={rejecting}>
+          <Text style={styles.dlgBtnText}>{rejecting ? tr('REJECTING...') : tr('REJECT')}</Text>
+        </Pressable>
+        <Pressable
+          style={styles.dlgCancel}
+          onPress={() => { setShowRejectSheet(false); setRejectPhotos([]); setRejectReasonError(false); }}
+        >
+          <Text style={styles.dlgCancelText}>{t('cancel')}</Text>
+        </Pressable>
+      </BottomSheetDialog>
 
-      {/* REJECT SHEET */}
-      {showRejectSheet && (
-        <View style={styles.sheetOverlay}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHeader}>
-              <View style={[styles.uploadIcon, { backgroundColor: COLORS.primary }]}>
-                <Ionicons name="share-outline" size={sp(22)} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetTitle}>Reject</Text>
-                <Text style={styles.sheetSub}>Please take the picture before rejecting the task</Text>
-              </View>
-              <Pressable style={styles.closeBtn} onPress={() => setShowRejectSheet(false)} hitSlop={10}>
-                <Ionicons name="close" size={sp(22)} color="#fff" />
-              </Pressable>
-            </View>
-            {renderPhotoSlots(rejectPhotos, setRejectPhotos)}
-            <View style={styles.noteBox}>
-              <TextInput
-                value={rejectReason}
-                onChangeText={setRejectReason}
-                placeholder="Reason for Reject"
-                placeholderTextColor="#848484"
-                style={{ color: '#111827', fontSize: sp(16) }}
-              />
-            </View>
-            <Pressable style={[styles.uploadBtn, { backgroundColor: COLORS.primary }]} onPress={handleReject} disabled={rejecting}>
-              <Text style={styles.uploadText}>{rejecting ? 'REJECTING...' : 'REJECT'}</Text>
-            </Pressable>
+      {/* dialog_on_hold.xml */}
+      <BottomSheetDialog
+        visible={showOnHoldSheet}
+        onRequestClose={() => {}}
+        onClose={() => { setShowOnHoldSheet(false); setOnHoldPhotos([]); setOnHoldReasonError(false); }}
+      >
+        <Text style={styles.holdTitle}>{t('rn_reason_for_holding_the_task')}</Text>
+        <View style={styles.holdNoteWrap}>
+          {onHoldReasonError && <FieldErrorTip message={t('rn_please_enter_the_reason')} bottom={ms(100) + ms(3)} />}
+          <View style={styles.holdNote}>
+            <TextInput
+              value={onHoldReason}
+              onChangeText={t => { setOnHoldReason(t); if (t) setOnHoldReasonError(false); }}
+              placeholder={t('note')}
+              placeholderTextColor={COLORS.lightGray}
+              style={styles.noteInput}
+              multiline
+            />
+            {onHoldReasonError && <FieldErrorDot />}
           </View>
         </View>
-      )}
-
-      {/* ON HOLD SHEET */}
-      {showOnHoldSheet && (
-        <View style={styles.sheetOverlay}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetTitle}>Reason for holding the task ?</Text>
-              </View>
-              <Pressable style={styles.closeBtn} onPress={() => setShowOnHoldSheet(false)} hitSlop={10}>
-                <Ionicons name="close" size={sp(22)} color="#fff" />
-              </Pressable>
-            </View>
-            <View style={styles.noteBox}>
-              <TextInput
-                value={onHoldReason}
-                onChangeText={setOnHoldReason}
-                placeholder="Note"
-                placeholderTextColor="#848484"
-                style={{ color: '#111827', fontSize: sp(16) }}
-              />
-            </View>
-            {renderPhotoSlots(onHoldPhotos, setOnHoldPhotos)}
-            <View style={{ flexDirection: 'row', gap: scale(12) }}>
-              <Pressable style={[styles.uploadBtn, { backgroundColor: COLORS.black, flex: 1 }]} onPress={handleOnHold} disabled={onHolding}>
-                <Text style={styles.uploadText}>{onHolding ? 'SAVING...' : 'PUT ON HOLD'}</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.uploadBtn, { backgroundColor: COLORS.primary, flex: 1 }]}
-                onPress={() => {
-                  setShowOnHoldSheet(false);
-                  navigation.navigate('ItemRequest', { routeTask, fromOnHold: true });
-                }}
-              >
-                <Text style={styles.uploadText}>REQUEST ITEMS</Text>
-              </Pressable>
-            </View>
-          </View>
+        {renderPhotoSlots(onHoldPhotos, setOnHoldPhotos)}
+        <View style={styles.holdBtnRow}>
+          <Pressable style={[styles.holdBtn, { backgroundColor: COLORS.statusOnHold }]} onPress={handleOnHold} disabled={onHolding}>
+            <Text style={styles.dlgBtnText}>{onHolding ? tr('SAVING...') : tr('PUT ON HOLD')}</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.holdBtn, { backgroundColor: COLORS.primary }]}
+            onPress={() => {
+              setShowOnHoldSheet(false);
+              navigation.navigate('ItemRequest', { routeTask, fromOnHold: true });
+            }}
+          >
+            <Text style={styles.dlgBtnText}>{t('request_items').toUpperCase()}</Text>
+          </Pressable>
         </View>
-      )}
+      </BottomSheetDialog>
       {audioSource && (
         <Video
           ref={videoRef}
@@ -727,7 +910,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             setAudioLoading(false);
             setIsPlayingAudio(false);
             setAudioSource(null);
-            Alert.alert('Playback Error', 'Unable to play instruction audio.');
+            showToast(t('rn_unable_to_play_instruction_audio'));
           }}
         />
       )}
@@ -736,47 +919,59 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
 }
 
 const styles = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: COLORS.primary },
-  scrollArea:    { flex: 1, marginTop: HEADER_TOP_PADDING + vs(10), backgroundColor: '#fff', borderTopLeftRadius: scale(28), borderTopRightRadius: scale(28) },
-  scrollContent: { alignItems: 'flex-start', paddingTop: vs(30), paddingHorizontal: scale(20), paddingBottom: vs(40) },
-
-  timer:         { fontSize: sp(36), alignSelf: 'center', width: '100%', textAlign: 'center', marginTop: vs(100), marginBottom: vs(10) },
-  topButtons:    { flexDirection: 'row', gap: scale(10), marginBottom: vs(16), alignSelf: 'center' },
-  btn:           { height: vs(44), width: scale(110), borderRadius: scale(28), alignItems: 'center', justifyContent: 'center' },
-  reject:        { backgroundColor: COLORS.primary },
-  start:         { backgroundColor: '#16A34A' },
-  onhold:        { backgroundColor: COLORS.black },
-  endTask:       { backgroundColor: '#16A34A' },
-  btnText:       { color: '#fff', fontWeight: '500', fontSize: sp(15), textAlign: 'center' },
-  bottomButtons: { flexDirection: 'row', gap: scale(10), alignSelf: 'center' },
-  bottomBtn:     { backgroundColor: COLORS.black, height: vs(44), width: scale(148), borderRadius: scale(28), alignItems: 'center', justifyContent: 'center' },
-  taskName:      { fontSize: sp(18), color: COLORS.black, fontWeight: '500' },
-  inputBox:      { width: '100%', borderWidth: 2, borderColor: '#d2d2d2', borderRadius: scale(12), marginBottom: vs(16), minHeight: vs(44), paddingHorizontal: scale(12), justifyContent: 'center' },
-  sectionTitle:  { fontSize: sp(17), color: COLORS.black, marginTop: vs(8), fontWeight: '500' },
-  sectionValue:  { fontSize: sp(17), color: '#111827', marginBottom: vs(8), fontWeight: '400', textAlign: 'justify' },
-  audioCard:     { width: '100%', borderWidth: 1.05, borderColor: '#d2d2d2', borderRadius: scale(30), paddingVertical: vs(18), alignItems: 'center', marginTop: vs(12), marginBottom: vs(12) },
-  audioText:     { color: '#858688', marginBottom: vs(10), fontSize: sp(14) },
-  playBtn:       { width: scale(52), height: scale(52), borderRadius: scale(26), backgroundColor: '#1F2937', alignItems: 'center', justifyContent: 'center' },
-
-  sheetOverlay:  { position: 'absolute', bottom: 0, left: 0, right: 0 },
-  sheet:         { backgroundColor: '#fff', borderTopLeftRadius: scale(28), borderTopRightRadius: scale(28), padding: scale(20), elevation: 10 },
-  sheetHeader:   { flexDirection: 'row', alignItems: 'center', gap: scale(10), marginBottom: vs(16) },
-  uploadIcon:    { width: scale(36), height: scale(36), borderRadius: scale(18), backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  closeBtn:      { width: scale(36), height: scale(36), borderRadius: scale(18), backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', marginLeft: scale(12) },
-  sheetTitle:    { fontSize: sp(17), fontWeight: '400' },
-  sheetSub:      { fontSize: sp(12), color: '#6B7280' },
-  photoRow:      { flexDirection: 'row', justifyContent: 'space-between', marginVertical: vs(24), gap: scale(16) },
-  photoBox:      { flex: 1, height: vs(100), borderWidth: 1, borderColor: '#848484', borderRadius: scale(12), alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  // dialog_before_task_photo / dialog_reject_task_photo / dialog_on_hold
+  dlgHeader:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: ms(20), paddingTop: ms(20), paddingBottom: ms(20) },
+  dlgHeaderText: { marginLeft: ms(8), flex: 1 },
+  dlgTitle:      { fontSize: sp(18), color: COLORS.ink },
+  dlgSub:        { fontSize: sp(10), color: COLORS.darkGray },
+  photoScroll:   { marginHorizontal: ms(20) },
+  photoRow:      { paddingHorizontal: ms(10), paddingVertical: ms(10), gap: ms(10) },
+  photoBox:      { width: ms(100), height: ms(100), borderWidth: 1, borderColor: COLORS.lightGray, borderRadius: ms(15), alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   photoThumb:    { width: '100%', height: '100%' },
-  noteBox:       { borderWidth: 1, borderColor: '#848484', borderRadius: scale(30), marginBottom: vs(20), paddingLeft: scale(15), height: vs(44), justifyContent: 'center' },
-  uploadBtn:     { backgroundColor: COLORS.primary, borderRadius: scale(30), alignItems: 'center', height: vs(44), justifyContent: 'center' },
-  uploadText:    { color: '#fff', fontWeight: '500', fontSize: sp(18) },
+  rejectPhotos:  { flexDirection: 'row', paddingHorizontal: ms(20), paddingVertical: ms(10) },
+  rejectPhotoBox:{ flex: 1, height: ms(100), borderWidth: 1, borderColor: COLORS.lightGray, borderRadius: ms(15), alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  noteFieldWrap: { marginHorizontal: -ms(20) },
+  noteField:     { height: ms(40), borderWidth: 1, borderColor: COLORS.lightGray, borderRadius: ms(34), justifyContent: 'center', marginHorizontal: ms(30), marginTop: ms(16), paddingLeft: ms(18), paddingRight: ms(40) },
+  noteInput:     { fontSize: sp(16), color: COLORS.ink, padding: 0 },
+  dlgBtn:        { height: ms(48), marginHorizontal: ms(20), marginTop: ms(30), marginBottom: ms(20), borderRadius: ms(34), backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', elevation: 4 },
+  dlgBtnText:    { color: '#fff', fontSize: sp(18), fontWeight: '500' },
+  dlgCancel:     { height: ms(48), alignItems: 'center', justifyContent: 'center', marginBottom: ms(10) },
+  dlgCancelText: { color: COLORS.primary, fontSize: sp(18) },
+  holdTitle:     { fontSize: sp(18), color: COLORS.ink, marginLeft: ms(28), marginTop: ms(30), marginBottom: ms(10) },
+  holdNoteWrap:  { marginHorizontal: ms(20), marginBottom: ms(8) },
+  holdNote:      { height: ms(100), borderWidth: 1, borderColor: COLORS.lightGray, borderRadius: ms(15), justifyContent: 'center', paddingHorizontal: ms(18) },
+  holdBtnRow:    { flexDirection: 'row', paddingHorizontal: ms(20), marginTop: ms(30), marginBottom: ms(25) },
+  holdBtn:       { flex: 1, height: ms(48), margin: ms(5), borderRadius: ms(34), alignItems: 'center', justifyContent: 'center', elevation: 4 },
+  root:          { flex: 1, backgroundColor: COLORS.primary },
+  scrollArea:    { flex: 1, marginTop: vs(10), backgroundColor: '#fff', borderTopLeftRadius: ms(30), borderTopRightRadius: ms(30) },
+  scrollContent: { padding: ms(10), paddingBottom: ms(190) },
+
+  nameCard:      { margin: ms(14), padding: ms(10), borderRadius: ms(10), backgroundColor: '#fff', elevation: 3, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
+  taskName:      { fontSize: sp(16), fontWeight: 'bold', color: COLORS.ink },
+  infoSection:   { paddingHorizontal: ms(20), paddingVertical: ms(10) },
+  sectionTitle:  { fontSize: sp(14), fontWeight: 'bold', color: COLORS.ink },
+  description:   { fontSize: sp(12), color: COLORS.ink, marginBottom: ms(10) },
+  sectionValue:  { fontSize: sp(14), color: COLORS.ink, marginBottom: ms(8) },
+  callBtn:       { alignSelf: 'flex-end', width: ms(40), height: ms(40), borderRadius: ms(8), backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: ms(10) },
+  callIcon:      { width: ms(22), height: ms(22), tintColor: COLORS.primary },
+  itemsCard:     { margin: ms(2), borderRadius: ms(10), backgroundColor: '#fff', elevation: 3, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
+  itemRow:       { paddingHorizontal: ms(15), paddingVertical: ms(10) },
+  itemText:      { fontSize: sp(14), color: COLORS.ink },
+  audioCard:     { marginTop: ms(10), borderWidth: 1, borderColor: '#f4f4f4', borderRadius: ms(34), paddingHorizontal: ms(5), paddingTop: ms(10), paddingBottom: ms(15), alignItems: 'center' },
+  audioText:     { fontSize: sp(12), color: COLORS.darkGray },
+  playBtn:       { width: ms(52), height: ms(52), borderRadius: ms(26), margin: ms(8), backgroundColor: COLORS.ink, alignItems: 'center', justifyContent: 'center' },
+
+  bottomPanel:   { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: ms(30), borderTopRightRadius: ms(30), paddingHorizontal: ms(20), paddingBottom: ms(5), elevation: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: -2 } },
+  timer:         { fontSize: sp(30), textAlign: 'center', color: COLORS.ink, marginVertical: ms(10) },
+  btnRow:        { flexDirection: 'row' },
+  btn:           { flex: 1, height: ms(48), margin: ms(5), borderRadius: ms(34), alignItems: 'center', justifyContent: 'center' },
+  reject:        { backgroundColor: COLORS.primary },
+  start:         { backgroundColor: '#4EB54E' },
+  onhold:        { backgroundColor: COLORS.statusOnHold },
+  endTask:       { backgroundColor: '#4EB54E' },
+  btnText:       { color: '#fff', fontWeight: '500', fontSize: sp(16), textAlign: 'center' },
+
+
 
   modalBackdrop:         { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: scale(32) },
-  photoSourceSheet:      { backgroundColor: '#fff', borderRadius: scale(16), width: '100%', paddingVertical: vs(8), elevation: 10 },
-  photoSourceTitle:      { fontSize: sp(17), fontWeight: '600', color: '#111', paddingHorizontal: scale(20), paddingVertical: vs(14) },
-  photoSourceDivider:    { height: 1, backgroundColor: '#F3F4F6' },
-  photoSourceOption:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: scale(20), paddingVertical: vs(14), gap: scale(14) },
-  photoSourceIconWrap:   { width: scale(34), height: scale(34), borderRadius: scale(17), alignItems: 'center', justifyContent: 'center' },
-  photoSourceOptionText: { fontSize: sp(15), color: '#1F2937' },
 });

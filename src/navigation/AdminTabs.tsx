@@ -1,7 +1,6 @@
 // src/navigation/AdminTabs.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createBottomTabNavigator,
 } from '@react-navigation/bottom-tabs';
@@ -22,9 +21,25 @@ import AssignItemModal from '../screens/admin/AssignItemModal';
 import AddFieldworkerModal from '../screens/admin/AddFieldworkerModal';
 import ManageBalanceModal from '../screens/admin/ManageBalanceModal';
 
+import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
+import TaskDetailsScreen from '../screens/admin/TaskDetailsScreen';
+import AdminSettingScreen from '../screens/admin/AdminSettingScreen';
+import BankDetailsTaxScreen from '../screens/admin/BankDetailsTaxScreen';
+import AMCDetailsScreen from '../screens/admin/AMCDetailsScreen';
+import BookDemoScreen from '../screens/admin/BookDemoScreen';
+import AdminNotificationScreen from '../screens/admin/AdminNotificationScreen';
+import HelpChatScreen from '../screens/technician/main/HelpChatScreen';
+import AIScreen from '../screens/technician/drawer/AIScreen';
+import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL, FEEDBACK_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
+import RefundPolicyScreen from '../screens/technician/drawer/RefundPolicy';
+import AboutFieldwebScreen from '../screens/technician/drawer/AboutFieldweb';
+import { unmountOnBlur, pushedScreenOptions } from './tabScreenHelpers';
+
 import { COLORS } from '../theme/theme';
 import type { AdminStackParamList } from './AdminStack';
 
+import {useTranslation} from 'react-i18next';
+import { tr } from '../i18n/tr';
 export type AdminTabParamList = {
   // Optional `drawerSection` lets CustomDrawerContent open a specific
   // internal section of HomeActivityNewScreen (Leads, AMC, etc.) directly,
@@ -44,18 +59,77 @@ export type AdminTabParamList = {
   // Quick-add "Add Enquiry" lives on the Home tab but opens a CRM sheet, so
   // the signal crosses routes as a param. Any changing value re-triggers it.
   CRM: { addEnquiryTrigger?: number } | undefined;
-  Employee: undefined;
+  // `activeEmployeeTab` is reported back up by EmployeeManagementScreen
+  // whenever its internal Employee/Leave sub-tab changes, so the header
+  // title below can track it ("Attendance" while on the Leave sub-tab,
+  // "Employee List" otherwise).
+  // `attendanceEntry` is set when the dashboard's "Today's Attendance" card
+  // is tapped: this app's product call is to land on the Employee List
+  // *content* (not jump to Leave, unlike Java), but still show "Attendance"
+  // as the header for that visit. Cleared on blur (see the Tab.Screen's
+  // `listeners` below) so a later direct tap on the Employee tab bar icon
+  // goes back to the normal "Employee List" title.
+  Employee: { activeEmployeeTab?: 'employee' | 'leave'; attendanceEntry?: boolean } | undefined;
 };
 
 const Tab = createBottomTabNavigator<AdminTabParamList>();
+
+const MAIN_TABS = ['Home', 'Task', 'CRM', 'Employee'];
+
+// Tab.Screen's typed name only accepts the four tab names; the screens that used
+// to be pushed on the stack above the tabs are registered dynamically (hidden
+// from the bar, see BottomTabBar visibleTabs) so the shared tab bar shows under
+// them. Help stays in AdminStack on purpose (no tab bar there).
+const PushedTabScreen = Tab.Screen as any;
+
+type PushedScreen = {
+  name: string;
+  component: React.ComponentType<any>;
+  title: string;
+  initialParams?: object;
+};
+
+// Pushed screens that need no owner id; defined once at module level.
+const STATIC_PUSHED_SCREENS: PushedScreen[] = [
+  { name: 'Profile', component: unmountOnBlur(AdminProfileScreen), title: 'Profile' },
+  { name: 'Settings', component: unmountOnBlur(AdminSettingScreen), title: 'Settings' },
+  { name: 'PrivacyPolicy', component: unmountOnBlur(PrivacyPolicyScreen), title: 'Privacy Policy' },
+  {
+    name: 'TermsAndConditions',
+    component: unmountOnBlur(PrivacyPolicyScreen),
+    title: 'Terms & Conditions',
+    initialParams: { url: TERMS_AND_CONDITIONS_URL },
+  },
+  {
+    name: 'Feedback',
+    component: unmountOnBlur(PrivacyPolicyScreen),
+    title: 'Feedback',
+    initialParams: { url: FEEDBACK_URL },
+  },
+  { name: 'RefundPolicy', component: unmountOnBlur(RefundPolicyScreen), title: 'Refund Policy' },
+  { name: 'AboutFieldweb', component: unmountOnBlur(AboutFieldwebScreen), title: 'About FieldWeb' },
+  { name: 'FieldWeb AI', component: unmountOnBlur(AIScreen), title: 'FieldWeb AI' },
+  { name: 'Book App Demo', component: unmountOnBlur(BookDemoScreen), title: 'Book App Demo' },
+  { name: 'AMCDetails', component: unmountOnBlur(AMCDetailsScreen), title: 'AMC' },
+  // Java ChatFragment (tawk.to) opens under the normal toolbar, bottom bar visible.
+  { name: 'help', component: unmountOnBlur(() => <HelpChatScreen underAppHeader />), title: 'Help & Support' },
+];
+
+// Screens that keep HomeActivityNew's own toolbar (hamburger + title + headset/bell)
+// instead of the back-arrow push header.
+// Profile reuses HomeActivityNew's own toolbar in Java (hamburger + "Profile" title), not a back-arrow header.
+const MAIN_HEADER_SCREENS = ['notification', 'help', 'TaskDetails', 'Profile', 'FieldWeb AI'];
 
 // Task, CRM and Employee all need the owner's id, which none of these
 // screens can look up on their own — they take it as a prop. `component=`
 // can't pass extra props (React Navigation only gives it route/navigation),
 // so each of those three is mounted via a `children` render function
-// instead, once the id has loaded.
-export default function AdminTabs() {
-  const [ownerId, setOwnerId] = useState<number | null>(null);
+// instead. Those render functions are wrapped in useCallback below so their
+// identity stays stable across AdminTabs re-renders (e.g. opening a quick
+// action modal) — otherwise React Navigation sees a "new" render prop each
+// time and remounts the active tab's whole screen subtree.
+export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
+  const {t} = useTranslation();
   const insets = useSafeAreaInsets();
   const headerOffset = insets.top + HEADER_CONTENT_HEIGHT;
   // Parent stack navigator — used to push TaskDetails from the Task tab,
@@ -74,13 +148,122 @@ export default function AdminTabs() {
   const [isAddFieldworkerModalOpen, setIsAddFieldworkerModalOpen] = useState(false);
   const [isManageBalanceModalOpen, setIsManageBalanceModalOpen] = useState(false);
 
-  useEffect(() => {
-    AsyncStorage.getItem('uid').then((uid) => {
-      if (uid) {
-        setOwnerId(Number(uid));
-      }
-    });
-  }, []);
+  const openAddTaskModal = useCallback(() => setIsAddTaskModalOpen(true), []);
+
+  const handleTaskSelect = useCallback(
+    (task: Record<string, unknown>) => {
+      // TaskDetails is a (hidden) tab screen now, so address it through the
+      // stack route that hosts the tab navigator.
+      (rootNavigation as any).navigate('AdminTabsRoot', {
+        screen: 'TaskDetails',
+        params: {
+          taskId: Number(task.id ?? task.Id) || 0,
+          fallbackTask: task,
+          customerName: getRecordString(task, 'customerName', 'CustomerName'),
+          customerPhone: getRecordString(task, 'contactNo', 'ContactNo'),
+          customerAddress: getRecordString(task, 'fullAddress', 'FullAddress'),
+          source: 'taskList',
+        },
+      });
+    },
+    [rootNavigation],
+  );
+
+  const openAddFieldworkerModal = useCallback(
+    () => setIsAddFieldworkerModalOpen(true),
+    [],
+  );
+
+  const renderHomeScreen = useCallback(
+    () => <AdminHomeScreen onCreateTask={openAddTaskModal} />,
+    [openAddTaskModal],
+  );
+
+  const renderTaskScreen = useCallback(
+    () => (
+      <MainTaskFragmentNewScreen
+        userId={ownerId as number}
+        onTaskSelect={(task) => handleTaskSelect(task as Record<string, unknown>)}
+        onAddTask={openAddTaskModal}
+      />
+    ),
+    [ownerId, handleTaskSelect, openAddTaskModal],
+  );
+
+  const renderCRMScreen = useCallback(
+    ({ route }: { route: { params?: AdminTabParamList['CRM'] } }) => (
+      <CRMScreen
+        ownerId={ownerId as number}
+        openAddEnquiryTrigger={route.params?.addEnquiryTrigger}
+      />
+    ),
+    [ownerId],
+  );
+
+  const renderEmployeeScreen = useCallback(
+    ({
+      route,
+      navigation,
+    }: {
+      route: { params?: AdminTabParamList['Employee'] };
+      navigation: { setParams: (params: Partial<NonNullable<AdminTabParamList['Employee']>>) => void };
+    }) => (
+      <EmployeeManagementScreen
+        ownerId={ownerId as number}
+        contentTopOffset={headerOffset}
+        onAddEmployee={openAddFieldworkerModal}
+        onActiveTabChange={activeTab => {
+          if (route.params?.activeEmployeeTab !== activeTab) {
+            navigation.setParams({ activeEmployeeTab: activeTab });
+          }
+        }}
+      />
+    ),
+    [ownerId, headerOffset, openAddFieldworkerModal],
+  );
+
+  // Pushed screens that take the owner id as a prop. Memoised on ownerId so the
+  // component identities stay stable across AdminTabs re-renders (see the note
+  // above about render props remounting the active screen).
+  const pushedScreens = useMemo<PushedScreen[]>(
+    () => [
+      ...STATIC_PUSHED_SCREENS,
+      {
+        name: 'BankDetailsTax',
+        title: tr('Tax Details'),
+        component: unmountOnBlur(() => (
+          <BankDetailsTaxScreen ownerId={ownerId as number} />
+        )),
+      },
+      {
+        name: 'notification',
+        title: t('title_notification'),
+        component: unmountOnBlur(() => (
+          <AdminNotificationScreen ownerId={ownerId as number} />
+        )),
+      },
+      {
+        name: 'TaskDetails',
+        title: t('task_details_title'),
+        component: unmountOnBlur(({ route, navigation }: any) => (
+          <TaskDetailsScreen
+            ownerId={ownerId as number}
+            taskId={route.params.taskId}
+            fallbackTask={route.params.fallbackTask}
+            customerName={route.params.customerName}
+            customerPhone={route.params.customerPhone}
+            customerAddress={route.params.customerAddress}
+            source={route.params.source}
+            sheetStyle={!!route.params.sheet}
+            onBack={() => navigation.goBack()}
+            hideBackBar
+            underAppHeader
+          />
+        )),
+      },
+    ],
+    [ownerId],
+  );
 
   if (ownerId === null) {
     return (
@@ -92,28 +275,28 @@ export default function AdminTabs() {
 
   const quickActions: QuickAction[] = [
     {
-      icon: 'person-add-outline',
-      label: 'Add Fieldworker',
+      icon: 'fab-fieldworker',
+      label: t('title_add_tech'),
       onPress: () => setIsAddFieldworkerModalOpen(true),
     },
     {
-      icon: 'clipboard-outline',
-      label: 'Add Task',
+      icon: 'fab-invoice',
+      label: t('title_add_task'),
       onPress: () => setIsAddTaskModalOpen(true),
     },
     {
-      icon: 'cube-outline',
-      label: 'Add Item',
+      icon: 'fab-quote',
+      label: t('add_item'),
       onPress: () => setIsAddItemModalOpen(true),
     },
     {
-      icon: 'share-outline',
-      label: 'Assign Item',
+      icon: 'fab-assign-item',
+      label: t('assign_item'),
       onPress: () => setIsAssignItemModalOpen(true),
     },
     {
-      icon: 'help-circle-outline',
-      label: 'Add Enquiry',
+      icon: 'fab-enquiry',
+      label: t('title_add_enquiry'),
       onPress: () =>
         rootNavigation.navigate('AdminTabsRoot', {
           screen: 'CRM',
@@ -121,8 +304,8 @@ export default function AdminTabs() {
         }),
     },
     {
-      icon: 'construct-outline',
-      label: 'Add AMC',
+      icon: 'fab-amc',
+      label: t('add_amc'),
       // No hidden-mount trick from here: AMC's add-flow only exists inside
       // AdminHomeScreen's AMC section, so this jumps there directly (same
       // as tapping AMC in the drawer) instead of opening an overlay over
@@ -134,8 +317,8 @@ export default function AdminTabs() {
         }),
     },
     {
-      icon: 'swap-horizontal-outline',
-      label: 'Manage Balance',
+      icon: 'fab-balance',
+      label: t('managebal'),
       onPress: () => setIsManageBalanceModalOpen(true),
     },
   ];
@@ -144,6 +327,7 @@ export default function AdminTabs() {
     <View style={styles.container}>
       <Tab.Navigator
         initialRouteName="Home"
+        backBehavior="initialRoute"
         screenOptions={{ headerShown: false }}
         tabBar={(props) => {
           const currentRoute = props.state.routes[props.state.index];
@@ -151,58 +335,91 @@ export default function AdminTabs() {
             currentRoute.name === 'Home'
               ? (currentRoute.params as AdminTabParamList['Home'])
               : undefined;
+          const employeeParams =
+            currentRoute.name === 'Employee'
+              ? (currentRoute.params as AdminTabParamList['Employee'])
+              : undefined;
+          // "Attendance" shows either because the dashboard card sent us here
+          // (attendanceEntry, content still lands on Employee List) or the
+          // user is on the Leave sub-tab directly; "Employee List" otherwise.
           const title =
             currentRoute.name === 'Home'
               ? homeParams?.currentSectionTitle ?? 'FieldWeb'
-              : getAdminTabTitle(currentRoute.name as keyof AdminTabParamList);
+              : currentRoute.name === 'Employee' &&
+                  employeeParams?.attendanceEntry
+                ? 'Attendance'
+                : currentRoute.name === 'notification'
+                  ? 'Notification'
+                  : currentRoute.name === 'Profile'
+                    ? 'Profile'
+                  : currentRoute.name === 'help'
+                    ? 'Help & Support'
+                    : currentRoute.name === 'FieldWeb AI'
+                    ? 'FieldWeb AI'
+                    : currentRoute.name === 'TaskDetails'
+                      ? (currentRoute.params as any)?.headerTitle ?? 'Tasks'
+                      : getAdminTabTitle(currentRoute.name as keyof AdminTabParamList);
 
           return (
             <>
-              <AppHeader title={title} navigation={props.navigation as any} />
-              <BottomTabBar {...props} quickActions={quickActions} />
+              {/* Pushed-style screens show their own back-arrow header. */}
+              {(MAIN_TABS.includes(currentRoute.name) || MAIN_HEADER_SCREENS.includes(currentRoute.name)) && (
+                <AppHeader
+                  title={title}
+                  navigation={props.navigation as any}
+                  isAdmin
+                  useRegisteredBack={currentRoute.name === 'Home'}
+                  onBack={
+                    currentRoute.name === 'TaskDetails'
+                      ? () => props.navigation.goBack()
+                      : undefined
+                  }
+                />
+              )}
+              {/* Java hides the bottom navigation on the AI chat. */}
+              {currentRoute.name !== 'FieldWeb AI' && (
+                <BottomTabBar
+                  {...props}
+                  visibleTabs={MAIN_TABS}
+                  quickActions={quickActions}
+                />
+              )}
             </>
           );
         }}
       >
-        <Tab.Screen name="Home" component={AdminHomeScreen} />
+        <Tab.Screen name="Home">{renderHomeScreen}</Tab.Screen>
 
         {/* month/year are deliberately NOT passed: the screen owns its own
             month picker when uncontrolled. See MainTaskFragmentNewScreen. */}
-        <Tab.Screen name="Task">
-          {() => (
-            <MainTaskFragmentNewScreen
-              userId={ownerId}
-              onTaskSelect={(task) => {
-                const record = task as Record<string, unknown>;
-                rootNavigation.navigate('TaskDetails', {
-                  taskId: Number(record.id ?? record.Id) || 0,
-                  fallbackTask: task,
-                  customerName: getRecordString(record, 'customerName', 'CustomerName'),
-                  customerPhone: getRecordString(record, 'contactNo', 'ContactNo'),
-                  customerAddress: getRecordString(record, 'fullAddress', 'FullAddress'),
-                });
-              }}
-            />
-          )}
+        <Tab.Screen name="Task">{renderTaskScreen}</Tab.Screen>
+
+        <Tab.Screen name="CRM">{renderCRMScreen}</Tab.Screen>
+
+        <Tab.Screen
+          name="Employee"
+          // Clears attendanceEntry once this tab loses focus, so a later
+          // direct tap on the Employee tab bar icon shows "Employee List"
+          // rather than a stale "Attendance" left over from the dashboard visit.
+          listeners={({ navigation }) => ({
+            blur: () => navigation.setParams({ attendanceEntry: false }),
+          })}
+        >
+          {renderEmployeeScreen}
         </Tab.Screen>
 
-        <Tab.Screen name="CRM">
-          {({ route }) => (
-            <CRMScreen
-              ownerId={ownerId}
-              openAddEnquiryTrigger={route.params?.addEnquiryTrigger}
-            />
-          )}
-        </Tab.Screen>
-
-        <Tab.Screen name="Employee">
-          {() => (
-            <EmployeeManagementScreen
-              ownerId={ownerId}
-              contentTopOffset={headerOffset}
-            />
-          )}
-        </Tab.Screen>
+        {pushedScreens.map(({ name, component, title, initialParams }) => (
+          <PushedTabScreen
+            key={name}
+            name={name}
+            component={component}
+            initialParams={initialParams}
+            options={({ navigation, route }: any) =>
+              MAIN_HEADER_SCREENS.includes(name)
+                ? { headerShown: false }
+                : pushedScreenOptions(title, navigation, route, undefined, insets.top)}
+          />
+        ))}
       </Tab.Navigator>
 
       <AddTaskModal

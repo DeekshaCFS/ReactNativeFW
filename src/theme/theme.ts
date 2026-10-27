@@ -5,7 +5,7 @@
 import { sp } from '../utils/responsive';
 
 export const COLORS = {
-  primary:       '#C22032',
+  primary:       '#C3002F',
   primaryDark:   '#9E1A28',
   primaryLight:  '#E15A68',
 
@@ -21,8 +21,54 @@ export const COLORS = {
   textOnPrimary: '#FFFFFF',
   textMuted:     '#6B7280',
 
-  border:        '#F1C4C8',
   disabled:      '#D8A1A7',
+
+  success: '#03de73',
+  warning: '#D98C00',
+  danger: '#C8102E',
+
+  // Grays
+  charcoal: '#2B2B2E',
+  slate: '#5F6368',
+  midGray: '#8A8D91',
+  border: '#E6E6E9',
+  surfaceGray: '#F4F4F6',
+
+  // ── Java res/values/colors.xml (task list / status palette) ─────────────
+  // Same values the Android app uses so RN screens match it exactly.
+  statusOngoing:   '#FF9B00', // @color/orange   (ongoing_background)
+  statusCompleted: '#03DE73', // @color/green    (completed_background)
+  statusRejected:  '#C3002F', // @color/colorPrimaryDark (rejected_background)
+  statusOnHold:    '#353935', // @color/onhold   (onhold_background)
+  statusInactive:  '#9A9FAA', // @color/light_gray (inactive_background)
+  tagBlue:         '#2776FF', // @color/blue     (crm_list_background, task tag)
+  linkBlue:        '#1976D2', // @color/theme_primary_dark (task id text)
+  ink:             '#1D2536', // @color/background_gray (task name / customer text)
+  lightGray:       '#9A9FAA', // @color/light_gray (address / subtitle text)
+  textBlack:       '#0E0E0E', // @color/black    (Java "black" is not pure #000)
+  authText:        '#757575', // Java default (theme) text/hint colour on the auth screens
+  redIcon:         '#C22033', // @color/red_icon
+  lighterGray:      '#EDEDED', // @color/lighter_gray (progress track, list separator)
+  alertRed:        '#FF4A4A', // @color/red (notification Rejected / AMC titles)
+  green500:        '#4CAF50', // @color/green_500 (leave Approved / Full Day)
+  darkGray:        '#535353', // @color/dark_gray
+  tabSelector:     '#FFF3F5', // @color/tabselector (selected tab background)
+  blue500:         '#2196F3', // @color/blue_500 (AMC Renewal)
+  dividerGray:     '#E4E4E4', // @color/agenda_list_header_divider
+
+  // Attendance / leave status palette (Java gradient_* / curve_card_* drawables)
+  attAbsent:       '#F37777', // gradient_absent, curve_card_absent
+  attPresentTag:   '#A9F2A4', // curve_card_present
+  attIdleTag:      '#FFD066', // curve_card_idle
+  attLeave:        '#0E0E0E', // gradient_onleave (@color/black)
+  attLeaveTag:     '#414140', // curve_card_onleave
+
+  // Passbook (Java passbook_gradient / curve_card / bg_curve_border_selected)
+  passbookPink:    '#FCB6BE',
+  passbookBackdrop:'#F2F2F2',
+  passbookBorder:  '#E3E3E3',
+  dialogDim:       'rgba(19,20,22,0.72)', // @color/dialog_bg #B7131416
+  pickerCancel:    '#E0E0E0', // @color/material_grey_300 (month/year dialog Cancel)
 } as const;
 
 export const TEXT = {

@@ -84,6 +84,11 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        // Maps SDK key comes from android/local.properties (git-ignored), never committed.
+        def localProps = new Properties()
+        def localFile = rootProject.file("local.properties")
+        if (localFile.exists()) localFile.withInputStream { localProps.load(it) }
+        manifestPlaceholders = [GOOGLE_MAPS_API_KEY: localProps.getProperty("GOOGLE_MAPS_API_KEY", "")]
     }
     signingConfigs {
         debug {
@@ -110,6 +115,8 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.fragment:fragment-ktx:1.8.6")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

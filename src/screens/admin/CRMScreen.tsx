@@ -1,6 +1,14 @@
 // src/screens/admin/CRMScreen.tsx
 
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import { launchCameraWithPermission } from '../../utils/cameraPermission';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
+import {ms, sp} from '../../utils/responsive';
+import {COLORS} from '../../theme/theme';
+import {ensureSuccess} from '../../utils/apiResponse';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {getCustomerTagList} from '../../api/customerList/customerListService';
+import SearchPickerModal, {type PickerOption} from '../../components/SearchPickerModal';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
 import {
@@ -10,7 +18,6 @@ import {
   Image,
   KeyboardAvoidingView,
   Linking,
-  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -19,25 +26,25 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  ToastAndroid,
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {
-  launchCamera,
   launchImageLibrary,
   type Asset,
 } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import {getEnquiryList, addEnquiry, updateEnquiry} from '../../api/customerInquiry/customerInquiryService';
 import type {EnquiryListResultData} from '../../api/customerInquiry/customerInquiry.types';
-import {getCustomerList, getStateList, getCityList} from '../../api/customerList/customerListService';
+import {getCustomerList, getStateList, getCityList, deleteCustomerDetails} from '../../api/customerList/customerListService';
 import type {CustomerListResultData, StateDTOResultData, CityDTOResultData} from '../../api/customerList/customerList.types';
-import {getServiceTypeList} from '../../api/services/servicesService';
+import {getAdvanceServiceList} from '../../api/services/servicesService';
 import type {ServiceTypeListDTOResultData} from '../../api/services/services.types';
 import {getTaskTagList} from '../../api/task/taskService';
 import type {TagListResultData} from '../../api/task/task.types';
 import {BASE_URL} from '../../api/apiClient';
+import {getCurrentCountryCode} from '../../state/session';
 // TODO(temp): inlined from URLConstant.Base.GET_LINK before URLConstant.ts was deleted.
 // Was: `${PROTOCOL}${SERVICE_IP}/EnquiryForm/EnquiryForm?Node=` where PROTOCOL='http://', SERVICE_IP='192.169.3.8'.
 const ENQUIRY_FORM_LINK = 'http://192.169.3.8/EnquiryForm/EnquiryForm?Node=';
@@ -46,19 +53,23 @@ type AddEnquiryRequest = {
   CustomerDetailsid?: number;
   CustomerName: string;
   MobileNumber: string;
-  EnquiryDate: string;
-  EnquiryTime: string;
+  PreferableDate: string;
+  PreferableTime: string;
   Address: string;
   State: string;
   City: string;
   PinCode: string;
-  Landmark: string;
-  ServiceTypeId?: number;
-  ServiceTypeName?: string;
+  LocDescription: string;
+  LocName?: string;
+  Longitude?: string;
+  latitude?: string;
+  ServicesId?: number;
   TaskTagId?: number;
   TaskTagName?: string;
   TechnicalProblem?: string;
-  SpecialInstruction?: string;
+  TechnicalNote?: string;
+  OwnerId: number;
+  InquaryState: number;
   ImageFileBase64Str?: string;
   ImageFileName?: string;
   ImageFileBase64Str1?: string;
@@ -116,9 +127,315 @@ type AdvanceServiceItem = ServiceTypeListDTOResultData & {
   Children?: AdvanceServiceItem[] | null;
 };
 
-import AddTaskModal, {type AddTaskInitialValues} from './AddTaskModal';
+import AddTaskModal, {type AddTaskInitialValues, taskStyles} from './AddTaskModal';
+import OutlinedInput from '../../components/OutlinedInput';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
+import {ContactBookIcon, EnquiryIcon, InvoiceIcon, WhatsappIcon} from '../../components/FabIcons';
 import CustomerDetailsScreen from './CustomerDetailsScreen';
 import EditCustomerModal from './EditCustomerModal';
+import {
+  type ServiceNode,
+  type TaskTagOption,
+  THEME_PRIMARY,
+  HEADER_PRIMARY,
+  pad2,
+  getTodayDateString,
+  getTaskStartTimeString,
+  buildPhotoFileName,
+  getStringField,
+  getNumberField,
+  findFirstArrayDeep,
+  extractArray,
+  getCode,
+  getMessage,
+  isSuccessOrNoData,
+  normalizePhone,
+  formatPhoneWithCountryCode,
+  USER_ID_DIGIT_CODES,
+  encryptUserId,
+  formatDisplayDate,
+  type CustomerOption,
+  CUSTOMER_NAME_KEYS,
+  CUSTOMER_ID_KEYS,
+  CUSTOMER_PHONE_KEYS,
+  CUSTOMER_ADDRESS_KEYS,
+  CUSTOMER_STATE_KEYS,
+  CUSTOMER_CITY_KEYS,
+  CUSTOMER_PINCODE_KEYS,
+  CUSTOMER_LANDMARK_KEYS,
+  CUSTOMER_BRAND_KEYS,
+  CUSTOMER_LATITUDE_KEYS,
+  CUSTOMER_LONGITUDE_KEYS,
+  normalizeCustomerOption,
+  filterCustomerOptions,
+  type StateOption,
+  type CityOption,
+  LOOKUP_ID_KEYS,
+  LOOKUP_NAME_KEYS,
+  normalizeStateOption,
+  normalizeCityOption,
+  filterLookupOptions,
+  getEnquiryId,
+  getEnquiryDisplayNo,
+  getEnquiryCustomerName,
+  getEnquiryAddress,
+  getEnquiryPhone,
+  getEnquiryDate,
+  getEnquiryType,
+  getEnquiryTechnicalProblem,
+  getEnquirySpecialInstruction,
+  getEnquiryCustomerId,
+  getEnquiryState,
+  getEnquiryCity,
+  getEnquiryPinCode,
+  getEnquiryLandmark,
+  getEnquiryTime,
+  getEnquiryServiceTypeId,
+  getEnquiryServiceTypeName,
+  getEnquiryTaskTagId,
+  getEnquiryTaskTagName,
+  getEnquiryLocationId,
+  getEnquiryLongitude,
+  getEnquiryLocDescription,
+  getEnquiryLocName,
+  getEnquiryInquaryState,
+  getEnquiryReferenceId,
+  getEnquiryTaskId,
+  getEnquiryTaskTypeId,
+  getEnquiryTechnicalNote,
+  ENQUIRY_IMAGE_FIELD_SETS,
+  IMAGE_EXTENSION_PATTERN,
+  resolveImageOrigin,
+  looksLikeImagePath,
+  resolveImageUrl,
+  getEnquiryImageSlotSources,
+  fetchImageAsBase64,
+  SERVICE_CHILD_KEYS,
+  SERVICE_LABEL_KEYS,
+  SERVICE_ID_KEYS,
+  getServiceChildArray,
+  buildServiceTree,
+  filterServiceTree,
+  normalizeTaskTag,
+  styles,
+} from './crmShared';
+import TabStrip from '../../components/TabStrip';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
+
+import {useTranslation} from 'react-i18next';
+import { showImageSourceDialog } from '../../components/ImageSourceHost';
+import { tr } from '../../i18n/tr';
+// Enquiry form: same Java dialog sheet / header / outlined-field metrics as the Add Task form
+// (dialog_enquiry_new), layered over the CRM-wide styles.
+const eq = {...styles, ...taskStyles};
+
+// dialog_enquiry_details: 30dp-corner sheet, 20dp padding (+10dp top), 20sp service-name title,
+// 22dp primary-tinted WhatsApp / call icons, 16sp label (background_gray) / value (light_gray)
+// rows 16dp apart, rounded_button "+ ADD TASK", transparent Cancel.
+const enquiryDetailStyles = {
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    width: '100%' as const,
+    maxWidth: ms(560),
+    alignSelf: 'center' as const,
+    maxHeight: '94%' as const,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    overflow: 'hidden' as const,
+  },
+  content: {
+    padding: ms(20),
+    paddingTop: ms(30),
+  },
+  header: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginBottom: ms(30),
+  },
+  title: {
+    flex: 0.7,
+    color: '#000000',
+    fontSize: sp(20),
+    marginBottom: ms(3),
+  },
+  headerActions: {
+    flex: 0.3,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-around' as const,
+  },
+  callIcon: {
+    width: ms(22),
+    height: ms(22),
+    tintColor: COLORS.primary,
+  },
+  row: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    marginBottom: ms(16),
+  },
+  label: {
+    flex: 0.4,
+    color: COLORS.ink,
+    fontSize: sp(16),
+  },
+  value: {
+    flex: 0.6,
+    paddingLeft: ms(3),
+    color: COLORS.lightGray,
+    fontSize: sp(16),
+    textAlign: 'right' as const,
+  },
+  addTaskButton: {
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    height: ms(48),
+    marginTop: ms(20),
+    marginBottom: ms(20),
+    elevation: 4,
+  },
+  addTaskText: {
+    color: '#FFFFFF',
+    fontSize: sp(18),
+    fontWeight: '500' as const,
+  },
+};
+
+// customer_list_fragment / customerlist_custom_new.
+const customerListStyles = {
+  addCustButton: {
+    width: ms(70),
+    paddingHorizontal: 0,
+    borderRadius: ms(10),
+  },
+  filterRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    paddingTop: ms(10),
+    paddingHorizontal: ms(16),
+    height: ms(40),
+    backgroundColor: '#FFFFFF',
+  },
+  tagSpinner: {
+    flex: 0.5,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+  },
+  tagSpinnerText: {
+    flexShrink: 1,
+    color: '#000000',
+    fontSize: sp(14),
+  },
+  tagSpinnerChevron: {
+    color: COLORS.primary,
+    fontSize: sp(20),
+    marginLeft: ms(6),
+  },
+  refreshButton: {
+    flex: 0.5,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'flex-end' as const,
+  },
+  refreshText: {
+    color: COLORS.primary,
+    fontSize: sp(13),
+    fontWeight: '700' as const,
+    marginRight: ms(5),
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: ms(10),
+    margin: ms(8),
+    paddingLeft: ms(20),
+    paddingRight: ms(12),
+    paddingTop: ms(10),
+    paddingBottom: ms(12),
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: {width: 0, height: 1},
+  },
+  name: {
+    color: COLORS.ink,
+    fontSize: sp(15),
+    fontWeight: '700' as const,
+  },
+  addressRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginTop: ms(16),
+  },
+  address: {
+    flex: 1,
+    color: COLORS.lightGray,
+    fontSize: sp(12),
+  },
+  iconButton: {
+    width: ms(44),
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  phoneIcon: {
+    width: ms(20),
+    height: ms(20),
+    tintColor: '#000000',
+  },
+};
+
+const enquiryStyles = {
+  howToRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginBottom: ms(20),
+    marginLeft: ms(2),
+  },
+  howToPlayIcon: {
+    width: ms(20),
+    height: ms(20),
+    borderRadius: ms(10),
+    backgroundColor: COLORS.primary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginRight: ms(12),
+  },
+  howToText: {
+    color: COLORS.primary,
+    fontSize: sp(14),
+  },
+  // Java image slots: 20dp-corner outlined boxes with a gray camera glyph.
+  photoRow: {
+    flexDirection: 'row' as const,
+    gap: ms(8),
+    marginBottom: ms(20),
+  },
+  photoBox: {
+    flex: 1,
+    height: ms(87),
+    borderWidth: ms(1),
+    borderColor: '#BDBDBD',
+    borderRadius: ms(20),
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    overflow: 'hidden' as const,
+  },
+  addButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    height: ms(48),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
+  },
+};
 
 type CRMScreenProps = {
   ownerId: number;
@@ -134,813 +451,11 @@ type PhotoSlot = {
   isExistingRemote?: boolean;
 } | null;
 
-export type ServiceNode = {
-  id: number;
-  key: string;
-  label: string;
-  children: ServiceNode[];
-};
-
-export type TaskTagOption = {
-  id: number;
-  label: string;
-};
-
-export const THEME_PRIMARY = '#c3002f';
-const HEADER_PRIMARY = '#a80030';
-
-const pad2 = (value: number) => String(value).padStart(2, '0');
-
-export const getTodayDateString = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-};
-
-export const getCurrentTimeString = () => {
-  const d = new Date();
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-};
-
-const buildPhotoFileName = (slotIndex: number) => {
-  const now = new Date();
-  const datePart = `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}`;
-  const timePart = `${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`;
-  return `${datePart}_${timePart}_AddEnquiry${slotIndex + 1}_.jpg`;
-};
-
-export const getStringField = (item: Record<string, unknown>, keys: string[]) => {
-  for (const key of keys) {
-    const value = item[key];
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return String(value);
-    }
-  }
-  return '';
-};
-
-export const getNumberField = (item: Record<string, unknown>, keys: string[]) => {
-  for (const key of keys) {
-    const value = Number(item[key]);
-    if (Number.isFinite(value) && value > 0) {
-      return value;
-    }
-  }
-  return 0;
-};
-
-const findFirstArrayDeep = (
-  value: unknown,
-  depth: number,
-): unknown[] | null => {
-  if (Array.isArray(value)) {
-    return value;
-  }
-
-  if (depth <= 0 || !value || typeof value !== 'object') {
-    return null;
-  }
-
-  for (const nested of Object.values(value as Record<string, unknown>)) {
-    const found = findFirstArrayDeep(nested, depth - 1);
-    if (found) {
-      return found;
-    }
-  }
-
-  return null;
-};
-
-export const extractArray = <T,>(response: unknown): T[] => {
-  if (Array.isArray(response)) {
-    return response as T[];
-  }
-
-  if (response && typeof response === 'object') {
-    const data = response as Record<string, unknown>;
-    const commonKeys = [
-      'resultData',
-      'ResultData',
-      'data',
-      'Data',
-      'items',
-      'Items',
-      'list',
-      'List',
-      'records',
-      'Records',
-    ];
-
-    for (const key of commonKeys) {
-      const value = data[key];
-      if (Array.isArray(value)) {
-        return value as T[];
-      }
-    }
-
-    for (const value of Object.values(data)) {
-      if (Array.isArray(value)) {
-        return value as T[];
-      }
-    }
-
-    const deepFound = findFirstArrayDeep(data, 4);
-    if (deepFound) {
-      return deepFound as T[];
-    }
-  }
-
-  return [];
-};
-
-const getCode = (response: {code?: string; Code?: string}) =>
-  String(response.code ?? response.Code ?? '');
-
-const getMessage = (response: {message?: string; Message?: string}) =>
-  String(response.message ?? response.Message ?? '').trim();
-
-const isSuccessOrNoData = (response: {code?: string; Code?: string}) => {
-  const code = getCode(response);
-  return code === '200' || code === '500' || code === '';
-};
-
-const normalizePhone = (phone: string) => phone.replace(/[^\d+]/g, '');
-
-const USER_ID_DIGIT_CODES: Record<string, string> = {
-  '0': 'AZ=',
-  '1': 'BY/',
-  '2': 'CX=',
-  '3': 'DW/',
-  '4': 'EV=',
-  '5': 'FU/',
-  '6': 'G-=',
-  '7': '/=/',
-  '8': '=/=',
-  '9': 'A=/',
-};
-
-const encryptUserId = (userId: number) =>
-  String(userId)
-    .split('')
-    .map(digit => USER_ID_DIGIT_CODES[digit] || '')
-    .join('');
-
-const formatDisplayDate = (raw: string) => {
-  if (!raw || raw.startsWith('0001-01-01')) {
-    return '';
-  }
-  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    return `${isoMatch[3]}-${isoMatch[2]}-${isoMatch[1]}`;
-  }
-  const dmyMatch = raw.match(/^(\d{2})[-/](\d{2})[-/](\d{4})/);
-  if (dmyMatch) {
-    return `${dmyMatch[1]}-${dmyMatch[2]}-${dmyMatch[3]}`;
-  }
-  return raw;
-};
-
-export type CustomerOption = {
-  id: number;
-  name: string;
-  phone: string;
-  address: string;
-  state: string;
-  city: string;
-  pinCode: string;
-  landmark: string;
-  productBrand: string;
-  latitude: string;
-  longitude: string;
-};
-
-export const CUSTOMER_NAME_KEYS = [
-  'customerName',
-  'CustomerName',
-  'name',
-  'Name',
-  'fullName',
-  'FullName',
-];
-export const CUSTOMER_ID_KEYS = [
-  'customerId',
-  'CustomerId',
-  'CustomerID',
-  'customerDetailsid',
-  'CustomerDetailsid',
-  'id',
-  'Id',
-];
-export const CUSTOMER_PHONE_KEYS = [
-  'customerNumber',
-  'CustomerNumber',
-  'customerMobileNumber',
-  'CustomerMobileNumber',
-  'contactNo',
-  'ContactNo',
-  'mobileNo',
-  'MobileNo',
-  'mobileNumber',
-  'MobileNumber',
-  'phone',
-  'Phone',
-  'phoneNo',
-  'PhoneNo',
-  'phoneNumber',
-  'PhoneNumber',
-];
-export const CUSTOMER_ADDRESS_KEYS = [
-  'address',
-  'Address',
-  'customerAddress',
-  'CustomerAddress',
-  'fullAddress',
-  'FullAddress',
-];
-const CUSTOMER_STATE_KEYS = ['state', 'State', 'stateName', 'StateName'];
-const CUSTOMER_CITY_KEYS = ['city', 'City', 'cityName', 'CityName'];
-const CUSTOMER_PINCODE_KEYS = [
-  'pinCode',
-  'PinCode',
-  'pincode',
-  'Pincode',
-  'zipCode',
-  'ZipCode',
-];
-const CUSTOMER_LANDMARK_KEYS = [
-  'landmark',
-  'Landmark',
-  'landMark',
-  'LandMark',
-  'landmarkName',
-  'LandmarkName',
-  'nearByLandmark',
-  'NearByLandmark',
-  'nearbyLandmark',
-  'NearbyLandmark',
-];
-const CUSTOMER_BRAND_KEYS = [
-  'brandName',
-  'BrandName',
-  'brand',
-  'Brand',
-  'productBrand',
-  'ProductBrand',
-];
-const CUSTOMER_LATITUDE_KEYS = ['latitude', 'Latitude', 'lat', 'Lat'];
-const CUSTOMER_LONGITUDE_KEYS = [
-  'longitude',
-  'Longitude',
-  'lng',
-  'Lng',
-  'long',
-  'Long',
-];
-
-export const normalizeCustomerOption = (
-  item: CustomerLookupItem,
-  index: number,
-): CustomerOption | null => {
-  const record = item as Record<string, unknown>;
-  const name = getStringField(record, CUSTOMER_NAME_KEYS);
-  if (!name) {
-    return null;
-  }
-
-  const idValue = getNumberField(record, CUSTOMER_ID_KEYS);
-
-  return {
-    id: idValue > 0 ? idValue : index + 1,
-    name,
-    phone: getStringField(record, CUSTOMER_PHONE_KEYS),
-    address: getStringField(record, CUSTOMER_ADDRESS_KEYS),
-    state: getStringField(record, CUSTOMER_STATE_KEYS),
-    city: getStringField(record, CUSTOMER_CITY_KEYS),
-    pinCode: getStringField(record, CUSTOMER_PINCODE_KEYS),
-    landmark: getStringField(record, CUSTOMER_LANDMARK_KEYS),
-    productBrand: getStringField(record, CUSTOMER_BRAND_KEYS),
-    latitude: getStringField(record, CUSTOMER_LATITUDE_KEYS),
-    longitude: getStringField(record, CUSTOMER_LONGITUDE_KEYS),
-  };
-};
-
-export const filterCustomerOptions = (customers: CustomerOption[], query: string) => {
-  const searchTerm = query.trim().toLowerCase();
-  if (searchTerm.length < 2) {
-    return [];
-  }
-
-  return customers
-    .filter(option => option.name.toLowerCase().includes(searchTerm))
-    .slice(0, 20);
-};
-
-export type StateOption = {
-  id: number;
-  name: string;
-};
-
-export type CityOption = {
-  id: number;
-  name: string;
-};
-
-const LOOKUP_ID_KEYS = [
-  'stateId',
-  'StateId',
-  'stateID',
-  'StateID',
-  'cityId',
-  'CityId',
-  'cityID',
-  'CityID',
-  'id',
-  'Id',
-  'value',
-  'Value',
-];
-
-const LOOKUP_NAME_KEYS = [
-  'stateName',
-  'StateName',
-  'cityName',
-  'CityName',
-  'name',
-  'Name',
-  'state',
-  'State',
-  'city',
-  'City',
-  'label',
-  'Label',
-  'text',
-  'Text',
-];
-
-export const normalizeStateOption = (item: StateItem): StateOption => ({
-  id: getNumberField(item as Record<string, unknown>, LOOKUP_ID_KEYS),
-  name: getStringField(item as Record<string, unknown>, LOOKUP_NAME_KEYS),
-});
-
-export const normalizeCityOption = (item: CityItem): CityOption => ({
-  id: getNumberField(item as Record<string, unknown>, LOOKUP_ID_KEYS),
-  name: getStringField(item as Record<string, unknown>, LOOKUP_NAME_KEYS),
-});
-
-export const filterLookupOptions = <T extends {name: string}>(
-  options: T[],
-  query: string,
-) => {
-  const searchTerm = query.trim().toLowerCase();
-  if (searchTerm.length < 2) {
-    return [];
-  }
-
-  return options
-    .filter(option => option.name.toLowerCase().includes(searchTerm))
-    .slice(0, 20);
-};
-
-export const getEnquiryId = (item: EnquiryListItem) =>
-  getNumberField(item as Record<string, unknown>, [
-    'enquiryId',
-    'EnquiryId',
-    'inquiryId',
-    'InquiryId',
-    'customerInquiryId',
-    'CustomerInquiryId',
-    'id',
-    'Id',
-  ]);
-
-export const getEnquiryDisplayNo = (item: EnquiryListItem) => {
-  const raw = getStringField(item as Record<string, unknown>, [
-    'newEnquiryId',
-    'NewEnquiryId',
-    'enquiryNo',
-    'EnquiryNo',
-    'enquiryNumber',
-    'EnquiryNumber',
-  ]);
-  if (raw) {
-    return raw;
-  }
-  const id = getEnquiryId(item);
-  return id ? String(id) : '';
-};
-
-export const getEnquiryCustomerName = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, [
-    'customerName',
-    'CustomerName',
-    'name',
-    'Name',
-  ]) || 'Customer';
-
-export const getEnquiryAddress = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, [
-    'address',
-    'Address',
-    'customerAddress',
-    'CustomerAddress',
-    'fullAddress',
-    'FullAddress',
-  ]);
-
-export const getEnquiryPhone = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, [
-    'mobileNumber',
-    'MobileNumber',
-    'contactNo',
-    'ContactNo',
-    'mobileNo',
-    'MobileNo',
-    'phoneNo',
-    'PhoneNo',
-    'phoneNumber',
-    'PhoneNumber',
-  ]);
-
-export const getEnquiryDate = (item: EnquiryListItem) =>
-  formatDisplayDate(
-    getStringField(item as Record<string, unknown>, [
-      'enquiryDate',
-      'EnquiryDate',
-      'createdDate',
-      'CreatedDate',
-      'date',
-      'Date',
-    ]),
-  );
-
-const getEnquiryType = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, [
-    'enquiryType',
-    'EnquiryType',
-    'type',
-    'Type',
-  ]) || 'Sales Query';
-
-const getEnquiryTechnicalProblem = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, [
-    'technicalProblem',
-    'TechnicalProblem',
-    'problemDescription',
-    'ProblemDescription',
-  ]);
-
-const getEnquirySpecialInstruction = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, [
-    'specialInstruction',
-    'SpecialInstruction',
-    'specialInstructions',
-    'SpecialInstructions',
-    'instruction',
-    'Instruction',
-    'note',
-    'Note',
-  ]);
-
-const getEnquiryCustomerId = (item: EnquiryListItem) =>
-  getNumberField(item as Record<string, unknown>, [
-    'customerDetailsid',
-    'CustomerDetailsid',
-    'customerDetailsId',
-    'CustomerDetailsId',
-    'customerId',
-    'CustomerId',
-  ]);
-
-const getEnquiryState = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, CUSTOMER_STATE_KEYS);
-
-const getEnquiryCity = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, CUSTOMER_CITY_KEYS);
-
-const getEnquiryPinCode = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, CUSTOMER_PINCODE_KEYS);
-
-const getEnquiryLandmark = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, CUSTOMER_LANDMARK_KEYS);
-
-const getEnquiryTime = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, [
-    'preferableTime',
-    'PreferableTime',
-    'enquiryTime',
-    'EnquiryTime',
-  ]);
-
-const getEnquiryServiceTypeId = (item: EnquiryListItem) =>
-  getNumberField(item as Record<string, unknown>, [
-    'servicesId',
-    'ServicesId',
-    'serviceTypeId',
-    'ServiceTypeId',
-  ]);
-
-const getEnquiryServiceTypeName = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, [
-    'serviceTypeName',
-    'ServiceTypeName',
-    'serviceName',
-    'ServiceName',
-  ]);
-
-const getEnquiryTaskTagId = (item: EnquiryListItem) =>
-  getNumberField(item as Record<string, unknown>, [
-    'taskTagId',
-    'TaskTagId',
-    'taskTagID',
-    'TaskTagID',
-    'tagId',
-    'TagId',
-    'taskTypeTagId',
-    'TaskTypeTagId',
-  ]);
-
-const getEnquiryTaskTagName = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, [
-    'taskTagName',
-    'TaskTagName',
-    'tagName',
-    'TagName',
-    'taskTag',
-    'TaskTag',
-  ]);
-
-const getEnquiryLocationId = (item: EnquiryListItem) =>
-  getNumberField(item as Record<string, unknown>, [
-    'locationId',
-    'LocationId',
-  ]);
-
-const getEnquiryLongitude = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, ['longitude', 'Longitude']);
-
-const getEnquiryLocDescription = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, [
-    'locDescription',
-    'LocDescription',
-  ]);
-
-const getEnquiryLocName = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, ['locName', 'LocName']);
-
-const getEnquiryInquaryState = (item: EnquiryListItem) =>
-  getNumberField(item as Record<string, unknown>, [
-    'inquaryState',
-    'InquaryState',
-  ]);
-
-const getEnquiryReferenceId = (item: EnquiryListItem) =>
-  getNumberField(item as Record<string, unknown>, [
-    'referenceId',
-    'ReferenceId',
-  ]);
-
-const getEnquiryTaskId = (item: EnquiryListItem) =>
-  getNumberField(item as Record<string, unknown>, ['taskId', 'TaskId']);
-
-const getEnquiryTaskTypeId = (item: EnquiryListItem) =>
-  getNumberField(item as Record<string, unknown>, [
-    'taskTypeId',
-    'TaskTypeId',
-  ]);
-
-const getEnquiryTechnicalNote = (item: EnquiryListItem) =>
-  getStringField(item as Record<string, unknown>, [
-    'technicalNote',
-    'TechnicalNote',
-  ]);
-
-const ENQUIRY_IMAGE_FIELD_SETS: [string[], string[]][] = [
-  [
-    ['imageFileBase64Str', 'ImageFileBase64Str', 'imagePath', 'ImagePath', 'imageUrl', 'ImageUrl', 'image1', 'Image1'],
-    ['imageFileName', 'ImageFileName'],
-  ],
-  [
-    ['imageFileBase64Str1', 'ImageFileBase64Str1', 'imagePath1', 'ImagePath1', 'imageUrl1', 'ImageUrl1', 'image2', 'Image2'],
-    ['imageFileName1', 'ImageFileName1'],
-  ],
-  [
-    ['imageFileBase64Str2', 'ImageFileBase64Str2', 'imagePath2', 'ImagePath2', 'imageUrl2', 'ImageUrl2', 'image3', 'Image3'],
-    ['imageFileName2', 'ImageFileName2'],
-  ],
-];
-
-const IMAGE_EXTENSION_PATTERN = /\.(jpe?g|png|gif|bmp|webp)(\?.*)?$/i;
-
-const resolveImageOrigin = () => {
-  return BASE_URL.replace(/\/api\/?$/i, '');
-};
-
-const looksLikeImagePath = (value: string) =>
-  /^https?:\/\//i.test(value) ||
-  value.startsWith('/') ||
-  IMAGE_EXTENSION_PATTERN.test(value);
-
-const resolveImageUrl = (value: string) => {
-  if (/^https?:\/\//i.test(value)) {
-    return value;
-  }
-  const origin = resolveImageOrigin();
-  const normalizedPath = value.startsWith('/') ? value : `/${value}`;
-  return `${origin}${normalizedPath}`;
-};
-
-const getEnquiryImageSlotSources = (item: EnquiryListItem) => {
-  const record = item as Record<string, unknown>;
-  return ENQUIRY_IMAGE_FIELD_SETS.map(([valueKeys, nameKeys], index) => {
-    const value = getStringField(record, valueKeys);
-    if (!value) {
-      return null;
-    }
-    const fileName =
-      getStringField(record, nameKeys) || buildPhotoFileName(index);
-    if (looksLikeImagePath(value)) {
-      return {uri: resolveImageUrl(value), base64: '', fileName, isRemoteUrl: true};
-    }
-    return {
-      uri: `data:image/jpeg;base64,${value}`,
-      base64: value,
-      fileName,
-      isRemoteUrl: false,
-    };
-  });
-};
-
-const fetchImageAsBase64 = (url: string): Promise<string> =>
-  new Promise((resolve, reject) => {
-    fetch(url)
-      .then(response => response.blob())
-      .then(blob => {
-        const reader = new FileReader();
-        reader.onerror = reject;
-        reader.onloadend = () => {
-          const result = reader.result;
-          if (typeof result === 'string') {
-            resolve(result.split(',')[1] || '');
-          } else {
-            resolve('');
-          }
-        };
-        reader.readAsDataURL(blob);
-      })
-      .catch(reject);
-  });
-
-const SERVICE_CHILD_KEYS = [
-  'lstServiceTypeSubcategories',
-  'LstServiceTypeSubcategories',
-  'lstServiceType',
-  'LstServiceType',
-  'children',
-  'Children',
-  'subServices',
-  'SubServices',
-  'subServiceTypeList',
-  'SubServiceTypeList',
-  'childServiceTypeList',
-  'ChildServiceTypeList',
-  'childServiceType',
-  'ChildServiceType',
-  'childServices',
-  'ChildServices',
-  'childList',
-  'ChildList',
-  'items',
-  'Items',
-  'serviceList',
-  'ServiceList',
-  'serviceTypeList',
-  'ServiceTypeList',
-  'advanceServiceList',
-  'AdvanceServiceList',
-  'subCategoryList',
-  'SubCategoryList',
-  'subServiceList',
-  'SubServiceList',
-  'list',
-  'List',
-];
-
-const SERVICE_LABEL_KEYS = [
-  'ServiceTypeCategoryName',
-  'ServiceTypeSubCategoryName',
-  'ServiceName',
-  'name',
-  'Name',
-  'serviceName',
-  'serviceTypeName',
-  'ServiceTypeName',
-  'categoryName',
-  'CategoryName',
-  'subServiceTypeName',
-  'SubServiceTypeName',
-  'childServiceTypeName',
-  'ChildServiceTypeName',
-  'title',
-  'Title',
-  'label',
-  'Label',
-  'text',
-  'Text',
-];
-
-const SERVICE_ID_KEYS = [
-  'ServiceTypeCategoryId',
-  'ServiceTypeSubCategoryId',
-  'Id',
-  'serviceId',
-  'ServiceId',
-  'serviceTypeId',
-  'ServiceTypeId',
-  'serviceTypeID',
-  'ServiceTypeID',
-  'subServiceTypeId',
-  'SubServiceTypeId',
-  'childServiceTypeId',
-  'ChildServiceTypeId',
-  'categoryId',
-  'CategoryId',
-  'id',
-  'value',
-  'Value',
-];
-
-const getServiceChildArray = (
-  item: Record<string, unknown>,
-): Record<string, unknown>[] => {
-  for (const key of SERVICE_CHILD_KEYS) {
-    const value = item[key];
-    if (Array.isArray(value)) {
-      return value as Record<string, unknown>[];
-    }
-  }
-  return [];
-};
-
-export const buildServiceTree = (
-  items: AdvanceServiceItem[],
-  depth = 0,
-  parentKey = '',
-): ServiceNode[] =>
-  items
-    .map((item, index) => {
-      const record = item as Record<string, unknown>;
-      const label = getStringField(record, SERVICE_LABEL_KEYS);
-      const id =
-        getNumberField(record, SERVICE_ID_KEYS) || (depth + 1) * 10000 + index;
-      const key = `${parentKey}${depth}-${index}-${id}`;
-      const children = buildServiceTree(
-        getServiceChildArray(record) as AdvanceServiceItem[],
-        depth + 1,
-        `${key}-`,
-      );
-      return {id, key, label, children};
-    })
-    .filter(node => node.label);
-
-export const filterServiceTree = (
-  nodes: ServiceNode[],
-  query: string,
-): ServiceNode[] => {
-  const trimmed = query.trim().toLowerCase();
-  if (!trimmed) {
-    return nodes;
-  }
-
-  const result: ServiceNode[] = [];
-  nodes.forEach(node => {
-    const children = filterServiceTree(node.children, query);
-    if (node.label.toLowerCase().includes(trimmed) || children.length > 0) {
-      result.push({...node, children});
-    }
-  });
-  return result;
-};
-
-export const normalizeTaskTag = (item: TaskTag): TaskTagOption => ({
-  id: getNumberField(item as Record<string, unknown>, [
-    'taskTagId',
-    'TaskTagId',
-    'id',
-    'Id',
-  ]),
-  label:
-    getStringField(item as Record<string, unknown>, [
-      'taskTagName',
-      'TaskTagName',
-    ]) || 'Task',
-});
-
 const CRMScreen = ({
   ownerId,
   openAddEnquiryTrigger,
 }: CRMScreenProps) => {
+  const {t} = useTranslation();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<CRMTabKey>('enquiries');
 
@@ -969,6 +484,12 @@ const CRMScreen = ({
   const [customerBeingEdited, setCustomerBeingEdited] =
     useState<CustomerLookupItem | null>(null);
   const [isEditCustomerModalOpen, setIsEditCustomerModalOpen] = useState(false);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  // Customer tag filter (Java's CustomerListFragment: spin_cust_tag -> getCustomerList(userID, custTagId)).
+  const [customerTagFilter, setCustomerTagFilter] = useState<PickerOption | null>(null);
+  const [customerTagOptions, setCustomerTagOptions] = useState<PickerOption[]>([]);
+  const [isCustomerTagPickerOpen, setIsCustomerTagPickerOpen] = useState(false);
+  const [isLoadingCustomerTags, setIsLoadingCustomerTags] = useState(false);
 
   const [searchText, setSearchText] = useState('');
 
@@ -1004,8 +525,10 @@ const CRMScreen = ({
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [enquiryDate, setEnquiryDate] = useState(getTodayDateString);
-  const [enquiryTime, setEnquiryTime] = useState(getCurrentTimeString);
+  const [enquiryTime, setEnquiryTime] = useState(getTaskStartTimeString);
   const [address, setAddress] = useState('');
+  const [isPlaceSearchOpen, setIsPlaceSearchOpen] = useState(false);
+  const [placeCoords, setPlaceCoords] = useState<{latitude: string; longitude: string} | null>(null);
   const [state, setStateValue] = useState('');
   const [city, setCity] = useState('');
   const [pinCode, setPinCode] = useState('');
@@ -1023,6 +546,7 @@ const CRMScreen = ({
   const [isCustomerLoading, setIsCustomerLoading] = useState(false);
   const [showCustomerSuggestions, setShowCustomerSuggestions] =
     useState(false);
+  const [showNumberSuggestions, setShowNumberSuggestions] = useState(false);
 
   const [stateId, setStateId] = useState(0);
   const [cityId, setCityId] = useState(0);
@@ -1048,7 +572,6 @@ const CRMScreen = ({
   const [taskTags, setTaskTags] = useState<TaskTagOption[]>([]);
   const [isTaskTagModalOpen, setIsTaskTagModalOpen] = useState(false);
   const [isTaskTagLoading, setIsTaskTagLoading] = useState(false);
-  const [taskTagSearch, setTaskTagSearch] = useState('');
   const [selectedTaskTag, setSelectedTaskTag] = useState<TaskTagOption | null>(
     null,
   );
@@ -1087,6 +610,28 @@ const CRMScreen = ({
     [ownerId],
   );
 
+  const openCustomerTagPicker = () => {
+    setIsCustomerTagPickerOpen(true);
+    if (customerTagOptions.length > 0 || isLoadingCustomerTags) {
+      return;
+    }
+    setIsLoadingCustomerTags(true);
+    getCustomerTagList({UserId: ownerId})
+      .then(response => {
+        const rows = extractArray<Record<string, unknown>>(response);
+        setCustomerTagOptions(
+          rows
+            .map(row => ({
+              id: getNumberField(row, ['customerTagId', 'CustomerTagId']),
+              label: getStringField(row, ['customerTagName', 'CustomerTagName']),
+            }))
+            .filter(option => option.label),
+        );
+      })
+      .catch(() => setCustomerTagOptions([]))
+      .finally(() => setIsLoadingCustomerTags(false));
+  };
+
   const fetchCustomers = useCallback(
     async (refreshing = false) => {
       if (refreshing) {
@@ -1100,7 +645,7 @@ const CRMScreen = ({
         const response =
           await getCustomerList({
             UserId: ownerId,
-            CustomerTagId: 0,
+            CustomerTagId: customerTagFilter?.id ?? 0,
           });
         if (!isSuccessOrNoData(response)) {
           throw new Error(getMessage(response) || 'Unable to load customers.');
@@ -1124,13 +669,38 @@ const CRMScreen = ({
         setIsRefreshingCustomers(false);
       }
     },
-    [ownerId],
+    [ownerId, customerTagFilter],
   );
 
+  // Same refresh logic as the technician tabs: reload whenever the CRM tab gains focus (and
+  // when the customer tag filter changes while it is focused).
+  useFocusEffect(
+    useCallback(() => {
+      fetchEnquiries();
+      fetchCustomers();
+    }, [fetchEnquiries, fetchCustomers]),
+  );
+
+  // Re-tapping the CRM tab while already on it refreshes both lists and clears the tag filter.
+  const crmNavigation = useNavigation();
+  const refreshOnTabPressRef = useRef(() => {});
+  refreshOnTabPressRef.current = () => {
+    fetchEnquiries(true);
+    if (customerTagFilter) {
+      // Changing the filter re-runs the focus effect above, which reloads the customers.
+      setCustomerTagFilter(null);
+    } else {
+      fetchCustomers(true);
+    }
+  };
   useEffect(() => {
-    fetchEnquiries();
-    fetchCustomers();
-  }, [fetchEnquiries, fetchCustomers]);
+    const unsubscribe = (crmNavigation as any).addListener('tabPress', () => {
+      if (crmNavigation.isFocused()) {
+        refreshOnTabPressRef.current();
+      }
+    });
+    return unsubscribe;
+  }, [crmNavigation]);
 
   const loadCustomerSuggestions = useCallback(
     async (query: string) => {
@@ -1331,12 +901,24 @@ const CRMScreen = ({
     setShowCitySuggestions(false);
   };
 
+  // Typing a phone number suggests saved customers whose number contains the digits typed.
+  const numberSuggestions = useMemo(() => {
+    const digits = phone.replace(/\D/g, '');
+    if (!showNumberSuggestions || digits.length < 3) {
+      return [];
+    }
+    return allCustomerOptions
+      .filter(option => option.phone.replace(/\D/g, '').includes(digits))
+      .slice(0, 20);
+  }, [allCustomerOptions, phone, showNumberSuggestions]);
+
   const handleCustomerSelect = (customer: CustomerOption) => {
+    setShowNumberSuggestions(false);
     setCustomerId(customer.id);
     setCustomerName(customer.name);
     setPhone(customer.phone);
     setEnquiryDate(getTodayDateString());
-    setEnquiryTime(getCurrentTimeString());
+    setEnquiryTime(getTaskStartTimeString());
     if (customer.address) {
       setAddress(customer.address);
     }
@@ -1367,10 +949,10 @@ const CRMScreen = ({
     }
     setIsServiceTypeLoading(true);
     setServiceTypeError('');
-    getServiceTypeList({
-      OwnerId: ownerId,
+    // Java: Services/GetAdvanceServiceListByUserId -- category > subcategory > service tree.
+    getAdvanceServiceList({
+      UserId: ownerId,
       SearchParam: '',
-      pageIndex: 1,
     })
       .then(response => {
         const items = extractArray<AdvanceServiceItem>(response);
@@ -1423,7 +1005,7 @@ const CRMScreen = ({
 
   const applyPickedPhoto = (slotIndex: number, asset: Asset) => {
     if (!asset.base64 || !asset.uri) {
-      Alert.alert('Photo', 'Unable to read the selected photo. Please try again.');
+      showToast(t('rn_unable_to_read_the_selected_photo_please_t'));
       return;
     }
 
@@ -1440,7 +1022,7 @@ const CRMScreen = ({
   };
 
   const capturePhotoFromCamera = async (slotIndex: number) => {
-    const result = await launchCamera({
+    const result = await launchCameraWithPermission({
       mediaType: 'photo',
       includeBase64: true,
       quality: 0.6,
@@ -1450,7 +1032,7 @@ const CRMScreen = ({
       return;
     }
     if (result.errorCode) {
-      Alert.alert('Camera', result.errorMessage || 'Unable to open camera.');
+      showToast(result.errorMessage || 'Unable to open camera.');
       return;
     }
     const asset = result.assets?.[0];
@@ -1470,7 +1052,7 @@ const CRMScreen = ({
       return;
     }
     if (result.errorCode) {
-      Alert.alert('Gallery', result.errorMessage || 'Unable to open gallery.');
+      showToast(result.errorMessage || 'Unable to open gallery.');
       return;
     }
     const asset = result.assets?.[0];
@@ -1480,11 +1062,7 @@ const CRMScreen = ({
   };
 
   const handlePhotoBoxPress = (slotIndex: number) => {
-    Alert.alert('Add Photo', 'Choose an option', [
-      {text: 'Camera', onPress: () => capturePhotoFromCamera(slotIndex)},
-      {text: 'Gallery', onPress: () => pickPhotoFromGallery(slotIndex)},
-      {text: 'Cancel', style: 'cancel'},
-    ]);
+    showImageSourceDialog(() => capturePhotoFromCamera(slotIndex), () => pickPhotoFromGallery(slotIndex));
   };
 
   const removePhoto = (slotIndex: number) => {
@@ -1502,8 +1080,9 @@ const CRMScreen = ({
     setCustomerName('');
     setPhone('');
     setEnquiryDate(getTodayDateString());
-    setEnquiryTime(getCurrentTimeString());
+    setEnquiryTime(getTaskStartTimeString());
     setAddress('');
+    setPlaceCoords(null);
     setStateValue('');
     setStateId(0);
     setCity('');
@@ -1521,7 +1100,6 @@ const CRMScreen = ({
     setSelectedService(null);
     setSelectedTaskTag(null);
     setServiceTypeSearch('');
-    setTaskTagSearch('');
     setCustomerSuggestions([]);
     setShowCustomerSuggestions(false);
   };
@@ -1549,8 +1127,9 @@ const CRMScreen = ({
     setCustomerName(getEnquiryCustomerName(item));
     setPhone(getEnquiryPhone(item));
     setEnquiryDate(getEnquiryDate(item) || getTodayDateString());
-    setEnquiryTime(getEnquiryTime(item) || getCurrentTimeString());
+    setEnquiryTime(getEnquiryTime(item) || getTaskStartTimeString());
     setAddress(getEnquiryAddress(item));
+    setPlaceCoords(null);
     setStateValue(getEnquiryState(item));
     setCity(getEnquiryCity(item));
     setPinCode(getEnquiryPinCode(item));
@@ -1641,31 +1220,31 @@ const CRMScreen = ({
 
   const handleAddEnquirySubmit = async () => {
     if (!phone.trim()) {
-      Alert.alert('Validation', 'Please enter Phone Number.');
+      showFailureMsg(t('please_enter_phone_number'));
       return;
     }
     if (!address.trim()) {
-      Alert.alert('Validation', 'Please enter Customer Address.');
+      showFailureMsg(t('please_enter_cust_address'));
       return;
     }
     if (!state.trim()) {
-      Alert.alert('Validation', 'Please enter State.');
+      showFailureMsg(t('please_select_state'));
       return;
     }
     if (!city.trim()) {
-      Alert.alert('Validation', 'Please enter City.');
+      showFailureMsg(t('please_select_city'));
       return;
     }
     if (!pinCode.trim()) {
-      Alert.alert('Validation', 'Please enter Pin Code.');
+      showFailureMsg(t('please_enter_pincode'));
       return;
     }
     if (!/^\d{6}$/.test(pinCode.trim())) {
-      Alert.alert('Validation', 'Please enter a valid 6-digit Pin Code.');
+      showFailureMsg(t('rn_please_enter_a_valid_6_digit_pin_code'));
       return;
     }
     if (!landmark.trim()) {
-      Alert.alert('Validation', 'Please enter Landmark.');
+      showFailureMsg(t('please_enter_landmark'));
       return;
     }
 
@@ -1708,7 +1287,7 @@ const CRMScreen = ({
           LocDescription: editingEnquiryExtra?.locDescription || 'NA',
           LocName: editingEnquiryExtra?.locName || '',
           LocationId: editingEnquiryExtra?.locationId || 0,
-          Longitude: editingEnquiryExtra?.longitude || '',
+          Longitude: placeCoords?.longitude || editingEnquiryExtra?.longitude || '',
           MobileNumber: phone.trim(),
           OwnerId: ownerId,
           PinCode: pinCode.trim(),
@@ -1748,25 +1327,29 @@ const CRMScreen = ({
           },
         }));
         closeAddEnquiryModal();
-        Alert.alert('Enquiry', 'Enquiry updated successfully.');
+        showSuccessMsg(t('rn_enquiry_updated_successfully'));
       } else {
         const payload: AddEnquiryRequest = {
           CustomerDetailsid: customerId || 0,
           CustomerName: customerName.trim(),
           MobileNumber: phone.trim(),
-          EnquiryDate: enquiryDate,
-          EnquiryTime: enquiryTime,
+          PreferableDate: enquiryDate,
+          PreferableTime: enquiryTime,
           Address: address.trim(),
           State: state.trim(),
           City: city.trim(),
           PinCode: pinCode.trim(),
-          Landmark: landmark.trim(),
-          ServiceTypeId: selectedService?.id || 0,
-          ServiceTypeName: selectedService?.label || '',
+          LocDescription: landmark.trim(),
+          LocName: '',
+          Longitude: placeCoords?.longitude || '',
+          latitude: placeCoords?.latitude || '',
+          ServicesId: selectedService?.id || 0,
           TaskTagId: selectedTaskTag?.id || 0,
           TaskTagName: selectedTaskTag?.label || '',
           TechnicalProblem: technicalProblem.trim(),
-          SpecialInstruction: specialInstructions.trim(),
+          TechnicalNote: specialInstructions.trim(),
+          OwnerId: ownerId,
+          InquaryState: 1,
           ImageFileBase64Str: photos[0]?.base64 || '',
           ImageFileName: photos[0]?.fileName || '',
           ImageFileBase64Str1: photos[1]?.base64 || '',
@@ -1778,9 +1361,9 @@ const CRMScreen = ({
           UpdatedBy: ownerId,
           IsActive: true,
         };
-        await addEnquiry(payload);
+        ensureSuccess(await addEnquiry(payload as unknown as Parameters<typeof addEnquiry>[0]));
         closeAddEnquiryModal();
-        Alert.alert('Enquiry', 'Enquiry added successfully.');
+        showSuccessMsg(t('rn_enquiry_added_successfully'));
       }
       fetchEnquiries();
     } catch (error) {
@@ -1788,7 +1371,7 @@ const CRMScreen = ({
         error instanceof Error
           ? error.message
           : `Unable to ${isEditing ? 'update' : 'add'} enquiry right now.`;
-      Alert.alert('Enquiry', message);
+      showFailureMsg(message || 'Enquiry');
     } finally {
       setIsSubmittingEnquiry(false);
     }
@@ -1846,7 +1429,7 @@ const CRMScreen = ({
         url,
       });
     } catch {
-      Alert.alert('Enquiry', 'Unable to share the link right now.');
+      showFailureMsg(t('rn_unable_to_share_the_link_right_now'));
     }
   };
 
@@ -1876,7 +1459,7 @@ const CRMScreen = ({
 
       if (result.statusCode && result.statusCode >= 200 && result.statusCode < 300) {
         if (Platform.OS === 'android') {
-          ToastAndroid.show('File downloaded successfully', ToastAndroid.SHORT);
+          showToast(t('rn_file_downloaded_successfully'));
         }
         setQrPreviewPath(filePath);
       } else {
@@ -1884,9 +1467,9 @@ const CRMScreen = ({
       }
     } catch {
       if (Platform.OS === 'android') {
-        ToastAndroid.show('Download failed', ToastAndroid.SHORT);
+        showToast(t('sownload_failed'));
       } else {
-        Alert.alert('Enquiry', 'Unable to download QR code right now.');
+        showFailureMsg(t('rn_unable_to_download_qr_code_right_now'));
       }
     } finally {
       setIsDownloadingQrCode(false);
@@ -1896,7 +1479,7 @@ const CRMScreen = ({
   const openCall = async (rawPhone: string) => {
     const normalizedPhone = normalizePhone(rawPhone);
     if (!normalizedPhone) {
-      Alert.alert('Phone number unavailable');
+      showToast(t('rn_phone_number_unavailable'));
       return;
     }
     const url = `tel:${normalizedPhone}`;
@@ -1906,26 +1489,54 @@ const CRMScreen = ({
         await Linking.openURL(url);
       }
     } catch {
-      Alert.alert('Unable to call', 'Please try again on a device.');
+      showToast(t('rn_please_try_again_on_a_device'));
     }
   };
 
-  const openWhatsapp = async (rawPhone: string) => {
-    const normalizedPhone = normalizePhone(rawPhone).replace(/^\+/, '');
+  // Java's list-row message icon (CRMFragment.onClick, imageView_message, for
+  // both the enquiry and customer adapters) opens the native SMS composer
+  // with the raw number -- it does NOT open WhatsApp. Only the enquiry
+  // *details* dialog (EnquiryDialogNew.enquiryDetailsDialog) opens WhatsApp.
+  const openSms = async (rawPhone: string) => {
+    const normalizedPhone = normalizePhone(rawPhone);
     if (!normalizedPhone) {
-      Alert.alert('WhatsApp number unavailable');
+      showToast(t('rn_phone_number_unavailable'));
       return;
     }
+    const url = `sms:${normalizedPhone}`;
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        showToast(t('rn_please_try_again_on_a_device'));
+      }
+    } catch {
+      showToast(t('rn_please_try_again_later'));
+    }
+  };
+
+  // Java (EnquiryDialogNew.enquiryDetailsDialog, imageViewMessage) prefixes
+  // the number with the session's country code before building the wa.me
+  // link -- e.g. countryCode "91" + number "9998887776" -> wa.me/919998887776.
+  const openWhatsapp = async (rawPhone: string) => {
+    const digitsOnly = normalizePhone(rawPhone).replace(/^\+/, '');
+    if (!digitsOnly) {
+      showToast(t('rn_whatsapp_number_unavailable'));
+      return;
+    }
+    const countryCode = getCurrentCountryCode().replace(/\D/g, '');
+    const normalizedPhone = countryCode ? `${countryCode}${digitsOnly}` : digitsOnly;
     const url = `https://wa.me/${normalizedPhone}`;
     try {
       const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Unable to open WhatsApp', 'Please try again on a device.');
+        showToast(t('rn_please_try_again_on_a_device'));
       }
     } catch {
-      Alert.alert('Unable to open WhatsApp', 'Please try again later.');
+      showToast(t('rn_please_try_again_later'));
     }
   };
 
@@ -1972,48 +1583,55 @@ const CRMScreen = ({
       >
         <View style={styles.cardRibbon}>
           <Text style={styles.cardRibbonText}>
-            {displayNo ? `ENQUIRY #${displayNo}` : 'ENQUIRY'}
+            {displayNo ? `ENQUIRY #${displayNo}` : tr('ENQUIRY')}
           </Text>
         </View>
         <View style={styles.cardBody}>
-          <View style={styles.cardMainCol}>
+          <View style={styles.cardTitleRow}>
             <Text style={styles.cardTitle} numberOfLines={1}>
               {name}
             </Text>
-            {addressText ? (
-              <Text style={styles.cardSubtitle} numberOfLines={2}>
-                {addressText}
-              </Text>
-            ) : null}
+            {dateText ? <Text style={styles.cardDateText}>{dateText}</Text> : null}
           </View>
-          <View style={styles.cardActionsCol}>
-            <View style={styles.cardActionsRow}>
-              <TouchableOpacity
-                style={styles.cardIconButton}
-                onPress={() => openEditEnquiryModal(item)}
-              >
-                <Text style={styles.cardIconText}>✎</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cardIconButton}
-                onPress={() => openWhatsapp(phoneValue)}
-              >
-                <Text style={styles.cardIconText}>💬</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cardIconButton}
-                onPress={() => openCall(phoneValue)}
-              >
-                <Text style={styles.cardIconText}>📞</Text>
-              </TouchableOpacity>
-            </View>
-            {dateText ? (
-              <Text style={styles.cardDateText}>{dateText}</Text>
-            ) : null}
+          <View style={styles.cardAddressRow}>
+            <Text style={styles.cardSubtitle} numberOfLines={2}>
+              {addressText}
+            </Text>
+            <TouchableOpacity
+              style={styles.cardIconButton}
+              onPress={() => openEditEnquiryModal(item)}>
+              <Ionicons name="create-outline" style={styles.cardIconText} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cardIconButton} onPress={() => openSms(phoneValue)}>
+              <Ionicons name="logo-whatsapp" style={styles.cardIconText} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cardIconButton} onPress={() => openCall(phoneValue)}>
+              <Ionicons name="call-outline" style={styles.cardIconText} />
+            </TouchableOpacity>
           </View>
         </View>
       </TouchableOpacity>
     );
+  };
+
+  // customerlist_custom_new: 10dp-radius card (8dp margin), 15sp bold name, then a row with the
+  // 12sp two-line address and the add-task / WhatsApp / call glyphs (20dp, black).
+  const openAddTaskForCustomer = (item: CustomerLookupItem) => {
+    const record = item as Record<string, unknown>;
+    setAddTaskInitialValues({
+      title: '',
+      address: getStringField(record, CUSTOMER_ADDRESS_KEYS),
+      state: getStringField(record, CUSTOMER_STATE_KEYS),
+      city: getStringField(record, CUSTOMER_CITY_KEYS),
+      pinCode: getStringField(record, CUSTOMER_PINCODE_KEYS),
+      landmark: getStringField(record, CUSTOMER_LANDMARK_KEYS) || 'NA',
+      customerName: getStringField(record, CUSTOMER_NAME_KEYS),
+      customerNumber: getStringField(record, CUSTOMER_PHONE_KEYS),
+      customerId: getNumberField(record, CUSTOMER_ID_KEYS) || undefined,
+      taskTagId: 0,
+      taskTagName: '',
+    });
+    setIsAddTaskModalOpen(true);
   };
 
   const renderCustomerCard = ({item}: {item: CustomerLookupItem}) => {
@@ -2024,40 +1642,38 @@ const CRMScreen = ({
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={customerListStyles.card}
         activeOpacity={0.8}
         onPress={() => setSelectedCustomer(item)}
       >
-        <View style={styles.cardBody}>
-          <View style={styles.cardMainCol}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {name}
-            </Text>
-            {addressText ? (
-              <Text style={styles.cardSubtitle} numberOfLines={2}>
-                {addressText}
-              </Text>
-            ) : null}
-            {phoneValue ? (
-              <Text style={styles.cardSubtitle}>{phoneValue}</Text>
-            ) : null}
-          </View>
-          <View style={styles.cardActionsCol}>
-            <View style={styles.cardActionsRow}>
-              <TouchableOpacity
-                style={styles.cardIconButton}
-                onPress={() => openWhatsapp(phoneValue)}
-              >
-                <Text style={styles.cardIconText}>💬</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cardIconButton}
-                onPress={() => openCall(phoneValue)}
-              >
-                <Text style={styles.cardIconText}>📞</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+        <Text style={customerListStyles.name} numberOfLines={1}>
+          {name}
+        </Text>
+        <View style={customerListStyles.addressRow}>
+          <Text style={customerListStyles.address} numberOfLines={2}>
+            {addressText}
+          </Text>
+          <TouchableOpacity
+            style={customerListStyles.iconButton}
+            onPress={() => openAddTaskForCustomer(item)}
+          >
+            <InvoiceIcon size={ms(20)} color="#000000" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={customerListStyles.iconButton}
+            onPress={() => openSms(phoneValue)}
+          >
+            <WhatsappIcon size={ms(20)} color="#000000" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={customerListStyles.iconButton}
+            onPress={() => openCall(phoneValue)}
+          >
+            <Image
+              source={require('../../../assets/images/ic_phone.png')}
+              style={customerListStyles.phoneIcon}
+            />
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
@@ -2082,8 +1698,7 @@ const CRMScreen = ({
     selected: ServiceNode | null,
     onSelect: (node: ServiceNode) => void,
   ) => {
-    const isLeaf = node.children.length === 0;
-    const isSelectable = isLeaf || depth >= 2;
+    const isSelectable = depth >= 2; // Java: only services are tappable; categories stay headers
 
     return (
       <View key={node.key}>
@@ -2119,38 +1734,55 @@ const CRMScreen = ({
   };
 
   const displayedServiceTree = filterServiceTree(serviceTree, serviceTypeSearch);
-  const displayedTaskTags = taskTagSearch.trim()
-    ? taskTags.filter(tag =>
-        tag.label.toLowerCase().includes(taskTagSearch.trim().toLowerCase()),
-      )
-    : taskTags;
+  // Customer details render as an overlay (not an early return) so the enquiry detail / edit
+  // modals below stay mounted and the cards in the Enquiry tab can open them, like Java.
+  const customerDetailsOverlay = selectedCustomer ? (
+    <View style={StyleSheet.absoluteFill}>
+          <CustomerDetailsScreen
+            ownerId={ownerId}
+            customer={selectedCustomer as Record<string, unknown>}
+            onBack={() => setSelectedCustomer(null)}
+            onEnquiryPress={openEnquiryDetailModal}
+            onEnquiryEdit={openEditEnquiryModal}
+            onEnquiryCall={item => openCall(getEnquiryPhone(item))}
+            onEnquiryWhatsapp={item => openSms(getEnquiryPhone(item))}
+            onEdit={record => {
+              setCustomerBeingEdited(record);
+              setIsEditCustomerModalOpen(true);
+            }}
+            onDelete={record => {
+              // CRMTaskAmcTabHostFragment.deleteCustomer (delete_customer_dialog).
+              Alert.alert(
+                '',
+                tr('Do you want to delete this Customer ? It will delete all customer history.'),
+                [
+                  {text: tr('NO'), style: 'cancel'},
+                  {
+                    text: tr('Yes'),
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        const response = await deleteCustomerDetails({
+                          UserId: ownerId,
+                          CustomerId: getNumberField(record, ['customerDetailsid', 'CustomerDetailsid']),
+                        });
+                        showSuccessMsg(response?.Message ?? 'Customer deleted.');
+                        if (response?.Code === '200') {
+                          setSelectedCustomer(null);
+                          fetchCustomers(true);
+                        }
+                      } catch (error) {
+                        showFailureMsg(error instanceof Error ? error.message : tr('Unable to delete customer.'));
+                      }
+                    },
+                  },
+                ],
+              );
+            }}
+          />
+    </View>
+  ) : null;
 
-  if (selectedCustomer) {
-    return (
-      <>
-        <CustomerDetailsScreen
-          ownerId={ownerId}
-          customer={selectedCustomer as Record<string, unknown>}
-          onBack={() => setSelectedCustomer(null)}
-          onEdit={record => {
-            setCustomerBeingEdited(record);
-            setIsEditCustomerModalOpen(true);
-          }}
-        />
-        <EditCustomerModal
-          visible={isEditCustomerModalOpen}
-          ownerId={ownerId}
-          customer={customerBeingEdited}
-          onClose={() => setIsEditCustomerModalOpen(false)}
-          onUpdated={updatedCustomer => {
-            setIsEditCustomerModalOpen(false);
-            setSelectedCustomer(updatedCustomer as CustomerLookupItem);
-            fetchCustomers(true);
-          }}
-        />
-      </>
-    );
-  }
 
   return (
     <View style={styles.screen}>
@@ -2158,60 +1790,34 @@ const CRMScreen = ({
           now the shared AppHeader rendered once by AdminTabs above the tab
           bar. The tabs row below is offset by the header's height so it
           doesn't render underneath it. */}
-      <View style={[styles.tabsRow, { marginTop: insets.top + HEADER_CONTENT_HEIGHT }]}>
-        <TouchableOpacity
-          style={styles.tabButton}
-          onPress={() => setActiveTab('enquiries')}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              activeTab === 'enquiries' ? styles.tabButtonTextActive : null,
-            ]}
-          >
-            ENQUIRIES
-          </Text>
-          {activeTab === 'enquiries' ? (
-            <View style={styles.tabButtonUnderline} />
-          ) : null}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tabButton}
-          onPress={() => setActiveTab('customers')}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              activeTab === 'customers' ? styles.tabButtonTextActive : null,
-            ]}
-          >
-            CUSTOMERS
-          </Text>
-          {activeTab === 'customers' ? (
-            <View style={styles.tabButtonUnderline} />
-          ) : null}
-        </TouchableOpacity>
+      <View style={{ marginTop: insets.top + HEADER_CONTENT_HEIGHT }}>
+        <TabStrip
+          tabs={[
+            { key: 'enquiries', label: tr('ENQUIRIES') },
+            { key: 'customers', label: tr('CUSTOMERS') },
+          ]}
+          active={activeTab}
+          onChange={setActiveTab}
+        />
       </View>
 
       <View style={styles.searchRow}>
         <View style={styles.searchInputWrap}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Ionicons name="search" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder={
               activeTab === 'enquiries'
-                ? 'Search by Enq no., Customer name...'
-                : 'Search by Customer name...'
+                ? tr('Search by Enq no., Customer name...')
+                : tr('Search by Customer name...')
             }
-            placeholderTextColor="#9aa0a6"
+            placeholderTextColor={COLORS.lightGray}
             value={searchText}
             onChangeText={setSearchText}
           />
-          {searchText ? (
-            <TouchableOpacity onPress={() => setSearchText('')}>
-              <Text style={styles.searchClearIcon}>✕</Text>
-            </TouchableOpacity>
-          ) : null}
+          <TouchableOpacity onPress={() => setSearchText('')}>
+            <Ionicons name="close" style={styles.searchClearIcon} />
+          </TouchableOpacity>
         </View>
         {activeTab === 'enquiries' ? (
           <>
@@ -2219,17 +1825,48 @@ const CRMScreen = ({
               style={styles.addEnquiryButton}
               onPress={openAddEnquiryModal}
             >
-              <Text style={styles.addEnquiryButtonText}>+ Enquiry</Text>
+              <Text style={styles.addEnquiryButtonText}>{t('plus_enq')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.linkIconButton}
               onPress={openShareEnquiryModal}
             >
-              <Text style={styles.linkIconText}>🔗</Text>
+              <Ionicons name="link" style={styles.linkIconText} />
             </TouchableOpacity>
           </>
-        ) : null}
+        ) : (
+          <TouchableOpacity
+            style={[styles.addEnquiryButton, customerListStyles.addCustButton]}
+            onPress={() => setIsAddCustomerModalOpen(true)}
+          >
+            <Text style={styles.addEnquiryButtonText}>{t('add_cust').toUpperCase()}</Text>
+          </TouchableOpacity>
+        )}
       </View>
+
+      {activeTab === 'customers' ? (
+        <View style={customerListStyles.filterRow}>
+          <TouchableOpacity style={customerListStyles.tagSpinner} onPress={openCustomerTagPicker}>
+            <Text style={customerListStyles.tagSpinnerText} numberOfLines={1}>
+              {customerTagFilter ? customerTagFilter.label : tr('Select Customer Tag')}
+            </Text>
+            <Ionicons name="chevron-down" style={customerListStyles.tagSpinnerChevron} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={customerListStyles.refreshButton}
+            onPress={() => {
+              if (customerTagFilter) {
+                setCustomerTagFilter(null);
+              } else {
+                fetchCustomers(true);
+              }
+            }}
+          >
+            <Text style={customerListStyles.refreshText}>{t('rn_refresh_list')}</Text>
+            <Ionicons name="sync" size={ms(22)} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {activeTab === 'enquiries' ? (
         isLoadingEnquiries ? (
@@ -2257,7 +1894,7 @@ const CRMScreen = ({
             }
             ListEmptyComponent={
               <View style={styles.centerBox}>
-                <Text style={styles.emptyText}>No enquiries found.</Text>
+                <Text style={styles.emptyText}>{t('rn_no_enquiries_found')}</Text>
               </View>
             }
           />
@@ -2279,6 +1916,7 @@ const CRMScreen = ({
             return String(id || index);
           }}
           renderItem={renderCustomerCard}
+          style={{backgroundColor: '#FFFFFF'}}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
@@ -2289,11 +1927,37 @@ const CRMScreen = ({
           }
           ListEmptyComponent={
             <View style={styles.centerBox}>
-              <Text style={styles.emptyText}>No customers found.</Text>
+              <Text style={styles.emptyText}>{t('rn_no_customers_found')}</Text>
             </View>
           }
         />
       )}
+
+      <SearchPickerModal
+        visible={isCustomerTagPickerOpen}
+        title={t('rn_select_customer_tag')}
+        options={customerTagOptions}
+        loading={isLoadingCustomerTags}
+        emptyText="No customer tags found."
+        onSelect={option => {
+          setCustomerTagFilter(option);
+          setIsCustomerTagPickerOpen(false);
+          fetchCustomers();
+        }}
+        onClose={() => setIsCustomerTagPickerOpen(false)}
+      />
+
+      <EditCustomerModal
+        visible={isAddCustomerModalOpen}
+        ownerId={ownerId}
+        customer={null}
+        mode="add"
+        onClose={() => setIsAddCustomerModalOpen(false)}
+        onUpdated={() => {
+          setIsAddCustomerModalOpen(false);
+          fetchCustomers(true);
+        }}
+      />
 
       <Modal
         visible={isAddEnquiryModalOpen}
@@ -2301,69 +1965,73 @@ const CRMScreen = ({
         transparent
         onRequestClose={closeAddEnquiryModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalHeaderTitle}>
-                {editingEnquiryId ? 'Edit Enquiry' : 'Enquiry'}
+        <View style={eq.modalOverlay}>
+          <View style={eq.modalSheet}>
+            <View style={eq.modalHeader}>
+              <Text style={eq.modalHeaderTitle}>
+                {editingEnquiryId ? tr('Edit Enquiry') : tr('Enquiry')}
               </Text>
               <TouchableOpacity onPress={closeAddEnquiryModal}>
-                <Text style={styles.modalCloseIcon}>✕</Text>
+                <Ionicons name="close" style={eq.modalCloseIcon} />
               </TouchableOpacity>
             </View>
 
             <KeyboardAvoidingView
-              style={styles.modalFlex}
+              style={eq.modalFlex}
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
               <ScrollView
-                contentContainerStyle={styles.modalScrollContent}
+                contentContainerStyle={eq.modalScrollContent}
                 keyboardShouldPersistTaps="handled"
               >
-                <View style={styles.howToRow}>
-                  <View style={styles.howToPlayIcon}>
-                    <Text style={styles.howToPlayIconText}>▶</Text>
+                <View style={enquiryStyles.howToRow}>
+                  <View style={enquiryStyles.howToPlayIcon}>
+                    <Ionicons name="play" size={ms(11)} color="#FFFFFF" />
                   </View>
-                  <Text style={styles.howToText}>How to add enquiry ?</Text>
+                  <Text style={enquiryStyles.howToText}>{t('haddenquiry')}</Text>
                 </View>
 
-                <View style={[styles.fieldWrap, styles.customerFieldWrap]}>
-                  <TextInput
-                    style={styles.pillInput}
-                    placeholder="Customer Name"
-                    placeholderTextColor="#9aa0a6"
+                <View style={[eq.fieldWrap, eq.customerFieldWrap]}>
+                  <OutlinedInput
+                    style={eq.pillInput}
+                    placeholder={t('customer_name')}
+                    placeholderTextColor={COLORS.lightGray}
                     value={customerName}
                     onChangeText={text => {
                       setCustomerName(text);
                       setShowCustomerSuggestions(true);
+                      setShowNumberSuggestions(false);
                     }}
-                    onFocus={() => setShowCustomerSuggestions(true)}
+                    onFocus={() => {
+                      setShowCustomerSuggestions(true);
+                      setShowNumberSuggestions(false);
+                    }}
                   />
                   {showCustomerSuggestions && customerSuggestions.length > 0 ? (
-                    <View style={styles.suggestionBox}>
+                    <View style={eq.suggestionBox}>
                       {isCustomerLoading ? (
                         <ActivityIndicator
                           color={THEME_PRIMARY}
                           size="small"
-                          style={styles.suggestionLoader}
+                          style={eq.suggestionLoader}
                         />
                       ) : null}
                       <ScrollView
-                        style={styles.suggestionScroll}
+                        style={eq.suggestionScroll}
                         nestedScrollEnabled
                         keyboardShouldPersistTaps="handled"
                       >
                         {customerSuggestions.map(option => (
                           <TouchableOpacity
                             key={option.id}
-                            style={styles.suggestionItem}
+                            style={eq.suggestionItem}
                             onPress={() => handleCustomerSelect(option)}
                           >
-                            <Text style={styles.suggestionItemText}>
+                            <Text style={eq.suggestionItemText}>
                               {option.name}
                             </Text>
                             {option.phone ? (
-                              <Text style={styles.suggestionItemSubText}>
+                              <Text style={eq.suggestionItemSubText}>
                                 {option.phone}
                               </Text>
                             ) : null}
@@ -2374,58 +2042,96 @@ const CRMScreen = ({
                   ) : null}
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <View style={styles.pillInputRow}>
-                    <TextInput
-                      style={styles.pillInputFlex}
-                      placeholder="Phone Number *"
-                      placeholderTextColor="#9aa0a6"
+                <View style={[eq.fieldWrap, eq.customerFieldWrap, {zIndex: 25, elevation: 25}]}>
+                  <View>
+                    <OutlinedInput
+                      style={[eq.pillInput, {paddingRight: ms(52)}]}
+                      placeholder={t('star_phone_number')}
+                      placeholderTextColor={COLORS.lightGray}
                       value={phone}
-                      onChangeText={setPhone}
+                      onChangeText={text => {
+                        setPhone(text);
+                        setShowNumberSuggestions(true);
+                        setShowCustomerSuggestions(false);
+                        // the customer list is fetched lazily; start it as soon as digits are typed
+                        if (allCustomerOptions.length === 0 && text.replace(/\D/g, '').length >= 3) {
+                          loadCustomerSuggestions(text);
+                        }
+                      }}
+                      onFocus={() => {
+                        setShowNumberSuggestions(true);
+                        setShowCustomerSuggestions(false);
+                      }}
                       keyboardType="phone-pad"
                     />
-                    <Text style={styles.contactPickerIcon}>👤</Text>
+                    <View style={eq.phonebookButton} pointerEvents="none">
+                      <ContactBookIcon size={ms(25)} />
+                    </View>
                   </View>
+                  {numberSuggestions.length > 0 ? (
+                    <View style={eq.suggestionBox}>
+                      <ScrollView
+                        style={eq.suggestionScroll}
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                      >
+                        {numberSuggestions.map(option => (
+                          <TouchableOpacity
+                            key={`${option.id}-${option.phone}`}
+                            style={eq.suggestionItem}
+                            onPress={() => handleCustomerSelect(option)}
+                          >
+                            <Text style={eq.suggestionItemText}>{option.phone}</Text>
+                            <Text style={eq.suggestionItemSubText}>{option.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : null}
                 </View>
 
-                <View style={styles.fieldRow}>
-                  <View style={styles.floatingFieldHalf}>
-                    <Text style={styles.floatingLabel}>Date *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                <View style={[eq.fieldRow, eq.dateRow]}>
+                  <View style={eq.halfField}>
+                    <OutlinedInput
+                      style={eq.pillInput}
+                      placeholder={t('star_date')}
+                      placeholderTextColor={COLORS.lightGray}
                       value={enquiryDate}
                       onChangeText={setEnquiryDate}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#9aa0a6"
                     />
                   </View>
-                  <View style={styles.floatingFieldHalf}>
-                    <Text style={styles.floatingLabel}>Time *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                  <View style={eq.halfField}>
+                    <OutlinedInput
+                      style={eq.pillInput}
+                      placeholder={t('star_time')}
+                      placeholderTextColor={COLORS.lightGray}
                       value={enquiryTime}
                       onChangeText={setEnquiryTime}
-                      placeholder="HH:MM:SS"
-                      placeholderTextColor="#9aa0a6"
                     />
                   </View>
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <TextInput
-                    style={styles.pillInput}
-                    placeholder="Customer Address *"
-                    placeholderTextColor="#9aa0a6"
-                    value={address}
-                    onChangeText={setAddress}
-                  />
+                <View style={eq.fieldWrap}>
+                  {/* Java: tapping the address opens the full-screen Google Places search. */}
+                  <Pressable onPress={() => setIsPlaceSearchOpen(true)}>
+                    <View pointerEvents="none">
+                      <OutlinedInput
+                        style={eq.pillInput}
+                        placeholder={t('star_customer_address')}
+                        placeholderTextColor={COLORS.lightGray}
+                        value={address}
+                        editable={false}
+                      />
+                    </View>
+                  </Pressable>
                 </View>
 
-                <View style={[styles.fieldRow, styles.stateCityFieldRow]}>
-                  <View style={[styles.floatingFieldHalf, styles.stateFieldWrap]}>
-                    <Text style={styles.floatingLabel}>State *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                <View style={[eq.fieldRow, eq.stateCityFieldRow]}>
+                  <View style={[eq.halfField, eq.stateFieldWrap]}>
+                    <OutlinedInput
+                      style={eq.pillInput}
+                      placeholder={t('state')}
+                      placeholderTextColor={COLORS.lightGray}
                       value={state}
                       onChangeText={text => {
                         setStateValue(text);
@@ -2440,28 +2146,28 @@ const CRMScreen = ({
                     {showStateSuggestions &&
                     state.trim().length >= 2 &&
                     (isStateLoading || stateSuggestions.length > 0) ? (
-                      <View style={styles.suggestionBox}>
+                      <View style={eq.suggestionBox}>
                         {isStateLoading ? (
                           <ActivityIndicator
                             color={THEME_PRIMARY}
                             size="small"
-                            style={styles.suggestionLoader}
+                            style={eq.suggestionLoader}
                           />
                         ) : (
                           <ScrollView
-                            style={styles.suggestionScroll}
+                            style={eq.suggestionScroll}
                             nestedScrollEnabled
                             keyboardShouldPersistTaps="handled"
                           >
                             {stateSuggestions.map(option => (
                               <TouchableOpacity
                                 key={option.id}
-                                style={styles.suggestionItem}
+                                style={eq.suggestionItem}
                                 onPress={() => handleStateSelect(option)}
                               >
                                 <Text
                                   numberOfLines={1}
-                                  style={styles.suggestionItemText}
+                                  style={eq.suggestionItemText}
                                 >
                                   {option.name}
                                 </Text>
@@ -2472,10 +2178,11 @@ const CRMScreen = ({
                       </View>
                     ) : null}
                   </View>
-                  <View style={[styles.floatingFieldHalf, styles.cityFieldWrap]}>
-                    <Text style={styles.floatingLabel}>City *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                  <View style={[eq.halfField, eq.cityFieldWrap]}>
+                    <OutlinedInput
+                      style={eq.pillInput}
+                      placeholder={t('cityy')}
+                      placeholderTextColor={COLORS.lightGray}
                       value={city}
                       onChangeText={text => {
                         setCity(text);
@@ -2484,7 +2191,7 @@ const CRMScreen = ({
                       }}
                       onFocus={() => {
                         if (!stateId) {
-                          Alert.alert('Enquiry', 'Please select a State first.');
+                          showFailureMsg(t('rn_please_select_a_state_first'));
                           return;
                         }
                         setShowCitySuggestions(true);
@@ -2494,28 +2201,28 @@ const CRMScreen = ({
                     {showCitySuggestions &&
                     city.trim().length >= 2 &&
                     (isCityLoading || citySuggestions.length > 0) ? (
-                      <View style={styles.suggestionBox}>
+                      <View style={eq.suggestionBox}>
                         {isCityLoading ? (
                           <ActivityIndicator
                             color={THEME_PRIMARY}
                             size="small"
-                            style={styles.suggestionLoader}
+                            style={eq.suggestionLoader}
                           />
                         ) : (
                           <ScrollView
-                            style={styles.suggestionScroll}
+                            style={eq.suggestionScroll}
                             nestedScrollEnabled
                             keyboardShouldPersistTaps="handled"
                           >
                             {citySuggestions.map(option => (
                               <TouchableOpacity
                                 key={option.id}
-                                style={styles.suggestionItem}
+                                style={eq.suggestionItem}
                                 onPress={() => handleCitySelect(option)}
                               >
                                 <Text
                                   numberOfLines={1}
-                                  style={styles.suggestionItemText}
+                                  style={eq.suggestionItemText}
                                 >
                                   {option.name}
                                 </Text>
@@ -2528,11 +2235,12 @@ const CRMScreen = ({
                   </View>
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <View style={styles.floatingFieldFull}>
-                    <Text style={styles.floatingLabel}>Pin Code *</Text>
-                    <TextInput
-                      style={styles.floatingInput}
+                <View style={eq.fieldRow}>
+                  <View style={eq.halfField}>
+                    <OutlinedInput
+                      style={eq.pillInput}
+                      placeholder={t('pincode')}
+                      placeholderTextColor={COLORS.lightGray}
                       value={pinCode}
                       onChangeText={text =>
                         setPinCode(text.replace(/[^0-9]/g, '').slice(0, 6))
@@ -2541,20 +2249,21 @@ const CRMScreen = ({
                       maxLength={6}
                     />
                   </View>
+                  <View style={eq.halfField} />
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <TextInput
-                    style={styles.pillInput}
-                    placeholder="Landmark *"
-                    placeholderTextColor="#9aa0a6"
+                <View style={eq.fieldWrap}>
+                  <OutlinedInput
+                    style={eq.pillInput}
+                    placeholder={t('star_landmark')}
+                    placeholderTextColor={COLORS.lightGray}
                     value={landmark}
                     onChangeText={setLandmark}
                   />
                 </View>
 
                 <TouchableOpacity
-                  style={styles.dropdownPill}
+                  style={eq.dropdownPill}
                   onPress={() => {
                     loadServiceTypes();
                     setIsServiceTypeModalOpen(true);
@@ -2563,18 +2272,18 @@ const CRMScreen = ({
                   <Text
                     style={
                       selectedService
-                        ? styles.dropdownPillTextValue
-                        : styles.dropdownPillTextPlaceholder
+                        ? eq.dropdownPillTextValue
+                        : eq.dropdownPillTextPlaceholder
                     }
                     numberOfLines={1}
                   >
-                    {selectedService ? selectedService.label : 'Select Service Type'}
+                    {selectedService ? selectedService.label : tr('Select Service Type')}
                   </Text>
-                  <Text style={styles.dropdownChevron}>⌄</Text>
+                  <Ionicons name="chevron-down" style={eq.dropdownChevron} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.dropdownPill}
+                  style={eq.dropdownPill}
                   onPress={() => {
                     loadTaskTags();
                     setIsTaskTagModalOpen(true);
@@ -2583,41 +2292,41 @@ const CRMScreen = ({
                   <Text
                     style={
                       selectedTaskTag
-                        ? styles.dropdownPillTextValue
-                        : styles.dropdownPillTextPlaceholder
+                        ? eq.dropdownPillTextValue
+                        : eq.dropdownPillTextPlaceholder
                     }
                     numberOfLines={1}
                   >
-                    {selectedTaskTag ? selectedTaskTag.label : 'Select Task Type'}
+                    {selectedTaskTag ? selectedTaskTag.label : tr('Select Task Type')}
                   </Text>
-                  <Text style={styles.dropdownChevron}>⌄</Text>
+                  <Ionicons name="chevron-down" style={eq.dropdownChevron} />
                 </TouchableOpacity>
 
-                <View style={styles.fieldWrap}>
-                  <TextInput
-                    style={styles.pillInput}
-                    placeholder="Technical Problem"
-                    placeholderTextColor="#9aa0a6"
+                <View style={eq.fieldWrap}>
+                  <OutlinedInput
+                    style={eq.pillInput}
+                    placeholder={t('technical_problem')}
+                    placeholderTextColor={COLORS.lightGray}
                     value={technicalProblem}
                     onChangeText={setTechnicalProblem}
                   />
                 </View>
 
-                <View style={styles.fieldWrap}>
-                  <TextInput
-                    style={styles.pillInput}
-                    placeholder="Special Instructions"
-                    placeholderTextColor="#9aa0a6"
+                <View style={eq.fieldWrap}>
+                  <OutlinedInput
+                    style={eq.pillInput}
+                    placeholder={t('special_instructions')}
+                    placeholderTextColor={COLORS.lightGray}
                     value={specialInstructions}
                     onChangeText={setSpecialInstructions}
                   />
                 </View>
 
-                <View style={styles.photoRow}>
+                <View style={enquiryStyles.photoRow}>
                   {photos.map((photo, index) => (
                     <TouchableOpacity
                       key={index}
-                      style={styles.photoBox}
+                      style={enquiryStyles.photoBox}
                       onPress={() =>
                         photo ? removePhoto(index) : handlePhotoBoxPress(index)
                       }
@@ -2625,17 +2334,17 @@ const CRMScreen = ({
                       {photo ? (
                         <Image
                           source={{uri: photo.uri}}
-                          style={styles.photoPreview}
+                          style={eq.photoPreview}
                         />
                       ) : (
-                        <Text style={styles.photoBoxIcon}>📷</Text>
+                        <Ionicons name="camera-outline" size={ms(56)} color={COLORS.lightGray} />
                       )}
                     </TouchableOpacity>
                   ))}
                 </View>
 
                 <TouchableOpacity
-                  style={styles.addButton}
+                  style={enquiryStyles.addButton}
                   onPress={handleAddEnquirySubmit}
                   disabled={isSubmittingEnquiry}
                 >
@@ -2643,22 +2352,34 @@ const CRMScreen = ({
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
                     <>
-                      <Text style={styles.addButtonIcon}>?</Text>
-                      <Text style={styles.addButtonText}>
-                        {editingEnquiryId ? 'UPDATE' : 'ADD'}
+                      <View style={eq.addButtonIconWrap}>
+                        <EnquiryIcon size={ms(30)} color="#FFFFFF" />
+                      </View>
+                      <Text style={eq.darkAddButtonText}>
+                        {editingEnquiryId ? tr('UPDATE') : tr('ADD')}
                       </Text>
                     </>
                   )}
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={closeAddEnquiryModal}>
-                  <Text style={styles.cancelText}>Cancel</Text>
+                  <Text style={eq.cancelText}>{t('cancel')}</Text>
                 </TouchableOpacity>
               </ScrollView>
             </KeyboardAvoidingView>
           </View>
         </View>
       </Modal>
+
+      <PlaceSearchModal
+        visible={isPlaceSearchOpen}
+        onClose={() => setIsPlaceSearchOpen(false)}
+        onSelect={place => {
+          setAddress(place.address);
+          setPlaceCoords({latitude: String(place.latitude), longitude: String(place.longitude)});
+          setIsPlaceSearchOpen(false);
+        }}
+      />
 
       <Modal
         visible={isEnquiryDetailModalOpen}
@@ -2667,85 +2388,84 @@ const CRMScreen = ({
         onRequestClose={closeEnquiryDetailModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.detailModalSheet}>
+          <View style={enquiryDetailStyles.sheet}>
             {selectedEnquiry ? (
-              <>
-                <View style={styles.detailModalHeader}>
-                  <Text style={styles.detailModalTitle}>
-                    {getEnquiryType(selectedEnquiry)}
+              <ScrollView contentContainerStyle={enquiryDetailStyles.content}>
+                <View style={enquiryDetailStyles.header}>
+                  <Text style={enquiryDetailStyles.title} numberOfLines={2}>
+                    {getEnquiryServiceTypeName(selectedEnquiry) || getEnquiryType(selectedEnquiry)}
                   </Text>
-                  <View style={styles.detailModalHeaderActions}>
+                  <View style={enquiryDetailStyles.headerActions}>
                     <TouchableOpacity
-                      onPress={() =>
-                        openWhatsapp(getEnquiryPhone(selectedEnquiry))
-                      }
+                      onPress={() => openWhatsapp(getEnquiryPhone(selectedEnquiry))}
                     >
-                      <Text style={styles.detailModalHeaderIcon}>💬</Text>
+                      <WhatsappIcon size={ms(22)} color={COLORS.primary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => openCall(getEnquiryPhone(selectedEnquiry))}
                     >
-                      <Text style={styles.detailModalHeaderIcon}>📞</Text>
+                      <Image
+                        source={require('../../../assets/images/ic_phone.png')}
+                        style={enquiryDetailStyles.callIcon}
+                      />
                     </TouchableOpacity>
                   </View>
                 </View>
 
-                <ScrollView contentContainerStyle={styles.detailModalContent}>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Enquiry No.</Text>
-                    <Text style={styles.detailValue}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>{t('rn_enquiry_no')}</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       #{getEnquiryDisplayNo(selectedEnquiry) || '-'}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Pref. Date</Text>
-                    <Text style={styles.detailValue}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>{t('pref_date')}</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       {getEnquiryDate(selectedEnquiry) || 'NA'}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Customer Name</Text>
-                    <Text style={styles.detailValue}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>{t('customer_name')}</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       {getEnquiryCustomerName(selectedEnquiry)}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Contact Number</Text>
-                    <Text style={styles.detailValue}>
-                      {getEnquiryPhone(selectedEnquiry) || 'NA'}
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>{t('contact_number')}</Text>
+                    <Text style={enquiryDetailStyles.value}>
+                      {formatPhoneWithCountryCode(getEnquiryPhone(selectedEnquiry)) || 'NA'}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Address</Text>
-                    <Text style={[styles.detailValue, styles.detailValueWrap]}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>{t('address')}</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       {getEnquiryAddress(selectedEnquiry) || 'NA'}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Technical Problem</Text>
-                    <Text style={[styles.detailValue, styles.detailValueWrap]}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>{t('technical_problem')}</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       {getEnquiryTechnicalProblem(selectedEnquiry) || 'NA'}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Special Instructions</Text>
-                    <Text style={[styles.detailValue, styles.detailValueWrap]}>
+                  <View style={enquiryDetailStyles.row}>
+                    <Text style={enquiryDetailStyles.label}>{t('special_instructions')}</Text>
+                    <Text style={enquiryDetailStyles.value}>
                       {getEnquirySpecialInstruction(selectedEnquiry) || 'NA'}
                     </Text>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.addTaskButton}
-                    onPress={openAddTaskModal}
-                  >
-                    <Text style={styles.addTaskButtonText}>+ ADD TASK</Text>
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  style={enquiryDetailStyles.addTaskButton}
+                  onPress={openAddTaskModal}
+                >
+                  <Text style={enquiryDetailStyles.addTaskText}>{t('title_add_task').toUpperCase()}</Text>
+                </TouchableOpacity>
 
-                  <TouchableOpacity onPress={closeEnquiryDetailModal}>
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                </ScrollView>
-              </>
+                <TouchableOpacity onPress={closeEnquiryDetailModal}>
+                  <Text style={eq.cancelText}>{t('cancel')}</Text>
+                </TouchableOpacity>
+              </ScrollView>
             ) : null}
           </View>
         </View>
@@ -2762,9 +2482,9 @@ const CRMScreen = ({
             <View style={styles.shareModalIconBadge}>
               <Text style={styles.shareModalIconText}>▶</Text>
             </View>
-            <Text style={styles.shareModalTitle}>How to share enquiry URL ?</Text>
+            <Text style={styles.shareModalTitle}>{t('hgetlink')}</Text>
             <Text style={styles.shareModalSubtitle}>
-              Click on below button to Copy or Share the Enquiry Form link
+              {t('click_to_copy_share')}
             </Text>
 
             <TouchableOpacity
@@ -2772,7 +2492,7 @@ const CRMScreen = ({
               onPress={handleCopyAndShareEnquiryLink}
             >
               <Text style={styles.shareModalPrimaryButtonText}>
-                COPY & SHARE
+                {t('click_to_copy').toUpperCase()}
               </Text>
             </TouchableOpacity>
 
@@ -2785,13 +2505,13 @@ const CRMScreen = ({
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.shareModalSecondaryButtonText}>
-                  DOWNLOAD QR CODE
+                  {t('QR_Code').toUpperCase()}
                 </Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={closeShareEnquiryModal}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('cancel')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2805,7 +2525,7 @@ const CRMScreen = ({
       >
         <View style={styles.centeredModalOverlay}>
           <View style={styles.qrPreviewSheet}>
-            <Text style={styles.shareModalTitle}>Enquiry QR Code</Text>
+            <Text style={styles.shareModalTitle}>{t('rn_enquiry_qr_code')}</Text>
             {qrPreviewPath ? (
               <Image
                 source={{uri: `file://${qrPreviewPath}`}}
@@ -2814,7 +2534,7 @@ const CRMScreen = ({
               />
             ) : null}
             <Text style={styles.shareModalSubtitle}>
-              QR code saved to your device storage.
+              {t('rn_qr_code_saved_to_your_device_storage')}
             </Text>
             <TouchableOpacity
               style={styles.shareModalPrimaryButton}
@@ -2829,10 +2549,10 @@ const CRMScreen = ({
                 }
               }}
             >
-              <Text style={styles.shareModalPrimaryButtonText}>SHARE</Text>
+              <Text style={styles.shareModalPrimaryButtonText}>{t('rn_share')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setQrPreviewPath(null)}>
-              <Text style={styles.cancelText}>Close</Text>
+              <Text style={styles.cancelText}>{t('close')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2849,15 +2569,15 @@ const CRMScreen = ({
           onPress={() => setIsServiceTypeModalOpen(false)}
         >
           <Pressable style={styles.serviceModalBox} onPress={() => {}}>
-            <View style={styles.searchModalInputWrap}>
+            <View style={styles.serviceSearchWrap}>
               <TextInput
-                style={styles.searchModalInput}
-                placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
+                style={styles.serviceSearchInput}
+                placeholder={t('rn_search_2')}
+                placeholderTextColor="#757575"
                 value={serviceTypeSearch}
                 onChangeText={setServiceTypeSearch}
               />
-              <Text style={styles.searchModalIcon}>🔍</Text>
+              <Ionicons name="search-outline" size={ms(26)} color="#8a8f98" />
             </View>
             {isServiceTypeLoading ? (
               <ActivityIndicator
@@ -2879,57 +2599,34 @@ const CRMScreen = ({
         </Pressable>
       </Modal>
 
-      <Modal
+      {/* Java: dialog_searchable_spinner_tasktag -- the shared searchable dialog. */}
+      <SearchPickerModal
         visible={isTaskTagModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsTaskTagModalOpen(false)}
-      >
-        <Pressable
-          style={styles.centeredModalOverlay}
-          onPress={() => setIsTaskTagModalOpen(false)}
-        >
-          <Pressable style={styles.taskTagModalBox} onPress={() => {}}>
-            <Text style={styles.taskTagModalTitle}>Select Task Tag</Text>
-            <View style={styles.searchModalInputWrap}>
-              <TextInput
-                style={styles.searchModalInput}
-                placeholder="Search..."
-                placeholderTextColor="#9aa0a6"
-                value={taskTagSearch}
-                onChangeText={setTaskTagSearch}
-              />
-              <Text style={styles.searchModalIcon}>🔍</Text>
-            </View>
-            {isTaskTagLoading ? (
-              <ActivityIndicator
-                color={THEME_PRIMARY}
-                size="small"
-                style={styles.suggestionLoader}
-              />
-            ) : (
-              <ScrollView style={styles.taskTagModalScroll}>
-                {displayedTaskTags.map(tag => (
-                  <TouchableOpacity
-                    key={tag.id}
-                    style={styles.taskTagItem}
-                    onPress={() => {
-                      setSelectedTaskTag(tag);
-                      setIsTaskTagModalOpen(false);
-                      setTaskTagSearch('');
-                    }}
-                  >
-                    <Text style={styles.taskTagItemText}>{tag.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                {displayedTaskTags.length === 0 ? (
-                  <Text style={styles.emptyText}>No task tags found.</Text>
-                ) : null}
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title={t('select_task_tag')}
+        options={taskTags}
+        loading={isTaskTagLoading}
+        emptyText="No task tags found."
+        onSelect={option => {
+          const tag = taskTags.find(t => t.id === option.id);
+          if (tag) {
+            setSelectedTaskTag(tag);
+          }
+          setIsTaskTagModalOpen(false);
+        }}
+        onClose={() => setIsTaskTagModalOpen(false)}
+      />
+
+      <EditCustomerModal
+        visible={isEditCustomerModalOpen}
+        ownerId={ownerId}
+        customer={customerBeingEdited}
+        onClose={() => setIsEditCustomerModalOpen(false)}
+        onUpdated={updatedCustomer => {
+          setIsEditCustomerModalOpen(false);
+          setSelectedCustomer(updatedCustomer as CustomerLookupItem);
+          fetchCustomers(true);
+        }}
+      />
 
       <AddTaskModal
         visible={isAddTaskModalOpen}
@@ -2937,933 +2634,10 @@ const CRMScreen = ({
         ownerId={ownerId}
         initialValues={addTaskInitialValues}
       />
+      {customerDetailsOverlay}
     </View>
   );
 };
 
-export const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#f5f5f7',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: HEADER_PRIMARY,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-  },
-  headerIconButton: {
-    padding: 4,
-  },
-  headerIconText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-  },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  headerRightActions: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  tabsRow: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eceef0',
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  tabButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#8a8f98',
-    letterSpacing: 0.5,
-  },
-  tabButtonTextActive: {
-    color: THEME_PRIMARY,
-  },
-  tabButtonUnderline: {
-    marginTop: 8,
-    height: 2,
-    width: '60%',
-    backgroundColor: THEME_PRIMARY,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-    backgroundColor: '#FFFFFF',
-  },
-  searchInputWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f1f2f4',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    height: 40,
-  },
-  searchIcon: {
-    fontSize: 14,
-    marginRight: 6,
-    color: '#8a8f98',
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#222',
-    padding: 0,
-  },
-  searchClearIcon: {
-    fontSize: 14,
-    color: '#8a8f98',
-    paddingLeft: 6,
-  },
-  addEnquiryButton: {
-    backgroundColor: '#1c1c1e',
-    paddingHorizontal: 14,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addEnquiryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  linkIconButton: {
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  linkIconText: {
-    fontSize: 18,
-    color: THEME_PRIMARY,
-  },
-  listContent: {
-    padding: 12,
-    paddingBottom: 24,
-  },
-  centerBox: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  errorText: {
-    color: '#c3002f',
-    fontSize: 13,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  emptyText: {
-    color: '#8a8f98',
-    fontSize: 13,
-    textAlign: 'center',
-    paddingVertical: 20,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    marginBottom: 10,
-    overflow: 'hidden',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    shadowOffset: {width: 0, height: 1},
-  },
-  cardRibbon: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#3f7ee8',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderBottomRightRadius: 6,
-  },
-  cardRibbonText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  cardBody: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 12,
-  },
-  cardMainCol: {
-    flex: 1,
-    paddingRight: 8,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1c1c1e',
-    marginBottom: 4,
-  },
-  cardSubtitle: {
-    fontSize: 12,
-    color: '#6b7280',
-    lineHeight: 16,
-  },
-  cardActionsCol: {
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  cardActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  cardIconButton: {
-    width: 26,
-    height: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardIconText: {
-    fontSize: 15,
-  },
-  cardDateText: {
-    fontSize: 11,
-    color: '#9ca3af',
-    marginTop: 8,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: '#FFFFFF',
-    maxHeight: '92%',
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#3a3a3c',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  modalHeaderTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  modalCloseIcon: {
-    color: '#FFFFFF',
-    fontSize: 18,
-  },
-  modalFlex: {
-    flexShrink: 1,
-  },
-  modalScrollContent: {
-    padding: 16,
-    paddingBottom: 30,
-  },
-  howToRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  howToPlayIcon: {
-    width: 28,
-    height: 20,
-    borderRadius: 4,
-    backgroundColor: THEME_PRIMARY,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  howToPlayIconText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-  },
-  howToText: {
-    color: THEME_PRIMARY,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  fieldWrap: {
-    marginBottom: 14,
-    position: 'relative',
-    zIndex: 1,
-  },
-  customerFieldWrap: {
-    zIndex: 30,
-    elevation: 30,
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 14,
-  },
-  stateCityFieldRow: {
-    zIndex: 20,
-    elevation: 20,
-  },
-  stateFieldWrap: {
-    position: 'relative',
-    zIndex: 2,
-  },
-  cityFieldWrap: {
-    position: 'relative',
-    zIndex: 1,
-  },
-  pillInput: {
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    height: 46,
-    fontSize: 13,
-    color: '#222',
-  },
-  pillInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    height: 46,
-  },
-  pillInputFlex: {
-    flex: 1,
-    fontSize: 13,
-    color: '#222',
-    padding: 0,
-  },
-  contactPickerIcon: {
-    fontSize: 18,
-    color: THEME_PRIMARY,
-    marginLeft: 8,
-  },
-  floatingFieldFull: {
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 6,
-  },
-  floatingFieldHalf: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 6,
-  },
-  floatingLabel: {
-    fontSize: 10,
-    color: '#8a8f98',
-    marginBottom: 2,
-  },
-  floatingInput: {
-    fontSize: 13,
-    color: '#222',
-    padding: 0,
-    height: 20,
-  },
-  dropdownPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    height: 46,
-    marginBottom: 14,
-  },
-  dropdownPillTextPlaceholder: {
-    fontSize: 13,
-    color: '#9aa0a6',
-    flex: 1,
-  },
-  dropdownPillTextValue: {
-    fontSize: 13,
-    color: '#222',
-    flex: 1,
-  },
-  dropdownChevron: {
-    fontSize: 16,
-    color: '#8a8f98',
-    marginLeft: 8,
-  },
-  photoRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 18,
-  },
-  photoBox: {
-    flex: 1,
-    height: 70,
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  photoBoxIcon: {
-    fontSize: 22,
-    color: '#9aa0a6',
-  },
-  photoPreview: {
-    width: '100%',
-    height: '100%',
-  },
-  addButton: {
-    flexDirection: 'row',
-    backgroundColor: THEME_PRIMARY,
-    borderRadius: 24,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    gap: 8,
-  },
-  addButtonIcon: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  addButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  cancelText: {
-    textAlign: 'center',
-    color: THEME_PRIMARY,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  shareModalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 28,
-    alignItems: 'center',
-  },
-  qrPreviewSheet: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 28,
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: 380,
-    alignSelf: 'center',
-  },
-  qrPreviewImage: {
-    width: '100%',
-    maxWidth: 240,
-    aspectRatio: 1,
-    marginVertical: 16,
-  },
-  shareModalIconBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: THEME_PRIMARY,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  shareModalIconText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
-  shareModalTitle: {
-    color: THEME_PRIMARY,
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  shareModalSubtitle: {
-    color: '#333333',
-    fontSize: 13,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  shareModalPrimaryButton: {
-    width: '100%',
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: THEME_PRIMARY,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  shareModalPrimaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  shareModalSecondaryButton: {
-    width: '100%',
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#2b2b2b',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
-  },
-  shareModalSecondaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  detailModalSheet: {
-    backgroundColor: '#FFFFFF',
-    maxHeight: '85%',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    overflow: 'hidden',
-  },
-  detailModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-  },
-  detailModalTitle: {
-    color: '#1f2937',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  detailModalHeaderActions: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  detailModalHeaderIcon: {
-    color: THEME_PRIMARY,
-    fontSize: 20,
-  },
-  detailModalContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: 10,
-  },
-  detailLabel: {
-    color: '#1f2937',
-    fontSize: 14,
-    flexShrink: 0,
-    marginRight: 12,
-  },
-  detailValue: {
-    color: '#9ca3af',
-    fontSize: 14,
-    textAlign: 'right',
-    flexShrink: 1,
-  },
-  detailValueWrap: {
-    flex: 1,
-  },
-  addTaskButton: {
-    backgroundColor: THEME_PRIMARY,
-    borderRadius: 24,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-    marginBottom: 14,
-  },
-  addTaskButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  suggestionBox: {
-    position: 'absolute',
-    top: 48,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#e1e2e5',
-    borderRadius: 8,
-    maxHeight: 200,
-    overflow: 'hidden',
-    zIndex: 10,
-    elevation: 4,
-  },
-  suggestionScroll: {
-    maxHeight: 200,
-  },
-  suggestionLoader: {
-    paddingVertical: 10,
-  },
-  suggestionItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    backgroundColor: '#FFFFFF',
-  },
-  suggestionItemText: {
-    fontSize: 13,
-    color: '#222',
-  },
-  suggestionItemSubText: {
-    fontSize: 11,
-    color: '#8a8f98',
-    marginTop: 2,
-  },
-  centeredModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  serviceModalBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    width: '100%',
-    maxHeight: '70%',
-    padding: 16,
-  },
-  searchModalInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: THEME_PRIMARY,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    height: 42,
-    marginBottom: 10,
-  },
-  searchModalInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#222',
-    padding: 0,
-  },
-  searchModalIcon: {
-    fontSize: 14,
-    color: '#8a8f98',
-  },
-  serviceModalScroll: {
-    maxHeight: 320,
-  },
-  serviceHeaderText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: THEME_PRIMARY,
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  serviceSubHeaderText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: THEME_PRIMARY,
-    marginLeft: 12,
-    marginTop: 6,
-    marginBottom: 4,
-  },
-  serviceLeafRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 24,
-    paddingVertical: 4,
-  },
-  serviceLeafBullet: {
-    fontSize: 12,
-    color: '#222',
-    marginRight: 6,
-  },
-  serviceLeafText: {
-    fontSize: 13,
-    color: '#222',
-  },
-  serviceLeafTextSelected: {
-    color: THEME_PRIMARY,
-    fontWeight: '700',
-  },
-  taskTagModalBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    width: '100%',
-    maxHeight: '75%',
-    padding: 16,
-  },
-  taskTagModalTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1c1c1e',
-    marginBottom: 10,
-  },
-  taskTagModalScroll: {
-    maxHeight: 320,
-  },
-  taskTagItem: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  taskTagItemText: {
-    fontSize: 13,
-    color: '#222',
-  },
-  warrantyRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 14,
-  },
-  warrantyToggleGroup: {
-    flexDirection: 'row',
-    borderRadius: 24,
-    overflow: 'hidden',
-  },
-  warrantyToggleButton: {
-    height: 46,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#3a3a3c',
-  },
-  warrantyToggleButtonLeft: {
-    borderTopLeftRadius: 24,
-    borderBottomLeftRadius: 24,
-    borderRightWidth: 0.5,
-  },
-  warrantyToggleButtonRight: {
-    borderTopRightRadius: 24,
-    borderBottomRightRadius: 24,
-    borderLeftWidth: 0.5,
-  },
-  warrantyToggleButtonActive: {
-    backgroundColor: '#1c1c1e',
-  },
-  warrantyToggleText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1c1c1e',
-  },
-  warrantyToggleTextActive: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  amcDisabledField: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  amcDisabledInput: {
-    borderWidth: 1,
-    borderColor: '#e1e2e5',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    height: 46,
-    fontSize: 11,
-    color: '#9aa0a6',
-    backgroundColor: '#f5f5f7',
-  },
-  amcEnabledInput: {
-    borderColor: '#d0d2d6',
-    color: '#1a1a1a',
-    backgroundColor: '#ffffff',
-  },
-  taskFormTabsRow: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  taskFormTabButton: {
-    flex: 1,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderLeftWidth: 1,
-    borderLeftColor: '#d5d7db',
-  },
-  taskFormTabButtonActive: {
-    backgroundColor: '#1c1c1e',
-  },
-  taskFormTabText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#1c1c1e',
-  },
-  taskFormTabTextActive: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  tabContentPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 24,
-  },
-  tabContentPlaceholderText: {
-    color: '#9aa0a6',
-    fontSize: 13,
-  },
-  instructionRecorderBox: {
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: 10,
-    paddingVertical: 18,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  instructionRecorderLabel: {
-    color: '#6b7280',
-    fontSize: 12,
-    textAlign: 'center',
-    marginBottom: 14,
-  },
-  instructionRecorderButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 28,
-    marginBottom: 10,
-  },
-  instructionRecorderButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#9aa0a6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  instructionRecorderButtonDisabled: {
-    opacity: 0.5,
-  },
-  instructionRecorderMicButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: THEME_PRIMARY,
-  },
-  instructionRecorderButtonIcon: {
-    color: '#FFFFFF',
-    fontSize: 18,
-  },
-  instructionRecorderTimerText: {
-    color: '#1a1a1a',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  darkAddButton: {
-    flexDirection: 'row',
-    backgroundColor: '#3a3a3c',
-    borderRadius: 24,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    gap: 8,
-  },
-  darkAddButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  itemRowCard: {
-    borderWidth: 1,
-    borderColor: '#e1e2e5',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 12,
-  },
-  itemRowHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  itemRowTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: THEME_PRIMARY,
-  },
-  itemRowRemove: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: THEME_PRIMARY,
-  },
-  itemRowFieldsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  itemNameDropdown: {
-    flex: 1.4,
-    marginBottom: 0,
-  },
-  itemAvailableQtyBox: {
-    flex: 0.7,
-    height: 46,
-    borderWidth: 1,
-    borderColor: '#d5d7db',
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  itemAvailableQtyText: {
-    fontSize: 13,
-    color: '#222',
-  },
-  itemQuantityInput: {
-    flex: 1,
-    marginBottom: 0,
-    textAlign: 'center',
-  },
-  addMoreText: {
-    color: THEME_PRIMARY,
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 14,
-  },
-  itemSearchHintText: {
-    color: THEME_PRIMARY,
-    fontSize: 12,
-    textAlign: 'center',
-    paddingVertical: 16,
-  },
-});
 
 export default CRMScreen;

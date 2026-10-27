@@ -1,27 +1,30 @@
 // src/screens/technician/main/TaskClosureScreen.tsx
+import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   TextInput,
   Image,
   ActivityIndicator,
-  Modal,
-  TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   PanResponder,
+  Keyboard,
   GestureResponderEvent,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Modal from '../../../components/AppModal';
+import Svg, { Path, Rect } from 'react-native-svg';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { getUsedItemIssueListByUserid } from '../../../api/item/itemService';
+import { scale, vs, sp, ms } from '../../../utils/responsive';
+import ImageSourceDialog from '../../../components/ImageSourceDialog';
+import SearchPickerModal from '../../../components/SearchPickerModal';
 import {
   GetAllTaskListDTOResultData as Task,
   GetAllTaskListDTODeviceInfoList as DeviceInfo,
@@ -30,10 +33,21 @@ import {
   TaskClosureDeviceInfoList,
   TaskClosureUsedItemDetailsDto,
 } from '../../../api/task/task.types';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { getAllchkpointCategory, postChkpointData } from '../../../api/fsrManagement/fsrManagementService';
 import { requestLocationPermission, getCurrentPosition, getAddressFromCoordinates, Coordinates } from '../../../utils/locationPermision';
+import { buildImagesPayload } from '../../../utils/imagePayload';
+import { getCustomFieldData } from '../../../api/users/usersService';
+import { pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import RNFS from 'react-native-fs';
+import { showFailureMsg } from '../../../utils/toast';
+import { isNetworkAvailable } from '../../../offline/networkQuality';
+import { savePendingTask } from '../../../offline/offlineStore';
+import { cachedFetch, fsrCacheKey, customFieldsCacheKey } from '../../../offline/offlineCache';
+import DecimalInput from '../../../components/DecimalInput';
 
+import {useTranslation} from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 // ─── Local Types ──────────────────────────────────────────────────────────────
 
 interface PhotoAsset {
@@ -41,9 +55,33 @@ interface PhotoAsset {
   base64?: string;
 }
 
+// Java: callFileAttachmentIntent() accepted only these types, up to 5 MB.
+const ATTACHMENT_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'application/pdf',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/zip',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+];
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+// Same placeholder Java (TaskClosureFragmentNew.validate) uses when no signature is drawn.
+const EMPTY_SIGNATURE_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jK3sAAAAASUVORK5CYII=';
+
+interface AttachmentAsset {
+  uri: string;
+  name: string;
+  type: string;
+  base64: string;
+}
+
 type PendingPhoto =
   | { type: 'field'; index: number }
-  | { type: 'attachment' }
   | { type: 'customerPhoto' }
   | { type: 'techPhoto' }
   | { type: 'devicePhoto'; deviceIndex: number; photoKey: 'DevicePhoto1' | 'DevicePhoto2' | 'DevicePhoto3' };
@@ -56,6 +94,8 @@ interface DeviceEntry extends Partial<DeviceInfo> {
   DevicePhoto1Uri?: string;
   DevicePhoto2Uri?: string;
   DevicePhoto3Uri?: string;
+  // Raw text of the reading while typing, so a trailing '.' isn't lost to Number().
+  DeviceReadingText?: string;
 }
 
 interface WorkModeOption {
@@ -64,9 +104,9 @@ interface WorkModeOption {
 }
 
 const WORK_MODES: WorkModeOption[] = [
-  { Id: 1, WorkModeType: 'New Installation' },
+  { Id: 1, WorkModeType: 'Installation' },
   { Id: 2, WorkModeType: 'Repair' },
-  { Id: 3, WorkModeType: 'Service' },
+  { Id: 3, WorkModeType: 'Services' },
 ];
 
 const TASK_STATUS = {
@@ -160,9 +200,10 @@ interface SignaturePadProps {
   paths: SignaturePath[];
   onPathsChange: (paths: SignaturePath[]) => void;
   height?: number;
+  onSizeChange?: (size: { width: number; height: number }) => void;
 }
 
-function SignaturePad({ paths, onPathsChange, height = 160 }: SignaturePadProps) {
+function SignaturePad({ paths, onPathsChange, height = 160, onSizeChange }: SignaturePadProps) {
   const currentPathRef = useRef<{ x: number; y: number }[]>([]);
   const pathsRef = useRef(paths);
   const [, forceUpdate] = useState(0);
@@ -196,7 +237,11 @@ function SignaturePad({ paths, onPathsChange, height = 160 }: SignaturePadProps)
   ).current;
 
   return (
-    <View style={[sigStyles.padContainer, { height }]} {...panResponder.panHandlers}>
+    <View
+      style={[sigStyles.padContainer, { height }]}
+      onLayout={e => onSizeChange?.(e.nativeEvent.layout)}
+      {...panResponder.panHandlers}
+    >
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
         {paths.map((path, idx) => (
           <Path
@@ -270,48 +315,61 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
   );
 }
 
-// ─── SVG → base64 ────────────────────────────────────────────────────────────
+// ─── Signature → PNG ─────────────────────────────────────────────────────────
+//
+// Java posts the signature as a PNG bitmap (base64). The old code here base64-encoded the
+// text of an SVG, which the server would store as a broken .png. react-native-svg can
+// rasterise a mounted <Svg> with toDataURL(), so an off-screen replica of each pad is
+// kept mounted (see SignatureSnapshot) and captured when the closure is built.
 
-function signaturePathsToBase64(paths: SignaturePath[]): string | undefined {
-  if (paths.length === 0) return undefined;
-  const W = 400, H = 200;
-  const buildD = (points: { x: number; y: number }[]) => {
-    if (points.length < 2) return '';
-    let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
-    for (let i = 1; i < points.length; i++) {
-      d += ` L ${points[i].x.toFixed(1)} ${points[i].y.toFixed(1)}`;
-    }
-    return d;
-  };
-  const pathTags = paths
-    .map(p => `<path d="${buildD(p.points)}" stroke="#1C1C1E" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`)
-    .join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="background:#fff">${pathTags}</svg>`;
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  let result = '';
-  let i = 0;
-  while (i < svg.length) {
-    const a = svg.charCodeAt(i++);
-    const b = i < svg.length ? svg.charCodeAt(i++) : 0;
-    const c = i < svg.length ? svg.charCodeAt(i++) : 0;
-    result +=
-      chars[a >> 2] +
-      chars[((a & 3) << 4) | (b >> 4)] +
-      (i - 2 < svg.length ? chars[((b & 15) << 2) | (c >> 6)] : '=') +
-      (i - 1 < svg.length ? chars[c & 63] : '=');
-  }
-  return result;
-}
+const DEFAULT_PAD_SIZE = { width: 300, height: 150 };
+
+const SignatureSnapshot = React.forwardRef<any, { paths: SignaturePath[]; size: { width: number; height: number } }>(
+  ({ paths, size }, ref) => (
+    <Svg ref={ref} width={size.width} height={size.height}>
+      <Rect x={0} y={0} width={size.width} height={size.height} fill="#FFFFFF" />
+      {paths.map((path, idx) => (
+        <Path
+          key={idx}
+          d={buildPathD(path.points)}
+          stroke="#1C1C1E"
+          strokeWidth={2.2}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+    </Svg>
+  ),
+);
+
+/** Base64 PNG (no data: prefix) of a mounted snapshot Svg, or undefined if it can't be captured. */
+const snapshotToPngBase64 = (ref: React.RefObject<any>): Promise<string | undefined> =>
+  new Promise(resolve => {
+    if (!ref.current?.toDataURL) return resolve(undefined);
+    const timer = setTimeout(() => resolve(undefined), 3000);
+    ref.current.toDataURL((b64: string) => {
+      clearTimeout(timer);
+      resolve(b64 || undefined);
+    });
+  });
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TaskClosure({ navigation, route }: any) {
+  const {t} = useTranslation();
   const { task: routeTask, elapsedSeconds = 0 } = route.params as {
     task: Task;
     elapsedSeconds?: number;
   };
 
   const [submitting, setSubmitting] = useState(false);
+
+  // Off-screen copies of the signature pads, captured to PNG on submit.
+  const customerSnapshotRef = useRef<any>(null);
+  const techSnapshotRef = useRef<any>(null);
+  const [customerPadSize, setCustomerPadSize] = useState(DEFAULT_PAD_SIZE);
+  const [techPadSize, setTechPadSize] = useState(DEFAULT_PAD_SIZE);
 
   // ── Current location (Source: TaskClosureFragmentNew.getLastLocation() /
   // getAddressFromLocation()) — requests location permission and resolves
@@ -342,13 +400,14 @@ export default function TaskClosure({ navigation, route }: any) {
   const [selectedWorkMode, setSelectedWorkMode] = useState<WorkModeOption | null>(null);
 
   // ── Field photos (3 slots) ──
-  const [fieldPhotos, setFieldPhotos] = useState<(PhotoAsset | null)[]>([null, null, null]);
+  const [fieldPhotos, setFieldPhotos] = useState<(PhotoAsset | null)[]>(Array(12).fill(null));
 
   // ── Technical notes ──
   const [technicalNotes, setTechnicalNotes] = useState<{ text: string }[]>([]);
   const [noteSheetVisible, setNoteSheetVisible] = useState(false);
   const [activeNoteIndex, setActiveNoteIndex] = useState<number | null>(null);
   const [noteInputValue, setNoteInputValue] = useState('');
+  const [noteFocused, setNoteFocused] = useState(false);
   const [notAllowedVisible, setNotAllowedVisible] = useState(false);
 
   // ── Device list ──
@@ -357,7 +416,35 @@ export default function TaskClosure({ navigation, route }: any) {
   const [deviceNotAllowed, setDeviceNotAllowed] = useState(false);
 
   // ── Attachment ──
-  const [attachment, setAttachment] = useState<PhotoAsset | null>(null);
+  const [attachment, setAttachment] = useState<AttachmentAsset | null>(null);
+
+  // Mirrors TaskClosureFragmentNew.openFilePicker(): any allowed file type, 5 MB cap.
+  const pickAttachment = async () => {
+    try {
+      const [file] = await pick({ type: ATTACHMENT_MIME_TYPES });
+      if (!file) return;
+
+      const base64 = await RNFS.readFile(file.uri, 'base64');
+      // Decoded size, as Java's isValidBase64Size() checks.
+      const bytes = Math.floor((base64.length * 3) / 4);
+      if (bytes > MAX_ATTACHMENT_BYTES) {
+        showFailureMsg(t('rn_file_size_exceeds_5_mb'));
+        return;
+      }
+
+      setAttachment({
+        uri: file.uri,
+        name: file.name ?? 'attachment',
+        type: file.type ?? 'application/octet-stream',
+        base64,
+      });
+    } catch (err: any) {
+      // Picker cancelled -> no-op; anything else is worth surfacing.
+      if (!isErrorWithCode(err) || err.code !== errorCodes.OPERATION_CANCELED) {
+        showFailureMsg(t('rn_could_not_read_the_selected_file'));
+      }
+    }
+  };
 
   // ── Photo source modal ──
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
@@ -425,7 +512,6 @@ export default function TaskClosure({ navigation, route }: any) {
 
   // Searchable item picker modal
   const [showItemPicker, setShowItemPicker] = useState(false);
-  const [itemPickerSearch, setItemPickerSearch] = useState('');
   const pendingSlotIndexRef = useRef<number>(-1);
 
   // ─── FSR Checkpoints ────
@@ -437,10 +523,13 @@ export default function TaskClosure({ navigation, route }: any) {
     try {
       setFsrLoading(true);
       const uid = await AsyncStorage.getItem('uid');
-      const response = await getAllchkpointCategory({
-        UserId: Number(uid),
-        TaskId: routeTask.Id,
-      });
+      // Cached when fetched online (warmed on the Execution screen), so it opens offline too.
+      const { data: response } = await cachedFetch(fsrCacheKey(Number(uid), routeTask.Id as number), () =>
+        getAllchkpointCategory({
+          UserId: Number(uid),
+          TaskId: routeTask.Id,
+        }),
+      );
       const result = response?.ResultData?.[0];
 
       const categories = (result?.lstFSRCategories ?? []).map(cat => ({
@@ -472,7 +561,7 @@ export default function TaskClosure({ navigation, route }: any) {
         setFsrCompletedCount(Object.keys(preSelected).length);
       }
     } catch (err) {
-      Alert.alert('Error', 'Could not load FSR checkpoints. Please try again.');
+      showFailureMsg(t('rn_could_not_load_fsr_checkpoints_please_try_'));
     } finally {
       setFsrLoading(false);
     }
@@ -531,10 +620,20 @@ export default function TaskClosure({ navigation, route }: any) {
 
       // Java's saveAllChkPointData posts a List<ResultData> body directly
       // (see Api.java: @Body List<SaveSelectedChkPointData.ResultData>).
+      // Java (SelectedChkPoints table): no network -> the answers are stored on the device and
+      // posted from the Sync screen, before the closure.
+      if (!(await isNetworkAvailable())) {
+        await savePendingTask(
+          { taskId: routeTask.Id as number, newTaskId: routeTask.NewTaskId ?? String(routeTask.Id), userId },
+          { checkpoints: payload },
+        );
+        setShowFSRSheet(false);
+        return;
+      }
       await postChkpointData(payload);
       setShowFSRSheet(false);
     } catch (err) {
-      Alert.alert('Error', 'Could not save checkpoints. Please try again.');
+      showFailureMsg(t('rn_could_not_save_checkpoints_please_try_agai'));
     } finally {
       setFsrSubmitting(false);
     }
@@ -542,8 +641,42 @@ export default function TaskClosure({ navigation, route }: any) {
 
   // ─── Open used item sheet ──
 
-  const openUsedItemSheet = () => {
+  // Java UpdateUsedItems_FW.getUsedItemsIssueList(): Item/GetAssignedItemsListForFieldWorker?UserId=
+  // -> the items assigned to this fieldworker, which feed the "Item Name" picker of every
+  // ad-hoc slot (Id = ItemIssuedId, Quantity = available qty).
+  const loadIssueList = async () => {
+    if (issueListLoading || issueList.length > 0) return;
+    setIssueListLoading(true);
+    try {
+      const uid = Number(await AsyncStorage.getItem('uid')) || 0;
+      const response = await getUsedItemIssueListByUserid({ UserId: uid });
+      const rows = Array.isArray(response?.ResultData) ? response.ResultData : [];
+      setIssueList(
+        rows
+          .filter(r => !!r.Name)
+          .map(r => ({
+            Id: r.Id ?? 0,
+            ItemId: r.ItemId ?? 0,
+            Name: String(r.Name),
+            Quantity: Number(r.Quantity) || 0,
+            SalesPrice: Number(r.SalesPrice) || 0,
+          })),
+      );
+    } catch {
+      showFailureMsg(t('rn_unable_to_load_items_please_try_again'));
+    } finally {
+      setIssueListLoading(false);
+    }
+  };
+
+  const openUsedItemSheet = async () => {
+    // Updating used items talks to the server (assigned stock), so it needs a connection.
+    if (!(await isNetworkAvailable())) {
+      showFailureMsg(t('rn_internet_connection_is_required_to_update_'));
+      return;
+    }
     setShowUsedItemSheet(true);
+    loadIssueList();
   };
 
   // ─── Add More slot handler ───
@@ -555,11 +688,11 @@ export default function TaskClosure({ navigation, route }: any) {
     if (visibleSlotCount > 0) {
       const lastSlot = adHocSlots[visibleSlotCount - 1];
       if (!lastSlot?.itemName || !lastSlot?.usedQty || lastSlot.usedQty === '0') {
-        Alert.alert('', 'Please Enter Item Name and Quantity!!');
+        showFailureMsg(t('rn_please_enter_item_name_and_quantity'));
         return;
       }
       if (Number(lastSlot.usedQty) > lastSlot.avlQty) {
-        Alert.alert('', 'Quantity should not be greater than Available Qty!!');
+        showFailureMsg(t('rn_quantity_should_not_be_greater_than_availa'));
         setAdHocSlots(prev => {
           const updated = [...prev];
           if (updated[visibleSlotCount - 1]) {
@@ -603,19 +736,19 @@ export default function TaskClosure({ navigation, route }: any) {
 
     if (assignedSlots.length > 0 && filledAdHoc.length > 0) {
       if (hasDuplicatesBetween(assignedSlots, filledAdHoc)) {
-        Alert.alert('', 'Duplicate Items are not allowed!!');
+        showFailureMsg(t('rn_duplicate_items_are_not_allowed'));
         return;
       }
     } else if (filledAdHoc.length > 0) {
       if (hasDuplicatesInAdHoc(filledAdHoc)) {
-        Alert.alert('', 'Duplicate Items not allowed!!');
+        showFailureMsg(t('rn_duplicate_items_not_allowed'));
         return;
       }
     }
 
     const hasAssignedQty = assignedSlots.some(s => s.usedQty.trim() !== '');
     if (!hasAssignedQty && filledAdHoc.length === 0) {
-      Alert.alert('', 'Please Enter Used Quantity!');
+      showFailureMsg(t('rn_please_enter_used_quantity'));
       return;
     }
 
@@ -626,6 +759,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
   const openPhotoPicker = (pending: PendingPhoto) => {
     pendingPhotoRef.current = pending;
+    Keyboard.dismiss();
     setShowPhotoSourceModal(true);
   };
 
@@ -637,7 +771,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
     const result =
       source === 'camera'
-        ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7 })
+        ? await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.7 })
         : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
 
     const asset = result.assets?.[0];
@@ -651,8 +785,6 @@ export default function TaskClosure({ navigation, route }: any) {
         updated[pending.index] = photo;
         return updated;
       });
-    } else if (pending.type === 'attachment') {
-      setAttachment(photo);
     } else if (pending.type === 'customerPhoto') {
       setCustomerPhoto(photo);
     } else if (pending.type === 'techPhoto') {
@@ -722,20 +854,54 @@ export default function TaskClosure({ navigation, route }: any) {
   const handleContinue = async () => {
     const validationError = validateClosure();
     if (validationError) {
-      Alert.alert('Required', validationError);
+      showFailureMsg(validationError || 'Required');
       return;
     }
     try {
       setSubmitting(true);
       const freshUid = await AsyncStorage.getItem('uid');
       if (!freshUid) {
-        Alert.alert('Error', 'User session not found. Please log in again.');
+        showFailureMsg(t('rn_user_session_not_found_please_log_in_again'));
         return;
       }
+      // Java (getCustomFieldData -> isCustomLabelRequired): every required Task Input
+      // field must have a value before the closure can continue.
+      // Offline, the answer saved the last time the fields were read online is used, so a task
+      // with an empty mandatory Task Input cannot be closed without a connection (Task Input
+      // itself needs one).
+      try {
+        const { data: customFields, fromCache } = await cachedFetch(
+          customFieldsCacheKey(Number(freshUid), routeTask.Id as number),
+          () => getCustomFieldData({ UserId: Number(freshUid), TaskId: routeTask.Id }),
+        );
+        const missingRequired = (customFields.ResultData ?? []).some(
+          f => f.IsRequired && (f.UserValue == null || String(f.UserValue).trim() === ''),
+        );
+        if (missingRequired) {
+          showFailureMsg(
+            fromCache && !(await isNetworkAvailable())
+              ? tr('Connect to the internet to add the mandatory Task Input to proceed !!')
+              : tr('Please Add all the mandatory Task Input to proceed !!'),
+          );
+          return;
+        }
+      } catch {
+        // Nothing saved for this task (e.g. created offline) and no connection: there is
+        // nothing to verify against, so the closure carries on and is stored for sync.
+        if (await isNetworkAvailable()) {
+          showFailureMsg(t('rn_could_not_verify_the_required_task_inputs_'));
+          return;
+        }
+      }
+
       const now = new Date().toISOString();
 
-      const customerSignatureImage = signaturePathsToBase64(customerSignPaths);
-      const techSignatureImage = signaturePathsToBase64(techSignPaths);
+      const customerSignatureImage = customerSignPaths.length > 0
+        ? await snapshotToPngBase64(customerSnapshotRef)
+        : undefined;
+      const techSignatureImage = techSignPaths.length > 0
+        ? await snapshotToPngBase64(techSnapshotRef)
+        : undefined;
 
       const isRateMode =
         routeTask.TaskState === TASK_STATE.ENDED_NO_PAYMENT &&
@@ -769,8 +935,10 @@ export default function TaskClosure({ navigation, route }: any) {
           ItemId:       s.itemId,
           ItemIssuedId: s.itemIssuedId,
           TaskId:       routeTask.Id,
-          AvlQty:       s.avlQty,
-          AssignedQty:  0,
+          // Java rebuildUsedItemDetailsForPost: add-more items go out with AvlQty 0 and the used
+          // quantity as the assigned quantity.
+          AvlQty:       0,
+          AssignedQty:  Number(s.usedQty),
           UsedQty:      Number(s.usedQty),
           UserId:       Number(freshUid),
           CreatedBy:    Number(freshUid),
@@ -825,6 +993,9 @@ export default function TaskClosure({ navigation, route }: any) {
         WorkModeType: selectedWorkMode!.WorkModeType,
 
         ...buildFieldPhotoFields(fieldPhotos),
+        // Java also posts every field photo as AfterImages[] (the source for the
+        // new before/after image API), not just FieldPhoto/1/2.
+        AfterImages: buildImagesPayload(fieldPhotos.map(p => p?.base64)),
 
         TechnicalNotedto: technicalNotedto,
 
@@ -833,7 +1004,9 @@ export default function TaskClosure({ navigation, route }: any) {
         SignedBy: customerName || undefined,
         MobileNo: customerNumber ? Number(customerNumber) : 0,
         ...(customerPhoto?.base64 && { CustomerImage: customerPhoto.base64 }),
-        ...(customerSignatureImage && { CustomerSignatureImage: customerSignatureImage }),
+        // Java always sends a customer signature; when none was captured it posts a
+        // 1x1 transparent PNG so the server field is never empty.
+        CustomerSignatureImage: customerSignatureImage ?? EMPTY_SIGNATURE_PNG_BASE64,
 
         ...(techPhoto?.base64 && { TechImage: techPhoto.base64 }),
         ...(techSignatureImage && { TechSignatureImage: techSignatureImage }),
@@ -842,10 +1015,13 @@ export default function TaskClosure({ navigation, route }: any) {
         RatingBarId: 0,
         ...(ratingRemark.trim() && { RatingRemark: ratingRemark.trim() }),
 
-        ...(attachment?.base64 && {
+        // Java: name without extension + "." + extension of the picked file.
+        ...(attachment && {
           Tsk_Doc_Base64: attachment.base64,
-          Tsk_Doc_Name: 'attachment',
-          Tsk_Doc_Extension: '.jpg',
+          Tsk_Doc_Name: attachment.name.replace(/\.[^.]+$/, ''),
+          Tsk_Doc_Extension: attachment.name.includes('.')
+            ? `.${attachment.name.split('.').pop()}`
+            : '',
         }),
 
         SelectedCheckpointList: [],
@@ -856,15 +1032,42 @@ export default function TaskClosure({ navigation, route }: any) {
       };
 
       navigation.navigate('TaskSummary', {
+        returnTo: { name: 'TaskClosure', params: route.params },
         task: routeTask,
         elapsedSeconds,
         payload,
+        // Java UpdateUsedItems_FW -> ADD_MORE_USED_ITEM: ItemId = the item, ItemIssuedId = the
+        // issue-list record id, quantity = used qty. Posted to Task/UpdateReIssuedItems on submit.
+        addMoreItems: filledAdHoc.map(s => ({
+          ItemId: s.itemId,
+          ItemIssuedId: s.itemIssuedId,
+          ItemName: s.itemName,
+          SalesPrice: s.salesPrice,
+          ItemQuantity: Number(s.usedQty),
+          UsedItemQty: Number(s.usedQty),
+        })),
         preview: {
           workModeType: selectedWorkMode!.WorkModeType,
           customerName,
           customerNumber,
           rating,
           ratingRemark,
+          // Java summary: assigned items with assigned/used qty and price, followed by
+          // items added during the task (used qty shown in both columns).
+          items: [
+            ...assignedSlots.map(s => {
+              const used = Number(s.usedQty) || 0;
+              const sales =
+                routeTask.MultipleItemAssigned?.find(
+                  a => a.ItemId === s.ItemId && a.ItemIssuedId === s.ItemIssuedId,
+                )?.SalesPrice ?? 0;
+              return { name: s.ItemName, assignedQty: s.AssignedQty, usedQty: used, price: used * sales };
+            }),
+            ...filledAdHoc.map(s => {
+              const used = Number(s.usedQty) || 0;
+              return { name: s.itemName, assignedQty: used, usedQty: used, price: used * s.salesPrice };
+            }),
+          ],
           fieldPhotoUris: fieldPhotos.filter((p): p is PhotoAsset => !!p?.uri).map(p => p.uri),
           customerPhotoUri: customerPhoto?.uri,
           techPhotoUri: techPhoto?.uri,
@@ -873,7 +1076,7 @@ export default function TaskClosure({ navigation, route }: any) {
         },
       });
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Something went wrong building the summary.');
+      showFailureMsg(err?.message || 'Something went wrong building the summary.');
     } finally {
       setSubmitting(false);
     }
@@ -896,11 +1099,15 @@ export default function TaskClosure({ navigation, route }: any) {
       >
 
         {/* ── FIELD PHOTO ─────────────────────────────────────────────── */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Field Photo</Text>
-          <Text style={styles.cardSubtitle}>Where the task is performed</Text>
-          <View style={styles.photoRow}>
-            {([0, 1, 2] as const).map(i => (
+        <View style={[styles.card, { marginTop: 0 }]}>
+          <Text style={styles.cardTitle}>{t('field_photo')}</Text>
+          <Text style={styles.cardSubtitle}>{t('where_the_task_is_performed')}</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.fieldPhotoRow}
+          >
+            {Array.from({ length: 12 }, (_, i) => i).map(i => (
               <Pressable
                 key={`field-photo-${i}`}
                 style={styles.photoSlot}
@@ -924,22 +1131,25 @@ export default function TaskClosure({ navigation, route }: any) {
                     </Pressable>
                   </>
                 ) : (
-                  <Ionicons name="camera-outline" size={sp(70)} color="#a6a6a6" />
+                  <Ionicons name="camera-outline" size={ms(64)} color={COLORS.lightGray} />
                 )}
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
         </View>
 
         {/* ── WORK MODE ───────────────────────────────────────────────── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Work Mode</Text>
+          <Text style={styles.cardTitle}>{t('work_mode_without_colon')}</Text>
           <View style={styles.workModeRow}>
             {WORK_MODES.map(mode => (
               <Pressable
                 key={`work-mode-${mode.Id}`}
                 style={styles.radioItem}
-                onPress={() => setSelectedWorkMode(mode)}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setSelectedWorkMode(mode);
+                }}
               >
                 <View
                   style={[
@@ -957,7 +1167,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
         {/* ── TECHNICAL NOTES ─────────────────────────────────────────── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Technical Notes</Text>
+          <Text style={styles.cardTitle}>{t('technical_note')}</Text>
           <Pressable
             style={styles.addRow}
             onPress={() => {
@@ -970,12 +1180,12 @@ export default function TaskClosure({ navigation, route }: any) {
               setTechnicalNotes(prev => [...prev, { text: '' }]);
             }}
           >
-            <Text style={styles.addRowPlaceholder}>Add Notes</Text>
+            <Text style={styles.addRowPlaceholder}>{t('add_new_notes')}</Text>
             <Text style={styles.plusBtn}>+</Text>
           </Pressable>
           {notAllowedVisible && (
             <Text style={styles.notAllowedText}>
-              Please fill the existing note before adding a new one.
+              {t('rn_please_fill_the_existing_note_before_addin')}
             </Text>
           )}
           {technicalNotes.map((note, idx) => (
@@ -1018,17 +1228,25 @@ export default function TaskClosure({ navigation, route }: any) {
               style={styles.sheetContainer}
             >
               <View style={styles.sheetContent}>
-                <Text style={styles.sheetTitle}>Technical Notes</Text>
-                <TextInput
-                  value={noteInputValue}
-                  onChangeText={setNoteInputValue}
-                  placeholder="Click here to add note"
-                  placeholderTextColor={COLORS.primary}
-                  style={styles.sheetTextArea}
-                  multiline
-                  autoFocus
-                  textAlignVertical="top"
-                />
+                <Text style={styles.sheetTitle}>{t('technical_note')}</Text>
+                <View style={styles.sheetField}>
+                  {(noteFocused || noteInputValue.length > 0) && (
+                    <Text style={styles.sheetFieldLabel}>{t('click_here_to_add_note')}</Text>
+                  )}
+                  <TextInput
+                    value={noteInputValue}
+                    onChangeText={setNoteInputValue}
+                    onFocus={() => setNoteFocused(true)}
+                    onBlur={() => setNoteFocused(false)}
+                    placeholder={noteFocused ? undefined : tr('Click here to add note')}
+                    placeholderTextColor={COLORS.lightGray}
+                    style={styles.sheetTextArea}
+                    multiline
+                    autoFocus
+                    maxLength={400}
+                    textAlignVertical="top"
+                  />
+                </View>
                 <Pressable
                   style={styles.sheetSaveBtn}
                   onPress={() => {
@@ -1044,10 +1262,10 @@ export default function TaskClosure({ navigation, route }: any) {
                     setNoteSheetVisible(false);
                   }}
                 >
-                  <Text style={styles.sheetSaveBtnText}>SAVE</Text>
+                  <Text style={styles.sheetSaveBtnText}>{t('save').toUpperCase()}</Text>
                 </Pressable>
                 <Pressable onPress={() => setNoteSheetVisible(false)}>
-                  <Text style={styles.sheetCancelText}>Cancel</Text>
+                  <Text style={styles.sheetCancelText}>{t('cancel')}</Text>
                 </Pressable>
               </View>
             </KeyboardAvoidingView>
@@ -1056,7 +1274,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
         {/* ── DEVICE LIST ─────────────────────────────────────────────── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Device List</Text>
+          <Text style={styles.cardTitle}>{t('device_list')}</Text>
           <Pressable
             style={styles.addRow}
             onPress={() => {
@@ -1073,12 +1291,12 @@ export default function TaskClosure({ navigation, route }: any) {
               setExpandedDeviceIndex(newIndex);
             }}
           >
-            <Text style={styles.addRowPlaceholder}>Add New Device</Text>
+            <Text style={styles.addRowPlaceholder}>{t('add_new_device')}</Text>
             <Text style={styles.plusBtn}>+</Text>
           </Pressable>
           {deviceNotAllowed && (
             <Text style={styles.notAllowedText}>
-              Please fill the existing device before adding a new one.
+              {t('rn_please_fill_the_existing_device_before_add')}
             </Text>
           )}
           {devices.map((device, idx) => {
@@ -1086,12 +1304,12 @@ export default function TaskClosure({ navigation, route }: any) {
             return (
               <View key={`device-${idx}`} style={styles.deviceChipWrapper}>
                 <Pressable
-                  style={styles.noteChip}
+                  style={styles.deviceHeader}
                   onPress={() => setExpandedDeviceIndex(isExpanded ? null : idx)}
                 >
-                  <Text style={styles.noteChipIndex}>{idx + 1}</Text>
+                  <Text style={styles.deviceIndex}>{idx + 1}</Text>
                   <Text
-                    style={[styles.noteChipText, !device.DeviceName && styles.noteChipPlaceholder]}
+                    style={[styles.deviceHeaderText, !device.DeviceName && styles.noteChipPlaceholder]}
                     numberOfLines={1}
                   >
                     {isExpanded
@@ -1105,7 +1323,7 @@ export default function TaskClosure({ navigation, route }: any) {
                       if (expandedDeviceIndex === idx) setExpandedDeviceIndex(null);
                     }}
                   >
-                    <Ionicons name="close" size={sp(25)} color={COLORS.primary} />
+                    <Ionicons name="close" size={ms(25)} color={COLORS.primary} />
                   </Pressable>
                 </Pressable>
 
@@ -1118,7 +1336,7 @@ export default function TaskClosure({ navigation, route }: any) {
                           prev.map((d, i) => (i === idx ? { ...d, DeviceName: val } : d))
                         )
                       }
-                      placeholder="Device"
+                      placeholder={t('device')}
                       placeholderTextColor="#ABABAB"
                       style={styles.deviceInput}
                     />
@@ -1129,30 +1347,36 @@ export default function TaskClosure({ navigation, route }: any) {
                           prev.map((d, i) => (i === idx ? { ...d, ModelNumber: val } : d))
                         )
                       }
-                      placeholder="Company/Model"
+                      placeholder={t('company_model')}
                       placeholderTextColor="#ABABAB"
                       style={styles.deviceInput}
                     />
-                    <TextInput
-                      value={device.DeviceReading ? String(device.DeviceReading) : ''}
-                      onChangeText={val =>
+                    <DecimalInput integer
+                      value={
+                        device.DeviceReadingText ??
+                        (device.DeviceReading ? String(device.DeviceReading) : '')
+                      }
+                      onChangeText={val => {
+                        // Device reading is a whole number: digits only.
+                        const text = val.replace(/\D/g, '');
                         setDevices(prev =>
                           prev.map((d, i) =>
-                            i === idx ? { ...d, DeviceReading: Number(val) } : d
+                            i === idx
+                              ? { ...d, DeviceReadingText: text, DeviceReading: Number(text) || 0 }
+                              : d
                           )
-                        )
-                      }
-                      placeholder="Device Reading"
+                        );
+                      }}
+                      label={t('device_reading')}
                       placeholderTextColor="#ABABAB"
-                      keyboardType="numeric"
                       style={styles.deviceInput}
                     />
-                    <View style={styles.photoRow}>
+                    <View style={styles.devicePhotoRow}>
                       {(['DevicePhoto1', 'DevicePhoto2', 'DevicePhoto3'] as const).map(
                         (photoKey, pIdx) => (
-                          <View key={photoKey} style={styles.photoSlot}>
+                          <View key={photoKey} style={styles.devicePhotoSlot}>
                             <Pressable
-                              style={styles.photoRemoveBtn}
+                              style={styles.devicePhotoRemove}
                               onPress={() => {
                                 const uriKey = `${photoKey}Uri` as
                                   | 'DevicePhoto1Uri'
@@ -1166,7 +1390,7 @@ export default function TaskClosure({ navigation, route }: any) {
                               }}
                               hitSlop={6}
                             >
-                              <Ionicons name="close" size={sp(18)} color={COLORS.primary} />
+                              <Ionicons name="close" size={ms(11)} color="#EF4444" />
                             </Pressable>
                             <Pressable
                               style={styles.photoInner}
@@ -1193,9 +1417,9 @@ export default function TaskClosure({ navigation, route }: any) {
                                   resizeMode="cover"
                                 />
                               ) : pIdx === 0 ? (
-                                <Ionicons name="camera-outline" size={sp(60)} color="#a6a6a6" />
+                                <Ionicons name="camera-outline" size={ms(64)} color={COLORS.lightGray} style={{ opacity: 0.7 }} />
                               ) : (
-                                <Ionicons name="add-circle-outline" size={sp(45)} color="#a6a6a6" />
+                                <Ionicons name="add-circle-outline" size={ms(34)} color={COLORS.lightGray} style={{ opacity: 0.7 }} />
                               )}
                             </Pressable>
                           </View>
@@ -1212,15 +1436,29 @@ export default function TaskClosure({ navigation, route }: any) {
         {/* ── ACTION TILES ────────────────────────────────────────────── */}
         <View style={styles.tilesRow}>
           <Pressable style={styles.tile} onPress={openUsedItemSheet}>
-            <Text style={styles.tileTitle}>Update Used Item</Text>
-            <Text style={styles.tileSub}>{'Click Here to Add/\nUpdate'}</Text>
+            <Text style={styles.tileTitle}>{t('rn_update_used_item')}</Text>
+            <Text style={styles.tileSub}>{t('rn_click_here_to_add_update')}</Text>
           </Pressable>
           <Pressable
-            style={[styles.tile, { backgroundColor: '#ebeef3' }]}
-            onPress={() => navigation.navigate('TaskInput', { routeTask })}
+            style={[styles.tile, { backgroundColor: '#EEF0F3' }]}
+            onPress={async () => {
+              // Task Input is saved straight to the server, so it needs a connection.
+              if (!(await isNetworkAvailable())) {
+                showFailureMsg(t('rn_internet_connection_is_required_to_add_tas'));
+                return;
+              }
+              navigation.navigate('TaskInput', { routeTask, returnTo: { name: 'TaskClosure', params: route.params } });
+            }}
           >
-            <Text style={styles.tileTitle}>Add Task Input</Text>
-            <Text style={styles.tileSub}>{'Click Here to add Task\nInput'}</Text>
+            <Text style={styles.tileTitle}>{t('rn_add_task_input')}</Text>
+            <Text style={styles.tileSub}>{t('rn_click_here_to_add_task_input')}</Text>
+          </Pressable>
+          <Pressable
+            style={styles.tile}
+            onPress={() => navigation.navigate('QRScanHistory', { task: routeTask, returnTo: { name: 'TaskClosure', params: route.params } })}
+          >
+            <Text style={styles.tileTitle}>{t('rn_scan_qr_2')}</Text>
+            <Text style={styles.tileSub}>{t('rn_click_here_to_scan_qr')}</Text>
           </Pressable>
         </View>
 
@@ -1231,14 +1469,14 @@ export default function TaskClosure({ navigation, route }: any) {
             <Text style={styles.naSub}>
               {fsrCompletedCount > 0
                 ? `${fsrCompletedCount} checkpoint${fsrCompletedCount === 1 ? '' : 's'} filled — tap to review`
-                : 'Click here for filling checkpoints'}
+                : tr('Click here for filling checkpoints')}
             </Text>
           </Pressable>
         )}
 
         {/* ── SIGNATURE & RATING ──────────────────────────────────────── */}
-        <View style={[styles.card, { backgroundColor: 'rgba(255,235,235,0.78)' }]}>
-          <Text style={styles.cardTitle}>Signature & Rating</Text>
+        <View style={[styles.card, styles.boxCard, { backgroundColor: '#FFF0F3' }]}>
+          <Text style={styles.cardTitle}>{t('signature_and_rating')}</Text>
           <Pressable
             style={styles.signatureArea}
             onPress={() => setShowSignatureSheet(true)}
@@ -1258,7 +1496,7 @@ export default function TaskClosure({ navigation, route }: any) {
                 ))}
               </Svg>
             ) : (
-              <Text style={styles.signaturePlaceholder}>Click Here For Signature</Text>
+              <Text style={styles.signaturePlaceholder}>{t('click_below_customer_signature')}</Text>
             )}
           </Pressable>
         </View>
@@ -1266,11 +1504,11 @@ export default function TaskClosure({ navigation, route }: any) {
         {/* ── SATISFACTION CODE (only when task has a HappyCode) ─────── */}
         {hasHappyCode && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Satisfaction Code</Text>
+            <Text style={styles.cardTitle}>{t('enter_satisfaction_code')}</Text>
             <TextInput
               value={satisfactionCode}
               onChangeText={setSatisfactionCode}
-              placeholder="Enter satisfaction code"
+              placeholder={t('rn_enter_satisfaction_code')}
               placeholderTextColor="#ABABAB"
               keyboardType="numeric"
               style={styles.deviceInput}
@@ -1279,18 +1517,21 @@ export default function TaskClosure({ navigation, route }: any) {
         )}
 
         {/* ── UPLOAD ATTACHMENT ───────────────────────────────────────── */}
-        <View style={[styles.card, { marginBottom: vs(16), backgroundColor: '#f2f2f2' }]}>
-          <Text style={styles.cardTitle}>* Upload Attachment Here [Upto 5 MB Limit]</Text>
+        <View style={[styles.card, styles.boxCard, styles.boxGrey]}>
+          <Text style={styles.cardTitle}>{t('attach_file')}</Text>
           <Pressable
             style={styles.dashedBox}
-            onPress={() => openPhotoPicker({ type: 'attachment' })}
+            onPress={pickAttachment}
           >
-            {attachment?.uri ? (
-              <Image source={{ uri: attachment.uri }} style={styles.attachThumb} />
+            {attachment ? (
+              <View style={styles.dashedInner}>
+                <Ionicons name="document-outline" size={sp(24)} color={COLORS.primary} />
+                <Text style={styles.attachLabel} numberOfLines={1}>{attachment.name}</Text>
+              </View>
             ) : (
               <View style={styles.dashedInner}>
-                <Ionicons name="cloud-upload-outline" size={sp(24)} color={COLORS.primary} />
-                <Text style={styles.attachLabel}>Attachment</Text>
+                <Ionicons name="share-outline" size={ms(26)} color={COLORS.primary} />
+                <Text style={styles.attachLabel}>{t('attachment')}</Text>
               </View>
             )}
           </Pressable>
@@ -1299,9 +1540,9 @@ export default function TaskClosure({ navigation, route }: any) {
         {/* ── REQUEST ITEMS BTN ───────────────────────────────────────── */}
         <Pressable
           style={styles.requestBtn}
-          onPress={() => navigation.navigate('ItemRequest', { routeTask })}
+          onPress={() => navigation.navigate('ItemRequest', { routeTask, returnTo: { name: 'TaskClosure', params: route.params } })}
         >
-          <Text style={styles.requestBtnText}>REQUEST ITEMS</Text>
+          <Text style={styles.requestBtnText}>{t('request_items').toUpperCase()}</Text>
         </Pressable>
 
         {/* ── CONTINUE BTN ────────────────────────────────────────────── */}
@@ -1313,7 +1554,7 @@ export default function TaskClosure({ navigation, route }: any) {
           {submitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.continueBtnText}>CONTINUE</Text>
+            <Text style={styles.continueBtnText}>{t('continue_title').toUpperCase()}</Text>
           )}
         </Pressable>
 
@@ -1330,7 +1571,7 @@ export default function TaskClosure({ navigation, route }: any) {
       >
         <View style={styles.bottomSheetOverlay}>
           <View style={styles.signatureSheet}>
-            <Text style={styles.signatureSheetTitle}>Signature & Rating</Text>
+            <Text style={styles.signatureSheetTitle}>{t('signature_and_rating')}</Text>
 
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -1345,8 +1586,8 @@ export default function TaskClosure({ navigation, route }: any) {
                 ]}
                 onPress={() => toggleAccordion('customer')}
               >
-                <Text style={styles.signatureDropdownText}>ADD CUSTOMER DETAILS</Text>
-                <Ionicons name="caret-down" size={sp(20)} color={COLORS.primary} />
+                <Text style={styles.signatureDropdownText}>{t('rn_add_customer_details')}</Text>
+                <Ionicons name="caret-down" size={ms(18)} color={COLORS.primary} style={styles.signatureCaret} />
               </Pressable>
 
               {customerExpanded && (
@@ -1356,14 +1597,14 @@ export default function TaskClosure({ navigation, route }: any) {
                       <TextInput
                         value={customerName}
                         onChangeText={setCustomerName}
-                        placeholder="Customer Name"
+                        placeholder={t('customer_name')}
                         placeholderTextColor="#a6a6a6"
                         style={sigModalStyles.roundedInput}
                       />
                       <TextInput
                         value={customerNumber}
                         onChangeText={setCustomerNumber}
-                        placeholder="Customer Number"
+                        placeholder={t('customer_number')}
                         placeholderTextColor="#a6a6a6"
                         keyboardType="phone-pad"
                         style={[sigModalStyles.roundedInput, { marginTop: vs(20) }]}
@@ -1385,21 +1626,22 @@ export default function TaskClosure({ navigation, route }: any) {
                           </Pressable>
                         </>
                       ) : (
-                        <Ionicons name="camera-outline" size={sp(60)} color="#a6a6a6" />
+                        <Ionicons name="camera-outline" size={ms(56)} color={COLORS.lightGray} />
                       )}
                     </Pressable>
                   </View>
 
                   <View style={sigModalStyles.signatureRow}>
-                    <Text style={sigModalStyles.signatureLabel}>Signature</Text>
+                    <Text style={sigModalStyles.signatureLabel}>{t('customer_signature')}</Text>
                     <Pressable onPress={() => setCustomerSignPaths([])}>
-                      <Text style={sigModalStyles.clearText}>CLEAR</Text>
+                      <Text style={sigModalStyles.clearText}>{t('clear').toUpperCase()}</Text>
                     </Pressable>
                   </View>
                   <SignaturePad
                     paths={customerSignPaths}
                     onPathsChange={setCustomerSignPaths}
-                    height={150}
+                    onSizeChange={setCustomerPadSize}
+                    height={100}
                   />
 
                   <StarRating
@@ -1415,7 +1657,7 @@ export default function TaskClosure({ navigation, route }: any) {
                       <TextInput
                         value={ratingRemark}
                         onChangeText={setRatingRemark}
-                        placeholder="Enter Remark Here..."
+                        placeholder={t('rn_enter_remark_here')}
                         placeholderTextColor="#ABABAB"
                         style={sigModalStyles.roundedInput}
                         multiline
@@ -1431,18 +1673,18 @@ export default function TaskClosure({ navigation, route }: any) {
               <Pressable
                 style={[
                   styles.signatureDropdown,
-                  { marginTop: vs(20) },
+                  { marginTop: ms(15), marginBottom: ms(10) },
                   techExpanded && sigModalStyles.dropdownActive,
                 ]}
                 onPress={() => toggleAccordion('tech')}
               >
-                <Text style={styles.signatureDropdownText}>ADD TECHNICIAN DETAILS</Text>
-                <Ionicons name="caret-down" size={sp(20)} color={COLORS.primary} />
+                <Text style={styles.signatureDropdownText}>{t('rn_add_technician_details')}</Text>
+                <Ionicons name="caret-down" size={ms(18)} color={COLORS.primary} style={styles.signatureCaret} />
               </Pressable>
 
               {techExpanded && (
                 <View style={sigModalStyles.expandedSection}>
-                  <Text style={sigModalStyles.techInfoLabel}>Tech Info.</Text>
+                  <Text style={sigModalStyles.techInfoLabel}>{t('rn_tech_info')}</Text>
                   <Pressable
                     style={sigModalStyles.techPhotoSlot}
                     onPress={() => openPhotoPicker({ type: 'techPhoto' })}
@@ -1459,20 +1701,21 @@ export default function TaskClosure({ navigation, route }: any) {
                         </Pressable>
                       </>
                     ) : (
-                      <Ionicons name="camera-outline" size={sp(80)} color="#ABABAB" />
+                      <Ionicons name="camera-outline" size={ms(56)} color={COLORS.lightGray} />
                     )}
                   </Pressable>
 
                   <View style={sigModalStyles.signatureRow}>
-                    <Text style={sigModalStyles.signatureLabel}>Signature</Text>
+                    <Text style={sigModalStyles.signatureLabel}>{t('customer_signature')}</Text>
                     <Pressable onPress={() => setTechSignPaths([])}>
-                      <Text style={sigModalStyles.clearText}>CLEAR</Text>
+                      <Text style={sigModalStyles.clearText}>{t('clear').toUpperCase()}</Text>
                     </Pressable>
                   </View>
                   <SignaturePad
                     paths={techSignPaths}
                     onPathsChange={setTechSignPaths}
-                    height={130}
+                    onSizeChange={setTechPadSize}
+                    height={100}
                   />
                 </View>
               )}
@@ -1482,10 +1725,10 @@ export default function TaskClosure({ navigation, route }: any) {
               style={styles.signatureSaveBtn}
               onPress={() => setShowSignatureSheet(false)}
             >
-              <Text style={styles.signatureSaveText}>SAVE</Text>
+              <Text style={styles.signatureSaveText}>{t('save').toUpperCase()}</Text>
             </Pressable>
             <Pressable onPress={() => setShowSignatureSheet(false)}>
-              <Text style={styles.signatureCancelText}>Cancel</Text>
+              <Text style={styles.signatureCancelText}>{t('cancel')}</Text>
             </Pressable>
           </View>
         </View>
@@ -1494,52 +1737,12 @@ export default function TaskClosure({ navigation, route }: any) {
       {/* ══════════════════════════════════════════════════════════════════
           PHOTO SOURCE MODAL
       ══════════════════════════════════════════════════════════════════ */}
-      <Modal
+      <ImageSourceDialog
         visible={showPhotoSourceModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowPhotoSourceModal(false)}
-      >
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setShowPhotoSourceModal(false)}
-        >
-          <Pressable>
-            <View style={styles.sourceSheet}>
-              <Text style={styles.sourceTitle}>Select Image Source</Text>
-              <View style={styles.sourceDivider} />
-              <TouchableOpacity
-                style={styles.sourceOption}
-                onPress={() => handlePhotoSource('camera')}
-              >
-                <View style={[styles.sourceIconWrap, { backgroundColor: COLORS.primary }]}>
-                  <Ionicons name="camera-outline" size={sp(20)} color="#fff" />
-                </View>
-                <Text style={styles.sourceOptionText}>Camera</Text>
-              </TouchableOpacity>
-              <View style={styles.sourceDivider} />
-              <TouchableOpacity
-                style={styles.sourceOption}
-                onPress={() => handlePhotoSource('gallery')}
-              >
-                <View style={[styles.sourceIconWrap, { backgroundColor: '#6366F1' }]}>
-                  <Ionicons name="images-outline" size={sp(20)} color="#fff" />
-                </View>
-                <Text style={styles.sourceOptionText}>Gallery</Text>
-              </TouchableOpacity>
-              <View style={styles.sourceDivider} />
-              <TouchableOpacity
-                style={[styles.sourceOption, { justifyContent: 'center' }]}
-                onPress={() => setShowPhotoSourceModal(false)}
-              >
-                <Text style={[styles.sourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        onCamera={() => handlePhotoSource('camera')}
+        onGallery={() => handlePhotoSource('gallery')}
+        onClose={() => setShowPhotoSourceModal(false)}
+      />
 
       {/* ══════════════════════════════════════════════════════════════════
           UPDATE USED ITEM SHEET
@@ -1557,9 +1760,9 @@ export default function TaskClosure({ navigation, route }: any) {
           >
             {/* Dark header */}
             <View style={usedItemStyles.header}>
-              <Text style={usedItemStyles.headerTitle}>Update Used Items</Text>
+              <Text style={usedItemStyles.headerTitle}>{t('update_used_items')}</Text>
               <Pressable onPress={() => setShowUsedItemSheet(false)} hitSlop={10}>
-                <Ionicons name="close" size={sp(30)} color="#fff" />
+                <Ionicons name="close" size={ms(30)} color={COLORS.white} />
               </Pressable>
             </View>
 
@@ -1578,10 +1781,10 @@ export default function TaskClosure({ navigation, route }: any) {
                       <Text style={usedItemStyles.itemName} numberOfLines={2}>
                         {idx + 1}. {slot.ItemName}
                       </Text>
-                      <View style={usedItemStyles.assignedPill}>
+                      <View style={usedItemStyles.assignedPlain}>
                         <Text style={usedItemStyles.assignedQtyText}>{slot.AssignedQty}</Text>
                       </View>
-                      <TextInput
+                      <DecimalInput integer
                         value={slot.usedQty}
                         onChangeText={val => {
                           const num = Number(val);
@@ -1590,9 +1793,8 @@ export default function TaskClosure({ navigation, route }: any) {
                             prev.map((s, i) => (i === idx ? { ...s, usedQty: val } : s))
                           );
                         }}
-                        placeholder="Used Qty"
+                        label={t('used_qty')}
                         placeholderTextColor="#ABABAB"
-                        keyboardType="numeric"
                         style={usedItemStyles.usedQtyInput}
                       />
                     </View>
@@ -1600,7 +1802,7 @@ export default function TaskClosure({ navigation, route }: any) {
 
                   {assignedSlots.length === 0 && visibleSlotCount === 0 && (
                     <Text style={usedItemStyles.emptyText}>
-                      No items assigned to this task.
+                      {t('rn_no_items_assigned_to_this_task')}
                     </Text>
                   )}
 
@@ -1611,7 +1813,7 @@ export default function TaskClosure({ navigation, route }: any) {
                       <View key={`adhoc-${idx}`} style={usedItemStyles.adHocBlock}>
                         {/* Header row: # Item1 + red X */}
                         <View style={usedItemStyles.slotHeaderRow}>
-                          <Text style={usedItemStyles.slotLabel}># Item{idx + 1}</Text>
+                          <Text style={usedItemStyles.slotLabel}>{t('item')}{idx + 1}</Text>
                           <Pressable
                             hitSlop={8}
                             onPress={() => {
@@ -1630,7 +1832,7 @@ export default function TaskClosure({ navigation, route }: any) {
                             style={usedItemStyles.itemPickerBtn}
                             onPress={() => {
                               pendingSlotIndexRef.current = idx;
-                              setItemPickerSearch('');
+                              loadIssueList(); // retries if the first load failed or came back empty
                               setShowItemPicker(true);
                             }}
                           >
@@ -1654,7 +1856,7 @@ export default function TaskClosure({ navigation, route }: any) {
                           </View>
 
                           {/* Used qty input */}
-                          <TextInput
+                          <DecimalInput integer
                             value={slot?.usedQty ?? ''}
                             onChangeText={val => {
                               const num = Number(val);
@@ -1673,9 +1875,7 @@ export default function TaskClosure({ navigation, route }: any) {
                                 return updated;
                               });
                             }}
-                            placeholder="Use..."
                             placeholderTextColor="#ABABAB"
-                            keyboardType="numeric"
                             style={usedItemStyles.usedQtyInput}
                           />
                         </View>
@@ -1686,7 +1886,7 @@ export default function TaskClosure({ navigation, route }: any) {
                   {/* + Add More */}
                   {visibleSlotCount < MAX_ADHOC_SLOTS && (
                     <Pressable style={usedItemStyles.addMoreBtn} onPress={handleAddMoreSlot}>
-                      <Text style={usedItemStyles.addMoreText}>+ Add More</Text>
+                      <Text style={usedItemStyles.addMoreText}>{t('add_more')}</Text>
                     </Pressable>
                   )}
                 </>
@@ -1694,10 +1894,10 @@ export default function TaskClosure({ navigation, route }: any) {
             </ScrollView>
 
             <Pressable style={usedItemStyles.updateBtn} onPress={handleUsedItemUpdate}>
-              <Text style={usedItemStyles.updateBtnText}>UPDATE</Text>
+              <Text style={usedItemStyles.updateBtnText}>{t('update').toUpperCase()}</Text>
             </Pressable>
             <Pressable onPress={() => setShowUsedItemSheet(false)}>
-              <Text style={usedItemStyles.cancelText}>Cancel</Text>
+              <Text style={usedItemStyles.cancelText}>{t('cancel')}</Text>
             </Pressable>
 
           </KeyboardAvoidingView>
@@ -1719,10 +1919,7 @@ export default function TaskClosure({ navigation, route }: any) {
             style={fsrStyles.sheet}
           >
             <Pressable onPress={() => setShowFSRSheet(false)} hitSlop={10}>
-                <Ionicons 
-                  name="close-circle" size={sp(35)} 
-                  style={{color: COLORS.primary, alignSelf: 'flex-end', marginRight: sp(10), marginTop: sp(10)}} 
-                />
+                <Ionicons name="close-circle" size={ms(34)} style={{ color: COLORS.primary, alignSelf: 'flex-end', marginRight: ms(8), marginTop: ms(8) }} />
               </Pressable>
               <Text style={fsrStyles.headerTitle} numberOfLines={1}>
                 {fsrName || 'FSR Checkpoints'}
@@ -1735,7 +1932,7 @@ export default function TaskClosure({ navigation, route }: any) {
               {fsrLoading ? (
                 <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: vs(30) }} />
               ) : fsrCategories.length === 0 ? (
-                <Text style={fsrStyles.emptyText}>No checkpoints found for this FSR.</Text>
+                <Text style={fsrStyles.emptyText}>{t('rn_no_checkpoints_found_for_this_fsr')}</Text>
               ) : (
                 fsrCategories.map(category => (
                   <View key={category.CategoryId} style={fsrStyles.categoryBlock}>
@@ -1783,7 +1980,7 @@ export default function TaskClosure({ navigation, route }: any) {
               {fsrSubmitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={fsrStyles.submitBtnText}>SUBMIT</Text>
+                <Text style={fsrStyles.submitBtnText}>{t('submit').toUpperCase()}</Text>
               )}
             </Pressable>
           </KeyboardAvoidingView>
@@ -1824,65 +2021,44 @@ export default function TaskClosure({ navigation, route }: any) {
         </Pressable>
       </Modal>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          SEARCHABLE ITEM PICKER 
-      ══════════════════════════════════════════════════════════════════ */}
-      <Modal
+      {/* Java UpdateUsedItems_FW: dialog_searchable_spinner_item -- the shared dialog. */}
+      <SearchPickerModal
         visible={showItemPicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowItemPicker(false)}
-      >
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setShowItemPicker(false)}
-        >
-          <Pressable>
-            <View style={usedItemStyles.pickerSheet}>
-              <TextInput
-                value={itemPickerSearch}
-                onChangeText={setItemPickerSearch}
-                placeholder="Search item..."
-                placeholderTextColor="#ABABAB"
-                style={usedItemStyles.pickerSearch}
-                autoFocus
-              />
-              <ScrollView style={{ maxHeight: vs(350) }} keyboardShouldPersistTaps="handled">
-                {issueList
-                  .filter(i =>
-                    i.Name.toLowerCase().includes(itemPickerSearch.toLowerCase())
-                  )
-                  .map(item => (
-                    <Pressable
-                      key={item.Id}
-                      style={usedItemStyles.pickerRow}
-                      onPress={() => {
-                        const idx = pendingSlotIndexRef.current;
-                        if (idx < 0) return;
-                        setAdHocSlots(prev => {
-                          const updated = [...prev];
-                          updated[idx] = {
-                            itemIssuedId: item.Id,       // Id from AllItemList
-                            itemId:       item.ItemId,
-                            itemName:     item.Name,
-                            salesPrice:   item.SalesPrice,
-                            avlQty:       item.Quantity, // UnAssignedQuantity mapped above
-                            usedQty:      updated[idx]?.usedQty ?? '',
-                          };
-                          return updated;
-                        });
-                        setShowItemPicker(false);
-                      }}
-                    >
-                      <Text style={usedItemStyles.pickerRowText}>{item.Name}</Text>
-                    </Pressable>
-                  ))}
-              </ScrollView>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title={t('select_item')}
+        options={issueList.map(i => ({ id: i.Id, label: i.Name }))}
+        loading={issueListLoading}
+        onSelect={option => {
+          const item = issueList.find(i => i.Id === option.id);
+          const idx = pendingSlotIndexRef.current;
+          if (item && idx >= 0) {
+            setAdHocSlots(prev => {
+              const updated = [...prev];
+              updated[idx] = {
+                itemIssuedId: item.Id,       // Id from AllItemList
+                itemId:       item.ItemId,
+                itemName:     item.Name,
+                salesPrice:   item.SalesPrice,
+                avlQty:       item.Quantity, // UnAssignedQuantity mapped above
+                usedQty:      updated[idx]?.usedQty ?? '',
+              };
+              return updated;
+            });
+          }
+          setShowItemPicker(false);
+        }}
+        onClose={() => setShowItemPicker(false)}
+      />
 
+
+      {/* Off-screen signature replicas used only to produce PNGs (see SignatureSnapshot). */}
+      <View pointerEvents="none" style={{ position: 'absolute', left: -10000, top: 0 }}>
+        {customerSignPaths.length > 0 && (
+          <SignatureSnapshot ref={customerSnapshotRef} paths={customerSignPaths} size={customerPadSize} />
+        )}
+        {techSignPaths.length > 0 && (
+          <SignatureSnapshot ref={techSnapshotRef} paths={techSignPaths} size={techPadSize} />
+        )}
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -1891,37 +2067,41 @@ export default function TaskClosure({ navigation, route }: any) {
 
 const usedItemStyles = StyleSheet.create({
   sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
-    paddingBottom: vs(24),
-    maxHeight: '82%',
+    // update_used_items.xml: CardView with 30dp top corners
+    backgroundColor: COLORS.white,
+    width: '100%',
+    maxWidth: scale(560),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    paddingBottom: ms(4),
+    maxHeight: '85%',
   },
   header: {
+    // gradient_addtask: solid #353935, 20dp corners
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#2B2B2B',
-    borderRadius: scale(28),
-    paddingHorizontal: scale(25),
-    paddingVertical: vs(12),
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(20),
+    paddingLeft: ms(20),
+    paddingRight: ms(30),
+    height: ms(60),
   },
   headerTitle: {
-    fontSize: sp(24),
-    fontWeight: '400',
-    color: '#fff',
+    fontSize: sp(22),
+    color: COLORS.white,
   },
   listContent: {
-    paddingHorizontal: scale(18),
-    paddingTop: vs(18),
-    paddingBottom: vs(10),
-    gap: vs(14),
+    paddingHorizontal: ms(10),
+    paddingTop: ms(30),
+    paddingBottom: ms(10),
+    gap: ms(10),
   },
   emptyText: {
     textAlign: 'center',
-    color: '#a6a6a6',
-    fontSize: sp(18),
-    marginTop: vs(20),
+    color: COLORS.lightGray,
+    fontSize: sp(14),
+    marginTop: ms(10),
   },
   sectionBlock: {
     gap: vs(12),
@@ -1933,73 +2113,77 @@ const usedItemStyles = StyleSheet.create({
   },
   itemName: {
     flex: 1,
-    fontSize: sp(18),
+    fontSize: sp(14),
+    color: COLORS.ink,
     flexShrink: 1,
   },
   assignedPill: {
-    height: vs(40),
-    width: scale(50),
-    borderWidth: 1.2,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(30),
-    paddingHorizontal: scale(12),
-    flexDirection: 'row', 
+    height: ms(36),
+    width: ms(50),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(8),
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   assignedQtyText: {
-    fontSize: sp(18),
-    color: '#1C1C1E',
-    fontWeight: '400',
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: COLORS.textBlack,
     flex: 1,
     flexShrink: 1,
     textAlign: 'center',
   },
   usedQtyInput: {
-    width: scale(120),
-    height: vs(40),
-    borderWidth: 1.2,
-    borderColor: '#838383',
-    borderRadius: scale(30),
-    paddingHorizontal: scale(12),
-    fontSize: sp(18),
+    width: ms(124),
+    height: ms(36),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(12),
+    paddingVertical: 0,
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: '#535353',
     textAlign: 'center',
   },
   adHocBlock: {
     marginBottom: vs(4),
   },
   addMoreBtn: {
-    alignSelf: 'center',
-    paddingVertical: vs(8),
-    marginTop: vs(6),
-  },
-  addMoreText: {
-    fontSize: sp(22),
-    color: COLORS.primary,
-    fontWeight: '500',
-  },
-  updateBtn: {
-    marginHorizontal: scale(18),
-    marginTop: vs(16),
-    height: vs(50),
-    backgroundColor: '#2B2B2B',
-    borderRadius: scale(30),
+    alignSelf: 'stretch',
+    height: ms(30),
+    marginTop: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
+  },
+  addMoreText: {
+    fontSize: sp(18),
+    color: COLORS.primary,
+    fontWeight: 'bold',
+  },
+  updateBtn: {
+    marginHorizontal: ms(20),
+    marginTop: ms(20),
+    marginBottom: ms(20),
+    height: ms(48),
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(34),
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
   },
   updateBtnText: {
-    color: '#fff',
-    fontSize: sp(22),
-    fontWeight: '500',
-    letterSpacing: 1.2,
+    color: COLORS.white,
+    fontSize: sp(18),
   },
   cancelText: {
     color: COLORS.primary,
-    fontSize: sp(22),
-    fontWeight: '500',
+    fontSize: sp(18),
     textAlign: 'center',
-    marginTop: vs(16),
+    marginBottom: ms(20),
   },
   pickerSheet: {
     backgroundColor: '#fff',
@@ -2036,24 +2220,31 @@ const usedItemStyles = StyleSheet.create({
     marginBottom: vs(6),
   },
   slotLabel: {
-    fontSize: sp(16),
-    fontWeight: '600',
-    color: COLORS.primary, 
+    fontSize: sp(15),
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    paddingLeft: ms(15),
   },
   itemPickerBtn: {
     flex: 1,
-    height: vs(40),
-    borderWidth: 1.2,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(30),
-    paddingHorizontal: scale(12),
-    flexDirection: 'row', 
+    height: ms(36),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(12),
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   itemPickerText: {
-    fontSize: sp(16),
+    fontSize: sp(14),
+    color: COLORS.textBlack,
     flex: 1,
+  },
+  assignedPlain: {
+    width: ms(50),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
@@ -2061,21 +2252,26 @@ const usedItemStyles = StyleSheet.create({
 
 const fsrStyles = StyleSheet.create({
   sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
+    // dialog_fsr_with_checkpoints.xml: 30dp top corners
+    backgroundColor: COLORS.white,
+    width: '100%',
+    maxWidth: scale(560),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
     maxHeight: '95%',
     overflow: 'hidden',
   },
   headerTitle: {
     textAlign: 'center',
     fontSize: sp(22),
-    fontWeight: '400',
-    marginTop: sp(-10),
+    color: COLORS.ink,
+    marginTop: ms(-16),
+    marginBottom: ms(10),
+    paddingHorizontal: ms(20),
   },
   listContent: {
-    padding: scale(16),
-    paddingBottom: vs(20),
+    paddingHorizontal: ms(20),
+    paddingBottom: ms(20),
   },
   emptyText: {
     textAlign: 'center',
@@ -2112,17 +2308,18 @@ const fsrStyles = StyleSheet.create({
   },
   
   submitBtn: {
-    backgroundColor: '#1C1C1E',
-    marginHorizontal: scale(16),
-    marginBottom: vs(16),
-    paddingVertical: vs(16),
-    borderRadius: scale(15),
+    backgroundColor: COLORS.textBlack,
+    marginHorizontal: ms(20),
+    marginTop: ms(10),
+    marginBottom: ms(30),
+    minHeight: ms(48),
+    borderRadius: ms(10),
     alignItems: 'center',
+    justifyContent: 'center',
   },
   submitBtnText: {
-    color: '#fff',
-    fontSize: sp(22),
-    fontWeight: '400',
+    color: COLORS.white,
+    fontSize: sp(18),
   },
   statusSelectBtn: {
     width: scale(150),
@@ -2157,33 +2354,32 @@ const sigModalStyles = StyleSheet.create({
   fieldsAndPhoto: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: scale(10),
+    justifyContent: 'space-between',
   },
   fieldsCol: {
-    width: vs(180),
+    width: ms(180),
   },
   roundedInput: {
-    height: vs(40),
-    borderWidth: 1.2,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(30),
-    paddingHorizontal: scale(18),
-    fontSize: sp(18),
-    color: '#1C1C1E',
-    backgroundColor: '#fff',
+    // TextInputLayoutStyle: outlined, 34dp corners, 1dp light_gray stroke
+    height: ms(56),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(16),
+    fontSize: sp(16),
+    color: COLORS.ink,
+    backgroundColor: COLORS.white,
   },
   photoSlot: {
-    width: scale(100),
-    height: scale(90),
-    borderWidth: 1.5,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(12),
+    width: ms(120),
+    height: ms(100),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(15),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
     overflow: 'hidden',
-    marginTop: vs(10),
-    marginLeft: vs(50),
   },
   photoThumb: {
     width: '100%',
@@ -2204,36 +2400,36 @@ const sigModalStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: vs(14),
+    marginTop: ms(10),
+    marginBottom: ms(10),
   },
   signatureLabel: {
-    fontSize: sp(18),
-    fontWeight: '400',
-    color: '#1C1C1E',
+    fontSize: sp(16),
+    color: COLORS.ink,
   },
   clearText: {
-    fontSize: sp(18),
+    fontSize: sp(14),
     color: COLORS.primary,
-    fontWeight: '500',
   },
   techInfoLabel: {
-    fontSize: sp(25),
-    fontWeight: '400',
-    color: '#1C1C1E',
+    fontSize: sp(22),
+    color: COLORS.ink,
     textAlign: 'center',
-    marginBottom: vs(5),
-    marginTop: vs(10),
+    marginBottom: ms(5),
+    marginTop: ms(5),
   },
   techPhotoSlot: {
-    width: '100%',
-    height: vs(100),
-    borderWidth: 1.5,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(15),
+    width: ms(120),
+    height: ms(100),
+    alignSelf: 'flex-end',
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(15),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
     overflow: 'hidden',
+    marginBottom: ms(5),
   },
   techPhotoThumb: {
     width: '100%',
@@ -2252,58 +2448,50 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.primary,
   },
-  redBg: {
-    height: HEADER_TOP_PADDING + vs(10),
-    backgroundColor: COLORS.primary,
-  },
+  redBg: { height: 0, backgroundColor: COLORS.primary },
   scroll: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
   },
   scrollContent: {
-    paddingTop: vs(8),
-    paddingBottom: vs(32),
+    // CardView padding 10dp + ScrollView content padding 10dp
+    padding: ms(20),
+    paddingBottom: ms(24),
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: scale(12),
-    marginVertical: vs(8),
-    padding: scale(14),
+    // bg_border: 10dp radius, 1dp #f4f4f4 stroke; sections 10dp apart, 10dp padding
+    backgroundColor: COLORS.white,
+    marginTop: ms(10),
+    padding: ms(10),
     borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: scale(14),
-    shadowColor: '#d1d1d1',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderColor: '#F4F4F4',
+    borderRadius: ms(10),
   },
   cardTitle: {
-    fontSize: sp(18),
-    fontWeight: '500',
-    color: '#1C1C1E',
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: COLORS.ink,
   },
   cardSubtitle: {
-    fontSize: sp(15),
-    color: '#9CA3AF',
-    marginBottom: vs(10),
+    fontSize: sp(12),
+    color: COLORS.lightGray,
   },
   photoRow: {
     flexDirection: 'row',
     gap: scale(18),
   },
   photoSlot: {
-    width: scale(100),
-    height: scale(100),
-    aspectRatio: 1,
-    borderWidth: 1.5,
-    borderColor: '#898989',
-    borderRadius: scale(14),
+    width: ms(100),
+    height: ms(100),
+    marginRight: ms(10),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(15),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
     overflow: 'hidden',
   },
   photoThumb: {
@@ -2325,9 +2513,8 @@ const styles = StyleSheet.create({
   workModeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: scale(18),
-    marginTop: vs(8),
-    marginBottom: vs(4),
+    gap: ms(20),
+    marginTop: ms(4),
   },
   radioItem: {
     flexDirection: 'row',
@@ -2353,58 +2540,60 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   radioLabel: {
-    fontSize: sp(16),
-    color: '#000',
+    fontSize: sp(14),
+    color: COLORS.ink,
   },
   addRow: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#DADADA',
-    borderRadius: scale(30),
-    height: vs(44),
-    marginTop: vs(8),
-    marginBottom: vs(8),
+    borderColor: '#F4F4F4',
+    borderRadius: ms(30),
+    height: ms(34),
+    marginHorizontal: ms(5),
+    marginTop: ms(5),
+    marginBottom: ms(5),
     overflow: 'hidden',
   },
   addRowPlaceholder: {
     flex: 1,
-    paddingHorizontal: scale(14),
-    fontSize: sp(18),
-    color: '#a6a6a6',
+    paddingHorizontal: ms(14),
+    fontSize: sp(14),
+    color: COLORS.midGray,
     textAlign: 'center',
   },
   plusBtn: {
-    fontSize: sp(30),
+    fontSize: sp(26),
     color: COLORS.primary,
-    paddingHorizontal: scale(14),
-    lineHeight: sp(32),
+    paddingHorizontal: ms(14),
+    lineHeight: sp(28),
   },
   noteChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: scale(25),
+    borderRadius: ms(30),
     borderWidth: 1,
-    borderColor: '#d1d1d1',
-    paddingHorizontal: scale(14),
-    paddingVertical: vs(10),
-    marginBottom: vs(8),
-    gap: scale(8),
+    borderColor: '#F4F4F4',
+    paddingHorizontal: ms(14),
+    height: ms(34),
+    marginHorizontal: ms(5),
+    marginBottom: ms(5),
+    gap: ms(8),
   },
   noteChipIndex: {
-    fontSize: sp(18),
+    fontSize: sp(14),
     fontWeight: '600',
-    color: '#000',
-    minWidth: scale(16),
+    color: COLORS.textBlack,
+    minWidth: ms(16),
   },
   noteChipText: {
     flex: 1,
-    fontSize: sp(18),
-    color: '#000',
+    fontSize: sp(14),
+    color: COLORS.textBlack,
   },
   noteChipPlaceholder: {
-    color: '#a6a6a6',
+    color: COLORS.midGray,
   },
   notAllowedText: {
     fontSize: sp(12),
@@ -2416,79 +2605,77 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   sheetContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: scale(30),
-    borderTopRightRadius: scale(30),
-    paddingHorizontal: scale(22),
-    paddingTop: vs(15),
-    paddingBottom: vs(20),
+    // dialog_add_note.xml: 30dp top corners, 20dp padding
+    backgroundColor: COLORS.white,
+    width: '100%',
+    maxWidth: scale(560),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    padding: ms(20),
   },
-  sheetContent: {
-    gap: vs(16),
-  },
+  sheetContent: {},
   sheetTitle: {
     fontSize: sp(22),
-    fontWeight: '400',
-    color: '#1c1c1e',
+    color: COLORS.ink,
     textAlign: 'center',
+    marginBottom: ms(20),
   },
   sheetTextArea: {
-    borderWidth: 2,
-    borderColor: '#a6a6a6',
-    borderRadius: scale(20),
-    minHeight: vs(180),
-    padding: scale(14),
+    flex: 1,
+    padding: ms(10),
     fontSize: sp(16),
-    color: '#1F2937',
+    color: COLORS.ink,
   },
   sheetSaveBtn: {
-    height: vs(45),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    height: ms(48),
     backgroundColor: COLORS.primary,
-    borderRadius: scale(30),
+    borderRadius: ms(34),
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 2,
+    elevation: 4,
   },
   sheetSaveBtnText: {
-    color: '#FFF',
-    fontSize: sp(22),
-    fontWeight: '400',
-    letterSpacing: 1,
+    color: COLORS.white,
+    fontSize: sp(18),
   },
   sheetCancelText: {
     color: COLORS.primary,
-    fontSize: sp(23),
-    fontWeight: '500',
+    fontSize: sp(18),
     textAlign: 'center',
-    marginTop: vs(5),
+    marginBottom: ms(20),
   },
   deviceChipWrapper: {
-    marginBottom: vs(8),
+    marginHorizontal: ms(5),
+    marginTop: ms(5),
+    marginBottom: ms(5),
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
+    borderRadius: ms(34),
+    overflow: 'hidden',
   },
   deviceForm: {
-    borderRadius: scale(12),
-    padding: scale(12),
-    gap: vs(10),
-    marginTop: vs(4),
+    marginHorizontal: ms(10),
+    marginBottom: ms(20),
   },
   deviceInput: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: scale(25),
+    marginTop: ms(10),
+    paddingVertical: ms(8),
+    paddingHorizontal: ms(14),
     borderWidth: 1,
-    borderColor: '#d1d1d1',
-    paddingHorizontal: scale(16),
-    paddingVertical: vs(12),
-    fontSize: sp(18),
-    color: '#1F2937',
+    borderColor: '#F4F4F4',
+    borderRadius: ms(34),
+    backgroundColor: COLORS.white,
+    fontSize: sp(16),
+    color: COLORS.ink,
   },
   photoInner: {
     flex: 1,
+    alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2499,185 +2686,218 @@ const styles = StyleSheet.create({
   },
   tilesRow: {
     flexDirection: 'row',
-    gap: scale(10),
-    marginHorizontal: scale(16),
-    marginVertical: vs(10),
+    marginHorizontal: ms(4),
+    marginVertical: ms(8),
   },
   tile: {
+    // 120dp tiles, 4dp margin, bg_border with a tint
     flex: 1,
-    backgroundColor: '#EBF3FF',
-    borderRadius: scale(12),
-    padding: scale(8),
-    minHeight: vs(100),
+    height: ms(120),
+    margin: ms(4),
+    padding: ms(8),
+    backgroundColor: '#F0F6FF',
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
+    borderRadius: ms(10),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tileTitle: {
-    fontSize: sp(18),
-    fontWeight: '500',
-    color: '#000',
-    marginBottom: vs(6),
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: COLORS.ink,
     textAlign: 'center',
   },
   tileSub: {
-    fontSize: sp(16),
-    color: '#666666',
-    lineHeight: sp(17),
+    marginTop: ms(10),
+    fontSize: sp(12),
+    color: '#757575',
     textAlign: 'center',
   },
   naCard: {
-    backgroundColor: '#f2f2f2',
-    borderRadius: scale(12),
-    marginHorizontal: scale(16),
-    marginBottom: vs(10),
-    paddingHorizontal: scale(10),
-    paddingTop: vs(5),
-    paddingBottom: vs(50),
+    height: ms(100),
+    marginTop: ms(10),
+    paddingHorizontal: ms(10),
+    paddingTop: ms(5),
+    backgroundColor: 'rgba(211,204,206,0.45)',
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
+    borderRadius: ms(10),
   },
   naTitle: {
-    fontSize: sp(18),
-    fontWeight: '500',
-    color: '#1C1C1E',
-    marginBottom: vs(5),
+    fontSize: sp(14),
+    fontWeight: 'bold',
+    color: COLORS.ink,
   },
   naSub: {
-    fontSize: sp(16),
-    color: '#666666',
+    ...StyleSheet.absoluteFill,
     textAlign: 'center',
-    marginTop: vs(8),
+    textAlignVertical: 'center',
+    fontSize: sp(12),
+    fontWeight: 'bold',
+    color: '#757575',
   },
   signatureArea: {
-    height: vs(100),
-    borderRadius: scale(12),
-    flexDirection: 'row',
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
   signaturePlaceholder: {
-    fontSize: sp(16),
-    color: '#666666',
+    fontSize: sp(12),
+    fontWeight: 'bold',
+    color: '#757575',
     textAlign: 'center',
-    marginLeft: scale(80),
   },
   bottomSheetOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   signatureSheet: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: scale(30),
-    borderTopRightRadius: scale(30),
-    paddingHorizontal: scale(22),
-    paddingTop: vs(10),
-    paddingBottom: vs(20),
+    // signature_rate.xml: 30dp top corners, 10dp padding
+    backgroundColor: COLORS.white,
+    width: '100%',
+    maxWidth: scale(560),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    padding: ms(10),
     maxHeight: '92%',
   },
   signatureSheetTitle: {
     textAlign: 'center',
-    fontSize: sp(22),
-    fontWeight: '400',
-    color: '#1C1C1E',
-    marginBottom: vs(10),
+    fontSize: sp(18),
+    color: COLORS.ink,
+    marginBottom: ms(5),
   },
   signatureDropdown: {
-    height: vs(50),
-    borderWidth: 1.5,
+    // rounded_border_tab: 20dp radius, 1dp colorPrimaryDark stroke
+    minHeight: ms(48),
+    marginTop: ms(5),
+    marginBottom: ms(5),
+    borderWidth: 1,
     borderColor: COLORS.primary,
-    borderRadius: scale(22),
+    borderRadius: ms(20),
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: scale(25),
+    justifyContent: 'center',
+    paddingHorizontal: ms(25),
   },
   signatureDropdownText: {
-    fontSize: sp(20),
+    flex: 1,
+    textAlign: 'center',
+    fontSize: sp(16),
     color: COLORS.primary,
     fontWeight: '500',
-    letterSpacing: 0.3,
   },
   signatureSaveBtn: {
-    height: vs(45),
+    marginTop: ms(5),
+    marginBottom: ms(20),
+    height: ms(48),
     backgroundColor: COLORS.primary,
-    borderRadius: scale(30),
+    borderRadius: ms(34),
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 2,
+    elevation: 4,
   },
   signatureSaveText: {
-    color: '#FFF',
-    fontSize: sp(22),
-    fontWeight: '400',
-    letterSpacing: 1,
+    color: COLORS.white,
+    fontSize: sp(18),
   },
   signatureCancelText: {
     color: COLORS.primary,
-    fontSize: sp(23),
-    fontWeight: '500',
-    marginTop: vs(30),
-    alignItems: 'center',
+    fontSize: sp(18),
     textAlign: 'center',
+    marginBottom: ms(20),
   },
   dashedBox: {
-    marginTop: vs(12),
+    width: '100%',
+    height: '50%',
+    marginTop: ms(12),
     alignSelf: 'center',
-    width: '55%',
-    borderWidth: 1.5,
-    borderColor: '#a6a6a6',
+    borderWidth: 1,
+    borderColor: '#A9A9A9',
     borderStyle: 'dashed',
-    borderRadius: scale(8),
     overflow: 'hidden',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
   },
   dashedInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: scale(8),
-    paddingVertical: vs(14),
-    paddingHorizontal: scale(16),
+    paddingVertical: ms(8),
+    paddingHorizontal: ms(12),
   },
   attachLabel: {
-    fontSize: sp(18),
-    color: COLORS.black,
-    fontWeight: '400',
-    marginLeft: scale(8),
+    fontSize: sp(14),
+    color: '#000000',
+    marginLeft: ms(10),
   },
   attachThumb: {
     width: '100%',
     height: vs(80),
   },
   requestBtn: {
-    marginHorizontal: scale(16),
-    marginTop: vs(6),
-    marginBottom: vs(14),
-    height: vs(50),
-    backgroundColor: '#1F2937',
-    borderRadius: scale(30),
+    marginTop: ms(20),
+    marginBottom: ms(5),
+    height: ms(48),
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(34),
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 4,
   },
   requestBtnText: {
-    color: '#fff',
-    fontSize: sp(22),
-    fontWeight: '400',
-    letterSpacing: 1.2,
+    color: COLORS.white,
+    fontSize: sp(18),
   },
   continueBtn: {
-    marginHorizontal: scale(16),
-    height: vs(50),
+    marginTop: ms(20),
+    marginBottom: ms(20),
+    height: ms(48),
     backgroundColor: COLORS.primary,
-    borderRadius: scale(30),
+    borderRadius: ms(34),
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 4,
   },
   continueBtnText: {
-    color: '#fff',
-    fontSize: sp(22),
-    fontWeight: '400',
-    letterSpacing: 1.2,
+    color: COLORS.white,
+    fontSize: sp(18),
+  },
+  fieldPhotoRow: {
+    paddingHorizontal: ms(10),
+    marginTop: ms(10),
+    marginBottom: ms(10),
+    alignItems: 'center',
+  },
+  boxCard: {
+    // FSR / signature / attachment wrappers are fixed 100dp boxes with the hint centred
+    height: ms(100),
+    paddingTop: ms(5),
+  },
+  boxGrey: {
+    backgroundColor: 'rgba(211,204,206,0.45)',
+  },
+  sheetField: {
+    height: ms(200),
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+  },
+  sheetFieldLabel: {
+    position: 'absolute',
+    top: -ms(9),
+    left: ms(24),
+    paddingHorizontal: ms(4),
+    backgroundColor: COLORS.white,
+    fontSize: sp(12),
+    color: '#2A7D6F',
+    zIndex: 1,
+  },
+  signatureCaret: {
+    position: 'absolute',
+    right: ms(25),
   },
   modalBackdrop: {
     flex: 1,
@@ -2686,40 +2906,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: scale(32),
   },
-  sourceSheet: {
-    backgroundColor: '#fff',
-    borderRadius: scale(16),
-    width: '100%',
-    paddingVertical: vs(8),
-    elevation: 10,
-  },
-  sourceTitle: {
-    fontSize: sp(16),
-    fontWeight: '600',
-    color: '#111',
-    paddingHorizontal: scale(20),
-    paddingVertical: vs(14),
-  },
-  sourceDivider: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-  },
-  sourceOption: {
+  deviceHeader: {
+    height: ms(35),
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: scale(20),
-    paddingVertical: vs(14),
-    gap: scale(14),
   },
-  sourceIconWrap: {
-    width: scale(34),
-    height: scale(34),
-    borderRadius: scale(17),
+  deviceIndex: {
+    width: ms(50),
+    textAlign: 'center',
+    fontSize: sp(16),
+    fontWeight: 'bold',
+    color: COLORS.ink,
+  },
+  deviceHeaderText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: sp(14),
+    color: COLORS.textBlack,
+    marginRight: ms(10),
+  },
+  devicePhotoRow: {
+    flexDirection: 'row',
+    gap: ms(10),
+    marginTop: ms(10),
+    marginHorizontal: ms(5),
+  },
+  devicePhotoSlot: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    height: ms(100),
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
+    borderRadius: ms(10),
+    overflow: 'hidden',
+  },
+  devicePhotoRemove: {
+    position: 'absolute',
+    top: ms(5),
+    right: ms(5),
+    zIndex: 2,
+    width: ms(15),
+    height: ms(15),
+    borderRadius: ms(8),
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
+    backgroundColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  sourceOptionText: {
-    fontSize: sp(15),
-    color: '#1F2937',
   },
 });

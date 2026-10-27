@@ -1,21 +1,30 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import {ms, sp} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
+import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import {
-  Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import Modal from '../../components/AppModal';
+import OutlinedInput from '../../components/OutlinedInput';
+import {BalanceIcon} from '../../components/FabIcons';
+import {COLORS} from '../../theme/theme';
 import {
   type ExpenseTechnicianItem,
   type ExpenseTechnicianListResponse,
 } from './adminLegacyApiTypes';
 import { getExpenseUserList, updateAddCredit, updateDeductBalance } from '../../api/expenditure/expenditureService';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
+import DecimalInput from '../../components/DecimalInput';
 
-const THEME_PRIMARY = '#c3002f';
+import {useTranslation} from 'react-i18next';
+import {trf, tr} from '../../i18n/tr';
+const GREEN_500 = '#4CAF50'; // @color/green_500
 
 const getCode = (response: {code?: string; Code?: string}) =>
   String(response.code ?? response.Code ?? '');
@@ -89,7 +98,7 @@ const getTechnicianBalance = (item: ExpenseTechnicianItem) =>
     'Balance',
   ]);
 
-const formatMoney = (value: number) => `Rs. ${value}`;
+const formatMoney = (value: number) => `Rs. ${formatAmount(value)}`;
 
 type ManageBalanceModalProps = {
   visible: boolean;
@@ -108,6 +117,7 @@ const ManageBalanceModal = ({
   onClose,
   onSuccess,
 }: ManageBalanceModalProps) => {
+  const {t} = useTranslation();
   const [technicians, setTechnicians] = useState<ExpenseTechnicianItem[]>([]);
   const [isLoadingTechnicians, setIsLoadingTechnicians] = useState(false);
   const [balanceMode, setBalanceMode] = useState<'add' | 'deduct'>(initialMode);
@@ -130,7 +140,7 @@ const ManageBalanceModal = ({
       setTechnicians([]);
       const message =
         error instanceof Error ? error.message : 'Unable to load fieldworkers.';
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setIsLoadingTechnicians(false);
     }
@@ -166,22 +176,19 @@ const ManageBalanceModal = ({
 
   const handleSubmit = () => {
     if (!selectedTechnician) {
-      Alert.alert('Select fieldworker', 'Please select a fieldworker first.');
+      showFailureMsg(t('rn_please_select_a_fieldworker_first'));
       return;
     }
 
     if (!balanceAmount.trim() || Number(balanceAmount) <= 0) {
-      Alert.alert('Enter amount', 'Please enter a valid balance amount.');
+      showFailureMsg(t('rn_please_enter_a_valid_balance_amount'));
       return;
     }
 
     if (balanceMode === 'deduct') {
       const remaining = selectedTechnicianBalance ?? getTechnicianBalance(selectedTechnician);
       if (remaining <= 0) {
-        Alert.alert(
-          'Cannot Deduct',
-          'Current amount is 0, balance cannot be deducted.',
-        );
+        showFailureMsg(t('rn_current_amount_is_0_balance_cannot_be_dedu'));
         return;
       }
     }
@@ -189,28 +196,28 @@ const ManageBalanceModal = ({
     (async () => {
       try {
         if (balanceMode === 'add') {
-          await updateAddCredit({
+          ensureSuccess(await updateAddCredit({
             Amount: Number(balanceAmount),
             CredidDescription: balanceDescription,
             GivenBy: userId,
             ReceivedBy: getTechnicianId(selectedTechnician),
-          });
+          }));
 
-          Alert.alert('Add Balance', `₹${balanceAmount} added to ${getTechnicianName(selectedTechnician)}.`);
+          showSuccessMsg(trf('₹{{amount}} added to {{name}}.', { amount: formatAmount(balanceAmount), name: getTechnicianName(selectedTechnician) }));
         } else {
-          await updateDeductBalance({
+          ensureSuccess(await updateDeductBalance({
             Amount: Number(balanceAmount),
             Description: balanceDescription,
             DeductBy: userId,
             UserId: getTechnicianId(selectedTechnician),
-          });
-          Alert.alert('Deduct Balance', `₹${balanceAmount} deducted from ${getTechnicianName(selectedTechnician)}.`);
+          }));
+          showSuccessMsg(trf('₹{{amount}} deducted from {{name}}.', { amount: formatAmount(balanceAmount), name: getTechnicianName(selectedTechnician) }));
         }
 
         onSuccess?.();
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unable to submit request.';
-        Alert.alert('Error', msg);
+        showFailureMsg(msg || 'Error');
       } finally {
         handleClose();
       }
@@ -221,266 +228,301 @@ const ManageBalanceModal = ({
     <Modal transparent animationType="slide" visible={visible} onRequestClose={handleClose}>
       <Pressable style={styles.modalBackdrop} onPress={handleClose}>
         <Pressable style={styles.modalPanel}>
-          <Text style={styles.modalTitle}>How to add / deduct balance ?</Text>
-          <View style={styles.balanceToggleRow}>
-            <Pressable
-              style={[
-                styles.balanceToggleButton,
-                balanceMode === 'add' ? styles.balanceToggleSelected : null,
-              ]}
-              onPress={() => setBalanceMode('add')}>
-              <Text
-                style={[
-                  styles.balanceToggleText,
-                  balanceMode === 'add' ? styles.balanceToggleTextSelected : null,
-                ]}>
-                Add Balance
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.balanceToggleButton,
-                balanceMode === 'deduct' ? styles.balanceToggleSelected : null,
-              ]}
-              onPress={() => setBalanceMode('deduct')}>
-              <Text
-                style={[
-                  styles.balanceToggleText,
-                  balanceMode === 'deduct' ? styles.balanceToggleTextSelected : null,
-                ]}>
-                Deduct Balance
-              </Text>
-            </Pressable>
-          </View>
-
-          <Pressable
-            style={styles.dropdownField}
-            onPress={() => setIsTechnicianDropdownOpen(prev => !prev)}>
-            <Text style={styles.dropdownLabel}>Select Fieldworkers</Text>
-            <Text style={styles.dropdownValue}>
-              {isLoadingTechnicians
-                ? 'Loading...'
-                : selectedTechnician
-                ? getTechnicianName(selectedTechnician)
-                : 'Choose a fieldworker'}
-            </Text>
-          </Pressable>
-          {isTechnicianDropdownOpen ? (
-            <View style={styles.dropdownList}>
-              <ScrollView style={styles.dropdownScroll}>
-                {technicians.map(item => (
-                  <Pressable
-                    key={`${getTechnicianId(item)}`}
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setSelectedTechnicianId(getTechnicianId(item));
-                      setIsTechnicianDropdownOpen(false);
-                    }}>
-                    <Text style={styles.dropdownItemText}>{getTechnicianName(item)}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.panelContent}>
+            <View style={styles.howToRow}>
+              <View style={styles.howToPlayIcon}>
+                <Ionicons name="play" size={ms(11)} color="#FFFFFF" />
+              </View>
+              <Text style={styles.howToText}>{t('hadddecbal')}</Text>
             </View>
-          ) : null}
 
-          <View style={styles.currentBalanceRow}>
-            <Text style={styles.currentBalanceLabel}>Current Balance:</Text>
-            <Text style={styles.currentBalanceValue}>
-              {selectedTechnician
-                ? formatMoney(selectedTechnicianBalance ?? getTechnicianBalance(selectedTechnician))
-                : 'Rs. 0'}
-            </Text>
-          </View>
+            <View style={styles.segmentGroup}>
+              <Pressable
+                style={[
+                  styles.segmentButton,
+                  balanceMode === 'add' ? styles.segmentSelected : null,
+                ]}
+                onPress={() => setBalanceMode('add')}>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    balanceMode === 'add' ? styles.segmentTextSelected : null,
+                  ]}>
+                  {t('add_balance')}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.segmentButton,
+                  balanceMode === 'deduct' ? styles.segmentSelected : null,
+                ]}
+                onPress={() => setBalanceMode('deduct')}>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    balanceMode === 'deduct' ? styles.segmentTextSelected : null,
+                  ]}>
+                  {t('deduct_balance')}
+                </Text>
+              </Pressable>
+            </View>
 
-          <TextInput
-            value={balanceAmount}
-            onChangeText={setBalanceAmount}
-            placeholder="Enter Amount"
-            placeholderTextColor="#9E9E9E"
-            keyboardType="numeric"
-            style={styles.balanceInput}
-          />
-          <TextInput
-            value={balanceDescription}
-            onChangeText={setBalanceDescription}
-            placeholder="Enter Description"
-            placeholderTextColor="#9E9E9E"
-            style={[styles.balanceInput, styles.descriptionInput]}
-            multiline
-          />
-
-          <View style={styles.modalFooter}>
-            <Pressable style={styles.modalCancelButton} onPress={handleClose}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
+            <Pressable
+              style={styles.spinnerPill}
+              onPress={() => setIsTechnicianDropdownOpen(prev => !prev)}>
+              <Text
+                style={selectedTechnician ? styles.spinnerValue : styles.spinnerPlaceholder}
+                numberOfLines={1}>
+                {isLoadingTechnicians
+                  ? tr('Loading...')
+                  : selectedTechnician
+                  ? getTechnicianName(selectedTechnician)
+                  : 'Select Fieldworkers'}
+              </Text>
+              <Ionicons name="chevron-down" style={styles.spinnerChevron} />
             </Pressable>
-            <Pressable style={styles.modalOkButton} onPress={handleSubmit}>
-              <Text style={styles.modalOkText}>{balanceMode === 'deduct' ? 'DEDUCT' : 'ADD'}</Text>
+            {isTechnicianDropdownOpen ? (
+              <View style={styles.dropdownList}>
+                <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                  {technicians.map(item => (
+                    <Pressable
+                      key={`${getTechnicianId(item)}`}
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setSelectedTechnicianId(getTechnicianId(item));
+                        setIsTechnicianDropdownOpen(false);
+                      }}>
+                      <Text style={styles.dropdownItemText}>{getTechnicianName(item)}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            <View style={styles.currentBalanceRow}>
+              <Text style={styles.currentBalanceLabel}>{t('current_balance')}</Text>
+              <Text style={styles.currentBalanceValue}>
+                {selectedTechnician
+                  ? formatMoney(selectedTechnicianBalance ?? getTechnicianBalance(selectedTechnician))
+                  : ''}
+              </Text>
+            </View>
+
+            <View style={styles.fieldWrap}>
+              <DecimalInput
+                value={balanceAmount}
+                onChangeText={t => setBalanceAmount(sanitizeDecimalInput(t))}
+                placeholderTextColor={COLORS.lightGray}
+                style={styles.pillInput}
+              />
+            </View>
+            <View style={styles.fieldWrap}>
+              <OutlinedInput
+                value={balanceDescription}
+                onChangeText={setBalanceDescription}
+                placeholder={t('enter_description')}
+                placeholderTextColor={COLORS.lightGray}
+                autoCapitalize="words"
+                maxLength={100}
+                style={styles.pillInput}
+              />
+            </View>
+
+            <Pressable style={styles.submitButton} onPress={handleSubmit}>
+              <View style={styles.submitIconWrap}>
+                <BalanceIcon size={ms(30)} color="#FFFFFF" />
+              </View>
+              <Text style={styles.submitText}>{balanceMode === 'deduct' ? tr('DEDUCT') : tr('ADD')}</Text>
             </Pressable>
-          </View>
+
+            <Pressable onPress={handleClose}>
+              <Text style={styles.cancelText}>{t('cancel')}</Text>
+            </Pressable>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
   );
 };
 
+// dialog_add_deduct_balance: 30dp-corner white card, 20dp padding, SegmentedGroup (40dp, 1dp
+// background_gray border, 25dp corners), bg_spinner (40dp, 34dp radius), outlined 34dp fields,
+// rounded_button ADD with ic_balance_option, transparent Cancel.
+const FIELD_BORDER = COLORS.lightGray;
+
 const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: COLORS.dialogDim,
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   modalPanel: {
     width: '100%',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    maxWidth: ms(560),
+    maxHeight: '94%',
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 30,
     elevation: 10,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#111111',
-    textAlign: 'center',
-    marginBottom: 18,
+  panelContent: {
+    padding: ms(20),
   },
-  balanceToggleRow: {
+  howToRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 18,
+    alignItems: 'center',
+    marginBottom: ms(20),
+    marginLeft: ms(2),
   },
-  balanceToggleButton: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
+  howToPlayIcon: {
+    width: ms(20),
+    height: ms(20),
+    borderRadius: ms(10),
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F9FAFB',
+    marginRight: ms(12),
   },
-  balanceToggleSelected: {
-    backgroundColor: THEME_PRIMARY,
-    borderColor: THEME_PRIMARY,
+  howToText: {
+    color: COLORS.primary,
+    fontSize: sp(14),
   },
-  balanceToggleText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#374151',
+  segmentGroup: {
+    flexDirection: 'row',
+    height: ms(40),
+    marginTop: ms(5),
+    borderWidth: 1,
+    borderColor: COLORS.ink,
+    borderRadius: ms(25),
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
   },
-  balanceToggleTextSelected: {
+  segmentButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentSelected: {
+    backgroundColor: COLORS.ink,
+  },
+  segmentText: {
+    fontSize: sp(14),
+    color: COLORS.ink,
+  },
+  segmentTextSelected: {
     color: '#FFFFFF',
   },
-  dropdownField: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginBottom: 8,
+  spinnerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: ms(40),
+    marginTop: ms(20),
+    marginBottom: ms(3),
+    paddingHorizontal: ms(12),
+    borderWidth: ms(1),
+    borderColor: FIELD_BORDER,
+    borderRadius: ms(34),
     backgroundColor: '#FFFFFF',
   },
-  dropdownLabel: {
-    color: '#6B7280',
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 4,
+  spinnerPlaceholder: {
+    flex: 1,
+    fontSize: sp(14),
+    color: COLORS.darkGray,
   },
-  dropdownValue: {
-    color: '#111111',
-    fontSize: 16,
-    fontWeight: '600',
+  spinnerValue: {
+    flex: 1,
+    fontSize: sp(14),
+    color: '#000000',
+  },
+  spinnerChevron: {
+    fontSize: sp(20),
+    color: COLORS.ink,
+    marginLeft: ms(6),
   },
   dropdownList: {
-    maxHeight: 160,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
+    maxHeight: ms(160),
+    borderWidth: ms(1),
+    borderColor: FIELD_BORDER,
+    borderRadius: ms(20),
     backgroundColor: '#FFFFFF',
-    marginBottom: 12,
+    marginTop: ms(4),
+    overflow: 'hidden',
   },
   dropdownScroll: {
-    maxHeight: 160,
+    maxHeight: ms(160),
   },
   dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
+    paddingVertical: ms(12),
+    paddingHorizontal: ms(16),
+    borderBottomWidth: ms(1),
     borderBottomColor: '#F3F4F6',
   },
   dropdownItemText: {
-    color: '#111111',
-    fontSize: 14,
+    color: '#000000',
+    fontSize: sp(14),
   },
   currentBalanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
-    marginBottom: 14,
+    marginLeft: ms(10),
+    marginBottom: ms(20),
   },
   currentBalanceLabel: {
-    color: '#16A34A',
-    fontSize: 14,
-    fontWeight: '700',
+    color: GREEN_500,
+    fontSize: sp(14),
   },
   currentBalanceValue: {
-    color: '#111111',
-    fontSize: 14,
-    fontWeight: '700',
+    color: COLORS.ink,
+    fontSize: sp(14),
+    paddingLeft: ms(2),
   },
-  balanceInput: {
-    width: '100%',
-    minHeight: 48,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#111111',
-    backgroundColor: '#FFFFFF',
-    marginBottom: 12,
+  fieldWrap: {
+    marginBottom: ms(26),
   },
-  descriptionInput: {
-    minHeight: 96,
-    textAlignVertical: 'top',
+  pillInput: {
+    borderWidth: ms(1),
+    borderColor: FIELD_BORDER,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    paddingVertical: 0,
+    height: ms(41),
+    fontSize: sp(16),
+    color: '#000000',
   },
-  modalFooter: {
+  submitButton: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  modalCancelButton: {
-    flex: 1,
-    height: 48,
-    marginRight: 8,
-    borderRadius: 10,
-    backgroundColor: '#E5E7EB',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    height: ms(48),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
   },
-  modalCancelText: {
-    color: '#1F2937',
-    fontSize: 15,
-    fontWeight: '800',
+  submitIconWrap: {
+    position: 'absolute',
+    left: ms(17),
   },
-  modalOkButton: {
-    flex: 1,
-    height: 48,
-    marginLeft: 8,
-    borderRadius: 10,
-    backgroundColor: THEME_PRIMARY,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalOkText: {
+  submitText: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '900',
+    fontSize: sp(18),
+    fontWeight: '500',
+  },
+  cancelText: {
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    color: COLORS.primary,
+    fontSize: sp(18),
+    fontWeight: '500',
+    height: ms(48),
+    lineHeight: ms(48),
+    marginBottom: ms(20),
   },
 });
 

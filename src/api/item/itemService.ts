@@ -99,7 +99,31 @@ export const deductUsedItem = async (data?: Partial<AddDeductUsedItem>): Promise
  * Endpoint: POST Item/UnAssignItemPortal
  */
 export const returnItem = async (data?: Partial<ReturnItem>): Promise<ReturnItem> => {
-  const response = await apiClient.post('Item/UnAssignItemPortal', data);
+  // Java: @FormUrlEncoded saveReturnItem(...) — send the same form fields.
+  const body = new URLSearchParams();
+  body.append('UserId', String(data?.UserId ?? 0));
+  body.append('ItemId', String(data?.ItemId ?? 0));
+  body.append('Quantity', String(data?.Quantity ?? 0));
+  body.append('ItemIssuedId', String(data?.ItemIssuedId ?? 0));
+  body.append('TaskId', String(data?.TaskId ?? 0));
+  body.append('CreatedBy', String(data?.CreatedBy ?? 0));
+  body.append('Notes', data?.Notes ?? '');
+  const response = await apiClient.post('Item/UnAssignItemPortal', body.toString(), {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+  return response.data;
+};
+
+/**
+ * Source: URLConstant.Item.GET_ITEM_GROUP
+ * Endpoint: GET Item/GetAllItemGroups
+ */
+export const getItemGroup = async (params: { userId: number }): Promise<{
+  ResultData?: Array<{ ItemGroupId?: number; ItemGroupName?: string }> | null;
+  Message?: string;
+  Code?: string;
+}> => {
+  const response = await apiClient.get('Item/GetAllItemGroups', { params });
   return response.data;
 };
 

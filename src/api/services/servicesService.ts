@@ -2,7 +2,7 @@
 // Auto-generated from URLConstant.java (Services endpoints actually used by the Android app)
 // Request/response types sourced from the shared DTO.zip — see services.types.ts
 import apiClient from '../apiClient';
-import type { AddUpdateServiceCategoryDTO, AddUpdateServiceCategoryDTOResultData, AddUpdateServiceSubCategoryDTO, AddUpdateServiceSubCategoryDTOResultData, DeleteServiceCategoryListDTO, DeleteServiceCategoryListDTOResultData, DeleteServiceSubCategoryListDTO, DeleteServiceSubCategoryListDTOResultData, EnquiryServiceTypeDTO, EnquiryServiceTypeDTOResultData, ServiceCategoryListDTO, ServiceCategoryListDTOResultData, ServiceListInsideSubCategoryDTO, ServiceListInsideSubCategoryDTOResultData, ServiceSubCategoryListDTO, ServiceSubCategoryListDTOResultData, ServiceTypeListDTO, ServiceTypeListDTOResultData } from './services.types';
+import type { AddUpdateServiceCategoryDTO, AddUpdateServiceCategoryDTOResultData, AddUpdateServiceSubCategoryDTO, AddUpdateServiceSubCategoryDTOResultData, AdvanceServiceListDTO, DeleteServiceCategoryListDTO, DeleteServiceCategoryListDTOResultData, DeleteServiceSubCategoryListDTO, DeleteServiceSubCategoryListDTOResultData, EnquiryServiceTypeDTO, EnquiryServiceTypeDTOResultData, ServiceCategoryListDTO, ServiceCategoryListDTOResultData, ServiceListInsideSubCategoryDTO, ServiceListInsideSubCategoryDTOResultData, ServiceSubCategoryListDTO, ServiceSubCategoryListDTOResultData, ServiceTypeListDTO, ServiceTypeListDTOResultData } from './services.types';
 
 /**
  * Source: URLConstant.Services.GET_ServiceTypeList
@@ -10,6 +10,18 @@ import type { AddUpdateServiceCategoryDTO, AddUpdateServiceCategoryDTOResultData
  */
 export const getServiceTypeList = async (params?: Record<string, any>): Promise<ServiceTypeListDTO> => {
   const response = await apiClient.get('Services/GetServiceTypeList', { params });
+  return response.data;
+};
+
+/**
+ * Source: URLConstant.Services.GET_ADV_SERVICE_LIST (TaskDialogNew.getAdvanceServiceType)
+ * Endpoint: GET Services/GetAdvanceServiceListByUserId
+ * The 3-level category -> subcategory -> service tree used by the Add Task /
+ * Add Enquiry "Service" picker -- not the same endpoint as getServiceTypeList
+ * above, which is the flat list Service Management's own CRUD screens use.
+ */
+export const getAdvanceServiceList = async (params: {UserId: number; SearchParam?: string}): Promise<AdvanceServiceListDTO> => {
+  const response = await apiClient.get('Services/GetAdvanceServiceListByUserId', { params });
   return response.data;
 };
 

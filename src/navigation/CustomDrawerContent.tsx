@@ -1,7 +1,21 @@
 // src/navigation/CustomDrawerContent.tsx
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Image, Modal, Alert, PermissionsAndroid, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, PermissionsAndroid, Platform } from 'react-native';
+import Modal from '../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {
+  ItemInventoryDrawerIcon,
+  PassbookDrawerIcon,
+  AmcDrawerIcon,
+  ServicesDrawerIcon,
+  AccountsDrawerIcon,
+  LeadsDrawerIcon,
+  FieldwebAiDrawerIcon,
+  SettingsDrawerIcon,
+  RoutineServiceDrawerIcon,
+  CheckOutDrawerIcon,
+} from '../components/DrawerIcons';
+import { PencilEditIcon } from '../components/DialogIcons';
 import { DrawerContentComponentProps } from '@react-navigation/drawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/theme';
@@ -12,19 +26,22 @@ import { attendanceCheckOut, getUserDetails } from '../api';
 import type { UserDetailsResultData } from '../api/users/users.types';
 import { authEvents, AUTH_CHANGED } from '../utils/authEvents';
 import { ms, sp, scale } from '../utils/responsive';
+import { checkedInTodayKey } from '../utils/attendanceKey';
+import { setPassbookTabOrder } from '../state/passbookTabOrder';
+import { showFailureMsg, showSuccessMsg } from '../utils/toast';
 
-const todayKey = () => {
-  const today = new Date().toISOString().split('T')[0];
-  return `checked_in_${today}`;
-};
+import {useTranslation} from 'react-i18next';
+import { tr } from '../i18n/tr';
+// Same local-date key Home writes on check-in (see utils/attendanceKey.ts).
+const todayKey = checkedInTodayKey;
 
 const requestLocationPermission = async (): Promise<boolean> => {
   if (Platform.OS !== 'android') return true;
   const granted = await PermissionsAndroid.request(
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     {
-      title: 'Location Permission',
-      message: 'FieldWeb needs your location to record check-out.',
+      title: tr('Location Permission'),
+      message: tr('FieldWeb needs your location to record check-out.'),
       buttonPositive: 'OK',
     },
   );
@@ -41,6 +58,7 @@ const getCurrentPosition = (): Promise<{ latitude: number; longitude: number }> 
   });
 
 export default function CustomDrawerContent({ navigation }: DrawerContentComponentProps) {
+  const {t} = useTranslation();
   const insets = useSafeAreaInsets();
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -50,11 +68,14 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
   const [phone, setPhone] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
 
   const isAdmin = role?.toLowerCase() === 'admin' || role?.toLowerCase() === 'owner';
   // Route name differs per role — see DrawerNavigator (AdminTabs → AdminStack,
   // TechnicianTabs → TechnicianStack).
   const tabsRoute = isAdmin ? 'AdminTabs' : 'TechnicianTabs';
+  // Stack route that hosts the tab navigator; drawer destinations are tab screens.
+  const tabsRootRoute = isAdmin ? 'AdminTabsRoot' : 'TechnicianTabsRoot';
 
   useEffect(() => {
     const loadSession = async () => {
@@ -83,13 +104,17 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
     loadSession();
   }, []);
 
+  useEffect(() => {
+    setPhotoLoadFailed(false);
+  }, [profile?.Photo]);
+
   const handleCheckOut = async () => {
     try {
       if (!userId) return;
 
       const hasPermission = await requestLocationPermission();
       if (!hasPermission) {
-        Alert.alert('Location permission is required to check out.');
+        showFailureMsg(t('rn_location_permission_is_required_to_check_o'));
         return;
       }
       const { latitude, longitude } = await getCurrentPosition();
@@ -108,12 +133,13 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
       if (response?.Code === '200') {
         await AsyncStorage.removeItem(todayKey());
         setShowCheckOutModal(false);
-        Alert.alert('Checked Out Successfully');
+        // Java: showSuccessMsg(checkOut.getMessage()) -- the server text ("Check out successfully.").
+        showSuccessMsg(response?.Message || 'Check out successfully.');
       } else {
-        Alert.alert(response?.Message || 'Checkout failed');
+        showFailureMsg(response?.Message || 'Fail to check out, please try again.');
       }
     } catch (e: any) {
-      Alert.alert(e.message);
+      showFailureMsg(e?.message || 'Fail to check out, please try again.');
     }
   };
 
@@ -131,7 +157,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
     }
   };
 
-  const AVATAR_SIZE = ms(68);
+  const AVATAR_SIZE = ms(60);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + ms(16) }]}>
@@ -139,20 +165,23 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
       <View style={styles.profileRow}>
         <View style={[styles.profileWrapper, { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 }]}>
           <Image
-            source={
-              profile?.Photo
+              source={
+                profile?.Photo && !photoLoadFailed
                 ? { uri: profile.Photo }
-                : require('../../assets/images/image.png')
-            }
-            style={[styles.pfp, { borderRadius: AVATAR_SIZE / 2 }]}
-            resizeMode="cover"
-          />
+                : require('../../assets/images/profile_icon.png')
+              }
+              onError={() => setPhotoLoadFailed(true)}
+              style={{ width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 }}
+            />
           <Pressable
             style={styles.editProfile}
-            onPress={() => navigation.navigate(tabsRoute, { screen: 'Profile' })}
+            onPress={() => {
+              navigation.closeDrawer();
+              navigation.navigate(tabsRoute, { screen: tabsRootRoute, params: { screen: 'Profile' } });
+            }}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
-            <Ionicons name="create-outline" size={scale(14)} color="#fff" />
+            <PencilEditIcon size={ms(16)} />
           </Pressable>
         </View>
 
@@ -160,10 +189,6 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
           <Text style={styles.name} numberOfLines={1}>
             {profile?.FirstName} {profile?.LastName}
           </Text>
-          <View style={styles.ratingRow}>
-            <Ionicons name="star" size={scale(16)} color={COLORS.primary} />
-            <Text style={styles.ratingText}>4.5</Text>
-          </View>
           <Text style={styles.phone} numberOfLines={1}>
             {profile?.CountryCode ? `${profile.CountryCode} ` : '+91 '}
             {profile?.ContactNo ?? phone}
@@ -172,37 +197,41 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
 
         <Pressable
           style={styles.logoutButton}
-          onPress={() => setShowLogoutModal(true)}
+          onPress={() => {
+            navigation.closeDrawer();
+            setShowLogoutModal(true);
+          }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="log-out-outline" size={scale(28)} color="#000000" />
+          <Image source={require('../../assets/images/drawer_logout.png')} style={styles.logoutIcon} resizeMode="contain" />
         </Pressable>
       </View>
 
       {/* Drawer Items */}
       {(isAdmin
         ? [
-            // These five render inside HomeActivityNewScreen as internal
+            // `section` items render inside HomeActivityNewScreen as internal
             // sections (not their own stack screens), so they're opened via
-            // a `drawerSection` param on the Home tab rather than `screen`.
-            { icon: 'people-outline',                 label: 'Leads',           section: 'Leads' },
-            { icon: 'cube-outline',                   label: 'Item Inventory',  section: 'Item Inventory' },
-            { icon: 'wallet-outline',                 label: 'Passbook',        section: 'Passbook' },
-            { icon: 'construct-outline',               label: 'AMC',             section: 'AMC' },
-            { icon: 'calendar-outline',               label: 'Attendance',      section: 'Attendance' },
-            { icon: 'cash-outline',                   label: 'Accounts',        section: 'Accounts' },
-            { icon: 'list-outline',                   label: 'Services',        section: 'Services' },
-            { icon: 'help-circle-outline',            label: 'Help & Support',  section: 'Help & Support' },
-            { icon: 'settings-outline',               label: 'Settings',        screen: 'Settings' },
+            // a `drawerSection` param on the Home tab. `screen` items are
+            // AdminStack routes.
+            { icon: 'ItemInventory',                   label: t('item_inventory'),   section: 'Item Inventory' },
+            { icon: 'Passbook',                 label: t('title_passbook'),         section: 'Passbook' },
+            { icon: 'Amc',              label: t('title_amc'),              section: 'AMC' },
+            { icon: 'Services',                 label: t('title_add_services'),         section: 'Services' },
+            { icon: 'Accounts',          label: 'Accounts',         section: 'Accounts' },
+            { icon: 'Leads',                 label: 'Leads',            section: 'Leads' },
+            { icon: 'BrandPng',              label: 'Brand Management', section: 'Brand Management' },
+            { icon: 'FieldwebAi',       label: t('AI'),      screen: 'FieldWeb AI' },
+            { icon: 'DemoPng',         label: 'Book App Demo',    screen: 'Book App Demo' },
+            { icon: 'Settings',               label: t('settings'),         screen: 'Settings' },
           ]
         : [
-            { icon: 'cube-outline',                   label: 'Item Inventory',  screen: 'Issued Items' },
-            { icon: 'construct-outline',               label: 'AMC',             screen: 'AMC' },
-            { icon: 'cash-outline',                   label: 'Expenditure',     screen: 'Expenditure' },
-            { icon: 'list-outline',                   label: 'Routine Service', screen: 'Routine Service' },
-            { icon: 'chatbox-ellipses-outline',       label: 'FieldWeb AI',     screen: 'FieldWeb AI' },
-            { icon: 'settings-outline',               label: 'Settings',        screen: 'Settings' },
-            { icon: 'arrow-forward-circle-outline',   label: 'Check-Out',       screen: null },
+            { icon: 'ItemInventory',                   label: t('item_inventory'),  screen: 'Issued Items' },
+            { icon: 'Passbook',                   label: t('expenditure'),     screen: 'Expenditure' },
+            { icon: 'RoutineService',                   label: 'Routine Service', screen: 'Routine Service' },
+            { icon: 'FieldwebAi',       label: t('AI'),     screen: 'FieldWeb AI' },
+            { icon: 'Settings',               label: t('settings'),        screen: 'Settings' },
+            { icon: 'CheckOut',   label: t('title_check_out'),       screen: null },
           ]
       ).map(({ icon, label, screen, section }: any) => (
         <DrawerItem
@@ -210,6 +239,11 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
           icon={icon}
           label={label}
           onPress={() => {
+            // Close the drawer as soon as an item is picked, before
+            // navigating or opening a modal, so it doesn't linger open
+            // behind the destination screen/modal.
+            navigation.closeDrawer();
+
             if (section) {
               // Drill Drawer -> AdminStack -> AdminTabsRoot -> Home, passing
               // which internal section HomeActivityNewScreen should show.
@@ -220,7 +254,11 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
               return;
             }
             if (screen) {
-              navigation.navigate(tabsRoute, { screen });
+              if (screen === 'Expenditure') setPassbookTabOrder('expenditureFirst');
+              navigation.navigate(tabsRoute, {
+                screen: tabsRootRoute,
+                params: { screen },
+              });
               return;
             }
             setShowCheckOutModal(true);
@@ -232,15 +270,15 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
       <Modal transparent visible={showLogoutModal} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + ms(16) }]}>
-            <Text style={styles.modalTitle}>Oh no! You are leaving...{'\n'}Are you sure?</Text>
+            <Text style={styles.modalTitle}>{t('rn_oh_no_you_are_leaving')}{'\n'}{t('rn_are_you_sure')}</Text>
             <Pressable
               style={styles.confirmBtn}
               onPress={async () => { setShowLogoutModal(false); await handleLogout(); }}
             >
-              <Text style={styles.confirmText}>LOGOUT</Text>
+              <Text style={styles.confirmText}>{t('title_logout').toUpperCase()}</Text>
             </Pressable>
             <Pressable onPress={() => setShowLogoutModal(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('cancel')}</Text>
             </Pressable>
           </View>
         </View>
@@ -250,12 +288,12 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
       <Modal transparent visible={showCheckOutModal} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + ms(16) }]}>
-            <Text style={styles.modalTitle}>Do you want to Check-Out for Today?</Text>
+            <Text style={styles.modalTitle}>{t('do_you_want_checkout')}</Text>
             <Pressable style={styles.confirmBtn} onPress={handleCheckOut}>
-              <Text style={styles.confirmText}>CHECK-OUT</Text>
+              <Text style={styles.confirmText}>{t('title_check_out').toUpperCase()}</Text>
             </Pressable>
             <Pressable onPress={() => setShowCheckOutModal(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('cancel')}</Text>
             </Pressable>
           </View>
         </View>
@@ -270,10 +308,32 @@ interface DrawerItemProps {
   onPress: () => void;
 }
 
+const DRAWER_SVG_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
+  ItemInventory: ItemInventoryDrawerIcon,
+  Passbook: PassbookDrawerIcon,
+  Amc: AmcDrawerIcon,
+  Services: ServicesDrawerIcon,
+  Accounts: AccountsDrawerIcon,
+  Leads: LeadsDrawerIcon,
+  FieldwebAi: FieldwebAiDrawerIcon,
+  Settings: SettingsDrawerIcon,
+  RoutineService: RoutineServiceDrawerIcon,
+  CheckOut: CheckOutDrawerIcon,
+};
+const DRAWER_PNG_ICONS: Record<string, any> = {
+  BrandPng: require('../../assets/images/drawer_brand.png'),
+  DemoPng: require('../../assets/images/drawer_appdemo.png'),
+};
+
 function DrawerItem({ icon, label, onPress }: DrawerItemProps) {
+  const SvgIcon = DRAWER_SVG_ICONS[icon];
   return (
     <Pressable style={styles.item} onPress={onPress}>
-      <Ionicons name={icon} size={scale(22)} color={COLORS.icon} />
+      {SvgIcon ? (
+        <SvgIcon size={ms(24)} color={COLORS.textBlack} />
+      ) : (
+        <Image source={DRAWER_PNG_ICONS[icon]} style={styles.itemIcon} resizeMode="contain" />
+      )}
       <Text style={styles.label}>{label}</Text>
     </Pressable>
   );
@@ -282,13 +342,13 @@ function DrawerItem({ icon, label, onPress }: DrawerItemProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: ms(24),
+    paddingHorizontal: ms(16),
     paddingBottom: ms(24),
   },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: ms(24),
+    marginBottom: ms(18),
   },
   profileWrapper: {
     marginRight: ms(14),
@@ -303,22 +363,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: ms(22),
-    height: ms(22),
-    borderRadius: ms(11),
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
   },
   infoContainer: {
     flex: 1,
   },
   name: {
-    fontSize: sp(18),
-    fontWeight: '600',
+    fontSize: sp(16),
     marginBottom: ms(2),
-    color: COLORS.textPrimary,
+    color: COLORS.ink,
   },
   ratingRow: {
     flexDirection: 'row',
@@ -331,7 +383,7 @@ const styles = StyleSheet.create({
     fontSize: sp(14),
   },
   phone: {
-    color: '#007BFF',
+    color: COLORS.tagBlue,
     fontSize: sp(14),
   },
   logoutButton: {
@@ -345,21 +397,33 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: ms(12),
-    gap: ms(16),
+    height: ms(48),
+    paddingLeft: ms(19),
+    gap: ms(32),
+  },
+  itemIcon: {
+    width: ms(24),
+    height: ms(24),
+  },
+  logoutIcon: {
+    width: ms(24),
+    height: ms(24),
   },
   label: {
-    fontSize: sp(16),
+    fontSize: sp(14),
     fontWeight: '500',
-    color: COLORS.textPrimary,
+    color: COLORS.textBlack,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   bottomSheet: {
     backgroundColor: '#fff',
+    width: '100%',
+    maxWidth: ms(560),
     padding: ms(20),
     borderTopLeftRadius: ms(28),
     borderTopRightRadius: ms(28),

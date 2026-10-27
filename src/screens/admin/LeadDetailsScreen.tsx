@@ -1,11 +1,19 @@
 import React, {useCallback, useEffect, useState} from 'react';
+import {ms, sp} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {COLORS} from '../../theme/theme';
+import {InvoiceIcon, DeleteIcon, EnquiryIcon} from '../../components/FabIcons';
+import SearchPickerModal from '../../components/SearchPickerModal';
+import {OutlinedInput, OutlinedSelect} from '../../components/OutlinedInput';
+import {getCurrentCountryCode, getCurrentUserId, getCurrentUserProfile} from '../../state/session';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import AddTaskModal, {type AddTaskInitialValues} from './AddTaskModal';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Image,
   Linking,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -15,6 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {
   type LeadListItem,
   type LeadDetailsResponse,
@@ -22,8 +31,13 @@ import {
   type LeadStatusResponse,
 } from './adminLegacyApiTypes';
 import { getLeadstatusList, getLeadetailsByLeadId, updateLeadStatus as updateLeadStatusApi } from '../../api/lead/leadService';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
+import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
 type LeadDetailsScreenProps = {
+  /** Technician view: no Update Status / delete (Java LeadDetailsFragment). */
+  technician?: boolean;
   userId: number;
   leadId: number;
   onBack: () => void;
@@ -32,30 +46,51 @@ type LeadDetailsScreenProps = {
   onDelete?: (lead: LeadListItem) => void;
 };
 
-const THEME_PRIMARY = '#c3002f';
+const THEME_PRIMARY = COLORS.primary;
 
+// Java LeadDetailsFragment: status text colour per lead status.
 const getStatusColor = (status: string) => {
   const normalized = status.trim().toLowerCase();
-  if (normalized.includes('discussion')) {
-    return '#06a9ee';
-  }
   if (normalized.includes('inactive')) {
-    return '#9ca3af';
+    return COLORS.lightGray;
   }
   if (normalized.includes('assign')) {
-    return '#ffc12c';
+    return '#FBC02D'; // @color/task_ongoing_dark
   }
-  if (normalized.includes('close') || normalized.includes('complete')) {
-    return '#18a957';
+  if (normalized.includes('discussion')) {
+    return '#03A9F4'; // @color/quantum_lightblue
   }
-  if (normalized.includes('reject') || normalized.includes('cancel')) {
-    return '#d32f2f';
+  if (normalized.includes('called')) {
+    return COLORS.tagBlue;
   }
-
+  if (normalized.includes('dormant')) {
+    return '#D1395C'; // @color/dot_dark_screen1
+  }
+  if (normalized.includes('quote')) {
+    return '#F98DA5'; // @color/dot_light_screen1
+  }
+  if (normalized.includes('convert')) {
+    return COLORS.statusCompleted;
+  }
   return THEME_PRIMARY;
 };
 
+// Java loads the photo with a person placeholder; show it when the path is missing or fails to load.
+const PhotoSlot = ({url}: {url: string | null}) => {
+  const [failed, setFailed] = useState(false);
+  return (
+    <View style={styles.photoSlot}>
+      {url && !failed ? (
+        <Image source={{uri: url}} style={styles.photoImage} resizeMode="contain" onError={() => setFailed(true)} />
+      ) : (
+        <Ionicons name="person-circle" size={ms(78)} color="#E1E3EE" />
+      )}
+    </View>
+  );
+};
+
 const LeadDetailsScreen = ({
+  technician = false,
   userId,
   leadId,
   onBack,
@@ -63,13 +98,28 @@ const LeadDetailsScreen = ({
   onEdit,
   onDelete,
 }: LeadDetailsScreenProps) => {
+  const {t} = useTranslation();
   const [lead, setLead] = useState<LeadListItem | null>(null);
+  // Java: the terms icon opens Add Task prefilled from the lead (TaskDialogNew.addTaskFromLeadDetailsTech).
+  const [addTaskValues, setAddTaskValues] = useState<AddTaskInitialValues | null>(null);
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const [taskOwnerId, setTaskOwnerId] = useState(userId);
+  useEffect(() => {
+    if (technician) {
+      AsyncStorage.getItem('owner_id').then(v => setTaskOwnerId(Number(v) || userId));
+    }
+  }, [technician, userId]);
 
   const getStringValue = (item: any, keys: string[]) => {
     for (const key of keys) {
       const value = item[key];
       if (typeof value === 'string' && value.trim()) {
         return value.trim();
+      }
+      // LeadDetailsDTO.ResultData fields are Java Strings, but the API can send numeric
+      // values (e.g. MobileNumber) which Gson stringifies.
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
       }
     }
     return '';
@@ -91,6 +141,7 @@ const LeadDetailsScreen = ({
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [statusOptions, setStatusOptions] = useState<LeadStatusItem[]>([]);
   const [selectedStatusId, setSelectedStatusId] = useState<number | null>(null);
+  const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [updateNotes, setUpdateNotes] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
@@ -148,23 +199,46 @@ const LeadDetailsScreen = ({
 
   const handleStatusUpdate = async () => {
     if (!selectedStatusId) {
-      Alert.alert('Selection Required', 'Please select a lead status.');
+      showFailureMsg(t('rn_please_select_a_lead_status'));
       return;
     }
 
     setIsUpdatingStatus(true);
     try {
-      const response = await updateLeadStatusApi({
+      const rec = (lead ?? {}) as Record<string, unknown>;
+      const pick = (...keys: string[]) => {
+        for (const key of keys) {
+          if (rec[key] !== undefined && rec[key] !== null) {
+            return rec[key];
+          }
+        }
+        return undefined;
+      };
+      const response = ensureSuccess(await updateLeadStatusApi({
         LeadId: leadId,
         LeadStatusId: selectedStatusId,
+        LeadStatus: selectedStatusId,
         UserId: userId,
-        Description: updateNotes || 'Updated from app',
-      });
+        OwnerId: userId,
+        CreatedBy: userId,
+        UpdatedBy: userId,
+        IsActive: true,
+        // The lead's own Description stays as is; the note is FollowUpNotes.
+        FollowUpNotes: updateNotes || 'Updated from app',
+        Description: String(pick('Description', 'description') ?? ''),
+        CustomerName: String(pick('CustomerName', 'customerName') ?? ''),
+        MobileNumber: String(pick('MobileNumber', 'mobileNumber') ?? ''),
+        Address: String(pick('Address', 'address') ?? ''),
+        LocName: String(pick('LocName', 'locName') ?? ''),
+        LocationId: Number(pick('LocationId', 'locationId') ?? 0),
+        ServiceName: String(pick('ServiceName', 'serviceName') ?? ''),
+        ServicesId: Number(pick('ServicesId', 'servicesId') ?? 0),
+      }));
 
       // Based on Api.ts, request returns the parsed JSON response
       // Usually success is indicated by the absence of error or a specific field
       if (response) {
-        Alert.alert('Success', 'Lead status updated successfully.');
+        showSuccessMsg(t('rn_lead_status_updated_successfully'));
         setStatusModalVisible(false);
         setUpdateNotes('');
         setSelectedStatusId(null);
@@ -175,7 +249,7 @@ const LeadDetailsScreen = ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to update lead status.';
-      Alert.alert('Update Failed', message);
+      showFailureMsg(message || 'Update Failed');
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -257,7 +331,8 @@ const LeadDetailsScreen = ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load lead details.';
-      Alert.alert('Error', message, [{text: 'OK', onPress: onBack}]);
+      showFailureMsg(message);
+      onBack();
     } finally {
       setIsLoading(false);
     }
@@ -326,6 +401,8 @@ const LeadDetailsScreen = ({
 
   const getLeadLandmark = (item: LeadListItem) =>
     getStringValue(item, [
+      'locDescription',
+      'LocDescription',
       'landmark',
       'Landmark',
       'landMark',
@@ -491,7 +568,7 @@ const LeadDetailsScreen = ({
       if (tMatch) {
         let h = Number(tMatch[1]);
         const m = Number(tMatch[2]);
-        const sfx = h >= 12 ? 'pm' : 'am';
+        const sfx = h >= 12 ? 'PM' : 'AM';
         const h12 = h % 12 || 12;
         timeLabel = `${String(h12).padStart(2, '0')}:${String(m).padStart(
           2,
@@ -503,13 +580,49 @@ const LeadDetailsScreen = ({
     if (!dateLabel) {
       return timeLabel || 'NA';
     }
-    return timeLabel ? `${dateLabel} ${timeLabel}` : dateLabel;
+    return timeLabel ? `${dateLabel}  ${timeLabel}` : dateLabel;
+  };
+
+  const openAddTask = async (item: LeadListItem) => {
+    const rec = item as Record<string, unknown>;
+    // The in-memory profile is empty after a cold start/reload; Home keeps the name in storage.
+    const storedName = technician ? await AsyncStorage.getItem('name') : null;
+    const str = (...keys: string[]) => getStringValue(item, keys);
+    setAddTaskValues({
+      title: '',
+      address: str('address', 'Address'),
+      state: str('state', 'State'),
+      city: str('city', 'City'),
+      pinCode: str('pinCode', 'PinCode'),
+      landmark: str('locDescription', 'LocDescription'),
+      customerName: str('customerName', 'CustomerName'),
+      customerNumber: str('mobileNumber', 'MobileNumber'),
+      taskTagId: 0,
+      taskTagName: '',
+      customerId: getNumberValue(rec, ['customerDetailsid', 'CustomerDetailsid']) || undefined,
+      leadId,
+      latitude: str('latitude', 'Latitude'),
+      longitude: str('longitude', 'Longitude'),
+      // Java (technician): the assignee is the logged-in user.
+      ...(technician
+        ? {
+            assignedFieldworkerId: getCurrentUserId(),
+            assignedFieldworkerName:
+              getCurrentUserProfile().userFirstName ||
+              `${getCurrentUserProfile().details?.FirstName ?? ""} ${getCurrentUserProfile().details?.LastName ?? ""}`.trim() ||
+              storedName ||
+              "Me",
+            lockAssignedFieldworker: true,
+          }
+        : {}),
+    });
+    setIsAddTaskOpen(true);
   };
 
   const openCall = (phone: string) => {
     if (!phone) return;
     Linking.openURL(`tel:${phone.replace(/[^\d+]/g, '')}`).catch(() => {
-      Alert.alert('Error', 'Unable to open dialer.');
+      showToast(t('rn_unable_to_open_dialer'));
     });
   };
 
@@ -517,7 +630,7 @@ const LeadDetailsScreen = ({
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator color={THEME_PRIMARY} size="large" />
-        <Text style={styles.loadingText}>Loading details...</Text>
+        <Text style={styles.loadingText}>{t('rn_loading_details')}</Text>
       </View>
     );
   }
@@ -530,188 +643,181 @@ const LeadDetailsScreen = ({
   const lat = getCoordinate(lead, ['latitude', 'Latitude', 'lat', 'Lat']);
   const lng = getCoordinate(lead, ['longitude', 'Longitude', 'lng', 'Lng', 'long', 'Long']);
 
+  // Java: "+<countryCode> XXXXXXXXXX" when the TeleCMI module masks numbers, else the real number.
+  const masked = getCurrentUserProfile().teleCmiModuleFlag === 'true';
+  const countryCode = getCurrentCountryCode();
+  const numberLabel = masked || (technician && !phone)
+    ? `+${countryCode} XXXXXXXXXX`
+    : phone
+      ? `+${countryCode} ${phone}`
+      : 'NA';
+  const photoPaths = [
+    getStringValue(lead, ['PhotoPath', 'photopath', 'photoPath']),
+    getStringValue(lead, ['PhotoPath1', 'photopath1', 'photoPath1']),
+    getStringValue(lead, ['PhotoPath2', 'photopath2', 'photoPath2']),
+  ];
+  const hasPhotos = photoPaths.some(path => Boolean(path && path.trim() && path.trim().toUpperCase() !== 'NA'));
+  const photoUrl = (path: string) =>
+    path.startsWith('http')
+      ? path
+      : `http://192.169.3.8/API/${path.startsWith('/') ? path.slice(1) : path}`;
+  const notes =
+    getStringValue(lead, ['Description', 'description', 'notes', 'Notes', 'requirement', 'Requirement']) || '-NA-';
+
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Leads</Text>
-        <View style={styles.headerIcons}>
-          <Text style={styles.headerIcon}>🎧</Text>
-          <Text style={styles.headerIcon}>🔔</Text>
-        </View>
-      </View>
-
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
-        {/* Map Mock */}
+      <View style={styles.content}>
+        {/* Java: 200dp map inside the card, 30dp rounded top corners */}
         <View style={styles.mapMock}>
           {lat && lng ? (
-            <Image
-              source={{uri: `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=600x300&markers=color:red%7C${lat},${lng}`}}
+            <MapView
               style={styles.mapImage}
-              resizeMode="cover"
-            />
+              provider={PROVIDER_GOOGLE}
+              initialRegion={{latitude: lat, longitude: lng, latitudeDelta: 0.1, longitudeDelta: 0.1}}
+              toolbarEnabled={false}
+            >
+              <Marker
+                coordinate={{latitude: lat, longitude: lng}}
+                title={getLeadTitle(lead)}
+                description={getServiceType(lead)}
+                ref={m => {
+                  setTimeout(() => m?.showCallout(), 600);
+                }}
+              />
+            </MapView>
           ) : (
             <View style={styles.mapPlaceholder}>
-              <Text style={styles.mapPlaceholderText}>Map location not available</Text>
+              <Text style={styles.mapPlaceholderText}>{t('rn_map_location_not_available')}</Text>
             </View>
           )}
         </View>
 
-        {/* Info Card */}
         <View style={styles.infoCard}>
           <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>{status}</Text>
+            <Text style={[styles.statusLabel, {color: getStatusColor(status)}]}>{status}</Text>
             <View style={styles.actionRow}>
-              <TouchableOpacity style={styles.updateStatusBtn} onPress={() => setStatusModalVisible(true)}>
-                <Text style={styles.updateStatusBtnText}>Update Status</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconBtn} onPress={() => onEdit?.(lead)}>
-                <Text style={styles.iconText}>📝</Text>
+              {!technician && (
+                <TouchableOpacity style={styles.updateStatusBtn} onPress={() => setStatusModalVisible(true)}>
+                  <Text style={styles.updateStatusBtnText}>{t('rn_update_status')}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.iconBtn} onPress={() => openAddTask(lead)}>
+                <InvoiceIcon size={ms(22)} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconBtn} onPress={() => openCall(phone)}>
-                <Text style={styles.iconText}>📞</Text>
+                <Image source={require('../../../assets/images/ic_phone.png')} style={styles.phoneIcon} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconBtn} onPress={() => onDelete?.(lead)}>
-                <Text style={styles.iconText}>🗑️</Text>
-              </TouchableOpacity>
+              {!technician && (
+                <TouchableOpacity style={styles.iconBtn} onPress={() => onDelete?.(lead)}>
+                  <DeleteIcon size={ms(20)} color={COLORS.primary} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Lead Details</Text>
+        </View>
+        <ScrollView style={{flex: 1}} contentContainerStyle={styles.contentInner} showsVerticalScrollIndicator={false}>
+        <View style={styles.infoCard}>
+          <Text style={styles.sectionTitle}>{t('rn_lead_details')}</Text>
+          <View style={styles.details}>
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Customer Name</Text>
+              <Text style={styles.fieldLabel}>{t('customer_name')}</Text>
               <Text style={styles.fieldValue}>{getLeadTitle(lead)}</Text>
             </View>
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Date & Time</Text>
+              <Text style={styles.fieldLabel}>{t('rn_date_time')}</Text>
               <Text style={styles.fieldValue}>{dateTime}</Text>
             </View>
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Customer Number</Text>
-              <Text style={styles.fieldValue}>{phone || 'NA'}</Text>
+              <Text style={styles.fieldLabel}>{t('customer_number')}</Text>
+              <Text style={styles.fieldValue}>{numberLabel}</Text>
             </View>
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Customer Address</Text>
+              <Text style={styles.fieldLabel}>{t('customer_address')}</Text>
               <Text style={styles.fieldValue}>{getLeadAddress(lead)}</Text>
             </View>
-            <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Landmark</Text>
+            <View style={[styles.fieldRow, {marginBottom: ms(10)}]}>
+              <Text style={styles.fieldLabel}>{t('landmark')}</Text>
               <Text style={styles.fieldValue}>{getLeadLandmark(lead)}</Text>
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Services Details</Text>
-            <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Service Type</Text>
-              <Text style={styles.fieldValue}>{getServiceType(lead)}</Text>
-            </View>
+          <Text style={[styles.sectionTitle, {marginTop: ms(10), marginBottom: ms(12)}]}>{t('services_details')}</Text>
+          <View style={styles.fieldRow}>
+            <Text style={styles.fieldLabel}>{t('service_type')}</Text>
+            <Text style={styles.fieldValue}>{getServiceType(lead)}</Text>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Attached Photos</Text>
-            <View style={styles.photoRow}>
-              {[
-                getStringValue(lead, ['PhotoPath', 'photopath', 'photoPath']),
-                getStringValue(lead, ['PhotoPath1', 'photopath1', 'photoPath1']),
-                getStringValue(lead, ['PhotoPath2', 'photopath2', 'photoPath2']),
-              ]
-                .filter(path => Boolean(path && path.trim()))
-                .map((path, index) => {
-                  const baseUrl = 'http://192.169.3.8/API/';
-                  const fullUrl = path
-                    ? path.startsWith('http')
-                      ? path
-                      : `${baseUrl}${path.startsWith('/') ? path.slice(1) : path}`
-                    : null;
-
-                  if (!fullUrl) return null;
-
-                  return (
-                    <View key={index} style={styles.photoSlot}>
-                      <Image
-                        source={{uri: fullUrl}}
-                        style={styles.photoImage}
-                        resizeMode="cover"
-                      />
-                    </View>
-                  );
-                })}
-            </View>
-          </View>
-
-          {history && history.length > 0 ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Follow up History</Text>
-              {history.map((item, index) => {
-                const hStatus = getStringValue(item, [
-                  'LeadStatusName',
-                  'leadStatusName',
-                  'statusName',
-                  'StatusName',
-                  'leadStatus',
-                  'LeadStatus',
-                ]) || 'InActive';
-                
-                const hDate = formatLeadDateTime(item);
-                const hNotes = getStringValue(item, [
-                  'LeadNotes',
-                  'leadNotes',
-                  'description',
-                  'Description',
-                  'notes',
-                  'Notes',
-                  'requirement',
-                  'Requirement',
-                ]) || '-NA-';
-
-                return (
-                  <View key={index} style={styles.historyItem}>
-                    <View style={styles.historyHeader}>
-                      <Text style={[styles.historyIndex, {color: getStatusColor(hStatus)}]}>
-                        {index + 1}. {hStatus}
-                      </Text>
-                      <Text style={styles.historyDate}>{hDate}</Text>
-                    </View>
-                    <Text style={styles.historyNotes}>{hNotes}</Text>
+          {hasPhotos && (
+            <>
+              <Text style={[styles.sectionTitle, {marginTop: ms(20)}]}>{t('rn_attached_photos')}</Text>
+              <View style={styles.photoRow}>
+                {photoPaths.map((path, index) => (
+                  <View key={index} style={{flex: 1}}>
+                    <PhotoSlot url={path && path.trim() && path.trim().toUpperCase() !== 'NA' ? photoUrl(path) : null} />
                   </View>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Follow up History</Text>
-              <View style={styles.historyItem}>
-                <View style={styles.historyHeader}>
-                  <Text style={styles.historyIndex}>1. {status}</Text>
-                  <Text style={styles.historyDate}>{dateTime}</Text>
-                </View>
-                <Text style={styles.historyNotes}>-NA-</Text>
+                ))}
               </View>
-            </View>
+            </>
           )}
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Notes</Text>
-            <Text style={styles.notesText}>
-              {getStringValue(lead, [
-                'Description',
+          <Text style={[styles.sectionTitle, {marginTop: ms(10), marginBottom: ms(5)}]}>{t('rn_follow_up_history')}</Text>
+          <ScrollView style={{height: ms(100)}} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+          {(history && history.length > 0
+            ? history
+            : [{LeadStatusName: status, LeadDate: undefined, LeadNotes: undefined}]
+          ).map((item: any, index: number) => {
+            const hStatus =
+              getStringValue(item, [
+                'LeadStatusName',
+                'leadStatusName',
+                'statusName',
+                'StatusName',
+                'leadStatus',
+                'LeadStatus',
+              ]) || 'InActive';
+            const hDate = history && history.length > 0 ? formatLeadDateTime(item) : dateTime;
+            const hNotes =
+              getStringValue(item, [
+                'LeadNotes',
+                'leadNotes',
                 'description',
+                'Description',
                 'notes',
                 'Notes',
                 'requirement',
                 'Requirement',
-              ]) || 'NA'}
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
+              ]) || '-NA-';
 
-      {/* Update Lead Status Modal */}
+            return (
+              <View key={index} style={styles.historyItem}>
+                <View style={styles.historyHeader}>
+                  <Text style={[styles.historyIndex, {color: getStatusColor(hStatus)}]}>
+                    {index + 1}. {hStatus}
+                  </Text>
+                  <Text style={[styles.historyDate, {color: getStatusColor(hStatus)}]}>{hDate}</Text>
+                </View>
+                <Text style={styles.historyNotes}>{hNotes}</Text>
+              </View>
+            );
+          })}
+          </ScrollView>
+
+          <Text style={[styles.sectionTitle, {marginTop: ms(10), marginBottom: ms(12)}]}>{t('notes')}</Text>
+          <Text style={styles.notesText}>{notes}</Text>
+        </View>
+        </ScrollView>
+      </View>
+
+      <AddTaskModal
+        visible={isAddTaskOpen}
+        onClose={() => setIsAddTaskOpen(false)}
+        ownerId={taskOwnerId}
+        initialValues={addTaskValues}
+      />
+
+      {/* Update Lead Status sheet -- Java update_lead_status.xml (gradient_addtask header, spinner pill,
+          100dp notes pill, rounded_button_new Update, red Cancel) */}
       <Modal
         visible={statusModalVisible}
         transparent={true}
@@ -721,62 +827,31 @@ const LeadDetailsScreen = ({
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Update Lead Status</Text>
-              <TouchableOpacity onPress={() => setStatusModalVisible(false)}>
-                <Text style={styles.modalCloseText}>✕</Text>
-              </TouchableOpacity>
+              <Text style={styles.modalTitle}>{t('update_lead_status')}</Text>
+              <Pressable onPress={() => setStatusModalVisible(false)} hitSlop={12}>
+                <Ionicons name="close" size={ms(30)} color="#fff" />
+              </Pressable>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.inputLabel}>Select Lead Status</Text>
-              <View style={styles.pickerContainer}>
-                <ScrollView style={styles.statusOptionsList} nestedScrollEnabled={true}>
-                  {statusOptions.map((item, index) => {
-                    const sId = getNumberValue(item, [
-                      'Id',
-                      'id',
-                      'LeadStatusId',
-                      'leadStatusId',
-                    ]);
-                    const sName = getStringValue(item, [
-                      'LeadStatusName',
-                      'leadStatusName',
-                      'Name',
-                      'name',
-                      'statusName',
-                      'StatusName',
-                    ]);
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalBody}>
+              <OutlinedSelect
+                style={styles.statusPill}
+                label={t('rn_select_lead_status')}
+                value={statusOptions
+                  .map(item => ({
+                    id: getNumberValue(item, ['Id', 'id', 'LeadStatusId', 'leadStatusId']),
+                    name: getStringValue(item, ['LeadStatusName', 'leadStatusName', 'Name', 'name', 'statusName', 'StatusName']),
+                  }))
+                  .find(o => o.id === selectedStatusId)?.name ?? 'Select Lead Status'}
+                chevron
+                onPress={() => setStatusPickerOpen(true)}
+              />
 
-                    return (
-                      <TouchableOpacity
-                        key={sId || index}
-                        style={[
-                          styles.statusOptionItem,
-                          selectedStatusId === sId && styles.statusOptionItemSelected,
-                        ]}
-                        onPress={() => setSelectedStatusId(sId)}
-                      >
-                        <Text
-                          style={[
-                            styles.statusOptionText,
-                            selectedStatusId === sId && styles.statusOptionTextSelected,
-                          ]}
-                        >
-                          {sName || 'Unknown Status'}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              <Text style={styles.inputLabel}>Notes</Text>
-              <TextInput
-                style={styles.notesInput}
-                placeholder="Notes"
-                placeholderTextColor="#999"
+              <OutlinedInput
+                style={styles.notesPill}
+                placeholder={t('notes')}
+                placeholderTextColor={COLORS.lightGray}
                 multiline={true}
-                numberOfLines={4}
                 value={updateNotes}
                 onChangeText={setUpdateNotes}
               />
@@ -784,28 +859,47 @@ const LeadDetailsScreen = ({
               <TouchableOpacity
                 style={[
                   styles.updateBtn,
-                  (!selectedStatusId || isUpdatingStatus) && styles.updateBtnDisabled,
+                  isUpdatingStatus && styles.updateBtnDisabled,
                 ]}
                 onPress={handleStatusUpdate}
-                disabled={!selectedStatusId || isUpdatingStatus}
+                disabled={isUpdatingStatus}
               >
                 {isUpdatingStatus ? (
                   <ActivityIndicator color="#FFF" size="small" />
                 ) : (
-                  <Text style={styles.updateBtnText}>Update</Text>
+                  <>
+                    <View style={styles.updateBtnIcon}>
+                      <EnquiryIcon size={ms(30)} color="#fff" />
+                    </View>
+                    <Text style={styles.updateBtnText}>{t('update')}</Text>
+                  </>
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setStatusModalVisible(false)}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setStatusModalVisible(false)}>
+                <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
+
+      <SearchPickerModal
+        visible={statusPickerOpen}
+        title={t('rn_select_lead_status')}
+        hideSearch
+        options={statusOptions.map((item, index) => ({
+          id: getNumberValue(item, ['Id', 'id', 'LeadStatusId', 'leadStatusId']) || index,
+          label:
+            getStringValue(item, ['LeadStatusName', 'leadStatusName', 'Name', 'name', 'statusName', 'StatusName']) ||
+            'Unknown Status',
+        }))}
+        onSelect={o => {
+          setSelectedStatusId(o.id);
+          setStatusPickerOpen(false);
+        }}
+        onClose={() => setStatusPickerOpen(false)}
+      />
     </View>
   );
 };
@@ -822,31 +916,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: ms(12),
     color: '#666',
-    fontSize: 14,
+    fontSize: sp(14),
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: ms(16),
     paddingTop: Platform.OS === 'ios' ? 48 : 12,
-    paddingBottom: 12,
+    paddingBottom: ms(12),
   },
   backButton: {
-    padding: 8,
+    padding: ms(8),
   },
   backButtonText: {
     color: '#FFFFFF',
-    fontSize: 24,
+    fontSize: sp(24),
     fontWeight: 'bold',
   },
   headerTitle: {
     flex: 1,
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: sp(20),
     fontWeight: '700',
-    marginLeft: 8,
+    marginLeft: ms(8),
   },
   headerIcons: {
     flexDirection: 'row',
@@ -854,19 +948,25 @@ const styles = StyleSheet.create({
   },
   headerIcon: {
     color: '#FFFFFF',
-    fontSize: 22,
-    marginLeft: 16,
+    fontSize: sp(22),
+    marginLeft: ms(16),
   },
   content: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    marginTop: ms(11),
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
   },
   contentInner: {
-    paddingBottom: 100,
+    paddingBottom: ms(100),
   },
   mapMock: {
-    height: 200,
+    height: ms(200),
     backgroundColor: '#E5E7EB',
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    overflow: 'hidden',
   },
   mapImage: {
     width: '100%',
@@ -878,87 +978,85 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   mapPlaceholderText: {
-    color: '#9CA3AF',
-    fontSize: 14,
+    color: COLORS.lightGray,
+    fontSize: sp(14),
     fontWeight: '600',
   },
   infoCard: {
-    backgroundColor: '#FFFFFF',
-    marginTop: -20,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    minHeight: '100%',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: ms(20),
   },
   statusRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginTop: ms(20),
+    marginBottom: ms(10),
   },
   statusLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontSize: sp(14),
+    fontWeight: '700',
   },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   updateStatusBtn: {
-    backgroundColor: '#374151',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 12,
+    backgroundColor: COLORS.statusOnHold,
+    height: ms(25),
+    paddingHorizontal: ms(10),
+    borderRadius: ms(34),
+    marginRight: ms(10),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   updateStatusBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    color: COLORS.white,
+    fontSize: sp(11.4),
   },
   iconBtn: {
-    marginLeft: 16,
+    marginLeft: ms(20),
   },
-  iconText: {
-    fontSize: 18,
-  },
-  section: {
-    marginBottom: 24,
+  phoneIcon: {
+    width: ms(24),
+    height: ms(24),
+    resizeMode: 'contain',
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 12,
+    fontSize: sp(13.3),
+    fontWeight: '700',
+    color: COLORS.ink,
+  },
+  details: {
+    marginTop: ms(12),
+    marginBottom: ms(10),
   },
   fieldRow: {
     flexDirection: 'row',
-    marginBottom: 8,
+    marginTop: ms(4),
   },
   fieldLabel: {
-    flex: 1,
-    fontSize: 14,
-    color: '#4B5563',
-    fontWeight: '600',
+    flex: 0.4,
+    fontSize: sp(14.2),
+    color: COLORS.ink,
   },
   fieldValue: {
-    flex: 1.2,
-    fontSize: 14,
-    color: '#374151',
-    fontWeight: '500',
+    flex: 0.6,
+    fontSize: sp(14.2),
+    color: COLORS.lightGray,
   },
   photoRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: ms(20),
+    marginTop: ms(20),
+    marginBottom: ms(20),
   },
   photoSlot: {
-    flex: 1,
-    aspectRatio: 1.5,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
+    height: ms(100),
+    backgroundColor: COLORS.white,
+    borderWidth: ms(1),
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(15),
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -967,137 +1065,117 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  photoPlaceholder: {
-    fontSize: 32,
-    color: '#E5E7EB',
-  },
   historyItem: {
-    marginTop: 4,
+    marginTop: ms(3),
+    marginHorizontal: ms(5),
   },
   historyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'center',
   },
   historyIndex: {
-    fontSize: 13,
+    fontSize: sp(12.3),
     fontWeight: '700',
-    color: '#6B7280',
   },
   historyDate: {
-    fontSize: 12,
-    color: '#9CA3AF',
+    fontSize: sp(11.4),
   },
   historyNotes: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginLeft: 14,
+    fontSize: sp(12.3),
+    color: COLORS.lightGray,
   },
   notesText: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
+    fontSize: sp(14.2),
+    color: COLORS.lightGray,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
-    maxHeight: '80%',
+    width: '100%',
+    maxWidth: ms(560),
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
+    overflow: 'hidden',
+    maxHeight: '90%',
   },
+  // gradient_addtask header: #353935, 20dp corners, 60dp tall, 22sp white title
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    backgroundColor: COLORS.statusOnHold,
+    height: ms(60),
+    paddingHorizontal: ms(20),
+    borderRadius: ms(20),
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  modalCloseText: {
-    fontSize: 20,
-    color: '#6B7280',
-    fontWeight: '600',
-    padding: 4,
+    fontSize: sp(21),
+    color: '#FFFFFF',
   },
   modalBody: {
-    gap: 12,
+    paddingHorizontal: ms(20),
+    paddingTop: ms(20),
+    paddingBottom: ms(10),
   },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4B5563',
-    marginBottom: 4,
-  },
-  pickerContainer: {
+  // Java bg_spinner / TextInputLayoutStyle: outlined pill, light-gray stroke
+  statusPill: {
+    height: ms(40),
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    maxHeight: 200,
-    overflow: 'hidden',
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    marginBottom: ms(16),
+    justifyContent: 'center',
+    backgroundColor: '#fff',
   },
-  statusOptionsList: {
-    width: '100%',
-  },
-  statusOptionItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  statusOptionItemSelected: {
-    backgroundColor: '#F3F4F6',
-  },
-  statusOptionText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  statusOptionTextSelected: {
-    fontWeight: '700',
-    color: THEME_PRIMARY,
-  },
-  notesInput: {
+  notesPill: {
+    height: ms(100),
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    color: '#374151',
-    minHeight: 100,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    paddingHorizontal: ms(18),
+    paddingTop: ms(14),
+    fontSize: sp(15),
+    color: COLORS.ink,
     textAlignVertical: 'top',
+    marginBottom: ms(16),
+    backgroundColor: '#fff',
   },
   updateBtn: {
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    paddingVertical: 14,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    justifyContent: 'center',
+    height: ms(52),
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(34),
+    marginTop: ms(10),
+    marginBottom: ms(20),
+    elevation: 4,
+  },
+  updateBtnIcon: {
+    position: 'absolute',
+    left: ms(15),
   },
   updateBtnDisabled: {
     opacity: 0.6,
   },
   updateBtnText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: sp(17),
   },
   cancelBtn: {
-    paddingVertical: 12,
     alignItems: 'center',
+    marginBottom: ms(20),
   },
   cancelBtnText: {
-    color: '#DC2626',
-    fontSize: 14,
-    fontWeight: '600',
+    color: COLORS.primary,
+    fontSize: sp(17),
   },
 });
 

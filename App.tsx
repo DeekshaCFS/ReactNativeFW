@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react';
+import { AppState, Keyboard, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import RootNavigator from './src/navigation/RootNavigator';
+import AppContainer from './src/components/AppContainer';
+import ToastHost from './src/components/ToastHost';
+import ImageSourceHost from './src/components/ImageSourceHost';
+import { loadStoredLanguage } from './src/i18n';
+import { TourProvider } from './src/tour/TourContext';
+import SpotlightOverlay from './src/tour/SpotlightOverlay';
 import 'react-native-gesture-handler';
 
 export default function App() {
+  const [languageReady, setLanguageReady] = useState(false);
+
   useEffect(() => {
     const handler = (error: any) => {
       console.log('UNHANDLED REJECTION:', error?.reason?.message, error?.reason?.stack);
@@ -11,9 +20,45 @@ export default function App() {
     // @ts-ignore
     global.onunhandledrejection = handler;
   }, []);
+
+  // Camera, gallery and file pickers move the app out of the foreground; drop the
+  // keyboard then so it doesn't come back (or stay open) when the user returns.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state !== 'active') Keyboard.dismiss();
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    loadStoredLanguage().finally(() => setLanguageReady(true));
+  }, []);
+
+  if (!languageReady) {
+    return null;
+  }
+
   return (
-    <NavigationContainer>
-      <RootNavigator />
-    </NavigationContainer>
+    // SpotlightOverlay is a sibling of AppContainer, not nested inside it,
+    // so its absolute positioning lines up with the window coordinates
+    // TourTarget's measureInWindow reports (AppContainer's tablet column is
+    // narrower than the window and would otherwise offset the math).
+    <TourProvider>
+      <View style={styles.root}>
+        <AppContainer>
+          <NavigationContainer>
+            <RootNavigator />
+          </NavigationContainer>
+        </AppContainer>
+        <SpotlightOverlay />
+        {/* Java-style success / failure banner (CommonFunction.showSuccessMsg / showFailureMsg). */}
+        <ImageSourceHost />
+        <ToastHost />
+      </View>
+    </TourProvider>
   );
 }
+
+const styles = {
+  root: {flex: 1} as const,
+};

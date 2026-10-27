@@ -1,13 +1,14 @@
 // src/screens/admin/EmployeeManagementScreen.tsx
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
+import {ms, sp} from '../../utils/responsive';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
   Linking,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import {
   type EmployeeListItem,
   type EmployeeListResponse,
@@ -26,9 +28,23 @@ import {
   type LeaveListResponse,
 } from './adminLegacyApiTypes';
 import { getAllDesignation } from '../../api/umDesignations/umDesignationsService';
-import { getAllEmpList } from '../../api/umEmployeeList/umEmployeeListService';
+import { getAllEmpList, getEmpDetailsForEdit } from '../../api/umEmployeeList/umEmployeeListService';
+import { WhatsappIcon, DeleteIcon } from '../../components/FabIcons';
 import { getAllEmployeeLeaveList } from '../../api/leaveManagement/leaveManagementService';
+import LeaveApprovalModal from './LeaveApprovalModal';
+import { deleteEmpAccount, downloadTechList } from '../../api/users/usersService';
+import { ensureSuccess } from '../../utils/apiResponse';
+import EditEmployeeModal from './EditEmployeeModal';
+import EmployeeAttendanceModal from './EmployeeAttendanceModal';
+import TechnicianLiveMapScreen from './TechnicianLiveMapScreen';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { COLORS } from '../../theme/theme';
+import TabStrip from '../../components/TabStrip';
+import SearchPickerModal from '../../components/SearchPickerModal';
+import { showFailureMsg, showToast } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
+import {tr, trf} from '../../i18n/tr';
 type EmployeeManagementScreenProps = {
   ownerId: number;
   // Non-zero only when mounted under the shared AppHeader (the Employee tab
@@ -36,6 +52,12 @@ type EmployeeManagementScreenProps = {
   // Settings this screen already sits under a native stack header, which
   // reserves its own space, so the default (0) is correct there.
   contentTopOffset?: number;
+  // "+ Emp" (Java: EmployeeListFragment plus_tech -> AddBulkTechFragment).
+  onAddEmployee?: () => void;
+  // Reports the active sub-tab back to AdminTabs so its shared header can
+  // show "Attendance" while on Leave (matching Java's toolbar title) and
+  // "Employee List" otherwise.
+  onActiveTabChange?: (tab: EmployeeTab) => void;
 };
 
 type EmployeeTab = 'employee' | 'leave';
@@ -50,7 +72,7 @@ type LeaveFilterKind = 'leaveStatus' | 'leaveMonth';
 
 const PAGE_START = 1;
 const THEME_PRIMARY = '#c3002f';
-const DEFAULT_PROFILE_ICON = require('../../../assets/images/image.png');
+const DEFAULT_PROFILE_ICON = require('../../../assets/images/profile_icon.png');
 const MONTH_LABELS = [
   'Jan',
   'Feb',
@@ -65,11 +87,13 @@ const MONTH_LABELS = [
   'Nov',
   'Dec',
 ];
+// Java: EmployeeLeaveList's spinStatus dialog -- Pending=1, Approved=2,
+// Declined=3 (id 0 is reserved for "no filter", the button's idle state,
+// not a selectable option in the list).
 const LEAVE_STATUS_OPTIONS: FilterOption[] = [
-  {id: 0, label: 'Approved'},
-  {id: 1, label: 'Pending'},
   {id: 2, label: 'Approved'},
   {id: 3, label: 'Declined'},
+  {id: 1, label: 'Pending'},
 ];
 
 const getResultData = <T,>(response: {
@@ -106,7 +130,20 @@ const getEmployeeName = (item: EmployeeListItem) =>
 
 const getFieldOrNA = (value: string | null | undefined) => {
   const trimmed = String(value ?? '').trim();
-  return trimmed || 'NA';
+  // Java also treats the literal string "null" as missing.
+  return trimmed && trimmed.toLowerCase() !== 'null' ? trimmed : 'NA';
+};
+
+// Java: Picasso placeholder + onError both fall back to R.drawable.profile_icon.
+const EmployeeAvatar = ({uri}: {uri?: string | null}) => {
+  const [failed, setFailed] = useState(false);
+  return (
+    <Image
+      source={uri && !failed ? {uri} : DEFAULT_PROFILE_ICON}
+      style={styles.avatar}
+      onError={() => setFailed(true)}
+    />
+  );
 };
 
 const getBatteryLabel = (value: number | null | undefined) => {
@@ -172,10 +209,24 @@ const getLeaveEmployeeName = (item: LeaveListItem) =>
 const EmployeeManagementScreen = ({
   ownerId,
   contentTopOffset = 0,
+  onAddEmployee,
+  onActiveTabChange,
 }: EmployeeManagementScreenProps) => {
+  const {t} = useTranslation();
   const [activeTab, setActiveTab] = useState<EmployeeTab>('employee');
+
+  // `onActiveTabChange` is intentionally excluded from the deps: AdminTabs
+  // passes a fresh closure on every render (it calls navigation.setParams,
+  // which itself triggers a re-render), so depending on it here caused an
+  // infinite update loop. Only react to activeTab actually changing.
+  useEffect(() => {
+    onActiveTabChange?.(activeTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
   const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
   const [leaves, setLeaves] = useState<LeaveListItem[]>([]);
+  // EmpAdminLeaveListAdapter.onClick -> LeaveApproveRejectFragmnt.
+  const [selectedLeave, setSelectedLeave] = useState<LeaveListItem | null>(null);
   const [employeeTypes, setEmployeeTypes] = useState<FilterOption[]>([]);
   const [zones, setZones] = useState<FilterOption[]>([]);
   const [statuses, setStatuses] = useState<FilterOption[]>([]);
@@ -187,16 +238,20 @@ const EmployeeManagementScreen = ({
   });
   const [selectedZone, setSelectedZone] = useState<FilterOption>({
     id: 0,
-    label: 'Select Zone',
+    label: t('select_zone'),
   });
   const [selectedStatus, setSelectedStatus] = useState<FilterOption>({
     id: 0,
-    label: 'Status',
+    label: t('status'),
   });
   const [leaveSearchText, setLeaveSearchText] = useState('');
   const [submittedLeaveSearch, setSubmittedLeaveSearch] = useState('');
+  // Java's spinStatus starts on the neutral "Status" label with leaveStatusId
+  // 0 (no filter, shows every status) until the user picks one of the three
+  // real options above -- LEAVE_STATUS_OPTIONS[0] was "Approved", which both
+  // mislabeled the idle state and silently filtered every first load.
   const [selectedLeaveStatus, setSelectedLeaveStatus] = useState<FilterOption>(
-    LEAVE_STATUS_OPTIONS[0],
+    {id: 0, label: t('status')},
   );
   const [leaveMonthYear, setLeaveMonthYear] = useState(getDefaultMonthYear);
   const [pendingLeaveMonth, setPendingLeaveMonth] = useState(
@@ -221,7 +276,20 @@ const EmployeeManagementScreen = ({
   const [leaveFilterModal, setLeaveFilterModal] = useState<LeaveFilterKind | null>(
     null,
   );
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeListItem | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeListItem | null>(
+    null,
+  );
+  // Java fetches the employee (GetEmpDetailsForEdit) before showing the details dialog; the
+  // mobile number and address come from that response, not from the list row.
+  const [selectedEmployeeExtra, setSelectedEmployeeExtra] = useState<{
+    contact: string;
+    address: string;
+  } | null>(null);
+  const [attendanceEmployee, setAttendanceEmployee] = useState<EmployeeListItem | null>(
+    null,
+  );
+  const [trackingEmployee, setTrackingEmployee] = useState<EmployeeListItem | null>(
     null,
   );
   const latestRequestId = useRef(0);
@@ -230,23 +298,23 @@ const EmployeeManagementScreen = ({
   const modalConfig = useMemo(() => {
     if (filterModal === 'type') {
       return {
-        title: 'Select Emp Type',
-        options: [{id: 0, label: 'Select Emp Type'}, ...employeeTypes],
+        title: t('select_emp_type'),
+        options: employeeTypes,
         selectedId: selectedType.id,
       };
     }
 
     if (filterModal === 'zone') {
       return {
-        title: 'Select Zone',
-        options: [{id: 0, label: 'Select Zone'}, ...zones],
+        title: t('select_zone'),
+        options: zones,
         selectedId: selectedZone.id,
       };
     }
 
     return {
-      title: 'Status',
-      options: [{id: 0, label: 'Status'}, ...statuses],
+      title: t('status'),
+      options: statuses,
       selectedId: selectedStatus.id,
     };
   }, [
@@ -481,22 +549,28 @@ const EmployeeManagementScreen = ({
     loadLookup();
   }, [loadLookup]);
 
-  useEffect(() => {
-    fetchEmployeePage({nextPage: PAGE_START, replace: true});
-  }, [fetchEmployeePage]);
+  // Same refresh logic as the technician tabs: reload whenever the Employee tab gains focus
+  // (and when a filter changes while it is focused).
+  useFocusEffect(
+    useCallback(() => {
+      fetchEmployeePage({nextPage: PAGE_START, replace: true});
+    }, [fetchEmployeePage]),
+  );
 
-  useEffect(() => {
-    if (activeTab === 'leave') {
-      fetchLeavePage({nextPage: PAGE_START, replace: true});
-    }
-  }, [activeTab, fetchLeavePage]);
+  useFocusEffect(
+    useCallback(() => {
+      if (activeTab === 'leave') {
+        fetchLeavePage({nextPage: PAGE_START, replace: true});
+      }
+    }, [activeTab, fetchLeavePage]),
+  );
 
   const refreshList = () => {
     setSearchText('');
     setSubmittedSearch('');
     setSelectedType({id: 0, label: 'Select Emp Type'});
-    setSelectedZone({id: 0, label: 'Select Zone'});
-    setSelectedStatus({id: 0, label: 'Status'});
+    setSelectedZone({id: 0, label: t('select_zone')});
+    setSelectedStatus({id: 0, label: t('status')});
     fetchEmployeePage({
       nextPage: PAGE_START,
       replace: true,
@@ -506,6 +580,26 @@ const EmployeeManagementScreen = ({
       status: 0,
     });
   };
+
+  // Re-tapping the Employee tab while already on it refreshes the screen (clears the
+  // filters and reloads), like the technician tabs. Only fires when mounted as a tab.
+  const employeeNavigation = useNavigation();
+  const refreshOnTabPressRef = useRef(() => {});
+  refreshOnTabPressRef.current = () => {
+    if (activeTab === 'leave') {
+      fetchLeavePage({nextPage: PAGE_START, replace: true, refreshing: true});
+    } else {
+      refreshList();
+    }
+  };
+  useEffect(() => {
+    const unsubscribe = (employeeNavigation as any).addListener('tabPress', () => {
+      if (employeeNavigation.isFocused()) {
+        refreshOnTabPressRef.current();
+      }
+    });
+    return unsubscribe;
+  }, [employeeNavigation]);
 
   const submitSearch = () => {
     setSubmittedSearch(searchText.trim());
@@ -536,43 +630,103 @@ const EmployeeManagementScreen = ({
     setLeaveFilterModal(null);
   };
 
+  useEffect(() => {
+    setSelectedEmployeeExtra(null);
+    const employeeId = selectedEmployee?.EmployeeNumber;
+    if (!employeeId) {
+      return;
+    }
+    let active = true;
+    getEmpDetailsForEdit({UserId: ownerId, EmployeeId: employeeId})
+      .then(response => {
+        if (!active) {
+          return;
+        }
+        const resultData = (response as {ResultData?: unknown} | null)?.ResultData;
+        const data = (Array.isArray(resultData) ? resultData[0] : resultData) as
+          | Record<string, unknown>
+          | undefined;
+        setSelectedEmployeeExtra({
+          contact: String(data?.ContactNo ?? ''),
+          address: String(data?.EmpAddress ?? ''),
+        });
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [selectedEmployee, ownerId]);
+
   const handleCallEmployee = (item: EmployeeListItem) => {
     const mobile = String(item.ContactM ?? '').trim();
     if (!mobile) {
-      Alert.alert('Employee Details', 'Mobile number is not available.');
+      showToast(t('rn_mobile_number_is_not_available'));
       return;
     }
     Linking.openURL(`tel:${mobile}`).catch(() => {
-      Alert.alert('Employee Details', 'Unable to place the call.');
+      showToast(t('rn_unable_to_place_the_call'));
     });
   };
 
   const handleWhatsAppEmployee = (item: EmployeeListItem) => {
     const mobile = String(item.ContactM ?? '').trim();
     if (!mobile) {
-      Alert.alert('Employee Details', 'Mobile number is not available.');
+      showToast(t('rn_mobile_number_is_not_available'));
       return;
     }
     Linking.openURL(`https://wa.me/${mobile}`).catch(() => {
-      Alert.alert('Employee Details', 'Unable to open WhatsApp.');
+      showToast(t('rn_unable_to_open_whatsapp_2'));
     });
   };
 
-  const handleEditEmployee = (_item: EmployeeListItem) => {
-    Alert.alert('Employee Details', 'Edit is not available right now.');
+  const handleEditEmployee = (item: EmployeeListItem) => {
+    if (!item.EmployeeNumber) {
+      showToast(t('rn_employee_id_is_not_available'));
+      return;
+    }
+    setEditingEmployee(item);
+  };
+
+  // EmployeeListFragment.getDownloadTechList: the server builds the file and
+  // returns its URL in ResultData.TechFilePath.
+  const handleDownloadEmployees = async () => {
+    try {
+      const response = await downloadTechList({OwnerId: ownerId});
+      const url = String(response?.ResultData?.TechFilePath ?? '');
+      if (response?.Code === '200' && url) {
+        await Linking.openURL(url);
+      } else {
+        showFailureMsg(response?.Message || 'Unable to download the employee list.');
+      }
+    } catch (error) {
+      showFailureMsg(error instanceof Error ? error.message : tr('Unable to download the employee list.'));
+    }
   };
 
   const handleDeleteEmployee = (item: EmployeeListItem) => {
+    // delete_tech_account.xml wording.
     Alert.alert(
-      'Delete Employee',
-      `Are you sure you want to delete ${getEmployeeName(item)}?`,
+      `${t('delete_tech_acc_desc')} ${getEmployeeName(item)}`,
+      t('delete_tech_acc_desc_one'),
       [
-        {text: 'Cancel', style: 'cancel'},
+        {text: tr('Nope. Not Now'), style: 'cancel'},
         {
-          text: 'Delete',
+          text: tr('Yes. Delete'),
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Employee Details', 'Delete is not available right now.');
+          onPress: async () => {
+            try {
+              // Java (EmployeeListFragment.DeleteEmpAccount): a list of
+              // { UserId: <logged-in owner>, Id: <employee to delete> }.
+              ensureSuccess(
+                await deleteEmpAccount([
+                  {UserId: ownerId, Id: item.EmployeeNumber ?? 0},
+                ] as unknown as Parameters<typeof deleteEmpAccount>[0]),
+              );
+              setSelectedEmployee(null);
+              refreshList();
+            } catch (error) {
+              showFailureMsg(error instanceof Error ? error.message : tr('Unable to delete employee.'));
+            }
           },
         },
       ],
@@ -585,24 +739,39 @@ const EmployeeManagementScreen = ({
     const attendance = String(item.AttendenceTypeName ?? 'Absent').trim();
     const attendanceLower = attendance.toLowerCase();
     const isPresent = attendanceLower === 'present';
-    const role = String(item.UserGroupName ?? 'Employee').trim();
-    const designation = String(item.DesignationName ?? 'NA').trim();
-    const zone = String(item.ZoneName ?? 'NA').trim();
+    // Java hides each of these when the value is NA or missing.
+    const clean = (v: unknown) => {
+      const t = String(v ?? '').trim();
+      return t && t !== 'NA' ? t : '';
+    };
+    const role = clean(item.UserGroupName);
+    const designation = clean(item.DesignationName);
+    const zone = clean(item.ZoneName);
+    const batteryValue = Number(battery ?? 0);
+    const batteryColor =
+      batteryValue >= 51
+        ? COLORS.success
+        : batteryValue >= 21
+        ? COLORS.statusOngoing
+        : COLORS.primary;
+    const pillColor = isPresent
+      ? COLORS.success
+      : attendanceLower === 'absent'
+      ? COLORS.statusRejected
+      : attendanceLower === 'idle'
+      ? COLORS.statusOngoing
+      : attendanceLower === 'on leave' || attendanceLower === 'onleave'
+      ? COLORS.attLeave
+      : COLORS.darkGray;
 
     return (
       <Pressable
         style={styles.employeeCard}
         onPress={() => setSelectedEmployee(item)}>
         <View style={styles.avatarColumn}>
-          <Image
-            source={item.ProfileImage ? {uri: item.ProfileImage} : DEFAULT_PROFILE_ICON}
-            style={styles.avatar}
-          />
+          <EmployeeAvatar uri={item.ProfileImage} />
           <View
-            style={[
-              styles.attendancePill,
-              isPresent ? styles.attendancePresent : null,
-            ]}>
+            style={[styles.attendancePill, {backgroundColor: pillColor}]}>
             <Text style={styles.attendanceText}>{attendance}</Text>
           </View>
         </View>
@@ -612,39 +781,59 @@ const EmployeeManagementScreen = ({
             {getEmployeeName(item)}
           </Text>
           <View style={styles.metricRow}>
-            <Text style={styles.metricLabel}>Battery</Text>
+            <Text style={styles.metricLabel}>{t('rn_battery')}</Text>
             <Text
               style={[
                 styles.metricValue,
-                Number(battery ?? 0) <= 0 ? styles.metricValueDanger : null,
+                {color: batteryColor},
               ]}>
               {getBatteryLabel(battery)}
             </Text>
           </View>
           <View style={styles.metricRow}>
-            <Text style={styles.metricLabel}>GPS</Text>
-            <Text style={[styles.metricValue, gpsOn ? null : styles.metricValueDanger]}>
-              {gpsOn ? 'On' : 'Off'}
+            <Text style={styles.metricLabel}>{t('rn_gps')}</Text>
+            <Text style={[styles.metricValue, {color: gpsOn ? COLORS.success : COLORS.primary}]}>
+              {gpsOn ? 'On' : tr('Off')}
             </Text>
           </View>
         </View>
 
         <View style={styles.employeeSide}>
-          <View style={styles.roleRibbon}>
-            <Text numberOfLines={1} style={styles.roleRibbonText}>
-              {role.toUpperCase()}
+          {role ? (
+            <View style={styles.roleRibbon}>
+              <Text numberOfLines={1} style={styles.roleRibbonText}>
+                {role.toUpperCase()}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.roleRibbonSpacer} />
+          )}
+          {designation ? (
+            <Text numberOfLines={1} style={styles.sideText}>
+              {designation}
             </Text>
-          </View>
-          <Text numberOfLines={1} style={styles.sideText}>
-            {designation}
-          </Text>
-          <Text numberOfLines={1} style={styles.sideText}>
-            {zone}
-          </Text>
+          ) : null}
+          {zone ? (
+            <Text numberOfLines={1} style={styles.sideText}>
+              {zone}
+            </Text>
+          ) : null}
           <View style={styles.trackRow}>
-            <Text style={styles.calendarIcon}>▣</Text>
-            <Pressable style={styles.trackButton}>
-              <Text style={styles.trackButtonText}>Track</Text>
+            <Pressable
+              hitSlop={8}
+              onPress={() => setAttendanceEmployee(item)}>
+              <Ionicons name="calendar-outline" style={styles.calendarIcon} />
+            </Pressable>
+            <Pressable
+              style={styles.trackButton}
+              onPress={() => {
+                if (attendanceLower === 'absent') {
+                  showToast(t('technician_status'));
+                  return;
+                }
+                setTrackingEmployee(item);
+              }}>
+              <Text style={styles.trackButtonText}>{t('track')}</Text>
             </Pressable>
           </View>
         </View>
@@ -657,27 +846,37 @@ const EmployeeManagementScreen = ({
       return null;
     }
 
+    if (errorMessage) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>!</Text>
+          <Text style={styles.emptyTitle}>{t('rn_unable_to_load_employees')}</Text>
+          <Text style={styles.emptyText}>{errorMessage}</Text>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>!</Text>
-        <Text style={styles.emptyTitle}>
-          {errorMessage ? 'Unable to Load Employees' : 'No Result Found'}
-        </Text>
-        <Text style={styles.emptyText}>
-          {errorMessage || 'Try another search or refresh the list.'}
-        </Text>
+        <Image
+          source={require('../../../assets/images/noresultfound.png')}
+          style={styles.emptyImage}
+          resizeMode="contain"
+        />
       </View>
     );
   };
 
   const renderLeave = ({item}: {item: LeaveListItem}) => {
-    const status = String(item.LeaveStatusName ?? 'Pending').trim();
+    // Java: EmpAdminLeaveListAdapter derives both the label and color from
+    // LeaveStatusId (1/2/3), not the raw LeaveStatusName string -- that
+    // string's actual API value doesn't reliably say "Declined" (it can come
+    // back as "Rejected"), so matching on it silently missed the red case.
+    const statusId = Number(item.LeaveStatusId) || 0;
+    const status =
+      statusId === 2 ? 'Approved' : statusId === 3 ? 'Declined' : 'Pending';
     const statusColor =
-      status.toLowerCase() === 'approved'
-        ? '#00C900'
-        : status.toLowerCase() === 'declined'
-          ? THEME_PRIMARY
-          : '#0000FF';
+      statusId === 2 ? '#00C900' : statusId === 3 ? COLORS.primary : '#0000FF';
     const leaveType = String(item.LeaveType ?? 'Full Day').trim();
     const isHalfDay = leaveType.toLowerCase().includes('half');
     const employeeName = getLeaveEmployeeName(item);
@@ -686,7 +885,7 @@ const EmployeeManagementScreen = ({
     const endDate = formatDate(item.LeaveEndDate);
 
     return (
-      <View style={styles.leaveCard}>
+      <Pressable style={styles.leaveCard} onPress={() => setSelectedLeave(item)}>
         <View
           style={[
             styles.leaveTypeRibbon,
@@ -714,13 +913,13 @@ const EmployeeManagementScreen = ({
 
         <View style={styles.leaveDetailRow}>
           <View style={styles.leaveDateGroup}>
-            <Text style={styles.leaveLabel}>Leave Date :</Text>
+            <Text style={styles.leaveLabel}>{t('rn_leave_date')}</Text>
             <Text numberOfLines={1} style={styles.leaveValue}>
               {startDate} - {endDate}
             </Text>
           </View>
           <View style={styles.leaveStatusGroup}>
-            <Text style={styles.leaveStatusLabel}>Status :</Text>
+            <Text style={styles.leaveStatusLabel}>{t('status_title')}</Text>
             <Text style={[styles.leaveStatusValue, {color: statusColor}]}>
               {status}
             </Text>
@@ -728,12 +927,12 @@ const EmployeeManagementScreen = ({
         </View>
 
         <View style={styles.leaveReasonRow}>
-          <Text style={styles.leaveLabel}>Leave Reason :</Text>
+          <Text style={styles.leaveLabel}>{t('rn_leave_reason')}</Text>
           <Text numberOfLines={1} style={styles.leaveReasonValue}>
             {String(item.ReasonOfLeave ?? '').trim() || 'NA'}
           </Text>
         </View>
-      </View>
+      </Pressable>
     );
   };
 
@@ -742,15 +941,23 @@ const EmployeeManagementScreen = ({
       return null;
     }
 
+    if (leaveErrorMessage) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>!</Text>
+          <Text style={styles.emptyTitle}>{t('rn_unable_to_load_leave_requests')}</Text>
+          <Text style={styles.emptyText}>{leaveErrorMessage}</Text>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>!</Text>
-        <Text style={styles.emptyTitle}>
-          {leaveErrorMessage ? 'Unable to Load Leave Requests' : 'No Result Found'}
-        </Text>
-        <Text style={styles.emptyText}>
-          {leaveErrorMessage || 'Try another search, status, or month.'}
-        </Text>
+        <Image
+          source={require('../../../assets/images/noresultfound.png')}
+          style={styles.emptyImage}
+          resizeMode="contain"
+        />
       </View>
     );
   };
@@ -760,14 +967,14 @@ const EmployeeManagementScreen = ({
       <View style={styles.actionArea}>
         <View style={styles.searchRow}>
           <View style={styles.searchBox}>
-            <Text style={styles.searchIcon}>⌕</Text>
+            <Ionicons name="search" style={styles.searchIcon} />
             <TextInput
               value={searchText}
               onChangeText={setSearchText}
               onSubmitEditing={submitSearch}
               returnKeyType="search"
-              placeholder="Search"
-              placeholderTextColor="#A3A3A3"
+              placeholder={t('rn_search')}
+              placeholderTextColor={COLORS.lightGray}
               style={styles.searchInput}
             />
             {searchText ? (
@@ -777,42 +984,42 @@ const EmployeeManagementScreen = ({
                   setSearchText('');
                   setSubmittedSearch('');
                 }}>
-                <Text style={styles.clearText}>×</Text>
+                <Ionicons name="close" style={styles.clearText} />
               </Pressable>
             ) : null}
           </View>
-          <Pressable style={styles.addButton}>
-            <Text style={styles.addButtonText}>+ Emp</Text>
+          <Pressable style={styles.addButton} onPress={onAddEmployee}>
+            <Text style={styles.addButtonText}>{t('plus_emp')}</Text>
           </Pressable>
-          <Pressable style={styles.downloadButton} onPress={refreshList}>
-            <Text style={styles.downloadIcon}>⇩</Text>
+          <Pressable onPress={handleDownloadEmployees}>
+            <Ionicons name="download-outline" size={25} style={{ color: COLORS.primary }} />
           </Pressable>
         </View>
 
         <View style={styles.filterRow}>
           <Pressable
-            style={styles.filterButton}
+            style={[styles.filterButton, {flex: 1.3}]}
             onPress={() => setFilterModal('type')}>
             <Text numberOfLines={1} style={styles.filterText}>
-              {selectedType.label}
+              {tr(selectedType.label)}
             </Text>
-            <Text style={styles.filterChevron}>⌄</Text>
+            <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
           <Pressable
-            style={styles.filterButton}
+            style={[styles.filterButton, {flex: 1}]}
             onPress={() => setFilterModal('zone')}>
             <Text numberOfLines={1} style={styles.filterText}>
-              {selectedZone.label}
+              {tr(selectedZone.label)}
             </Text>
-            <Text style={styles.filterChevron}>⌄</Text>
+            <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
           <Pressable
-            style={styles.filterButton}
+            style={[styles.filterButton, {flex: 0.7}]}
             onPress={() => setFilterModal('status')}>
             <Text numberOfLines={1} style={styles.filterText}>
-              {selectedStatus.label}
+              {tr(selectedStatus.label)}
             </Text>
-            <Text style={styles.filterChevron}>⌄</Text>
+            <Ionicons name="chevron-down" style={styles.filterChevron} />
           </Pressable>
         </View>
       </View>
@@ -820,7 +1027,7 @@ const EmployeeManagementScreen = ({
       {isInitialLoading ? (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading employees...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading_employees')}</Text>
         </View>
       ) : null}
 
@@ -861,37 +1068,18 @@ const EmployeeManagementScreen = ({
     </>
   );
 
-  const renderLeaveTab = () => (
-    <View style={styles.leaveShell}>
-      <View style={styles.searchBox}>
-        <Text style={styles.searchIcon}>⌕</Text>
-        <TextInput
-          editable={false}
-          placeholder="Search"
-          placeholderTextColor="#A3A3A3"
-          style={styles.searchInput}
-        />
-      </View>
-      <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>!</Text>
-        <Text style={styles.emptyTitle}>No Result Found</Text>
-        <Text style={styles.emptyText}>Leave request data is not available.</Text>
-      </View>
-    </View>
-  );
-
   const renderLeaveRequestTab = () => (
     <>
       <View style={styles.leaveToolbar}>
         <View style={styles.leaveSearchBox}>
-          <Text style={styles.searchIcon}>⌕</Text>
+          <Ionicons name="search" style={styles.searchIcon} />
           <TextInput
             value={leaveSearchText}
             onChangeText={setLeaveSearchText}
             onSubmitEditing={submitLeaveSearch}
             returnKeyType="search"
-            placeholder="Search"
-            placeholderTextColor="#A3A3A3"
+            placeholder={t('rn_search')}
+            placeholderTextColor={COLORS.lightGray}
             style={styles.searchInput}
           />
           {leaveSearchText ? (
@@ -901,7 +1089,7 @@ const EmployeeManagementScreen = ({
                 setLeaveSearchText('');
                 setSubmittedLeaveSearch('');
               }}>
-              <Text style={styles.clearText}>×</Text>
+              <Ionicons name="close" style={styles.clearText} />
             </Pressable>
           ) : null}
         </View>
@@ -910,9 +1098,9 @@ const EmployeeManagementScreen = ({
           style={styles.leaveStatusButton}
           onPress={() => setLeaveFilterModal('leaveStatus')}>
           <Text numberOfLines={1} style={styles.leaveFilterText}>
-            {selectedLeaveStatus.label}
+            {tr(selectedLeaveStatus.label)}
           </Text>
-          <Text style={styles.leaveFilterChevron}>⌄</Text>
+          <Ionicons name="chevron-down" style={styles.leaveFilterChevron} />
         </Pressable>
 
         <Pressable
@@ -925,14 +1113,14 @@ const EmployeeManagementScreen = ({
           <Text numberOfLines={1} style={styles.leaveFilterText}>
             {formatMonthYearLabel(leaveMonthYear.month, leaveMonthYear.year)}
           </Text>
-          <Text style={styles.leaveFilterChevron}>⌄</Text>
+          <Ionicons name="chevron-down" style={styles.leaveFilterChevron} />
         </Pressable>
       </View>
 
       {isLeaveInitialLoading ? (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading leave requests...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading_leave_requests')}</Text>
         </View>
       ) : null}
 
@@ -975,75 +1163,48 @@ const EmployeeManagementScreen = ({
 
   return (
     <View style={styles.shell}>
-      {/* The hamburger/title/notification row used to be drawn here; it's
-          now the shared AppHeader rendered once by AdminTabs above the tab
-          bar (this screen is also pushed standalone from Settings, which
-          gets its own native stack header there). The tab row below is
-          offset by the header's height so it doesn't render underneath it. */}
-      <View style={[styles.tabRow, { marginTop: contentTopOffset }]}>
-        <Pressable
-          style={[styles.tabButton, activeTab === 'employee' ? styles.tabActive : null]}
-          onPress={() => setActiveTab('employee')}>
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'employee' ? styles.tabTextActive : null,
-            ]}>
-            EMPLOYEE LIST
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tabButton, activeTab === 'leave' ? styles.tabActive : null]}
-          onPress={() => setActiveTab('leave')}>
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'leave' ? styles.tabTextActive : null,
-            ]}>
-            LEAVE REQUEST
-          </Text>
-        </Pressable>
+      <View style={{ marginTop: contentTopOffset }}>
+        <TabStrip
+          tabs={[
+            { key: 'employee', label: tr('EMPLOYEE LIST') },
+            { key: 'leave', label: tr('LEAVE REQUEST') },
+          ]}
+          active={activeTab}
+          onChange={setActiveTab}
+        />
       </View>
 
       {activeTab === 'employee' ? renderEmployeeTab() : renderLeaveRequestTab()}
 
-      <Modal
+      <LeaveApprovalModal
+        leave={selectedLeave}
+        ownerId={ownerId}
+        onClose={() => setSelectedLeave(null)}
+        onActioned={() => {
+          setSelectedLeave(null);
+          fetchLeavePage({nextPage: PAGE_START, replace: true});
+        }}
+      />
+
+      {/* Java: dialog_searchable_emp_type / _zone / _status -- the shared searchable dialog. */}
+      <SearchPickerModal
         visible={filterModal !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setFilterModal(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setFilterModal(null)}>
-          <Pressable
-            style={[
-              styles.modalPanel,
-              leaveFilterModal === 'leaveMonth' ? styles.monthModalPanel : null,
-            ]}>
-            <Text style={styles.modalTitle}>{modalConfig.title}</Text>
-            {modalConfig.options.map(option => (
-              <TouchableOpacity
-                key={`${filterModal}-${option.id}`}
-                style={[
-                  styles.modalItem,
-                  option.id === modalConfig.selectedId ? styles.modalItemActive : null,
-                ]}
-                onPress={() => selectFilter(option)}>
-                <Text
-                  style={[
-                    styles.modalItemText,
-                    option.id === modalConfig.selectedId
-                      ? styles.modalItemTextActive
-                      : null,
-                  ]}>
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title={modalConfig.title}
+        options={modalConfig.options}
+        onSelect={selectFilter}
+        onClose={() => setFilterModal(null)}
+      />
+
+      <SearchPickerModal
+        visible={leaveFilterModal === 'leaveStatus'}
+        title={t('status')}
+        options={LEAVE_STATUS_OPTIONS}
+        onSelect={selectLeaveStatus}
+        onClose={() => setLeaveFilterModal(null)}
+      />
 
       <Modal
-        visible={leaveFilterModal !== null}
+        visible={leaveFilterModal === 'leaveMonth'}
         transparent
         animationType="fade"
         onRequestClose={() => setLeaveFilterModal(null)}>
@@ -1051,39 +1212,11 @@ const EmployeeManagementScreen = ({
           style={styles.modalBackdrop}
           onPress={() => setLeaveFilterModal(null)}>
           <Pressable style={styles.modalPanel}>
-            {leaveFilterModal === 'leaveStatus' ? (
               <>
-                <Text style={styles.modalTitle}>Select Status</Text>
-                {LEAVE_STATUS_OPTIONS.map((option, index) => (
-                  <TouchableOpacity
-                    key={`${option.id}-${option.label}-${index}`}
-                    style={[
-                      styles.modalItem,
-                      option.id === selectedLeaveStatus.id &&
-                      option.label === selectedLeaveStatus.label
-                        ? styles.modalItemActive
-                        : null,
-                    ]}
-                    onPress={() => selectLeaveStatus(option)}>
-                    <Text
-                      style={[
-                        styles.modalItemText,
-                        option.id === selectedLeaveStatus.id &&
-                        option.label === selectedLeaveStatus.label
-                          ? styles.modalItemTextActive
-                          : null,
-                      ]}>
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </>
-            ) : (
-              <>
-                <Text style={styles.modalTitle}>Select month</Text>
+                <Text style={styles.modalTitle}>{t('rn_select_month_2')}</Text>
                 <View style={styles.monthPickerBody}>
                   <ScrollView style={styles.monthPickerColumn}>
-                    <Text style={styles.monthPickerColumnTitle}>Month</Text>
+                    <Text style={styles.monthPickerColumnTitle}>{t('month')}</Text>
                     {MONTH_LABELS.map((label, index) => {
                       const value = index + 1;
                       const selected = value === pendingLeaveMonth;
@@ -1107,7 +1240,7 @@ const EmployeeManagementScreen = ({
                     })}
                   </ScrollView>
                   <ScrollView style={styles.monthPickerColumn}>
-                    <Text style={styles.monthPickerColumnTitle}>Year</Text>
+                    <Text style={styles.monthPickerColumnTitle}>{t('year')}</Text>
                     {leaveYearOptions.map(value => {
                       const selected = value === pendingLeaveYear;
                       return (
@@ -1134,7 +1267,7 @@ const EmployeeManagementScreen = ({
                   <Pressable
                     style={styles.monthPickerButton}
                     onPress={() => setLeaveFilterModal(null)}>
-                    <Text style={styles.monthPickerButtonText}>Cancel</Text>
+                    <Text style={styles.monthPickerButtonText}>{t('cancel')}</Text>
                   </Pressable>
                   <Pressable
                     style={[styles.monthPickerButton, styles.monthPickerButtonPrimary]}
@@ -1144,12 +1277,11 @@ const EmployeeManagementScreen = ({
                         styles.monthPickerButtonText,
                         styles.monthPickerButtonTextPrimary,
                       ]}>
-                      OK
+                      {t('qr_code_positive_button_know')}
                     </Text>
                   </Pressable>
                 </View>
               </>
-            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -1159,95 +1291,114 @@ const EmployeeManagementScreen = ({
         transparent
         animationType="slide"
         onRequestClose={() => setSelectedEmployee(null)}>
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setSelectedEmployee(null)}>
-          <Pressable style={styles.detailsSheet}>
+        {/* dialog_employee_details.xml: Java sets setCancelable(false), so tapping outside
+            the sheet does not dismiss it -- only Cancel / the action icons do. */}
+        <View style={styles.modalBackdrop}>
+          <View style={styles.detailsSheet}>
             {selectedEmployee ? (
-              <>
+              <ScrollView contentContainerStyle={styles.detailsContent}>
                 <View style={styles.detailsHeaderRow}>
-                  <Text style={styles.detailsTitle}>Employee Details</Text>
+                  <Text style={styles.detailsTitle}>{t('emp_details_title')}</Text>
                   <View style={styles.detailsHeaderIcons}>
                     <Pressable
                       hitSlop={10}
                       onPress={() => handleEditEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Text style={styles.detailsIconText}>✎</Text>
+                      <Image
+                        source={require('../../../assets/images/fw_edit_task_icon.png')}
+                        style={styles.detailsIconImage}
+                      />
                     </Pressable>
                     <Pressable
                       hitSlop={10}
                       onPress={() => handleCallEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Text style={styles.detailsIconText}>☎</Text>
+                      <Image
+                        source={require('../../../assets/images/ic_phone.png')}
+                        style={[styles.detailsIconImage, {tintColor: THEME_PRIMARY}]}
+                      />
                     </Pressable>
                     <Pressable
                       hitSlop={10}
                       onPress={() => handleWhatsAppEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Text style={styles.detailsIconText}>💬</Text>
+                      <WhatsappIcon size={ms(20)} color={THEME_PRIMARY} />
                     </Pressable>
                     <Pressable
                       hitSlop={10}
                       onPress={() => handleDeleteEmployee(selectedEmployee)}
                       style={styles.detailsIconButton}>
-                      <Text style={styles.detailsIconText}>🗑</Text>
+                      <DeleteIcon size={ms(20)} color={THEME_PRIMARY} />
                     </Pressable>
                   </View>
                 </View>
 
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Employee Name</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    {getEmployeeName(selectedEmployee)}
+                  <Text style={styles.detailsLabel}>{t('technician_name')}</Text>
+                  <Text style={styles.detailsValue}>{getEmployeeName(selectedEmployee)}</Text>
+                </View>
+                <View style={styles.detailsFieldRow}>
+                  <Text style={styles.detailsLabel}>{t('mobile_number')}</Text>
+                  <Text style={styles.detailsValue}>
+                    {getFieldOrNA(selectedEmployeeExtra?.contact || selectedEmployee.ContactM)}
                   </Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Mobile Number</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    {getFieldOrNA(selectedEmployee.ContactM)}
-                  </Text>
+                  <Text style={styles.detailsLabel}>{t('rn_employee_type')}</Text>
+                  <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployee.UserGroupName)}</Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Employee Type</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    {getFieldOrNA(selectedEmployee.UserGroupName)}
-                  </Text>
+                  <Text style={styles.detailsLabel}>{t('rn_designation')}</Text>
+                  <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployee.DesignationName)}</Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Designation</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    {getFieldOrNA(selectedEmployee.DesignationName)}
-                  </Text>
+                  <Text style={styles.detailsLabel}>{t('zone')}</Text>
+                  <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployee.ZoneName)}</Text>
                 </View>
+                {/* Java gives the e-mail row a 1 : 2 weight split with the value centred. */}
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Zone</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    {getFieldOrNA(selectedEmployee.ZoneName)}
-                  </Text>
-                </View>
-                <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Email ID</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
+                  <Text style={[styles.detailsLabel, styles.detailsLabelThird]}>{t('email_id')}</Text>
+                  <Text style={[styles.detailsValue, styles.detailsValueEmail]}>
                     {getFieldOrNA(selectedEmployee.EmailId)}
                   </Text>
                 </View>
                 <View style={styles.detailsFieldRow}>
-                  <Text style={styles.detailsLabel}>Address</Text>
-                  <Text style={styles.detailsValue} numberOfLines={1}>
-                    NA
-                  </Text>
+                  <Text style={styles.detailsLabel}>{t('address')}</Text>
+                  <Text style={styles.detailsValue}>{getFieldOrNA(selectedEmployeeExtra?.address)}</Text>
                 </View>
 
                 <Pressable
                   style={styles.detailsCancelButton}
                   onPress={() => setSelectedEmployee(null)}>
-                  <Text style={styles.detailsCancelText}>Cancel</Text>
+                  <Text style={styles.detailsCancelText}>{t('cancel')}</Text>
                 </Pressable>
-              </>
+              </ScrollView>
             ) : null}
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
+      <EmployeeAttendanceModal
+        visible={attendanceEmployee !== null}
+        employee={attendanceEmployee}
+        onClose={() => setAttendanceEmployee(null)}
+      />
+      <TechnicianLiveMapScreen
+        visible={trackingEmployee !== null}
+        employee={trackingEmployee}
+        onClose={() => setTrackingEmployee(null)}
+      />
+      <EditEmployeeModal
+        visible={editingEmployee !== null}
+        ownerId={ownerId}
+        employeeNumber={editingEmployee?.EmployeeNumber ?? 0}
+        designationName={String(editingEmployee?.DesignationName ?? '')}
+        zoneName={String(editingEmployee?.ZoneName ?? '')}
+        onClose={() => setEditingEmployee(null)}
+        onUpdated={() => {
+          setSelectedEmployee(null);
+          refreshList();
+        }}
+      />
     </View>
   );
 };
@@ -1258,39 +1409,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: THEME_PRIMARY,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    paddingHorizontal: ms(12),
+    paddingVertical: ms(14),
   },
   headerIconButton: {
-    padding: 4,
+    padding: ms(4),
   },
   headerIconText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
   },
   headerTitle: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '700',
   },
   headerRightActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: ms(12),
   },
   shell: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  tabRow: {
-    height: 74,
-    flexDirection: 'row',
     backgroundColor: '#FFFFFF',
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderBottomWidth: 4,
+    borderBottomWidth: ms(4),
     borderBottomColor: 'transparent',
   },
   tabActive: {
@@ -1299,78 +1445,65 @@ const styles = StyleSheet.create({
   },
   tabText: {
     color: '#7A7A7A',
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: sp(16),
+    fontWeight: '600',
   },
   tabTextActive: {
     color: THEME_PRIMARY,
   },
   actionArea: {
-    paddingHorizontal: 24,
-    paddingTop: 22,
+    paddingHorizontal: ms(24),
+    paddingTop: ms(15),
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: ms(16),
+    marginTop: ms(-10),
   },
   searchBox: {
     flex: 1,
-    height: 48,
-    borderBottomWidth: 1,
+    height: ms(35),
+    borderBottomWidth: ms(1),
     borderBottomColor: '#BDBDBD',
     flexDirection: 'row',
     alignItems: 'center',
   },
   searchIcon: {
-    color: '#B0B0B0',
-    fontSize: 30,
-    marginRight: 8,
+    color: COLORS.lightGray,
+    fontSize: ms(20),
+    marginRight: ms(8),
   },
   searchInput: {
     flex: 1,
-    color: '#1F2937',
-    fontSize: 20,
+    color: COLORS.textBlack,
+    fontSize: sp(14),
     paddingVertical: 0,
   },
   clearText: {
-    color: '#B0B0B0',
-    fontSize: 40,
-    lineHeight: 42,
+    color: COLORS.textBlack,
+    fontSize: ms(20),
   },
   addButton: {
-    height: 48,
-    minWidth: 84,
-    borderRadius: 18,
-    backgroundColor: '#070707',
+    height: ms(30),
+    width: ms(60),
+    borderRadius: ms(15),
+    backgroundColor: COLORS.textBlack,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
     elevation: 5,
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  downloadButton: {
-    width: 44,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  downloadIcon: {
-    color: THEME_PRIMARY,
-    fontSize: 42,
-    lineHeight: 44,
-    fontWeight: '700',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   filterRow: {
-    marginTop: 26,
+    marginTop: ms(10),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 14,
+    gap: ms(14),
   },
   filterButton: {
     flex: 1,
@@ -1381,40 +1514,38 @@ const styles = StyleSheet.create({
   },
   filterText: {
     flex: 1,
-    color: '#111111',
-    fontSize: 16,
-    fontWeight: '600',
+    color: COLORS.textBlack,
+    fontSize: sp(14),
+    fontWeight: '400',
   },
   filterChevron: {
     color: THEME_PRIMARY,
-    fontSize: 30,
-    lineHeight: 30,
-    marginLeft: 8,
+    fontSize: sp(20),
+    lineHeight: sp(20),
+    marginLeft: ms(15),
   },
   loadingOverlay: {
-    paddingVertical: 16,
+    paddingVertical: ms(16),
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    marginTop: 8,
+    marginTop: ms(8),
     color: '#6B7280',
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '600',
   },
   listContent: {
-    paddingHorizontal: 18,
-    paddingTop: 24,
-    paddingBottom: 98,
+    paddingHorizontal: ms(2),
+    paddingTop: ms(10),
+    paddingBottom: ms(5),
   },
   employeeCard: {
-    minHeight: 164,
-    borderRadius: 24,
+    height: ms(105),
+    borderRadius: ms(20),
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EFEFEF',
     flexDirection: 'row',
-    marginBottom: 22,
+    margin: ms(8),
     overflow: 'hidden',
     elevation: 2,
     shadowColor: '#000000',
@@ -1423,219 +1554,209 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 2},
   },
   avatarColumn: {
-    width: 112,
+    width: ms(80),
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: ms(10),
   },
   avatar: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    backgroundColor: '#EEE6F8',
+    width: ms(60),
+    height: ms(60),
+    borderRadius: ms(30),
   },
   attendancePill: {
-    marginTop: 14,
-    minWidth: 96,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#D1003E',
+    marginTop: ms(5),
+    width: ms(60),
+    height: ms(20),
+    borderRadius: ms(20),
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
-  },
-  attendancePresent: {
-    backgroundColor: '#08A864',
   },
   attendanceText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: sp(14),
   },
   employeeInfo: {
     flex: 1,
-    paddingTop: 28,
-    paddingBottom: 22,
+    paddingTop: ms(10),
+    paddingBottom: ms(15),
     justifyContent: 'space-between',
     minWidth: 0,
   },
   employeeName: {
-    color: '#1F2937',
-    fontSize: 18,
-    fontWeight: '900',
+    color: COLORS.ink,
+    fontSize: sp(14),
+    fontWeight: '700',
   },
   metricRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: ms(10),
   },
   metricLabel: {
-    color: '#777777',
-    fontSize: 14,
-    fontWeight: '600',
-    minWidth: 52,
+    color: COLORS.authText,
+    fontSize: sp(10),
+    minWidth: ms(52),
   },
   metricValue: {
-    color: '#00C970',
-    fontSize: 16,
-    fontWeight: '900',
+    color: COLORS.success,
+    fontSize: sp(10),
+    fontWeight: '700',
   },
   metricValueDanger: {
     color: THEME_PRIMARY,
   },
   employeeSide: {
-    width: 136,
+    width: ms(120),
     alignItems: 'flex-end',
-    paddingBottom: 18,
+    paddingBottom: ms(10),
+  },
+  roleRibbonSpacer: {
+    height: ms(20),
   },
   roleRibbon: {
     alignSelf: 'stretch',
-    height: 42,
-    borderBottomLeftRadius: 20,
-    backgroundColor: '#2E7BFF',
+    height: ms(20),
+    borderBottomLeftRadius: ms(10),
+    backgroundColor: COLORS.tagBlue,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: ms(14),
   },
   roleRibbonText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: sp(10),
+    fontWeight: '700',
   },
   sideText: {
-    maxWidth: 112,
-    marginTop: 18,
-    marginRight: 14,
-    color: THEME_PRIMARY,
-    fontSize: 13,
-    fontWeight: '900',
+    maxWidth: ms(80),
+    marginTop: ms(8),
+    marginRight: ms(14),
+    color: COLORS.primary,
+    fontSize: sp(10),
+    fontWeight: '700',
   },
   trackRow: {
     alignSelf: 'stretch',
-    marginTop: 14,
-    paddingHorizontal: 12,
+    marginTop: ms(10),
+    paddingHorizontal: ms(12),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   calendarIcon: {
     color: '#111111',
-    fontSize: 28,
-    lineHeight: 30,
+    fontSize: sp(20),
+    lineHeight: sp(20),
   },
   trackButton: {
-    minWidth: 76,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#5A5A5A',
+    width: ms(60),
+    height: ms(20),
+    borderRadius: ms(20),
+    backgroundColor: COLORS.darkGray,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
   },
   trackButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: sp(14),
   },
   listFooter: {
-    paddingVertical: 16,
+    paddingVertical: ms(8),
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 48,
+    paddingHorizontal: ms(24),
+    paddingTop: ms(110),
+    paddingBottom: ms(48),
+  },
+  emptyImage: {
+    width: ms(200),
+    height: ms(200),
   },
   emptyIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: ms(42),
+    height: ms(42),
+    borderRadius: ms(21),
     backgroundColor: '#F3F4F6',
     color: THEME_PRIMARY,
     textAlign: 'center',
-    lineHeight: 42,
-    fontSize: 24,
+    lineHeight: sp(42),
+    fontSize: sp(24),
     fontWeight: '900',
   },
   emptyTitle: {
-    marginTop: 14,
+    marginTop: ms(14),
     color: '#1F2937',
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '900',
   },
   emptyText: {
-    marginTop: 8,
+    marginTop: ms(8),
     color: '#6B7280',
-    fontSize: 14,
+    fontSize: sp(14),
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: sp(20),
   },
   leaveToolbar: {
-    paddingHorizontal: 28,
-    paddingTop: 22,
-    paddingBottom: 18,
+    paddingHorizontal: ms(15),
+    paddingTop: ms(10),
+    paddingBottom: ms(5),
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 12,
+    gap: ms(10),
   },
   leaveSearchBox: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 160,
-    height: 48,
+    flex: 1.8,
+    height: ms(40),
     borderBottomWidth: 1,
-    borderBottomColor: '#BDBDBD',
+    borderBottomColor: COLORS.darkGray,
     flexDirection: 'row',
     alignItems: 'center',
     minWidth: 0,
   },
   leaveStatusButton: {
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: 108,
-    height: 48,
+    flex: 0.8,
+    height: ms(40),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   leaveMonthButton: {
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: 126,
-    height: 48,
+    flex: 0.8,
+    height: ms(40),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   leaveFilterText: {
     flex: 1,
-    color: '#111111',
-    fontSize: 17,
-    fontWeight: '600',
+    color: COLORS.textBlack,
+    fontSize: sp(14),
   },
   leaveFilterChevron: {
     color: THEME_PRIMARY,
-    fontSize: 28,
-    lineHeight: 28,
-    marginLeft: 2,
+    fontSize: sp(16),
+    lineHeight: sp(18),
+    marginLeft: ms(5),
   },
   leaveListContent: {
-    paddingHorizontal: 28,
-    paddingTop: 10,
-    paddingBottom: 98,
+    paddingHorizontal: ms(15),
+    paddingTop: ms(5),
+    paddingBottom: ms(5),
   },
   leaveCard: {
-    minHeight: 168,
-    borderRadius: 18,
+    minHeight: ms(50),
+    borderRadius: ms(10),
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
+    borderWidth: ms(1),
     borderColor: '#ECECEC',
-    marginBottom: 30,
-    paddingTop: 62,
-    paddingHorizontal: 18,
-    paddingBottom: 18,
-    elevation: 3,
+    marginBottom: ms(30),
+    paddingTop: ms(50),
+    paddingHorizontal: ms(18),
+    paddingBottom: ms(10),
+    elevation: 2,
     shadowColor: '#000000',
     shadowOpacity: 0.15,
     shadowRadius: 4,
@@ -1645,125 +1766,131 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
-    width: 146,
-    height: 42,
-    borderTopLeftRadius: 18,
-    borderBottomRightRadius: 18,
+    width: ms(100),
+    height: ms(20),
+    borderTopLeftRadius: ms(10),
+    borderBottomRightRadius: ms(10),
     backgroundColor: '#4CAF50',
     justifyContent: 'center',
-    paddingLeft: 12,
+    paddingLeft: ms(12),
   },
   leaveTypeRibbonHalf: {
     backgroundColor: '#303832',
   },
   leaveTypeRibbonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: sp(12),
+    fontWeight: '600',
   },
   leaveDatePill: {
     position: 'absolute',
-    right: 18,
+    right: ms(18),
     top: 0,
-    height: 42,
-    maxWidth: 260,
+    height: ms(20),
+    maxWidth: ms(260),
     justifyContent: 'center',
     alignItems: 'flex-end',
   },
   leaveCreatedText: {
     color: '#555555',
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   leaveTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 14,
+    gap: ms(14),
+    marginTop: ms(-20),
   },
   leaveEmployeeName: {
     flex: 1,
     color: '#111111',
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: sp(14),
+    fontWeight: '500',
   },
   leaveEmployeeCode: {
     color: '#555555',
-    fontWeight: '700',
+    fontSize: sp(14),
+    fontWeight: '500',
   },
   leaveRoleText: {
-    width: 128,
+    width: ms(128),
     color: '#1E90FF',
-    fontSize: 17,
-    fontWeight: '900',
+    fontSize: sp(13),
+    fontWeight: '500',
     textAlign: 'right',
   },
   leaveDetailRow: {
-    marginTop: 22,
+    marginTop: ms(3),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: ms(14),
   },
   leaveReasonRow: {
-    marginTop: 18,
+    marginTop: ms(3),
     flexDirection: 'row',
     alignItems: 'center',
   },
   leaveLabel: {
     color: '#555555',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   leaveDateGroup: {
     flex: 1,
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: ms(8),
   },
   leaveValue: {
     flex: 1,
     color: THEME_PRIMARY,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   leaveStatusLabel: {
     color: '#555555',
-    fontSize: 16,
+    fontSize: sp(12),
     fontWeight: '700',
   },
   leaveStatusGroup: {
-    minWidth: 154,
+    minWidth: ms(150),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 8,
+    gap: ms(8),
+    left: ms(25),
   },
   leaveStatusValue: {
-    minWidth: 72,
-    fontSize: 16,
-    fontWeight: '700',
+    minWidth: ms(72),
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   leaveReasonValue: {
     flex: 1,
     color: THEME_PRIMARY,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: sp(12),
+    fontWeight: '500',
+    left: ms(20),
   },
   leaveShell: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 22,
+    paddingHorizontal: ms(24),
+    paddingTop: ms(22),
   },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.36)',
     justifyContent: 'center',
-    paddingHorizontal: 28,
+    alignItems: 'center',
   },
   modalPanel: {
+    width: '100%',
+    maxWidth: ms(420),
     maxHeight: '72%',
-    borderRadius: 12,
+    borderRadius: ms(12),
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
   },
@@ -1771,18 +1898,18 @@ const styles = StyleSheet.create({
     maxHeight: '82%',
   },
   modalTitle: {
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingHorizontal: ms(18),
+    paddingVertical: ms(16),
     color: '#111827',
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '900',
-    borderBottomWidth: 1,
+    borderBottomWidth: ms(1),
     borderBottomColor: '#E5E7EB',
   },
   modalItem: {
-    paddingHorizontal: 18,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
+    paddingHorizontal: ms(18),
+    paddingVertical: ms(15),
+    borderBottomWidth: ms(1),
     borderBottomColor: '#F1F2F4',
   },
   modalItemActive: {
@@ -1790,7 +1917,7 @@ const styles = StyleSheet.create({
   },
   modalItemText: {
     color: '#1F2937',
-    fontSize: 16,
+    fontSize: sp(16),
     fontWeight: '600',
   },
   modalItemTextActive: {
@@ -1799,25 +1926,25 @@ const styles = StyleSheet.create({
   },
   monthPickerBody: {
     flexDirection: 'row',
-    padding: 12,
-    gap: 10,
-    maxHeight: 430,
+    padding: ms(12),
+    gap: ms(10),
+    maxHeight: ms(430),
   },
   monthPickerColumn: {
     flex: 1,
-    maxHeight: 340,
+    maxHeight: ms(340),
   },
   monthPickerColumnTitle: {
     color: '#111827',
-    fontSize: 13,
+    fontSize: sp(13),
     fontWeight: '900',
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    paddingHorizontal: ms(18),
+    paddingVertical: ms(8),
   },
   monthPickerFooter: {
-    height: 54,
+    height: ms(54),
     flexDirection: 'row',
-    borderTopWidth: 1,
+    borderTopWidth: ms(1),
     borderTopColor: '#E5E7EB',
   },
   monthPickerButton: {
@@ -1830,77 +1957,89 @@ const styles = StyleSheet.create({
   },
   monthPickerButtonText: {
     color: '#111827',
-    fontSize: 15,
-    fontWeight: '900',
+    fontSize: sp(12),
+    fontWeight: '500',
   },
   monthPickerButtonTextPrimary: {
     color: '#FFFFFF',
   },
+  // dialog_employee_details.xml: 30dp-radius bottom card, 20dp padding.
   detailsSheet: {
     position: 'absolute',
-    left: 0,
-    right: 0,
     bottom: 0,
+    width: '100%',
+    maxWidth: ms(560),
+    maxHeight: '94%',
+    alignSelf: 'center',
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingHorizontal: 22,
-    paddingTop: 20,
-    paddingBottom: 28,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    overflow: 'hidden',
+    elevation: 24,
   },
+  detailsContent: {
+    padding: ms(20),
+    paddingBottom: ms(40),
+  },
+  // Title weight 0.55, then four equal 0.1125 icon cells (0.45 total).
   detailsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 18,
+    marginVertical: ms(20),
   },
   detailsTitle: {
-    color: '#111827',
-    fontSize: 20,
-    fontWeight: '800',
+    flex: 0.55,
+    color: '#0e0e0e',
+    fontSize: sp(22),
   },
   detailsHeaderIcons: {
+    flex: 0.45,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
   },
   detailsIconButton: {
-    width: 30,
-    height: 30,
+    flex: 1,
+    height: ms(20),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  detailsIconText: {
-    color: THEME_PRIMARY,
-    fontSize: 18,
+  detailsIconImage: {
+    width: ms(20),
+    height: ms(20),
+    resizeMode: 'contain',
   },
   detailsFieldRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
+    alignItems: 'flex-start',
+    marginBottom: ms(16),
   },
   detailsLabel: {
-    color: '#111827',
-    fontSize: 15,
-    fontWeight: '600',
-    flex: 1,
+    flex: 0.5,
+    color: '#1d2536',
+    fontSize: sp(16),
   },
   detailsValue: {
-    color: '#7A7A7A',
-    fontSize: 15,
-    flex: 1,
-    textAlign: 'right',
+    flex: 0.5,
+    paddingLeft: ms(3),
+    color: '#9a9faa',
+    fontSize: sp(16),
+    textAlign: 'left',
+  },
+  detailsLabelThird: {
+    flex: 1 / 3,
+  },
+  detailsValueEmail: {
+    flex: 2 / 3,
+    textAlign: 'center',
   },
   detailsCancelButton: {
-    marginTop: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignSelf: 'center',
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(10),
   },
   detailsCancelText: {
     color: THEME_PRIMARY,
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: sp(18),
   },
 });
 

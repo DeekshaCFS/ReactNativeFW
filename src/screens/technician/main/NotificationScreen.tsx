@@ -1,34 +1,299 @@
 // src/screens/technician/main/NotificationScreen.tsx
-import { View, StyleSheet, Dimensions } from 'react-native';
-import { COLORS } from '../../../theme/theme';
-import { HEADER_TOP_PADDING, vs } from '../../../utils/responsive';
+//
+// Technician (fieldworker) port of Java's NotificationFragment + NotificationListAdapter.
+// Loads Notification/NotificationList for the logged-in user and renders each row by
+// NotificationType / TaskStatusId with the fieldworker wording from the adapter:
+//   InActive   "Task X is assign to you."
+//   Completed  "Task X is completed by you."
+//   OnHold     "Task X is put on hold by <name>."
+//   Ongoing    "... is completed by you please collect cash" (Rate, ended, unpaid)
+//   Earning    "You have earned Rs N for the task X."
+//   AMC        reminder with due date, service n/total and "View Details"
+// Tapping a task notification loads the task (TaskListByTaskId), marks the notification
+// read (UpdateNotificationIsReadStatus) and opens the task the same way the task lists do.
+// Owner-only actions (Re-Assign / Assign Task) are intentionally not shown.
 
-const { height } = Dimensions.get('window');
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
+import { COLORS } from '../../../theme/theme';
+import type { NotificationIconName } from '../../../components/NotificationIcons';
+import {
+  NotificationCard,
+  NotificationSheet,
+  notificationListStyles as styles,
+  type NotificationSegment as Segment,
+} from '../../../components/NotificationCard';
+import {
+  getNotificationList,
+  updateNotificationIsRead,
+} from '../../../api/notification/notificationService';
+import type { NotificationResultData } from '../../../api/notification/notification.types';
+import { getTaskById } from '../../../api/task/taskService';
+import type { TasksListResultData as Task } from '../../../api/task/task.types';
+import { useOpenTask } from '../../../hooks/useOpenTask';
+import { countUnread, decrementUnreadCount, setUnreadCount } from '../../../state/notificationBadge';
+import { showFailureMsg, showToast } from '../../../utils/toast';
+import { useTranslation } from 'react-i18next';
+import { tr } from '../../../i18n/tr';
+import { nseg } from '../../../i18n/notifText';
+
+// Util/TaskStatus.java, Util/TaskState.java, Constant.PaymentMode.
+const STATUS = { COMPLETED: 1, REJECTED: 2, ON_GOING: 3, IN_ACTIVE: 4, ONHOLD: 5 };
+const STATE = { ENDED_NO_PAYMENT: 2 };
+const PAYMENT_RATE = 2;
+
+type RowModel = {
+  title: string;
+  color: string;
+  icon: NotificationIconName;
+  subtitle: Segment[];
+};
+
+
+const buildRow = (n: NotificationResultData): RowModel | null => {
+  const task = String(n.TaskName ?? '');
+  const who = `${n.FirstName ?? ''} ${n.LastName ?? ''}`.trim();
+
+  switch (n.NotificationType) {
+    case 'Task':
+      switch (n.TaskStatusId) {
+        case STATUS.IN_ACTIVE:
+          return { title: tr('InActive'), color: COLORS.tagBlue, icon: 'inactive', subtitle: nseg('Task {{b_task}} is assign to you.', { b_task: task }) };
+        case STATUS.COMPLETED:
+          return { title: tr('Completed'), color: COLORS.statusCompleted, icon: 'completed', subtitle: nseg('Task {{b_task}} is completed by you.', { b_task: task }) };
+        case STATUS.ONHOLD:
+          return {
+            title: tr('OnHold'),
+            color: COLORS.textBlack,
+            icon: 'ongoing',
+            subtitle: nseg('Task {{b_task}} is put on hold by {{b_who}}.', { b_task: task, b_who: who }),
+          };
+        case STATUS.REJECTED:
+          return {
+            title: tr('Rejected'),
+            color: COLORS.alertRed,
+            icon: 'reject',
+            subtitle: nseg('Task {{b_task}} has rejected by {{b_who}}.', { b_task: task, b_who: who }),
+          };
+        case STATUS.ON_GOING:
+          return {
+            title: tr('Ongoing'),
+            color: COLORS.statusOngoing,
+            icon: 'ongoing',
+            // Java shows a sub-title only for the technician when payment must be collected.
+            subtitle:
+              n.TaskState === STATE.ENDED_NO_PAYMENT && n.PaymentModeId === PAYMENT_RATE
+                ? nseg('Task {{b_task}} is completed by you please collect cash', { b_task: task })
+                : [],
+          };
+        default:
+          return null;
+      }
+    case 'Earning':
+      return {
+        title: tr('Earnings'),
+        color: COLORS.statusCompleted,
+        icon: 'earnings',
+        // Java prints the raw EarningAmount ("Rs 1000.65").
+        subtitle: nseg('You have earned {{b_amount}} for the task {{b_task}}.', { b_amount: `Rs ${n.EarningAmount ?? 0}`, b_task: task }),
+      };
+    case 'AMC': {
+      const amc = n.AMCServiceDetailDtoObj;
+      if (!amc) return null;
+      return {
+        title: tr('AMC Reminder'),
+        color: COLORS.alertRed,
+        icon: 'amc',
+        subtitle: nseg('You have a {{kind}} {{b_amc}} AMC for {{b_cust}}', {
+          kind: `${amc.AMCTypeName ?? ''} ${amc.ServiceOccuranceType ?? ''}`.trim(),
+          b_amc: String(amc.AMCName ?? ''),
+          b_cust: String(amc.CustomerName ?? ''),
+        }),
+      };
+    }
+    case 'FOC':
+      return { title: tr('Requested Items'), color: COLORS.tagBlue, icon: 'requestedItems', subtitle: htmlToSegments(task) };
+    default:
+      // UserInfo ("new technician added") is an owner notification.
+      return null;
+  }
+};
+
+// Java renders TaskName with Html.fromHtml for Requested Items: <b> -> bold, <br> -> newline.
+const htmlToSegments = (html: string): Segment[] => {
+  const out: Segment[] = [];
+  let bold = false;
+  html.split(/(<[^>]+>)/g).forEach(part => {
+    if (!part) return;
+    const tag = /^<\s*(\/?)\s*([a-z0-9]+)[^>]*>$/i.exec(part);
+    if (!tag) { out.push({ text: part, bold }); return; }
+    const name = tag[2].toLowerCase();
+    if (name === 'b' || name === 'strong') bold = !tag[1];
+    else if (name === 'br' || (name === 'p' && tag[1])) out.push({ text: '\n' });
+  });
+  return out;
+};
+
+const formatWhen = (n: NotificationResultData) => {
+  const time = String(n.NotificationTime ?? '');
+  switch (n.NotificationDay) {
+    case 'Today':
+      return `Today ${time}`;
+    case 'YesterDay':
+      return `Yesterday ${time}`;
+    case 'Old':
+      return `${n.NotificationDate ?? ''} ${time}`;
+    default:
+      return '';
+  }
+};
 
 export default function NotificationScreen() {
+  const { t } = useTranslation();
+  const navigation = useNavigation<any>();
+
+  const [userId, setUserId] = useState<number | null>(null);
+  const [items, setItems] = useState<NotificationResultData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Same routing as tapping a task in Home / the Task tab. An InActive task past the
+  // accept window opens the reject-only sheet, as in the lists.
+  const openTask = useOpenTask(navigation, {
+    onLateInactive: task => navigation.navigate('TaskTracking', { task, autoReject: true }),
+  });
+
+  useEffect(() => {
+    AsyncStorage.getItem('uid').then(v => setUserId(v ? Number(v) : null));
+  }, []);
+
+  const load = useCallback(
+    async (isRefresh = false) => {
+      if (!userId) return;
+      isRefresh ? setRefreshing(true) : setLoading(true);
+      try {
+        const response = await getNotificationList({ UserId: userId });
+        const list = Array.isArray(response?.ResultData) ? response.ResultData : [];
+        setItems(list);
+        setUnreadCount(countUnread(list));
+      } catch (error) {
+        showFailureMsg(error instanceof Error ? error.message : tr('Unable to load notifications.'));
+      } finally {
+        isRefresh ? setRefreshing(false) : setLoading(false);
+      }
+    },
+    [userId],
+  );
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const markLocallyRead = (n: NotificationResultData) => {
+    if (!n.IsRead) decrementUnreadCount();
+    setItems(prev => prev.map(i => (i === n ? { ...i, IsRead: true } : i)));
+  };
+
+  // Java: setUpdateNotificationIsReadData(task) -- built from the task once it is loaded.
+  const markTaskNotificationRead = (n: NotificationResultData, task: Task) =>
+    updateNotificationIsRead({
+      TaskId: task.Id,
+      IsRead: true,
+      UserId: userId ?? undefined,
+      OwnerId: task.OwnerId,
+      NotificationType: n.NotificationType,
+      TaskStatus: task.TaskStatusId as any,
+      TaskType: task.TaskTypeId as any,
+      TaskState: task.TaskState,
+      PaymentMode: task.PaymentModeId as any,
+      TaskClosureStatus: task.TaskClosureStatus,
+      ...(task.PaymentNotReceived != null ? { PaymentNotReceived: task.PaymentNotReceived as any } : {}),
+    } as any).catch(() => {});
+
+  const openTaskNotification = async (n: NotificationResultData) => {
+    if (!userId || !n.TaskId) return;
+    try {
+      const response = await getTaskById({ UserId: userId, TaskID: n.TaskId });
+      const task = (Array.isArray(response?.ResultData) ? response.ResultData[0] : response?.ResultData) as Task | undefined;
+      if (!task) {
+        showToast(response?.Message || 'Task details are not available.');
+        return;
+      }
+      markTaskNotificationRead(n, task);
+      markLocallyRead(n);
+      openTask(task);
+    } catch (error) {
+      showFailureMsg(error instanceof Error ? error.message : tr('Unable to load the task.'));
+    }
+  };
+
+  const handleRowPress = (n: NotificationResultData) => {
+    switch (n.NotificationType) {
+      case 'Task':
+        openTaskNotification(n);
+        break;
+      case 'Earning':
+        // Java: navigateToHomePassbookFragment()
+        markLocallyRead(n);
+        navigation.navigate('Passbook');
+        break;
+      default:
+        break;
+    }
+  };
+
+  const renderItem = ({ item }: { item: NotificationResultData }) => {
+    const row = buildRow(item);
+    if (!row) return null;
+    const amc = item.NotificationType === 'AMC' ? item.AMCServiceDetailDtoObj : undefined;
+    const tappable = item.NotificationType === 'Task' || item.NotificationType === 'Earning';
+
+    return (
+      <NotificationCard
+        icon={row.icon}
+        title={row.title}
+        color={row.color}
+        isNew={!item.IsRead}
+        when={formatWhen(item)}
+        subtitle={row.subtitle}
+        amc={
+          amc
+            ? {
+                dueDate: String(amc.AMCServiceDate ?? '').split('T')[0],
+                service: (amc.ServiceNo ?? 0) + '/' + (amc.TotalServices ?? 0),
+              }
+            : undefined
+        }
+        onPress={tappable ? () => handleRowPress(item) : undefined}
+      />
+    );
+  };
+
   return (
-    <View style={styles.root}>
-      <View style={styles.redBg} />
-      <View style={styles.whiteSheet} />
-    </View>
+    <NotificationSheet>
+      {loading ? (
+        <ActivityIndicator style={styles.loader} color={COLORS.primary} size="large" />
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(item, index) => item.Id + '-' + index}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
+          ListEmptyComponent={<Text style={styles.empty}>{t('rn_no_notifications_found')}</Text>}
+        />
+      )}
+    </NotificationSheet>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
-  },
-  redBg: {
-    top: 0,
-    height: HEADER_TOP_PADDING + vs(15),
-    backgroundColor: COLORS.primary,
-  },
-  whiteSheet: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 10,
-  },
-});

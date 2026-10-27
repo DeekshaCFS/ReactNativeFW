@@ -1016,6 +1016,8 @@ export interface AddPhotoBeforeTaskImages {
 }
 
 export interface AddPhotoBeforeTaskResultData {
+  // Java posts this on the same flat request object (AddPhotoBeforeTask.Images).
+  Images?: AddPhotoBeforeTaskImages[];
   isSyncDone?: string;
   DeviceInfoImagePath2?: string;
   DeviceInfoImagePath1?: string;

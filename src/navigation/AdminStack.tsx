@@ -10,19 +10,16 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 
 import AdminTabs, { AdminTabParamList } from './AdminTabs';
 
-import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
-import EmployeeManagementScreen from '../screens/admin/EmployeeManagementScreen';
-import TaskDetailsScreen from '../screens/admin/TaskDetailsScreen';
 import type {TasksListResultData} from '../api/task/task.types';
-import AMCDetailsScreen from '../screens/admin/AMCDetailsScreen';
 
-// Header destinations (headset/notification icons on the shared AppHeader).
-// Admin doesn't have its own versions of these, so it reuses the same
-// generic screens the technician stack already registers under the same
-// route names -- same reasoning as sharing AppHeader/BottomTabBar.
-import NotificationScreen from '../screens/technician/main/NotificationScreen';
-import HelpScreen from '../screens/technician/main/HelpScreen';
-import HelpMessagesScreen from '../screens/technician/main/HelpMsgScreen';
+// Header destinations (headset / bell on the shared AppHeader) live in AdminTabs:
+// help reuses the technician HelpChatScreen, notification has AdminNotificationScreen.
+
+// Settings destinations (Privacy/Refund/About rows) -- same reuse pattern
+// as the header destinations above; these screens are role-agnostic.
+
+// Drawer destinations. AIScreen is role-agnostic (Java's OpenAIFragment is the
+// same for owner and technician); BookDemoScreen ports BookDemoFragment.
 
 import { COLORS } from '../theme/theme';
 
@@ -43,6 +40,15 @@ export type AdminStackParamList = {
 
   Profile: undefined;
   Settings: undefined;
+  BankDetailsTax: undefined;
+  PrivacyPolicy: undefined;
+  TermsAndConditions: { url?: string } | undefined;
+  RefundPolicy: undefined;
+  AboutFieldweb: undefined;
+
+  // Drawer destinations (route names match the drawer labels).
+  'FieldWeb AI': undefined;
+  'Book App Demo': undefined;
 
   // Task drill-down. Previously rendered inline by HomeActivityNewScreen via
   // its `selectedTaskDetail` state; now a real route so the Task tab can push
@@ -53,6 +59,8 @@ export type AdminStackParamList = {
     customerName?: string;
     customerPhone?: string;
     customerAddress?: string;
+    /** See TaskDetailsScreen.source. */
+    source?: 'crm' | 'taskList';
   };
 
   AMCDetails: {
@@ -97,6 +105,13 @@ export default function AdminStack() {
       }
     });
   }, []);
+
+  // AdminTabs needs the same id; passed down as a prop instead of letting it
+  // do its own AsyncStorage read, so the two don't race/duplicate the lookup.
+  const renderAdminTabs = useCallback(
+    () => <AdminTabs ownerId={ownerId} />,
+    [ownerId],
+  );
 
   /**
    * Check whether the current admin has any fieldworkers.
@@ -270,84 +285,18 @@ export default function AdminStack() {
 
   return (
     <>
-      <Stack.Navigator
-        screenOptions={headerOptions}
-      >
-        {/* Admin bottom tabs */}
+      <Stack.Navigator screenOptions={headerOptions}>
+        {/* The tab navigator draws its own AppHeader / back-arrow header and the
+            BottomTabBar (every other admin screen is registered there as a
+            hidden tab), so no native header here. */}
         <Stack.Screen
           name="AdminTabsRoot"
-          component={AdminTabs}
           options={{
             headerShown: false,
           }}
-        />
-
-        <Stack.Screen
-          name="Profile"
-          component={AdminProfileScreen}
-          options={{
-            title: 'Profile',
-          }}
-        />
-
-        <Stack.Screen
-          name="Settings"
-          options={{
-            title: 'Settings',
-          }}
         >
-          {() =>
-            ownerId === null ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-              </View>
-            ) : (
-              <EmployeeManagementScreen ownerId={ownerId} />
-            )
-          }
+          {renderAdminTabs}
         </Stack.Screen>
-
-        <Stack.Screen name="TaskDetails" options={{headerShown: false}}>
-          {({route, navigation}) =>
-            ownerId === null ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-              </View>
-            ) : (
-              <TaskDetailsScreen
-                ownerId={ownerId}
-                taskId={route.params.taskId}
-                fallbackTask={route.params.fallbackTask}
-                customerName={route.params.customerName}
-                customerPhone={route.params.customerPhone}
-                customerAddress={route.params.customerAddress}
-                onBack={() => navigation.goBack()}
-              />
-            )
-          }
-        </Stack.Screen>
-
-        <Stack.Screen name="AMCDetails" component={AMCDetailsScreen} />
-
-        {/* Header icon destinations (headset / notification bell on the
-            shared AppHeader) -- same routes and screens the technician
-            stack uses. */}
-        <Stack.Screen
-          name="notification"
-          component={NotificationScreen}
-          options={{ title: 'Notification' }}
-        />
-        <Stack.Screen
-          name="help"
-          component={HelpScreen}
-          options={{ title: 'Help & Support' }}
-        />
-        <Stack.Screen
-          name="helpMessages"
-          component={HelpMessagesScreen}
-          options={{ title: 'Help & Support' }}
-        />
-
       </Stack.Navigator>
 
       {/* Disclaimer */}

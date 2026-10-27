@@ -10,11 +10,11 @@
 // pushed as its own stack screen.
 
 import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {ms, sp} from '../../utils/responsive';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
-  Modal,
+  Image,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -23,6 +23,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import SearchPickerModal from '../../components/SearchPickerModal';
+import DeleteFocDialog from '../../components/DeleteFocDialog';
+import {FocRequestCard, FocFilterRow, formatFocDate} from '../../components/FocRequestCard';
+import {COLORS} from '../../theme/theme';
 import {
   type FocRequestListItem,
   type FocRequestListResponse,
@@ -34,7 +39,10 @@ import {
   getFocStatusTagList,
   getDeleteFocRequestItem,
 } from '../../api/focItemRequest/focItemRequestService';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
+import { useTranslation } from 'react-i18next';
+import { tr } from '../../i18n/tr';
 type FOCScreenProps = {
   ownerId: number;
   isFieldWorker?: boolean;
@@ -43,6 +51,8 @@ type FOCScreenProps = {
   // technician side as ItemRequestScreen.tsx.) Optional so this screen can be
   // dropped in without wiring navigation immediately.
   onRequestNewItem?: () => void;
+  // Admin: tapping a request opens its details (Java FOCDetails_UpdateFragmnt).
+  onOpenDetails?: (item: FocRequestListItem) => void;
 };
 
 type FetchFocPageOptions = {
@@ -169,31 +179,6 @@ const getFocStatus = (item: FocRequestListItem) =>
   String(item.FOC_ItemList?.[0]?.ItemRequestStatusTagName ?? '').trim() ||
   'NA';
 
-const getFocNotes = (item: FocRequestListItem) =>
-  getFocString(item, [
-    'notes',
-    'Notes',
-    'note',
-    'Note',
-    'remarks',
-    'Remarks',
-    'description',
-    'Description',
-    'employeeName',
-    'EmployeeName',
-    'userName',
-    'UserName',
-  ]) ||
-  String(
-    item.FOC_ItemList?.[0]?.DescribeIssue ??
-      item.FOC_ItemList?.[0]?.FieldWorkerDescribeIssue ??
-      item.FOC_ItemList?.[0]?.ItemDescription ??
-      item.FOC_ItemList?.[0]?.ProductDescription ??
-      item.FOC_ItemList?.[0]?.ItemRequestName ??
-      '',
-  ).trim() ||
-  'Notes';
-
 const getFocDate = (item: FocRequestListItem) => {
   const raw = getFocString(item, [
     'focDate',
@@ -229,13 +214,13 @@ const isFocSuccessOrNoData = (response: FocRequestListResponse) => {
   return code === '200' || code === '500' || code === '';
 };
 
-const DeleteIcon = () => <Text style={styles.deleteIconText}>🗑</Text>;
-
 const FOCScreen: React.FC<FOCScreenProps> = ({
   ownerId,
   isFieldWorker = false,
   onRequestNewItem,
+  onOpenDetails,
 }) => {
+  const { t } = useTranslation();
   const [focRequests, setFocRequests] = useState<FocRequestListItem[]>([]);
   const [focSearchText, setFocSearchText] = useState('');
   const [submittedFocSearch, setSubmittedFocSearch] = useState('');
@@ -251,6 +236,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
   const [deletingFocId, setDeletingFocId] = useState<number | null>(null);
+  const [pendingDeleteItem, setPendingDeleteItem] = useState<FocRequestListItem | null>(null);
   const latestFocRequestId = useRef(0);
 
   const fetchFocPage = useCallback(
@@ -355,7 +341,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
 
     const loadStatusTags = async () => {
       try {
-        const response = (await getFocStatusTagList()) as FocStatusTagResponse;
+        const response = (await getFocStatusTagList({userid: ownerId})) as FocStatusTagResponse;
         if (!isMounted) {
           return;
         }
@@ -418,10 +404,8 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
   };
 
   const handleFocPress = (item: FocRequestListItem) => {
-    Alert.alert(
-      getFocRequestNo(item),
-      [`Status: ${getFocStatus(item)}`, `Issue: ${getFocIssue(item)}`].join('\n'),
-    );
+    // Java FOCListAdapter row click: opens the request details (FOCDetails_UpdateFragmnt).
+    onOpenDetails?.(item);
   };
 
   // Deletes the whole FOC request (matches Java's DeleteFOCReqItem, called from
@@ -433,86 +417,45 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
   const confirmDeleteFocRequest = async (item: FocRequestListItem) => {
     const focRequestId = getFocId(item);
     if (!focRequestId) {
-      Alert.alert('Delete request', 'Request id is not available.');
+      showToast(t('rn_request_id_is_not_available'));
       return;
     }
 
     setDeletingFocId(focRequestId);
     try {
-      const response = await getDeleteFocRequestItem({FocRequestId: focRequestId});
+      const response = await getDeleteFocRequestItem({id: focRequestId});
       if (response.Code === '200') {
-        Alert.alert('Deleted', response.Message || 'Request deleted successfully.');
+        showSuccessMsg(response.Message || 'Request deleted successfully.');
         setFocRequests(previous => previous.filter(row => getFocId(row) !== focRequestId));
       } else {
-        Alert.alert('Delete Failed', response.Message || 'Could not delete this request.');
+        showFailureMsg(response.Message || 'Could not delete this request.');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not delete this request.';
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setDeletingFocId(null);
     }
   };
 
-  const handleFocDeletePress = (item: FocRequestListItem) => {
-    Alert.alert(
-      'Delete request',
-      `${getFocRequestNo(item)}\nID: ${getFocId(item) || '-'}`,
-      [
-        {text: 'Not yet', style: 'cancel'},
-        {text: 'Delete', style: 'destructive', onPress: () => confirmDeleteFocRequest(item)},
-      ],
-    );
-  };
-
   const renderFocRequestRow = ({item}: {item: FocRequestListItem}) => {
     const rowId = getFocId(item);
-    const isDeleting = deletingFocId === rowId;
-
     return (
-      <TouchableOpacity
-        activeOpacity={0.78}
-        style={styles.focCard}
-        onPress={() => handleFocPress(item)}>
-        <View style={styles.focTopRow}>
-          <View style={styles.focStatusBadge}>
-            <Text numberOfLines={1} style={styles.focStatusText}>
-              {getFocStatus(item).toUpperCase()}
-            </Text>
-          </View>
-          <Text numberOfLines={2} style={styles.focRequestNo}>
-            {getFocRequestNo(item)}
-          </Text>
-          <Text style={styles.focLabel}>Issue:</Text>
-          <Text numberOfLines={1} style={styles.focIssue}>
-            {getFocIssue(item)}
-          </Text>
-          <Text style={styles.focLabel}>Date</Text>
-          <Text numberOfLines={1} style={styles.focDate}>
-            {getFocDate(item)}
-          </Text>
-        </View>
-
-        {getFocTaskCode(item) ? (
-          <Text numberOfLines={1} style={styles.focTaskCode}>
-            {getFocTaskCode(item)}
-          </Text>
-        ) : null}
-
-        <View style={styles.focNotesRow}>
-          <Text style={styles.focNotesLabel}>Notes</Text>
-          <Text numberOfLines={4} style={styles.focNotes}>
-            {getFocNotes(item)}
-          </Text>
-          <Pressable
-            hitSlop={10}
-            style={styles.focDeleteButton}
-            disabled={isDeleting}
-            onPress={() => handleFocDeletePress(item)}>
-            {isDeleting ? <ActivityIndicator size="small" color={THEME_PRIMARY} /> : <DeleteIcon />}
-          </Pressable>
-        </View>
-      </TouchableOpacity>
+      <FocRequestCard
+        status={getFocString(item, ['FOCStatusName', 'focStatusName', 'FocStatusName']) || 'NA'}
+        requestId={rowId || '-'}
+        isIssue={getFocIssue(item) === 'Yes'}
+        date={
+          formatFocDate(
+            getFocString(item, ['createdDate', 'CreatedDate', 'focDate', 'FOCDate', 'requestDate', 'RequestDate']),
+          ) || getFocDate(item)
+        }
+        taskCode={getFocTaskCode(item) === '0' ? '' : getFocTaskCode(item)}
+        notes={getFocString(item, ['Notes', 'notes'])}
+        deleting={deletingFocId === rowId}
+        onPress={() => handleFocPress(item)}
+        onDelete={() => setPendingDeleteItem(item)}
+      />
     );
   };
 
@@ -521,7 +464,7 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
       <View style={styles.focRequestRow}>
         {!isFieldWorker ? (
           <View style={styles.focSearchBox}>
-            <Text style={styles.searchIcon}>Search</Text>
+            <Ionicons name="search" style={styles.searchIcon} />
             <TextInput
               value={focSearchText}
               onChangeText={value => {
@@ -533,14 +476,14 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
                 }
               }}
               onSubmitEditing={submitFocSearch}
-              placeholder="Search Employee Name"
-              placeholderTextColor="#8C8C8C"
+              placeholder={t('rn_search_employee_name')}
+              placeholderTextColor={COLORS.lightGray}
               style={styles.searchInput}
               returnKeyType="search"
             />
             {focSearchText ? (
               <Pressable hitSlop={10} onPress={clearFocSearch}>
-                <Text style={styles.clearText}>x</Text>
+                <Ionicons name="close" style={styles.clearText} />
               </Pressable>
             ) : null}
           </View>
@@ -551,35 +494,27 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
               if (onRequestNewItem) {
                 onRequestNewItem();
               } else {
-                Alert.alert('Request item', 'Raise a request from the Items tab.');
+                showToast(t('rn_raise_a_request_from_the_items_tab'));
               }
             }}>
-            <Text style={styles.requestButtonText}>+ Request</Text>
+            <Text style={styles.requestButtonText}>{t('rn_request')}</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <View style={styles.focFilterRow}>
-        <Pressable style={styles.focFilter} onPress={() => setIsStatusModalOpen(true)}>
-          <Text numberOfLines={1} style={styles.focFilterText}>
-            {selectedStatusTag.name}
-          </Text>
-        </Pressable>
-        <Pressable style={styles.focFilter} onPress={() => setIsIssueModalOpen(true)}>
-          <Text numberOfLines={1} style={styles.focFilterText}>
-            {selectedIssue.label}
-          </Text>
-        </Pressable>
-        <Pressable style={styles.refreshListButton} onPress={refreshFocList}>
-          <Text style={styles.refreshListText}>Refresh List</Text>
-          <Text style={styles.refreshListIcon}>↻</Text>
-        </Pressable>
-      </View>
+      <FocFilterRow
+        statusLabel={selectedStatusTag.name}
+        issueLabel={tr(selectedIssue.label)}
+        onStatusPress={() => setIsStatusModalOpen(true)}
+        onIssuePress={() => setIsIssueModalOpen(true)}
+        onRefreshPress={refreshFocList}
+        refreshing={isFocRefreshing}
+      />
 
       {isFocInitialLoading ? (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading requested items...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading_requested_items')}</Text>
         </View>
       ) : null}
 
@@ -597,14 +532,18 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
           />
         }
         ListEmptyComponent={
-          isFocInitialLoading ? null : (
+          isFocInitialLoading ? null : focErrorMessage ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>
-                {focErrorMessage ? 'Unable to Load Requests' : 'No Result Found'}
-              </Text>
-              <Text style={styles.emptyText}>
-                {focErrorMessage || 'Try another search, status tag, issue filter, or refresh.'}
-              </Text>
+              <Text style={styles.emptyTitle}>{t('rn_unable_to_load_requests')}</Text>
+              <Text style={styles.emptyText}>{focErrorMessage}</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Image
+                source={require('../../../assets/images/noresultfound.png')}
+                style={styles.emptyImage}
+                resizeMode="contain"
+              />
             </View>
           )
         }
@@ -617,54 +556,46 @@ const FOCScreen: React.FC<FOCScreenProps> = ({
         }
         onEndReachedThreshold={0.35}
         onEndReached={() => {
-          if (!isFocInitialLoading && !isFocLoadingMore && !isFocLastPage) {
+          // focRequests.length: FlatList fires onEndReached on first render, before the
+          // initial load starts; a page-2 fetch then invalidates the page-1 response.
+          if (focRequests.length > 0 && !isFocInitialLoading && !isFocLoadingMore && !isFocLastPage) {
             fetchFocPage({nextPage: focPageIndex + 1, replace: false});
           }
         }}
       />
 
-      <Modal
-        visible={isStatusModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsStatusModalOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setIsStatusModalOpen(false)}>
-          <Pressable style={styles.modalPanel}>
-            <Text style={styles.modalTitle}>Status Tag</Text>
-            <TouchableOpacity
-              style={styles.modalItem}
-              onPress={() => selectStatusTag({id: 0, name: 'Status Tag'})}>
-              <Text style={styles.modalItemText}>All Status Tags</Text>
-            </TouchableOpacity>
-            {statusTags.length === 0 ? (
-              <Text style={styles.modalHint}>No status tags returned.</Text>
-            ) : (
-              statusTags.map(tag => (
-                <TouchableOpacity key={tag.id} style={styles.modalItem} onPress={() => selectStatusTag(tag)}>
-                  <Text style={styles.modalItemText}>{tag.name}</Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <DeleteFocDialog
+        visible={pendingDeleteItem !== null}
+        onConfirm={() => {
+          const item = pendingDeleteItem;
+          setPendingDeleteItem(null);
+          if (item) {
+            confirmDeleteFocRequest(item);
+          }
+        }}
+        onCancel={() => setPendingDeleteItem(null)}
+      />
 
-      <Modal
+      <SearchPickerModal
+        visible={isStatusModalOpen}
+        title={t('rn_select_status_tag')}
+        wrapContent
+        options={statusTags.map(tag => ({id: tag.id, label: tag.name}))}
+        emptyText="No status tags returned."
+        onClose={() => setIsStatusModalOpen(false)}
+        onSelect={option => selectStatusTag({id: option.id, name: option.label})}
+      />
+
+      <SearchPickerModal
         visible={isIssueModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsIssueModalOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setIsIssueModalOpen(false)}>
-          <Pressable style={styles.modalPanel}>
-            <Text style={styles.modalTitle}>Issue</Text>
-            {ISSUE_FILTERS.map(issue => (
-              <TouchableOpacity key={issue.id} style={styles.modalItem} onPress={() => selectIssueFilter(issue)}>
-                <Text style={styles.modalItemText}>{issue.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title={t('rn_select_issue')}
+        hideSearch
+        options={ISSUE_FILTERS.filter(issue => issue.id > 0).map(issue => ({id: issue.id, label: tr(issue.label)}))}
+        onClose={() => setIsIssueModalOpen(false)}
+        onSelect={option =>
+          selectIssueFilter(ISSUE_FILTERS.find(issue => issue.id === option.id) ?? ISSUE_FILTERS[0])
+        }
+      />
     </View>
   );
 };
@@ -677,212 +608,79 @@ const styles = StyleSheet.create({
   focRequestRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: ms(16),
+    paddingTop: ms(12),
   },
   focSearchBox: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 42,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.darkGray,
+    paddingHorizontal: ms(8),
+    height: ms(40),
   },
   searchIcon: {
-    fontSize: 11,
-    color: '#8C8C8C',
-    marginRight: 6,
+    fontSize: ms(20),
+    color: COLORS.lightGray,
+    marginRight: ms(8),
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
-    color: '#111827',
+    fontSize: sp(14),
+    color: COLORS.textBlack,
     padding: 0,
   },
   clearText: {
-    fontSize: 16,
-    color: '#8C8C8C',
-    paddingHorizontal: 4,
+    fontSize: ms(20),
+    color: COLORS.textBlack,
+    paddingHorizontal: ms(4),
   },
   requestButton: {
     backgroundColor: THEME_PRIMARY,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    borderRadius: ms(10),
+    paddingVertical: ms(10),
+    paddingHorizontal: ms(16),
   },
   requestButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
   },
-  focFilterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  focFilter: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-  },
-  focFilterText: {
-    fontSize: 12,
-    color: '#374151',
-  },
-  refreshListButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-  },
-  refreshListText: {
-    fontSize: 12,
-    color: THEME_PRIMARY,
-    fontWeight: '600',
-  },
-  refreshListIcon: {
-    fontSize: 14,
-    color: THEME_PRIMARY,
-  },
   loadingOverlay: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: ms(16),
   },
   loadingText: {
-    marginTop: 8,
+    marginTop: ms(8),
     color: '#6B7280',
-    fontSize: 12,
+    fontSize: sp(12),
   },
   focListContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
+    paddingHorizontal: ms(16),
+    paddingBottom: ms(24),
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 48,
+    paddingVertical: ms(48),
+  },
+  emptyImage: {
+    width: ms(220),
+    height: ms(220),
   },
   emptyTitle: {
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '600',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: ms(4),
   },
   emptyText: {
-    fontSize: 12,
+    fontSize: sp(12),
     color: '#6B7280',
     textAlign: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: ms(24),
   },
   listFooter: {
-    paddingVertical: 16,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  modalPanel: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    maxHeight: '70%',
-  },
-  modalTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  modalItem: {
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalItemText: {
-    fontSize: 13,
-    color: '#1F2937',
-  },
-  modalHint: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    paddingVertical: 8,
-  },
-  focCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 12,
-    marginBottom: 12,
-  },
-  focTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  focStatusBadge: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  focStatusText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  focRequestNo: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#111827',
-    flexShrink: 1,
-  },
-  focLabel: {
-    fontSize: 11,
-    color: '#9CA3AF',
-  },
-  focIssue: {
-    fontSize: 12,
-    color: '#374151',
-  },
-  focDate: {
-    fontSize: 12,
-    color: '#374151',
-  },
-  focTaskCode: {
-    fontSize: 11,
-    color: THEME_PRIMARY,
-    marginTop: 4,
-  },
-  focNotesRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: 8,
-    gap: 8,
-  },
-  focNotesLabel: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    width: 40,
-  },
-  focNotes: {
-    flex: 1,
-    fontSize: 12,
-    color: '#1F2937',
-  },
-  focDeleteButton: {
-    padding: 4,
-  },
-  deleteIconText: {
-    fontSize: 16,
+    paddingVertical: ms(16),
   },
 });
 

@@ -1,20 +1,35 @@
 // src/screens/technician/main/TaskRouteMapScreen.tsx
+//
+// Java StartTaskTrackingFragmentNew (start_task_tracking_frag.xml): the map fills the screen, a
+// collapsible task card floats under the app header, START NAVIGATION / Skip sit at the bottom
+// and, once navigation was started or skipped, the "Have you reached your destination?" card.
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, Animated, LayoutAnimation, ActivityIndicator, Linking, Alert,
+  View, Text, StyleSheet, Pressable, Animated, LayoutAnimation, Linking, Alert, Platform, Image,
 } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { ms, sp, useAppHeaderHeight } from '../../../utils/responsive';
 import { GetAllTaskListDTOResultData as Task } from '../../../api/task/task.types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { requestLocationPermission, getCurrentPosition, Coordinates } from '../../../utils/locationPermision';
+import { fetchDrivingRoute, DrivingRoute } from '../../../utils/routing';
+import { getCurrentUserProfile } from '../../../state/session';
+import { placeTeleCmiCall } from '../../../utils/teleCmiCall';
+import { FieldWebLocationPin, FieldWebTechMarker } from '../../../components/MapMarkers';
+import { FIELDWEB_MAP_STYLE } from '../../../config/mapStyle';
+import { showToast } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 type Props = NativeStackScreenProps<TechnicianStackParamList, 'TaskRouteMap'>;
 
 export default function TaskRouteMapScreen({ navigation, route }: Props) {
+  const {t} = useTranslation();
   const { task: initialTask } = route.params;
+  const headerHeight = useAppHeaderHeight();
 
   const [task, setTask] = useState<Task>(initialTask);
   const [showPrompt, setShowPrompt] = useState(false);
@@ -23,8 +38,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
 
   // Source: TechnTaskRouteMapFragment.getLastLocation() — requests location
   // permission and reads the technician's current position as soon as the
-  // screen loads, so it's ready for the "my location" marker/centering once
-  // the live map (currently a placeholder below) is wired in.
+  // screen loads (the origin of the route and of the technician marker).
   useEffect(() => {
     (async () => {
       const granted = await requestLocationPermission();
@@ -37,6 +51,52 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
       }
     })();
   }, []);
+
+  const mapRef = useRef<MapView | null>(null);
+  const destinationMarkerRef = useRef<React.ComponentRef<typeof Marker> | null>(null);
+
+  // Real driving route + distance/time (Java: fetchRoute -> Directions API). Falls back to
+  // the straight line and "NA" if the router is unreachable.
+  const [route_, setRoute] = useState<DrivingRoute | null>(null);
+  const [routeFailed, setRouteFailed] = useState(false);
+
+  const destination = task.Latitude && task.Longitude
+    ? { latitude: parseFloat(task.Latitude), longitude: parseFloat(task.Longitude) }
+    : null;
+
+  // Custom (SVG) marker children are rasterised after their first layout; keep tracking view
+  // changes briefly so they are not captured blank, then stop for performance.
+  const [tracksViews, setTracksViews] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setTracksViews(false), 1500);
+    return () => clearTimeout(t);
+  }, [currentPosition]);
+
+  useEffect(() => {
+    if (currentPosition && destination) {
+      mapRef.current?.fitToCoordinates([currentPosition, destination], {
+        edgePadding: { top: ms(100), right: ms(50), bottom: ms(100), left: ms(50) },
+        animated: true,
+      });
+    }
+    // destination is derived from task.Latitude/Longitude each render; depend on those primitives instead of the object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPosition, task.Latitude, task.Longitude]);
+
+  useEffect(() => {
+    if (!currentPosition || !destination) return;
+    let cancelled = false;
+    setRouteFailed(false);
+    fetchDrivingRoute(currentPosition, destination).then(r => {
+      if (cancelled) return;
+      setRoute(r);
+      setRouteFailed(!r);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPosition, task.Latitude, task.Longitude]);
 
   const chevronRotation = useRef(new Animated.Value(0));
 
@@ -61,7 +121,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
     const lng = task.Longitude ? parseFloat(task.Longitude) : 0;
 
     if (!lat || !lng) {
-      Alert.alert('Unable to find destination', 'Google Map is unable to find this destination.');
+      showToast(t('rn_google_map_is_unable_to_find_this_destinat'));
       return;
     }
 
@@ -76,7 +136,7 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
         await Linking.openURL(webFallbackUrl);
       }
     } catch {
-      Alert.alert('Maps Unavailable', 'Please install a maps application to continue.');
+      showToast(t('rn_please_install_a_maps_application_to_conti'));
       return;
     }
 
@@ -91,20 +151,24 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
 
   const handleYes = () => {
     setShowPrompt(false);
+    // replace, not push: back from Execution must not return to a stale map (Java has no
+    // back stack between these steps, and reject / on-hold would land here otherwise).
     navigation.navigate('TaskExecution', { task });
   };
 
+  const customerNumber = task.ContactNo && task.ContactNo.trim() ? task.ContactNo : 'NA';
+  // Java: with the TeleCMI module on, the customer's number is hidden.
+  const masked = getCurrentUserProfile().teleCmiModuleFlag === 'true';
+
   const handleCall = () => {
     const phone = task.ContactNo ?? task.TechContactNo;
-    if (phone) Linking.openURL(`tel:${phone}`);
+    // Java: TeleCMI module on -> bridged call (number stays hidden); otherwise the dialer.
+    if (masked) placeTeleCmiCall(phone);
+    else if (phone && phone.trim()) Linking.openURL(`tel:${phone}`);
+    else showToast(t('contact_no_is_not_available'));
   };
 
-  const address = [
-    task.FullAddress,
-    task.CityName,
-    task.State,
-    task.CountryName,
-  ].filter(Boolean).join(', ') || '—';
+  const address = task.FullAddress || task.LocationName || '';
 
   useEffect(() => {
     if (route.params?.task) {
@@ -115,16 +179,16 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!task.Latitude && !task.Longitude) {
       Alert.alert(
-        'No Location Found',
-        'This task does not have a location set. Do you want to proceed without navigation?',
+        tr('No Location Found'),
+        tr('This task does not have a location set. Do you want to proceed without navigation?'),
         [
           {
-            text: 'Not Yet',
+            text: tr('Not Yet'),
             style: 'cancel',
-            onPress: () => navigation.navigate('Task' as never),
+            onPress: () => navigation.navigate('Task'),
           },
           {
-            text: 'Yes, Proceed',
+            text: tr('Yes, Proceed'),
             onPress: () => {
               const taskWithFallbackCoords = { ...task, Latitude: '0.00', Longitude: '0.00' };
               navigation.navigate('TaskExecution', { task: taskWithFallbackCoords });
@@ -136,107 +200,143 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
     }
   }, []);
 
+  const isOngoing = task.TaskStatus === 'Ongoing';
+
   return (
     <View style={styles.root}>
 
-      <View style={styles.mapPlaceholder}>
-        <Ionicons name="map-outline" size={sp(56)} color="#D1D5DB" />
-        <Text style={styles.mapPlaceholderText}>Map view coming soon</Text>
-        {currentPosition ? (
-          <Text style={styles.mapPlaceholderText}>
-            Current location: {currentPosition.latitude.toFixed(4)}, {currentPosition.longitude.toFixed(4)}
-          </Text>
-        ) : null}
-      </View>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        customMapStyle={FIELDWEB_MAP_STYLE}
+        // Java: my-location button off, zoom controls on; the technician is drawn as a marker.
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+        zoomControlEnabled
+        onMapReady={() => destinationMarkerRef.current?.showCallout()}
+        initialRegion={{
+          latitude: (currentPosition ?? destination)?.latitude ?? 20.5937,
+          longitude: (currentPosition ?? destination)?.longitude ?? 78.9629,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}>
+        {destination && (
+          <Marker
+            ref={destinationMarkerRef}
+            coordinate={destination}
+            anchor={{ x: 0.5, y: 0.5 }}
+            title={task.Name ?? ''}
+            description={task.CustomerName ?? ''}
+            tracksViewChanges={tracksViews}
+          >
+            <FieldWebLocationPin size={ms(35)} />
+          </Marker>
+        )}
+        {isOngoing && currentPosition && (
+          <Marker
+            coordinate={currentPosition}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={tracksViews}
+          >
+            <FieldWebTechMarker size={ms(40)} />
+          </Marker>
+        )}
+        {currentPosition && destination && (
+          <Polyline
+            coordinates={route_?.coordinates ?? [currentPosition, destination]}
+            strokeColor="#000000"
+            strokeWidth={5}
+            geodesic
+          />
+        )}
+      </MapView>
 
-      {/* Floating Task Card */}
-      <View style={styles.taskCard}>
+      {/* Floating Task Card (card_view: 14dp side margins, 10dp radius, 10dp padding) */}
+      <View style={[styles.taskCard, { top: headerHeight + ms(11) }]}>
 
         <Pressable style={styles.taskCardHeader} onPress={() => toggleCard()} hitSlop={8}>
-          <View style={styles.taskNameRow}>
-            <ActivityIndicator size="small" color={COLORS.primary} style={{ marginRight: scale(8) }} />
-            <Text style={styles.taskName} numberOfLines={cardExpanded ? undefined : 1}>
-              {task.Name ?? '—'}
-            </Text>
-          </View>
+          <Text style={styles.taskName} numberOfLines={cardExpanded ? undefined : 1}>
+            {task.Name ?? ''}
+          </Text>
           <Animated.View style={{ transform: [{ rotate: chevronDeg }] }}>
-            <Ionicons name="chevron-down" size={sp(20)} color="#111827" />
+            <Ionicons name="chevron-down" size={sp(24)} color={COLORS.ink} />
           </Animated.View>
         </Pressable>
 
         {cardExpanded && (
-          <View style={styles.taskCardBody}>
+          <View>
+            <View style={styles.block}>
+              <Text style={styles.label}>{t('address')}</Text>
+              <Text style={styles.value}>{address}</Text>
+            </View>
 
-            <DetailRow label="Address" value={address} />
+            <View style={[styles.block, { marginBottom: ms(10) }]}>
+              <Text style={styles.label}>{t('landmark')}</Text>
+              <Text style={styles.value}>{task.LocationDesc || 'NA'}</Text>
+            </View>
 
-            {task.LocationDesc ? (
-              <DetailRow label="Landmark" value={task.LocationDesc ?? 'NA'} />
-            ) : null}
-
-            <View style={styles.twoColRow}>
-              <View style={styles.twoColItem}>
-                <Text style={styles.detailLabel}>Distance</Text>
-                <Text style={styles.detailValuePrimary}>{task.DistanceTravelled ?? '—'}</Text>
+            <View style={styles.distanceBlock}>
+              <View style={styles.distanceRow}>
+                <Text style={[styles.label, styles.distanceCol]}>{t('distance')}</Text>
+                <Text style={[styles.label, styles.distanceCol]}>{t('time')}</Text>
               </View>
-              <View style={styles.twoColItem}>
-                <Text style={styles.detailLabel}>Time</Text>
-                <Text style={styles.detailValuePrimary}>{task.TimeConsumed ?? '—'}</Text>
+              <View style={styles.distanceRow}>
+                <Text style={[styles.distanceValue, styles.distanceCol]}>
+                  {routeFailed || !route_ ? tr('NA') : route_.distanceText}
+                </Text>
+                <Text style={[styles.distanceValue, styles.distanceCol]}>
+                  {routeFailed || !route_ ? tr('NA') : route_.durationText}
+                </Text>
               </View>
             </View>
 
-            <DetailRow label="Instructions" value={task.Description ?? 'NA'} />
-            <DetailRow label="Customer Name" value={task.CustomerName ?? '—'} />
+            <Text style={styles.label}>{t('instructions')}</Text>
+            <Text style={styles.description}>{task.Description || 'NA'}</Text>
+
+            <Text style={styles.label}>{t('customer_name')}</Text>
+            <Text style={styles.value}>{task.CustomerName || 'NA'}</Text>
 
             <View style={styles.mobileRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.detailLabel}>Mobile Number</Text>
-                <Text style={styles.detailValue}>{task.ContactNo ?? '—'}</Text>
+              <View>
+                <Text style={[styles.label, { marginTop: ms(10) }]}>{t('mobile_number')}</Text>
+                <Text style={styles.value}>{masked ? 'XXXXXXXXXX' : customerNumber}</Text>
               </View>
               <Pressable style={styles.callBtn} onPress={handleCall}>
-                <Ionicons name="call" size={sp(20)} color={COLORS.primary} />
+                <Image source={require('../../../../assets/images/ic_phone.png')} style={styles.callIcon} />
               </Pressable>
             </View>
-
           </View>
         )}
       </View>
 
-      {/* Floating action buttons */}
+      {/* button_start_navigation (90dp margins, 5dp above) + btnSkipNav (100dp margins, bottom) */}
       {!showPrompt && (
-        <View style={styles.floatingActions}>
+        <>
           <Pressable style={styles.startBtn} onPress={handleStartNavigation}>
-            <Text style={styles.startBtnText}>START NAVIGATION</Text>
+            <Text style={styles.startBtnText}>{t('start_navigation').toUpperCase()}</Text>
           </Pressable>
           <Pressable style={styles.skipBtn} onPress={handleSkip}>
-            <Text style={styles.skipBtnText}>Skip</Text>
+            <Text style={styles.skipBtnText}>{t('skip')}</Text>
           </Pressable>
-        </View>
+        </>
       )}
 
-      {/* Destination prompt */}
+      {/* linear_destination: 30dp-radius card at the bottom */}
       {showPrompt && (
         <View style={styles.promptCard}>
-          <Text style={styles.promptText}>Have you reached your destination?</Text>
+          <Text style={styles.promptText}>{t('have_you_reached_your_destination')}</Text>
           <View style={styles.promptBtns}>
             <Pressable style={styles.yesBtn} onPress={handleYes}>
-              <Text style={styles.yesBtnText}>YES</Text>
+              <Text style={styles.yesBtnText}>{t('yes').toUpperCase()}</Text>
             </Pressable>
             <Pressable style={styles.noBtn} onPress={() => setShowPrompt(false)}>
-              <Text style={styles.noBtnText}>NO</Text>
+              <Text style={styles.noBtnText}>{t('no')}</Text>
             </Pressable>
           </View>
         </View>
       )}
 
-    </View>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={styles.detailValue}>{value}</Text>
     </View>
   );
 }
@@ -244,24 +344,17 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#eeeeee' },
 
-  mapPlaceholder: {
+  map: {
     ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: scale(12),
   },
-  mapPlaceholderText: { fontSize: sp(14), color: '#828282' },
 
   taskCard: {
-    marginTop: HEADER_TOP_PADDING,
     position: 'absolute',
-    top: vs(16),
-    left: scale(16),
-    right: scale(16),
+    left: ms(14),
+    right: ms(14),
     backgroundColor: '#fff',
-    borderRadius: scale(15),
-    paddingHorizontal: scale(20),
-    paddingVertical: vs(16),
+    borderRadius: ms(10),
+    padding: ms(10),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.10,
@@ -274,85 +367,61 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  taskNameRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   taskName: {
     flex: 1,
-    fontSize: sp(17),
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: sp(16),
+    fontWeight: 'bold',
+    color: COLORS.ink,
   },
-  taskCardBody: {
-    marginTop: vs(12),
-    gap: vs(14),
-  },
-  detailRow: { gap: vs(2) },
-  detailLabel: {
-    fontSize: sp(12),
-    fontWeight: '500',
-    color: '#9CA3AF',
-  },
-  detailValue: {
-    fontSize: sp(14),
-    color: '#111827',
-    fontWeight: '400',
-  },
-  detailValuePrimary: {
-    fontSize: sp(14),
-    color: COLORS.primary,
-    fontWeight: '700',
-  },
-  twoColRow: { flexDirection: 'row', gap: scale(32) },
-  twoColItem: { gap: vs(2) },
+
+  // Java's TextViews default to 14sp; labels are bold light_gray, values background_gray.
+  block: { marginTop: ms(10) },
+  label: { fontSize: sp(14), fontWeight: 'bold', color: COLORS.lightGray },
+  value: { fontSize: sp(14), color: COLORS.ink },
+  description: { fontSize: sp(12), color: COLORS.ink, marginBottom: ms(10) },
+  // weightSum 1, columns of 0.4
+  distanceBlock: { marginTop: ms(5), marginBottom: ms(10) },
+  distanceRow: { flexDirection: 'row' },
+  distanceCol: { width: '40%' },
+  distanceValue: { fontSize: sp(14), color: COLORS.primary },
   mobileRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   callBtn: {
-    width: scale(44),
-    height: scale(44),
-    borderRadius: scale(12),
+    width: ms(40),
+    height: ms(40),
+    borderRadius: ms(8),
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  callIcon: { width: ms(22), height: ms(22), tintColor: COLORS.primary },
 
-  floatingActions: {
-    position: 'absolute',
-    bottom: vs(20),
-    left: scale(24),
-    right: scale(24),
-    alignItems: 'center',
-    gap: vs(12),
-  },
   startBtn: {
-    flexDirection: 'row',
+    position: 'absolute',
+    left: ms(90),
+    right: ms(90),
+    bottom: ms(90) + ms(15),
+    height: ms(48),
     alignItems: 'center',
     justifyContent: 'center',
-    width: '60%',
-    height: vs(50),
-    borderRadius: scale(26),
+    borderRadius: ms(34),
     backgroundColor: COLORS.primary,
-    elevation: 8,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
+    elevation: 2,
   },
-  startBtnText: { color: '#fff', fontSize: sp(17), fontWeight: '600', letterSpacing: 0.5 },
+  startBtnText: { color: '#fff', fontSize: sp(18), fontWeight: '500' },
   skipBtn: {
-    paddingVertical: vs(5),
-    paddingHorizontal: scale(24),
+    position: 'absolute',
+    left: ms(100),
+    right: ms(100),
+    bottom: ms(50),
+    height: ms(48),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  skipBtnText: {
-    color: COLORS.primary,
-    fontSize: sp(18),
-    fontWeight: '500',
-  },
+  skipBtnText: { color: COLORS.primary, fontSize: sp(20), fontWeight: '500' },
 
   promptCard: {
     position: 'absolute',
@@ -360,33 +429,27 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#fff',
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
-    paddingHorizontal: scale(28),
-    paddingTop: vs(20),
-    paddingBottom: vs(20),
-    gap: vs(15),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    paddingTop: ms(15),
     elevation: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
   },
-  promptText: {
-    fontSize: sp(18),
-    fontWeight: '500',
-    textAlign: 'center',
-    color: '#111827',
-  },
-  promptBtns: { flexDirection: 'row', gap: scale(12) },
+  promptText: { fontSize: sp(15), textAlign: 'center', color: COLORS.ink },
+  promptBtns: { flexDirection: 'row', paddingHorizontal: ms(15), paddingTop: ms(3), paddingBottom: ms(30) },
   yesBtn: {
-    flex: 1, height: vs(45), borderRadius: scale(27),
+    flex: 1,
+    marginVertical: ms(10),
+    height: ms(48),
+    borderRadius: ms(34),
     backgroundColor: COLORS.primary,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  yesBtnText: { color: '#fff', fontWeight: '700', fontSize: sp(18) },
-  noBtn: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-  },
-  noBtnText: { color: COLORS.primary, fontWeight: '600', fontSize: sp(18) },
+  yesBtnText: { color: '#fff', fontSize: sp(18), fontWeight: '500' },
+  noBtn: { flex: 1, marginVertical: ms(10), alignItems: 'center', justifyContent: 'center' },
+  noBtnText: { color: COLORS.primary, fontSize: sp(18), fontWeight: '500' },
 });

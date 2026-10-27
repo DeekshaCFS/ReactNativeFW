@@ -1,6 +1,9 @@
 // src/screens/admin/AMCDetailsScreen.tsx
 
 import React, { useEffect, useState, useMemo } from 'react';
+import {ms, sp, vs} from '../../utils/responsive';
+import {ensureSuccess} from '../../utils/apiResponse';
+import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import {
   View,
   Text,
@@ -9,134 +12,258 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
-  Modal,
   TextInput,
   Linking,
+  Image,
 } from 'react-native';
+import Modal from '../../components/AppModal';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { getAmcReportDetails, getAmcDetailsForEdit, putAmcDetails, deleteAmc } from '../../api/amc/amcService';
-import type { EditAMCDTOResultData, DeleteAMCResultData } from '../../api/amc/amc.types';
+import { getAmcReportDetails, getAmcDetailsForEdit, putAmcDetails, deleteAmc, getAmcRenewalDetails, renewAmcDetails, getServiceOccurrenceList, getReminderModeList, getAmcUpcomingValidation } from '../../api/amc/amcService';
+import SearchPickerModal, { type PickerOption } from '../../components/SearchPickerModal';
+import { getResultData, normalizeLookupOption } from './AMCDashboardScreen';
+import type { AMCDetailsResultData, EditAMCDTOResultData, DeleteAMCResultData } from '../../api/amc/amc.types';
+import { getCurrentCountryCode, getCurrentCurrencySymbol } from '../../state/session';
 import { downloadAmcReport } from '../../api/report/reportService';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
 import AddTaskModal, { type AddTaskInitialValues } from './AddTaskModal';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
+import { COLORS } from '../../theme/theme';
+import { DeleteAccIcon } from '../../components/JavaIcons';
+import BottomSheetDialog from '../../components/BottomSheetDialog';
+import DecimalInput from '../../components/DecimalInput';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
 
+import {useTranslation} from 'react-i18next';
+import {trf, tr} from '../../i18n/tr';
 type AMCDetailsScreenProps = NativeStackScreenProps<AdminStackParamList, 'AMCDetails'>;
 
 const THEME_PRIMARY = '#d30035';
-const THEME_LIGHT_BG = '#F3F4F6';
-const THEME_GRAY_TEXT = '#6B7280';
+const THEME_GRAY_TEXT = '#525760';
+const GRAY = '#404040';
 const THEME_BORDER = '#E5E7EB';
 const SECTION_TITLE_COLOR = '#dc2626';
 
 const styles = StyleSheet.create({
+  // fragment_amc_details_new.xml: red background, white card with 30dp top corners.
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.primary,
+    paddingTop: 10,
   },
-  headerContainer: {
-    backgroundColor: THEME_PRIMARY,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  sheet: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
   },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 12,
+  scrollContent: {
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 30,
   },
-  headerRight: {
+  statusRow: {
     flexDirection: 'row',
-    gap: 16,
+    alignItems: 'center',
+    marginTop: 10,
   },
-  headerIcon: {
-    fontSize: 20,
-    color: '#FFFFFF',
+  statusLabel: {
+    flex: 0.4,
+    paddingLeft: 5,
+    fontSize: sp(14),
+    fontWeight: 'bold',
+  },
+  iconsWrap: {
+    flex: 0.6,
+    flexDirection: 'row',
+  },
+  iconCell: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  actionIcon: {
+    width: 24,
+    height: 24,
+    resizeMode: 'contain',
+    tintColor: COLORS.primary,
+  },
+  titleCard: {
+    backgroundColor: '#DEE3ED', // @color/amc_background
+    borderRadius: 10,
+    marginTop: 15,
+    marginBottom: 15,
+  },
+  titleRow: {
+    flexDirection: 'row',
+  },
+  titleLabel: {
+    flex: 0.4,
+    paddingLeft: 20,
+    fontSize: sp(15),
+    fontWeight: 'bold',
+    color: COLORS.ink,
+  },
+  titleValue: {
+    flex: 0.6,
+    paddingLeft: 10,
+    fontSize: sp(15),
+    color: COLORS.ink,
+  },
+  sectionTitle: {
+    marginBottom: 5,
+    paddingLeft: 10,
+    fontSize: sp(16),
+    fontWeight: 'bold',
+    color: COLORS.primary,
+  },
+  sectionBody: {
+    paddingHorizontal: 10,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailLabel: {
+    flex: 0.4,
+    fontSize: sp(15),
+    fontWeight: 'bold',
+    color: COLORS.textBlack,
+  },
+  detailValue: {
+    flex: 0.6,
+    paddingLeft: 5,
+    fontSize: sp(15),
+    color: 'rgba(0,0,0,0.87)',
+  },
+  serviceBlock: {
+    padding: 10,
+  },
+  delOuter: { padding: 20 },
+  delMessage: {
+    marginVertical: 20,
+    textAlign: 'center',
+    fontSize: sp(16),
+    fontWeight: 'bold',
+    color: COLORS.ink,
+  },
+  delButtons: { flexDirection: 'row', alignItems: 'center', padding: 20 },
+  delNo: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: ms(48) },
+  delNoText: { color: COLORS.lightGray, fontSize: sp(18) },
+  delYes: {
+    flex: 1,
+    minHeight: ms(48),
+    borderRadius: ms(34),
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  delYesText: { color: '#FFFFFF', fontSize: sp(18) },
+  histRoot: { flex: 1, backgroundColor: '#FFFFFF' },
+  histHeader: { height: 60, padding: 10, alignItems: 'center', justifyContent: 'center' },
+  histTitle: { fontSize: sp(20), fontWeight: 'bold', color: COLORS.textBlack },
+  histClose: { position: 'absolute', right: 10, top: 5, width: 50, height: 50, alignItems: 'center', justifyContent: 'center' },
+  histAmcName: { marginLeft: 15, fontSize: sp(18), fontWeight: 'bold', color: COLORS.textBlack },
+  histDivider: { height: 1, margin: 2, backgroundColor: COLORS.lightGray },
+  histSubTitle: { alignSelf: 'center', marginTop: 5, fontSize: sp(18), fontWeight: 'bold', color: COLORS.textBlack },
+  histTable: { flexDirection: 'row', marginTop: 5 },
+  histHeadCol: { width: 120, backgroundColor: '#EEEEEE' },
+  histHeadCell: {
+    height: 50,
+    lineHeight: 50,
+    paddingLeft: 10,
+    fontWeight: 'bold',
+    color: COLORS.textBlack,
+    fontSize: sp(14),
+    borderTopWidth: 1,
+    borderTopColor: '#A9A9A9',
+  },
+  histDataCol: { width: 160 },
+  histDataCell: {
+    height: 50,
+    lineHeight: 50,
+    paddingLeft: 10,
+    fontSize: sp(15),
+    color: COLORS.textBlack,
+    borderTopWidth: 1,
+    borderTopColor: '#A9A9A9',
+  },
+  serviceTitle: {
+    fontSize: sp(16),
+    fontWeight: 'bold',
+    color: COLORS.textBlack,
+    marginBottom: 5,
   },
   contentContainer: {
     flex: 1,
   },
-  scrollContent: {
-    paddingBottom: 80,
-  },
   infoCard: {
-    backgroundColor: '#E8EDF2',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginHorizontal: 0,
-    marginTop: 0,
+    backgroundColor: '#d9e1e9',
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(8),
+    marginHorizontal: ms(15),
+    marginTop: 2,
+    borderRadius: ms(8),
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginVertical: 4,
+    marginVertical: ms(4),
   },
   infoLabel: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: '#1F2937',
     fontWeight: '600',
     flexBasis: '42%',
     flexShrink: 0,
   },
   infoValue: {
-    fontSize: 13,
+    fontSize: sp(13),
+    fontWeight: '400',
     color: THEME_GRAY_TEXT,
     flex: 1,
     flexShrink: 1,
     textAlign: 'left',
   },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#D1FAE5',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-    marginTop: 12,
-    marginHorizontal: 16,
-  },
   statusText: {
-    color: '#065F46',
-    fontSize: 12,
+    fontSize: sp(14),
+    fontWeight: '700',
+    color: '#16A34A',
+  },
+  statusTextInactive: {
+    color: THEME_GRAY_TEXT,
+  },
+  statusValueActive: {
+    color: '#16A34A',
     fontWeight: '600',
   },
   section: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: THEME_BORDER,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: SECTION_TITLE_COLOR,
-    marginBottom: 10,
+    marginHorizontal: ms(18),
+    marginTop: ms(12),
+    marginBottom: ms(8),
+    paddingBottom: ms(8),
   },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 6,
+    paddingVertical: ms(5),
+  },
+  serviceSubTitle: {
+    fontSize: sp(13),
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: ms(4),
   },
   label: {
-    fontSize: 13,
+    fontSize: sp(14),
     fontWeight: '600',
     color: '#1F2937',
     flexBasis: '42%',
     flexShrink: 0,
   },
   value: {
-    fontSize: 13,
+    fontSize: sp(13),
     color: THEME_GRAY_TEXT,
     flex: 1,
     flexShrink: 1,
@@ -144,35 +271,41 @@ const styles = StyleSheet.create({
   },
   headerToolbar: {
     flexDirection: 'row',
-    gap: 12,
+    gap: ms(12),
   },
   headerToolbarButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: ms(8),
+    paddingVertical: ms(4),
+  },
+  toolbarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: ms(16),
+    backgroundColor: '#FFFFFF',
   },
   toolbarContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexShrink: 1,
+  },
+  toolbarContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: THEME_BORDER,
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
   },
   toolbarButton: {
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    minWidth: 50,
+    paddingVertical: ms(8),
+    paddingHorizontal: ms(8),
+    minWidth: ms(44),
   },
   toolbarIcon: {
-    fontSize: 24,
-    marginBottom: 2,
+    fontSize: sp(24),
+    marginBottom: ms(2),
   },
   toolbarButtonText: {
-    fontSize: 11,
+    fontSize: sp(11),
     color: THEME_PRIMARY,
     fontWeight: '500',
   },
@@ -185,100 +318,148 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: ms(16),
   },
   errorText: {
-    fontSize: 14,
+    fontSize: sp(14),
     color: THEME_PRIMARY,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: ms(16),
   },
   retryButton: {
     backgroundColor: THEME_PRIMARY,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 6,
+    paddingHorizontal: ms(24),
+    paddingVertical: ms(10),
+    borderRadius: ms(6),
   },
   retryButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '600',
   },
   editModalRoot: {
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: COLORS.dialogDim,
     flex: 1,
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   editModalPanel: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    maxHeight: '92%',
+    width: '100%',
+    maxWidth: ms(560),
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
+    maxHeight: '94%',
     overflow: 'hidden',
   },
   editModalHeader: {
     alignItems: 'center',
-    backgroundColor: THEME_PRIMARY,
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(20),
     flexDirection: 'row',
-    minHeight: 56,
-    paddingHorizontal: 16,
+    height: ms(60),
+    paddingHorizontal: ms(20),
   },
   editModalTitle: {
     color: '#FFFFFF',
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: sp(22),
+    fontWeight: '500',
   },
   editModalClose: {
     alignItems: 'center',
-    height: 36,
+    height: ms(36),
     justifyContent: 'center',
-    width: 36,
+    width: ms(36),
   },
   editModalCloseText: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: sp(22),
     fontWeight: '700',
   },
   editFormScroll: {
     backgroundColor: '#FFFFFF',
   },
   editFormContent: {
-    padding: 16,
-    paddingBottom: 24,
+    paddingHorizontal: ms(20),
+    paddingTop: ms(12),
+    paddingBottom: ms(18),
   },
   editField: {
-    marginBottom: 12,
+    marginBottom: ms(26),
+  },
+  // Java (dialog_add_amc_new.xml) pairs the date/number fields two to a row
+  // (Activation Date+Time, Contract Date+No. of Services, etc.) instead of
+  // stacking every field full-width -- this halves the form's height.
+  editRow: {
+    flexDirection: 'row',
+    gap: ms(10),
+  },
+  editFieldHalf: {
+    flex: 1,
+    marginBottom: ms(26),
+  },
+  editSelectValue: {
+    fontSize: sp(14),
+    color: '#111827',
+  },
+  editSelectPlaceholder: {
+    fontSize: sp(14),
+    color: '#9CA3AF',
+  },
+  editSelectInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  editSelectText: {
+    flex: 1,
+    marginRight: ms(8),
   },
   editLabel: {
     color: '#374151',
-    fontSize: 12,
+    fontSize: sp(12),
     fontWeight: '700',
-    marginBottom: 6,
+    marginBottom: ms(6),
   },
   editInput: {
-    borderColor: '#D1D5DB',
-    borderRadius: 6,
-    borderWidth: 1,
-    color: '#111827',
-    fontSize: 14,
-    minHeight: 42,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    borderWidth: ms(1),
+    color: '#000000',
+    fontSize: sp(16),
+    height: ms(41),
+    paddingHorizontal: ms(18),
+    paddingVertical: 0,
   },
-  editTextArea: {
-    minHeight: 76,
-    textAlignVertical: 'top',
+  editFloatLabel: {
+    backgroundColor: '#FFFFFF',
+    color: COLORS.lightGray,
+    fontSize: sp(12),
+    left: ms(14),
+    paddingHorizontal: ms(4),
+    position: 'absolute',
+    top: -ms(8),
+  },
+  editWarrantyLabel: {
+    color: COLORS.darkGray,
+    flex: 1,
+    fontSize: sp(14),
+    marginLeft: ms(4),
   },
   editToggleRow: {
-    marginBottom: 12,
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: ms(26),
+    minHeight: ms(30),
   },
   editToggle: {
-    borderColor: '#D1D5DB',
-    borderRadius: 6,
-    borderWidth: 1,
+    borderColor: COLORS.ink,
+    borderRadius: ms(25),
+    borderWidth: ms(1),
     flexDirection: 'row',
-    height: 42,
+    height: ms(30),
+    width: '45%',
     overflow: 'hidden',
   },
   editToggleOption: {
@@ -287,12 +468,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editToggleOptionActive: {
-    backgroundColor: THEME_PRIMARY,
+    backgroundColor: COLORS.ink,
   },
   editToggleText: {
-    color: '#374151',
-    fontSize: 14,
-    fontWeight: '700',
+    color: COLORS.ink,
+    fontSize: sp(14),
+    fontWeight: '400',
   },
   editToggleTextActive: {
     color: '#FFFFFF',
@@ -300,70 +481,107 @@ const styles = StyleSheet.create({
   editSaveButton: {
     alignItems: 'center',
     backgroundColor: THEME_PRIMARY,
-    borderRadius: 6,
-    height: 46,
+    borderRadius: ms(34),
+    height: ms(48),
     justifyContent: 'center',
-    marginTop: 6,
+    marginTop: ms(10),
+    elevation: 4,
   },
   editSaveButtonDisabled: {
     opacity: 0.7,
   },
   editSaveButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: sp(18),
+    fontWeight: '500',
   },
   editCancelButton: {
     alignItems: 'center',
-    height: 44,
+    height: ms(52),
     justifyContent: 'center',
-    marginTop: 4,
   },
   editCancelButtonText: {
     color: THEME_PRIMARY,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: sp(18),
+    fontWeight: '500',
   },
   editLoadingPanel: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 180,
+    minHeight: ms(180),
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: ms(20),
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: ms(12),
+    padding: ms(16),
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: ms(12),
+  },
+  modalTitle: {
+    fontSize: sp(16),
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  modalCloseIcon: {
+    fontSize: sp(18),
+    color: THEME_GRAY_TEXT,
+  },
+  modalEmptyText: {
+    textAlign: 'center',
+    color: THEME_GRAY_TEXT,
+    paddingVertical: ms(20),
+  },
+  historyRow: {
+    borderBottomWidth: ms(1),
+    borderBottomColor: THEME_BORDER,
+    paddingVertical: ms(10),
+  },
+  historyRowLabel: {
+    fontSize: sp(12),
+    fontWeight: '700',
+    color: THEME_PRIMARY,
+    marginBottom: ms(2),
+  },
+  historyRowValue: {
+    fontSize: sp(13),
+    color: '#1F2937',
+  },
+  saveButton: {
+    backgroundColor: THEME_PRIMARY,
+    borderRadius: ms(24),
+    height: ms(46),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: ms(14),
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: sp(14),
   },
 });
 
-interface AMCReportData {
-  amcName?: string;
-  contactNo?: string;
-  status?: string;
-  customerName?: string;
-  customerNumber?: string;
-  customerEmail?: string;
-  address?: string;
-  landmark?: string;
-  productBrand?: string;
-  productName?: string;
-  serialNumber?: string;
-  serviceAmount?: string;
-  remainingAmount?: string;
-  underWarranty?: string;
-  activationDate?: string;
-  contractDate?: string;
-  expiryDate?: string;
-  noOfServices?: number;
-  serviceCompleted?: number;
-  reminder?: string;
-  occurrence?: string;
-  note?: string;
-  [key: string]: unknown;
-}
-
 type EditFormData = {
+  // set only when a new address is picked from Google Places; otherwise the saved ones are kept
+  latitude?: string;
+  longitude?: string;
   amcName: string;
   customerName: string;
   customerNumber: string;
   customerEmail: string;
   address: string;
   landmark: string;
+  pinCode: string;
   productBrand: string;
   productName: string;
   serialNumber: string;
@@ -372,20 +590,74 @@ type EditFormData = {
   activationTime: string;
   contractDate: string;
   totalServices: string;
+  amcAmount: string;
+  receivedAmount: string;
   expiryDate: string;
   note: string;
+  occurrenceId: number;
+  reminderId: number;
 };
 
+const OCCURRENCE_ID_PATHS = [
+  'ServiceOccuranceId',
+  'ServiceOccuranceID',
+  'ServiceOccurrenceId',
+  'ServiceOccurrenceID',
+  'AMCServiceOccuranceId',
+  'AMCServiceOccuranceID',
+  'AMCServiceOccuranceTypeId',
+  'AMCServiceOccuranceTypeID',
+  'ServiceOccuranceTypeId',
+  'ServiceOccuranceTypeID',
+];
+const REMINDER_ID_PATHS = [
+  'AMCSetReminderId',
+  'AMCSetReminderID',
+  'AMCSetReminderModeId',
+  'AMCSetReminderModeID',
+  'AMCSetReminderTypeId',
+  'AMCSetReminderTypeID',
+  'ReminderId',
+  'ReminderID',
+];
+// Util/TaskStatus.java codes -> Constant.TaskCategories names (ServiceListAdapter).
+const SERVICE_STATUS_LABELS: Record<number, string> = {1: 'Completed', 2: 'Rejected', 3: 'Ongoing', 4: 'InActive'};
+const SERVICE_COUNT_OPTIONS: PickerOption[] = Array.from({length: 20}, (_, i) => ({id: i + 1, label: String(i + 1)}));
+
+// Java layout_*_details.xml TableRow: bold label 40%, value 60% with 5dp left padding, 5dp between rows.
+const DetailRow = ({label, value, first}: {label: string; value?: string | number | null; first?: boolean}) => (
+  <View style={[styles.detailRow, !first && {marginTop: 5}]}>
+    <Text style={styles.detailLabel}>{label}</Text>
+    <Text style={styles.detailValue}>{value === undefined || value === null || value === '' ? tr('NA') : String(value)}</Text>
+  </View>
+);
+
 const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }) => {
+  const {t} = useTranslation();
   const { amcItem, amcServiceDetailsId, amcsId, ownerId } = route.params || {};
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [amcData, setAmcData] = useState<AMCReportData | null>(null);
+  const [amcData, setAmcData] = useState<AMCDetailsResultData | null>(null);
   
   // Edit Modal State
   const [editModalVisible, setEditModalVisible] = useState(false);
+  // History (Java: amcHistoryDialog, fed by GetAMCRenewalDetails) and Renew
+  // (Java: AMCDialog with fromWhere="Renewal", posts AddAMCRenewal).
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
+  const [historyRows, setHistoryRows] = useState<Record<string, unknown>[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [renewModalVisible, setRenewModalVisible] = useState(false);
+  const [renewActivationDate, setRenewActivationDate] = useState('');
+  const [renewContractDate, setRenewContractDate] = useState('');
+  const [renewExpiryDate, setRenewExpiryDate] = useState('');
+  const [isRenewing, setIsRenewing] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData | null>(null);
+  const [occurrenceOptions, setOccurrenceOptions] = useState<PickerOption[]>([]);
+  const [reminderOptions, setReminderOptions] = useState<PickerOption[]>([]);
+  const [editPicker, setEditPicker] = useState<'services' | 'occurrence' | 'reminder' | null>(null);
   const [editSourceData, setEditSourceData] = useState<Record<string, unknown> | null>(null);
 
   // Toolbar action state (Call / WhatsApp / Download / Add task / Delete)
@@ -400,7 +672,6 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
 
   const fetchAMCDetails = async () => {
     if (!ownerId) {
-      console.log('[AMC Details] No ownerId provided');
       return;
     }
 
@@ -408,25 +679,17 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     setError(null);
 
     try {
-      console.log('[AMC Details] Fetching with params:', { ownerId, amcsId, amcServiceDetailsId });
       const response = await getAmcReportDetails({
         OwnerId: ownerId,
         AMCsId: amcsId,
         AMCServiceDetailsId: amcServiceDetailsId,
       });
 
-      console.log('[AMC Details Full Response]', response);
-      console.log('[AMC Details Response Type]', typeof response);
-      console.log('[AMC Details Response Keys]', Object.keys(response || {}));
-      console.log('[AMC Details Response JSON]', JSON.stringify(response, null, 2));
-
       const data = response.ResultData;
 
       if (data && typeof data === 'object') {
-        setAmcData(data as unknown as AMCReportData);
-        console.log('[AMC Data Loaded Successfully]', data);
+        setAmcData(data);
       } else {
-        console.log('[AMC Details] No valid data extracted from response');
         setError('No data received from server');
       }
     } catch (err) {
@@ -458,7 +721,9 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     try {
       const date = new Date(dateStr);
       if (Number.isNaN(date.getTime())) return dateStr;
-      return date.toLocaleDateString('en-GB');
+      // en-GB gives DD/MM/YYYY; the rest of the app (EmployeeManagementScreen,
+      // profile screens, etc.) normalizes this to DD-MM-YYYY, so match that.
+      return date.toLocaleDateString('en-GB').replace(/\//g, '-');
     } catch {
       return dateStr;
     }
@@ -543,7 +808,12 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       'ProductDetail.Location.Description',
       'ProductDetail.CustomerLocationInfoDto.City',
       'ProductDetail.CustomerLocationInfoDto.Description',
-      'City',
+      'landmark',
+    ]) || ''),
+    pinCode: String(getFirstValue(data, [
+      'ProductDetail.Location.PinCode',
+      'ProductDetail.CustomerLocationInfoDto.PinCode',
+      'PinCode',
     ]) || ''),
     productBrand: String(getFirstValue(data, ['ProductDetail.ProductBrand', 'ProductBrand']) || ''),
     productName: String(getFirstValue(data, ['ProductDetail.ProductName', 'ProductName']) || ''),
@@ -553,8 +823,12 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     activationTime: String(getFirstValue(data, ['ActivationTime']) || ''),
     contractDate: toDateInputValue(getFirstValue(data, ['ContractDate'])),
     totalServices: String(getFirstValue(data, ['TotalServices']) || ''),
+    amcAmount: String(getFirstValue(data, ['AMCAmount', 'AMCAmountValue']) ?? ''),
+    receivedAmount: String(getFirstValue(data, ['ReceivedAmount', 'ReceivedAmt']) ?? ''),
     expiryDate: toDateInputValue(getFirstValue(data, ['ExpiryDate'])),
     note: String(getFirstValue(data, ['AMCNotes', 'Note']) || ''),
+    occurrenceId: getNumberFromPaths(data, OCCURRENCE_ID_PATHS),
+    reminderId: getNumberFromPaths(data, REMINDER_ID_PATHS),
   });
 
   const updateEditField = <K extends keyof EditFormData>(
@@ -564,12 +838,89 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     setEditFormData(current => (current ? { ...current, [key]: value } : current));
   };
 
+  const submitRenewal = async () => {
+    if (!renewActivationDate.trim() || !renewContractDate.trim()) {
+      showFailureMsg(t('rn_please_enter_activation_and_contract_dates'));
+      return;
+    }
+    const sourceData = (amcData || amcItem || {}) as Record<string, unknown>;
+    const productDetail = toRecord(getFirstValue(sourceData, ['ProductDetail', 'productDetail']));
+    const customerDetail = toRecord(getFirstValue(productDetail, ['CustomerDetail', 'customerDetail']));
+    const locationDetail = toRecord(getFirstValue(productDetail, ['Location', 'location']));
+    setIsRenewing(true);
+    try {
+      ensureSuccess(
+        await renewAmcDetails({
+          AMCsId: 0,
+          RenewalAMCsId: amcsId,
+          RootAMCsId: amcsId,
+          AMCName: String(getFirstValue(sourceData, ['AMCName']) ?? ''),
+          AMCAmount: toNumberValue(getFirstValue(sourceData, ['AMCAmount'])),
+          ReceivedAmount: 0,
+          AMCNotes: String(getFirstValue(sourceData, ['AMCNotes']) ?? ''),
+          AMCSetReminderId: toNumberValue(getFirstValue(sourceData, ['AMCSetReminderId'])),
+          ServiceOccuranceId: toNumberValue(getFirstValue(sourceData, ['ServiceOccuranceId'])),
+          TotalServices: toNumberValue(getFirstValue(sourceData, ['TotalServices'])),
+          ActivationDate: renewActivationDate.trim(),
+          ContractDate: renewContractDate.trim(),
+          ExpiryDate: renewExpiryDate.trim() || undefined,
+          CreatedBy: ownerId,
+          UpdatedBy: ownerId,
+          UserId: ownerId,
+          CustomerId: toNumberValue(getFirstValue(productDetail, ['CustomerId'])),
+          CustomerDetailsid: toNumberValue(getFirstValue(customerDetail, ['CustomerDetailsid'])),
+          CustomerName: String(getFirstValue(customerDetail, ['CustomerName']) ?? ''),
+          MobileNumber: String(getFirstValue(customerDetail, ['MobileNumber']) ?? ''),
+          EmailId: String(getFirstValue(customerDetail, ['EmailId']) ?? ''),
+          Address: String(getFirstValue(locationDetail, ['Address']) ?? ''),
+          PinCode: String(getFirstValue(locationDetail, ['PinCode']) ?? ''),
+          LocationId: toNumberValue(getFirstValue(locationDetail, ['Id'])),
+          ProductDetailsId: toNumberValue(getFirstValue(productDetail, ['ProductDetailsId'])),
+          ProductName: String(getFirstValue(productDetail, ['ProductName']) ?? ''),
+          ProductBrand: String(getFirstValue(productDetail, ['ProductBrand']) ?? ''),
+          ProductSerialNo: String(getFirstValue(productDetail, ['ProductSerialNo']) ?? ''),
+          UnderWarranty: Boolean(getFirstValue(productDetail, ['UnderWarranty'])),
+        }),
+      );
+      showSuccessMsg(t('rn_amc_renewed_successfully'));
+      setRenewModalVisible(false);
+      fetchAMCDetails();
+    } catch (error) {
+      showFailureMsg(error instanceof Error ? error.message : tr('Unable to renew AMC.'));
+    } finally {
+      setIsRenewing(false);
+    }
+  };
+
+  // Occurrence / Reminder options for the edit form -- same lists the Add AMC
+  // form uses (AMCDialog.editAMC receives serviceOccTypeList + reminderModeList).
+  const loadEditLookups = async () => {
+    if (occurrenceOptions.length && reminderOptions.length) {
+      return;
+    }
+    try {
+      const [occurrenceResponse, reminderResponse] = await Promise.all([
+        getServiceOccurrenceList(),
+        getReminderModeList(),
+      ]);
+      const toOptions = (rows: unknown[]) =>
+        rows
+          .map((row, index) => normalizeLookupOption(row as never, index))
+          .filter((o): o is {id: number; name: string} => Boolean(o))
+          .map(o => ({id: o.id, label: o.name}));
+      setOccurrenceOptions(toOptions(getResultData(occurrenceResponse)));
+      setReminderOptions(toOptions(getResultData(reminderResponse)));
+    } catch (err) {
+      console.warn('[AMC Edit Lookup Error]', err);
+    }
+  };
+
   const openEditModal = async () => {
     const editAmcsId = toNumberValue(amcsId || getFirstValue((amcData || amcItem || {}) as Record<string, unknown>, ['AMCsId', 'amCsId', 'Id', 'id']));
     const userId = ownerId || toNumberValue(getFirstValue((amcData || amcItem || {}) as Record<string, unknown>, ['UserId', 'userId']));
 
     if (!editAmcsId || !userId) {
-      Alert.alert('Error', 'No data available for editing');
+      showFailureMsg(t('rn_no_data_available_for_editing'));
       return;
     }
 
@@ -582,23 +933,24 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       const fetchedData = response.ResultData ? (response.ResultData as unknown as Record<string, unknown>) : (amcData as Record<string, unknown>);
 
       if (!fetchedData) {
-        Alert.alert('Error', 'No edit data received from server');
+        showFailureMsg(t('rn_no_edit_data_received_from_server'));
         return;
       }
 
       setEditSourceData(fetchedData);
       setEditFormData(buildEditFormData(fetchedData));
+      loadEditLookups();
       setEditModalVisible(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load AMC edit data';
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setEditLoading(false);
     }
   };
 
   const saveAMCChanges = async () => {
-    const sourceData = editSourceData || amcData;
+    const sourceData = (editSourceData || amcData) as Record<string, unknown> | null;
     if (!editFormData || !sourceData) return;
 
     setEditLoading(true);
@@ -643,28 +995,13 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         'ProductDetail.ProductDetailsId',
         'ProductDetail.ProductId',
       ]);
-      const reminderId = getNumberFromPaths(sourceRecord, [
-        'AMCSetReminderId',
-        'AMCSetReminderID',
-        'AMCSetReminderModeId',
-        'AMCSetReminderModeID',
-        'AMCSetReminderTypeId',
-        'AMCSetReminderTypeID',
-        'ReminderId',
-        'ReminderID',
-      ]);
-      const occurrenceId = getNumberFromPaths(sourceRecord, [
-        'ServiceOccuranceId',
-        'ServiceOccuranceID',
-        'ServiceOccurrenceId',
-        'ServiceOccurrenceID',
-        'AMCServiceOccuranceId',
-        'AMCServiceOccuranceID',
-        'AMCServiceOccuranceTypeId',
-        'AMCServiceOccuranceTypeID',
-        'ServiceOccuranceTypeId',
-        'ServiceOccuranceTypeID',
-      ]);
+      const reminderId = editFormData.reminderId || getNumberFromPaths(sourceRecord, REMINDER_ID_PATHS);
+      const occurrenceId = editFormData.occurrenceId || getNumberFromPaths(sourceRecord, OCCURRENCE_ID_PATHS);
+
+      if (toNumberValue(editFormData.receivedAmount) > toNumberValue(editFormData.amcAmount)) {
+        showFailureMsg(t('rn_received_amount_cannot_be_greater_than_ser'));
+        return;
+      }
 
       const missingFields = [
         !amcId ? 'AMC id' : '',
@@ -676,12 +1013,12 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       ].filter(Boolean);
 
       if (missingFields.length > 0) {
-        Alert.alert('Error', `Unable to update AMC. Missing ${missingFields.join(', ')}.`);
+        showFailureMsg(trf('Unable to update AMC. Missing {{field}}.', { field: missingFields.join(', ') }));
         return;
       }
 
       const payload: Partial<EditAMCDTOResultData> = {
-        AMCAmount: toNumberValue(getFirstValue(sourceData, ['AMCAmount', 'AMCAmountValue'])),
+        AMCAmount: toNumberValue(editFormData.amcAmount),
         AMCName: toEditableText(editFormData.amcName),
         AMCNotes: toEditableText(editFormData.note),
         AMCSetReminderId: reminderId,
@@ -715,11 +1052,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
             Description: toEditableText(String(locationDetail.Description || editFormData.landmark)),
             Id: customerLocationId,
             IsActive: true,
-            Longitude: String(locationDetail.Longitude || ''),
+            Longitude: String(editFormData.longitude ?? (locationDetail.Longitude || '')),
             Name: '',
-            PinCode: String(locationDetail.PinCode || ''),
+            PinCode: editFormData.pinCode.trim(),
             UpdatedBy: toNumberValue(locationDetail.UpdatedBy),
-            latitude: String(locationDetail.latitude || locationDetail.Latitude || ''),
+            latitude: String(editFormData.latitude ?? (locationDetail.latitude || locationDetail.Latitude || '')),
           },
           ProductBrand: toEditableText(editFormData.productBrand),
           ProductDetailsId: productId,
@@ -730,18 +1067,16 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           UserId: toNumberValue(productDetail.UserId),
         },
         ProductId: productId,
-        ReceivedAmount: toNumberValue(getFirstValue(sourceData, ['ReceivedAmount', 'ReceivedAmt'])),
+        ReceivedAmount: toNumberValue(editFormData.receivedAmount),
         ServiceOccuranceId: occurrenceId,
         TotalServices: parseInt(editFormData.totalServices, 10) || 0,
-        UpdatedBy: toNumberValue(getFirstValue(sourceData, ['UpdatedBy'])),
+        UpdatedBy: userId,
         UserId: userId,
       };
 
-      console.log('[AMC Update] Sending payload:', JSON.stringify(payload, null, 2));
-      const response = await putAmcDetails(payload);
-      console.log('[AMC Update Response]', response);
+      ensureSuccess(await putAmcDetails(payload));
 
-      Alert.alert('Success', 'AMC updated successfully');
+      showSuccessMsg(t('rn_amc_updated_successfully'));
       setEditModalVisible(false);
       setEditSourceData(null);
       // Refresh the details
@@ -749,7 +1084,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update AMC';
       console.warn('[AMC Update Error]', err);
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setEditLoading(false);
     }
@@ -760,16 +1095,10 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     const dataSource = amcData || amcItem;
     
     if (!dataSource) {
-      console.log('[Details] No data source available');
       return null;
     }
 
     const data = dataSource as Record<string, unknown>;
-    
-    // Log available fields for debugging
-    if (amcData) {
-      console.log('[Details Fields Available (from API)]', Object.keys(data));
-    }
 
     // Helper to get nested values
     const getValue = (paths: string[]): string => {
@@ -780,6 +1109,25 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           if (strVal && strVal !== 'null' && strVal !== 'undefined') {
             return strVal;
           }
+        }
+      }
+      return 'NA';
+    };
+
+    const getBooleanLabel = (value: unknown): string => {
+      if (typeof value === 'boolean') {
+        return value ? 'Yes' : 'No';
+      }
+      if (typeof value === 'number') {
+        return value === 1 ? 'Yes' : 'No';
+      }
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true' || normalized === '1') {
+          return 'Yes';
+        }
+        if (normalized === 'false' || normalized === '0') {
+          return 'No';
         }
       }
       return 'NA';
@@ -808,41 +1156,80 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       return 'NA';
     };
 
+    const serviceTasks = (Array.isArray(data.TaskDetails) ? data.TaskDetails : []) as Array<{
+      TaskDate?: string;
+      TaskTime?: string;
+      TaskStatus?: number;
+      TechnicianName?: string;
+    }>;
+
+    // Java (AMCDetailsFragment.setData): both "Contact No" and "Customer
+    // Number" are the same CustomerDetailInfoDto.MobileNumber, DISPLAYED
+    // prefixed with the session's country code ("+<code> <number>") -- same
+    // split TaskDetailsScreen uses: the raw number for the `tel:` call
+    // intent, the decorated one for display, and code-no-plus for WhatsApp.
+    const countryCode = getCurrentCountryCode();
+    const rawMobile = getValue(['ProductDetail.CustomerDetailInfoDto.MobileNumber', 'MobileNumber']);
+    const hasMobile = rawMobile && rawMobile !== 'NA';
+    const mobileDisplay =
+      hasMobile && countryCode ? `+${countryCode} ${rawMobile}` : rawMobile;
+    const mobileWhatsapp =
+      hasMobile && countryCode ? `${countryCode}${rawMobile}` : rawMobile;
+
+    // Java prefixes amounts with the session's currency symbol ("₹" for
+    // Rs., else the raw symbol) -- see AMCDetailsFragment.setData().
+    const currencySymbol = getCurrentCurrencySymbol();
+    const amountPrefix = currencySymbol === 'Rs.' ? '₹' : currencySymbol;
+    const formatCurrencyAmount = (value: string) =>
+      value === 'NA' ? value : amountPrefix ? `${amountPrefix} ${value}` : value;
+
     // Calculate remaining amount
     let remainingAmt = 'NA';
     const totalAmount = getNestedValue(data, 'AMCAmount');
     const receivedAmount = getNestedValue(data, 'ReceivedAmt');
     if (typeof totalAmount === 'number' && typeof receivedAmount === 'number') {
       const remaining = totalAmount - receivedAmount;
-      remainingAmt = String(remaining);
+      remainingAmt = formatCurrencyAmount(formatAmount(remaining));
     }
+    const serviceAmountRaw = getValue(['AMCAmount', 'ServiceAmount']);
+    const serviceAmount = formatCurrencyAmount(
+      serviceAmountRaw === 'NA' ? serviceAmountRaw : formatAmount(serviceAmountRaw),
+    );
 
     const extractedDetails = {
       amcName: getValue(['AMCName', 'ProductDetail.ProductName']),
-      contactNo: getValue(['ProductDetail.CustomerDetailInfoDto.MobileNumber', 'MobileNumber']),
+      contactNo: rawMobile,
+      contactNoDisplay: mobileDisplay,
+      contactNoWhatsapp: mobileWhatsapp,
       status: getStatusText(),
       customerName: getValue(['ProductDetail.CustomerDetailInfoDto.CustomerName', 'CustomerName']),
-      customerNumber: getValue(['ProductDetail.CustomerDetailInfoDto.MobileNumber', 'MobileNumber']),
+      customerNumber: mobileDisplay,
       customerEmail: getValue(['ProductDetail.CustomerDetailInfoDto.EmailId', 'EmailId']),
       address: getValue(['ProductDetail.CustomerLocationInfoDto.Address', 'ProductDetail.CustomerDetailInfoDto.Address']),
-      landmark: getValue(['ProductDetail.CustomerLocationInfoDto.City', 'City']),
+      // Java: AMCDetailsFragment reads Landmark from
+      // ProductDetail.CustomerLocationInfoDto.Description (not City/landmark,
+      // which this endpoint doesn't return).
+      landmark: getValue(['ProductDetail.CustomerLocationInfoDto.Description', 'landmark']),
       productBrand: getValue(['ProductDetail.ProductBrand', 'BrandName']),
       productName: getValue(['ProductDetail.ProductName', 'ModelName']),
       serialNumber: getValue(['ProductDetail.ProductSerialNo', 'SerialNumber']),
-      serviceAmount: getValue(['AMCAmount', 'ServiceAmount']),
+      serviceAmount,
       remainingAmount: remainingAmt,
-      underWarranty: getValue(['ProductDetail.UnderWarranty', 'Warranty']),
+      underWarranty: getBooleanLabel(getNestedValue(data, 'ProductDetail.UnderWarranty') ?? getNestedValue(data, 'Warranty')),
       activationDate: formatDate(getNestedValue(data, 'ActivationDate')),
       contractDate: formatDate(getNestedValue(data, 'ContractDate')),
       expiryDate: formatDate(getNestedValue(data, 'ExpiryDate')),
       noOfServices: getValue(['TotalServices', 'ServiceCount']),
-      serviceCompleted: getValue(['AMCServiceDetailDto', 'ServiceCompleted']),
+      // Java (AMCDetailsFragment.setTaskDetails) counts TaskDetails with TaskStatus == COMPLETED (1).
+      serviceCompleted: serviceTasks.length
+        ? String(serviceTasks.filter(t => Number(t.TaskStatus) === 1).length)
+        : getValue(['AMCServiceDetailDto', 'ServiceCompleted']),
       reminder: getValue(['AMCSetReminderType', 'ReminderMode']),
       occurrence: getValue(['ServiceOccuranceType', 'OccurrenceType']),
       note: getValue(['AMCNotes', 'Note']),
+      serviceTasks,
     };
-    
-    console.log('[Extracted Details]', extractedDetails);
+
     return extractedDetails;
   }, [amcData, amcItem]);
 
@@ -860,23 +1247,23 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   const handleCallPress = () => {
     const phone = String(details?.contactNo || '').trim();
     if (!phone || phone.toUpperCase() === 'NA') {
-      Alert.alert('Call', 'Contact number is not available');
+      showToast(t('contact_no_is_not_available'));
       return;
     }
     Linking.openURL(`tel:${phone}`).catch(() => {
-      Alert.alert('Call', 'Unable to open the dialer');
+      showToast(t('rn_unable_to_open_the_dialer'));
     });
   };
 
   const handleWhatsAppPress = () => {
-    const phone = String(details?.contactNo || '').trim();
+    const phone = String(details?.contactNoWhatsapp || '').trim();
     if (!phone || phone.toUpperCase() === 'NA') {
-      Alert.alert('WhatsApp', 'Contact number is not available');
+      showToast(t('contact_no_is_not_available'));
       return;
     }
     const digits = phone.replace(/[^0-9]/g, '');
     Linking.openURL(`https://wa.me/${digits}`).catch(() => {
-      Alert.alert('WhatsApp', 'Unable to open WhatsApp');
+      showToast(t('rn_unable_to_open_whatsapp'));
     });
   };
 
@@ -885,7 +1272,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     const userId = getResolvedUserId();
 
     if (!downloadAmcId) {
-      Alert.alert('Download', 'AMC report is not available');
+      showToast(t('rn_amc_report_is_not_available'));
       return;
     }
 
@@ -895,11 +1282,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       if (response.Code === '200' && response.Message) {
         await Linking.openURL(response.Message);
       } else {
-        Alert.alert('Download Failed', response.Message || 'Could not generate the AMC report.');
+        showFailureMsg(response.Message || 'Could not generate the AMC report.');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not download the report.';
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setIsDownloadingReport(false);
     }
@@ -910,7 +1297,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     const userId = getResolvedUserId();
 
     if (!deleteAmcId) {
-      Alert.alert('Delete AMC', 'AMC id is not available.');
+      showToast(t('rn_amc_id_is_not_available'));
       return;
     }
 
@@ -920,45 +1307,40 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       // {Id, UserId} entries, matching the Java call's List<DeleteAMC.ResultData>.
       const response = await deleteAmc(([{ Id: deleteAmcId, UserId: userId }] as unknown) as Partial<DeleteAMCResultData>);
       if (response.Code === '200') {
-        Alert.alert('Deleted', response.Message || 'AMC deleted successfully.');
+        showSuccessMsg(response.Message || 'AMC deleted successfully.');
         navigation.goBack();
       } else {
-        Alert.alert('Delete Failed', response.Message || 'Could not delete this AMC.');
+        showFailureMsg(response.Message || 'Could not delete this AMC.');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not delete this AMC.';
-      Alert.alert('Error', message);
+      showFailureMsg(message || 'Error');
     } finally {
       setIsDeletingAmc(false);
     }
   };
 
   const handleDeletePress = () => {
-    Alert.alert('Delete AMC', 'Are you sure you want to delete this AMC?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: confirmDeleteAmc },
-    ]);
+    setDeleteVisible(true);
   };
 
-  const handleAddTaskPress = () => {
+  // Java (AMCDetailsFragment add-task icon) replaced its local expired /
+  // upcoming-date checks with the server's AMCs/GetUpcommingValidationFromAmcId:
+  // only "allow to task assing" opens Add Task; any other message is shown.
+  const handleAddTaskPress = async () => {
     const sourceRecord = getRawRecord();
-
-    const amcTypeName = String(
-      getFirstValue(sourceRecord, ['AMCTypeName']) ||
-        getFirstValue((amcItem || {}) as Record<string, unknown>, ['AMCTypeName', 'amcTypeName']) ||
-        '',
-    ).trim();
-
-    if (amcTypeName.toLowerCase() === 'expired') {
-      Alert.alert('AMC Expired', 'AMC expired, can not add task');
-      return;
-    }
-
-    const isUpcomingServiceActive = Boolean(getFirstValue(sourceRecord, ['IsUpcomingServiceActive']));
-    const upcomingServiceDate = getFirstValue(sourceRecord, ['UpcomingAmcsServiceDate']);
-
-    if (!isUpcomingServiceActive || !upcomingServiceDate) {
-      Alert.alert('Add Task', 'Can not add task for the selected date');
+    const validationAmcId = toNumberValue(
+      amcsId || getFirstValue(sourceRecord, ['AMCsId', 'amCsId', 'Id', 'id']),
+    );
+    try {
+      const validation = await getAmcUpcomingValidation({OwnerId: ownerId, AMCId: validationAmcId});
+      const message = String(validation?.Message ?? '');
+      if (validation?.Code !== '200' || message.toLowerCase() !== 'allow to task assing') {
+        showFailureMsg(message || 'Can not add task at this moment');
+        return;
+      }
+    } catch (err) {
+      showFailureMsg(err instanceof Error ? err.message : tr('Can not add task at this moment'));
       return;
     }
 
@@ -993,38 +1375,56 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     label: string,
     value: string,
     onChangeText: (value: string) => void,
-    options?: { keyboardType?: 'default' | 'numeric' | 'phone-pad' | 'email-address'; multiline?: boolean },
+    options?: { keyboardType?: 'default' | 'numeric' | 'decimal-pad' | 'phone-pad' | 'email-address'; multiline?: boolean; half?: boolean; editable?: boolean },
   ) => (
-    <View style={styles.editField}>
-      <Text style={styles.editLabel}>{label}</Text>
-      <TextInput
-        style={[styles.editInput, options?.multiline ? styles.editTextArea : null]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={label}
-        placeholderTextColor="#9CA3AF"
-        keyboardType={options?.keyboardType || 'default'}
-        multiline={options?.multiline}
-      />
+    <View style={options?.half ? styles.editFieldHalf : styles.editField}>
+      {options?.keyboardType === 'decimal-pad' ? (
+        <DecimalInput style={[styles.editInput]} value={value} onChangeText={onChangeText} />
+      ) : (
+        <TextInput
+          style={[styles.editInput]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={label}
+          placeholderTextColor={COLORS.lightGray}
+          keyboardType={options?.keyboardType || 'default'}
+          multiline={options?.multiline}
+          editable={options?.editable}
+        />
+      )}
+      {value || options?.keyboardType === 'decimal-pad' ? <Text style={styles.editFloatLabel}>{label}</Text> : null}
     </View>
   );
+
+  const renderEditSelect = (label: string, value: string, onPress: () => void, half?: boolean) => (
+    <View style={half ? styles.editFieldHalf : styles.editField}>
+      <Pressable style={[styles.editInput, styles.editSelectInput]} onPress={onPress}>
+        <Text
+          style={[value ? styles.editSelectValue : styles.editSelectPlaceholder, styles.editSelectText]}
+          numberOfLines={1}
+        >
+          {value || label}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color="#6B7280" />
+      </Pressable>
+    </View>
+  );
+
+  const editPickerConfig =
+    editPicker === 'services'
+      ? {title: t('no_of_services'), options: SERVICE_COUNT_OPTIONS}
+      : editPicker === 'occurrence'
+        ? {title: t('service_occurrence'), options: occurrenceOptions}
+        : editPicker === 'reminder'
+          ? {title: t('reminder'), options: reminderOptions}
+          : null;
 
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerContainer}>
-          <View style={styles.headerLeft}>
-            <Text style={{ fontSize: 20, color: '#FFFFFF' }}>☰</Text>
-            <Text style={styles.headerTitle}>AMC</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.headerIcon}>🎧</Text>
-            <Text style={styles.headerIcon}>🔔</Text>
-          </View>
-        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={THEME_PRIMARY} />
-          <Text style={{ marginTop: 10, color: THEME_GRAY_TEXT }}>Loading AMC Details...</Text>
+          <Text style={{ marginTop: vs(10), color: THEME_GRAY_TEXT }}>{t('rn_loading_amc_details')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -1033,20 +1433,10 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   if (error) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerContainer}>
-          <View style={styles.headerLeft}>
-            <Text style={{ fontSize: 20, color: '#FFFFFF' }}>☰</Text>
-            <Text style={styles.headerTitle}>AMC</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.headerIcon}>🎧</Text>
-            <Text style={styles.headerIcon}>🔔</Text>
-          </View>
-        </View>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable style={styles.retryButton} onPress={fetchAMCDetails}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('rn_retry')}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -1056,184 +1446,203 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   if (!details) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerContainer}>
-          <View style={styles.headerLeft}>
-            <Text style={{ fontSize: 20, color: '#FFFFFF' }}>☰</Text>
-            <Text style={styles.headerTitle}>AMC</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.headerIcon}>🎧</Text>
-            <Text style={styles.headerIcon}>🔔</Text>
-          </View>
-        </View>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>No AMC data available</Text>
+          <Text style={styles.errorText}>{t('rn_no_amc_data_available')}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  const statusColor = details.status.toLowerCase() === 'active' ? COLORS.statusCompleted : COLORS.darkGray;
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.headerContainer}>
-        <View style={styles.headerLeft}>
-          <Pressable onPress={() => navigation.goBack()}>
-            <Text style={{ fontSize: 20, color: '#FFFFFF' }}>☰</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>AMC</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <Text style={styles.headerIcon}>🎧</Text>
-          <Text style={styles.headerIcon}>🔔</Text>
-        </View>
-      </View>
-
-      {/* Toolbar Below Header */}
-      <View style={styles.toolbarContainer}>
-        <Pressable style={styles.toolbarButton} onPress={openEditModal} disabled={editLoading}>
-          <Text style={styles.toolbarIcon}>✎</Text>
-          <Text style={styles.toolbarButtonText}>{editLoading ? 'Loading' : 'Edit'}</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={handleWhatsAppPress}>
-          <Text style={styles.toolbarIcon}>💬</Text>
-          <Text style={styles.toolbarButtonText}>WhatsApp</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={handleCallPress}>
-          <Text style={styles.toolbarIcon}>📞</Text>
-          <Text style={styles.toolbarButtonText}>Call</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={handleDownloadPress} disabled={isDownloadingReport}>
-          <Text style={styles.toolbarIcon}>⬇</Text>
-          <Text style={styles.toolbarButtonText}>{isDownloadingReport ? 'Loading' : 'Download'}</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={handleAddTaskPress}>
-          <Text style={styles.toolbarIcon}>➕</Text>
-          <Text style={styles.toolbarButtonText}>Add</Text>
-        </Pressable>
-        <Pressable style={styles.toolbarButton} onPress={handleDeletePress} disabled={isDeletingAmc}>
-          <Text style={styles.toolbarIcon}>🗑</Text>
-          <Text style={styles.toolbarButtonText}>{isDeletingAmc ? 'Loading' : 'Delete'}</Text>
-        </Pressable>
-      </View>
-
-      <ScrollView style={styles.contentContainer} contentContainerStyle={{ paddingBottom: 20 }}>
-        {/* Info Card */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>AMC Name</Text>
-            <Text style={styles.infoValue}>{details.amcName}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Contact No</Text>
-            <Text style={styles.infoValue}>{details.contactNo}</Text>
+    <SafeAreaView style={styles.safeArea} edges={[]}>
+      <View style={styles.sheet}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Status + action icons (Java: status 40%, icons 60% split in 7 slots). */}
+        <View style={styles.statusRow}>
+          <Text style={[styles.statusLabel, {color: statusColor}]}>{details.status}</Text>
+          <View style={styles.iconsWrap}>
+            <Pressable style={styles.iconCell} onPress={openEditModal} disabled={editLoading}>
+              <Image source={require('../../../assets/images/fw_edit_task_icon.png')} style={styles.actionIcon} />
+            </Pressable>
+            <Pressable style={styles.iconCell} onPress={handleWhatsAppPress}>
+              <Ionicons name="logo-whatsapp" size={24} color={COLORS.primary} style={styles.actionIcon} />
+            </Pressable>
+            <Pressable style={styles.iconCell} onPress={handleCallPress}>
+              <Image source={require('../../../assets/images/ic_phone.png')} style={styles.actionIcon} />
+            </Pressable>
+            <Pressable style={styles.iconCell} onPress={handleDownloadPress} disabled={isDownloadingReport}>
+              <Image source={require('../../../assets/images/ic_download.png')} style={styles.actionIcon} />
+            </Pressable>
+            <Pressable style={styles.iconCell} onPress={handleAddTaskPress}>
+              <Image source={require('../../../assets/images/ic_plus.png')} style={styles.actionIcon} />
+            </Pressable>
+            <Pressable style={styles.iconCell} onPress={handleDeletePress} disabled={isDeletingAmc}>
+              <DeleteAccIcon size={24} color={COLORS.primary} />
+            </Pressable>
+            <View style={styles.iconCell} />
           </View>
         </View>
 
-        {/* Status Badge */}
-        {details.status && (
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusText}>{details.status}</Text>
+        {/* AMC name / contact card (bg_amc_title). */}
+        <View style={styles.titleCard}>
+          <View style={[styles.titleRow, {marginTop: 10}]}>
+            <Text style={styles.titleLabel}>{t('amc_name')}</Text>
+            <Text style={styles.titleValue}>{details.amcName}</Text>
           </View>
-        )}
-
-        {/* Customer Details Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Customer Details</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Customer Name</Text>
-            <Text style={styles.value}>{details.customerName}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Customer Number</Text>
-            <Text style={styles.value}>{details.customerNumber}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Customer Email</Text>
-            <Text style={styles.value}>{details.customerEmail}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Address</Text>
-            <Text style={styles.value}>{details.address}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Landmark</Text>
-            <Text style={styles.value}>{details.landmark}</Text>
+          <View style={[styles.titleRow, {marginTop: 5, marginBottom: 10}]}>
+            <Text style={styles.titleLabel}>{t('contact_no_hint')}</Text>
+            <Text style={styles.titleValue}>{details.contactNoDisplay}</Text>
           </View>
         </View>
 
-        {/* Product Details Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Product Details</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Product Brand</Text>
-            <Text style={styles.value}>{details.productBrand}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Product Name</Text>
-            <Text style={styles.value}>{details.productName}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Serial Number</Text>
-            <Text style={styles.value}>{details.serialNumber}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Service Amount</Text>
-            <Text style={styles.value}>{details.serviceAmount}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Remaining Amount</Text>
-            <Text style={styles.value}>{details.remainingAmount}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Under Warranty</Text>
-            <Text style={styles.value}>{details.underWarranty}</Text>
-          </View>
+        <Text style={[styles.sectionTitle, {paddingTop: 5}]}>{t('customer_details')}</Text>
+        <View style={styles.sectionBody}>
+        <DetailRow label={t('customer_name')} value={details.customerName} first />
+        <DetailRow label={t('customer_number')} value={details.customerNumber} />
+        <DetailRow label={t('customer_email')} value={details.customerEmail} />
+        <DetailRow label={t('address')} value={details.address} />
+        <DetailRow label={t('landmark')} value={details.landmark} />
         </View>
 
-        {/* AMC Details Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AMC Details</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Activation Date</Text>
-            <Text style={styles.value}>{details.activationDate}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Contract Date</Text>
-            <Text style={styles.value}>{details.contractDate}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Expiry Date</Text>
-            <Text style={styles.value}>{details.expiryDate}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>No. of Services</Text>
-            <Text style={styles.value}>{details.noOfServices}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Service Completed</Text>
-            <Text style={styles.value}>{details.serviceCompleted}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Reminder</Text>
-            <Text style={styles.value}>{details.reminder}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Occurrence</Text>
-            <Text style={styles.value}>{details.occurrence}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Status</Text>
-            <Text style={styles.value}>{details.status}</Text>
-          </View>
+        <Text style={[styles.sectionTitle, {marginTop: 20}]}>{t('product_details')}</Text>
+        <View style={styles.sectionBody}>
+        <DetailRow label={t('product_brand')} value={details.productBrand} first />
+        <DetailRow label={t('product_name')} value={details.productName} />
+        <DetailRow label={t('serial_number')} value={details.serialNumber} />
+        <DetailRow label={t('service_amount')} value={details.serviceAmount} />
+        <DetailRow label={t('remaining_amt')} value={details.remainingAmount} />
+        <DetailRow label={t('under_warranty')} value={details.underWarranty} />
         </View>
 
-        {/* Services Details Section */}
-        {details.note && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Services Details: {details.note}</Text>
+        <Text style={[styles.sectionTitle, {marginTop: 20}]}>{t('amc_details')}</Text>
+        <View style={styles.sectionBody}>
+        <DetailRow label={t('activation_date')} value={details.activationDate} first />
+        <DetailRow label={t('contract_date')} value={details.contractDate} />
+        <DetailRow label={t('expiry_date')} value={details.expiryDate} />
+        <DetailRow label={t('no_of_services')} value={details.noOfServices} />
+        <DetailRow label={t('service_completed')} value={details.serviceCompleted} />
+        <DetailRow label={t('reminder')} value={details.reminder} />
+        <DetailRow label={t('service_occurrence')} value={details.occurrence} />
+        <DetailRow label={t('status')} value={details.status} />
+        <DetailRow label={t('note')} value={details.note} />
+        </View>
+
+        {/* Services Details (Java ServiceListAdapter -- service_details_custom.xml). */}
+        <Text style={[styles.sectionTitle, {marginTop: 20}]}>
+          {details.serviceTasks.length ? tr('Services Details') : tr('Services Details : NA')}
+        </Text>
+        {details.serviceTasks.map((task, index) => (
+          <View key={index} style={styles.serviceBlock}>
+            <Text style={styles.serviceTitle}>{trf('Service {{n}}', { n: index + 1 })}</Text>
+            <DetailRow label={t('tech_name')} value={task.TechnicianName || 'NA'} first />
+            <DetailRow label={t('date')} value={String(task.TaskDate ?? '').split('T')[0] || 'NA'} />
+            <DetailRow label={t('time')} value={task.TaskTime || 'NA'} />
+            <DetailRow label={t('status')} value={SERVICE_STATUS_LABELS[Number(task.TaskStatus)] ?? 'NA'} />
           </View>
-        )}
+        ))}
       </ScrollView>
+      </View>
+
+      <Modal visible={historyVisible} animationType="slide" transparent={false} onRequestClose={() => setHistoryVisible(false)}>
+        <SafeAreaView style={styles.histRoot}>
+          <View style={styles.histHeader}>
+            <Text style={styles.histTitle}>{t('rn_amc_history')}</Text>
+            <Pressable onPress={() => setHistoryVisible(false)} hitSlop={10} style={styles.histClose}>
+              <Ionicons name="close" size={ms(28)} color={COLORS.ink} />
+            </Pressable>
+          </View>
+          <Text style={styles.histAmcName}>{details?.amcName}</Text>
+          <View style={styles.histDivider} />
+          <Text style={styles.histSubTitle}>{t('rn_renewal_history_details')}</Text>
+          {isHistoryLoading ? (
+            <ActivityIndicator color={THEME_PRIMARY} style={{marginVertical: 24}} />
+          ) : historyRows.length === 0 ? (
+            <Text style={styles.modalEmptyText}>{t('rn_no_renewal_history_found')}</Text>
+          ) : (
+            <ScrollView>
+              <View style={styles.histTable}>
+                <View style={styles.histHeadCol}>
+                  {['Sr.No', 'AMC ID', 'AMC Name', 'Created Date', 'Activation Date', 'Expiry Date', 'Services', 'Rs.Amount', 'Rs.Received'].map(h => (
+                    <Text key={h} style={styles.histHeadCell}>{h}</Text>
+                  ))}
+                </View>
+                <ScrollView horizontal>
+                  {historyRows.map((row: any, index: number) => {
+                    const day = (v: unknown) => String(v ?? '').split('T')[0];
+                    const cells = [
+                      String(index + 1),
+                      'AMC' + String(row.AMCsId ?? row.amcsId ?? ''),
+                      String(row.AMCName ?? row.amcName ?? ''),
+                      day(row.CreatedDate ?? row.createdDate),
+                      day(row.ActivationDate ?? row.activationDate),
+                      day(row.ExpiryDate ?? row.expiryDate),
+                      String(row.TotalServices ?? row.totalServices ?? ''),
+                      formatAmount(row.AMCAmount ?? row.amcAmount),
+                      formatAmount(row.ReceivedAmount ?? row.receivedAmount),
+                    ];
+                    return (
+                      <View key={index} style={styles.histDataCol}>
+                        {cells.map((c, i) => (
+                          <Text
+                            key={i}
+                            numberOfLines={1}
+                            style={[
+                              styles.histDataCell,
+                              i === 0 && {textAlign: 'center'},
+                              i === 1 && {color: COLORS.primary, fontWeight: 'bold'},
+                            ]}
+                          >
+                            {c}
+                          </Text>
+                        ))}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
+
+      <Modal visible={renewModalVisible} animationType="slide" transparent onRequestClose={() => setRenewModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>{t('rn_renew_amc')}</Text>
+              <Pressable onPress={() => setRenewModalVisible(false)} hitSlop={10}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.label}>{t('rn_activation_date_yyyy_mm_dd')}</Text>
+            <TextInput
+              style={styles.editInput}
+              value={renewActivationDate}
+              onChangeText={setRenewActivationDate}
+              placeholder={t('rn_yyyy_mm_dd')}
+            />
+            <Text style={styles.label}>{t('rn_contract_date_yyyy_mm_dd')}</Text>
+            <TextInput
+              style={styles.editInput}
+              value={renewContractDate}
+              onChangeText={setRenewContractDate}
+              placeholder={t('rn_yyyy_mm_dd')}
+            />
+            <Text style={styles.label}>{t('rn_expiry_date_yyyy_mm_dd')}</Text>
+            <TextInput
+              style={styles.editInput}
+              value={renewExpiryDate}
+              onChangeText={setRenewExpiryDate}
+              placeholder={t('rn_yyyy_mm_dd')}
+            />
+            <Pressable style={styles.saveButton} onPress={submitRenewal} disabled={isRenewing}>
+              <Text style={styles.saveButtonText}>{isRenewing ? tr('RENEWING...') : tr('RENEW')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={editModalVisible}
@@ -1244,13 +1653,13 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         <View style={styles.editModalRoot}>
           <View style={styles.editModalPanel}>
             <View style={styles.editModalHeader}>
-              <Text style={styles.editModalTitle}>Edit AMC</Text>
+              <Text style={styles.editModalTitle}>{t('rn_update_amc')}</Text>
               <Pressable
                 style={styles.editModalClose}
                 onPress={() => setEditModalVisible(false)}
                 disabled={editLoading}
               >
-                <Text style={styles.editModalCloseText}>x</Text>
+                <Ionicons name="close" size={24} color="#fff" />
               </Pressable>
             </View>
 
@@ -1260,40 +1669,72 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 contentContainerStyle={styles.editFormContent}
                 keyboardShouldPersistTaps="handled"
               >
-                {renderEditInput('AMC Name', editFormData.amcName, value => updateEditField('amcName', value))}
-                {renderEditInput('Customer Name', editFormData.customerName, value => updateEditField('customerName', value))}
-                {renderEditInput('Customer Number', editFormData.customerNumber, value => updateEditField('customerNumber', value), { keyboardType: 'phone-pad' })}
-                {renderEditInput('Customer Email', editFormData.customerEmail, value => updateEditField('customerEmail', value), { keyboardType: 'email-address' })}
-                {renderEditInput('Address', editFormData.address, value => updateEditField('address', value), { multiline: true })}
-                {renderEditInput('Landmark', editFormData.landmark, value => updateEditField('landmark', value))}
-                {renderEditInput('Product Brand', editFormData.productBrand, value => updateEditField('productBrand', value))}
-                {renderEditInput('Product Name', editFormData.productName, value => updateEditField('productName', value))}
-                {renderEditInput('Serial Number', editFormData.serialNumber, value => updateEditField('serialNumber', value))}
+                {/* Same field order as dialog_add_amc_new.xml (AMCDialog.editAMC). */}
+                {renderEditInput('AMC Name *', editFormData.amcName, value => updateEditField('amcName', value))}
+                {renderEditInput('Customer Name *', editFormData.customerName, value => updateEditField('customerName', value))}
+                {renderEditInput('Customer Number *', editFormData.customerNumber, value => updateEditField('customerNumber', value), { keyboardType: 'phone-pad' })}
+                {renderEditInput('Email ID', editFormData.customerEmail, value => updateEditField('customerEmail', value), { keyboardType: 'email-address' })}
+                {/* Java: address is not focusable -- tapping opens Google Places search. */}
+                <Pressable onPress={() => setPlaceSearchOpen(true)}>
+                  <View pointerEvents="none">
+                    {renderEditInput('Address *', editFormData.address, () => {}, { multiline: true, editable: false })}
+                  </View>
+                </Pressable>
+                {renderEditInput('Landmark *', editFormData.landmark, value => updateEditField('landmark', value))}
+                {renderEditInput('Brand Name *', editFormData.productBrand, value => updateEditField('productBrand', value))}
+                {renderEditInput('Model Name *', editFormData.productName, value => updateEditField('productName', value))}
+                {renderEditInput('Serial No. *', editFormData.serialNumber, value => updateEditField('serialNumber', value))}
 
                 <View style={styles.editToggleRow}>
-                  <Text style={styles.editLabel}>Under Warranty</Text>
+                  <Text style={styles.editWarrantyLabel}>{t('under_warranty')}</Text>
                   <View style={styles.editToggle}>
-                    <Pressable
-                      style={[styles.editToggleOption, editFormData.underWarranty ? styles.editToggleOptionActive : null]}
-                      onPress={() => updateEditField('underWarranty', true)}
-                    >
-                      <Text style={[styles.editToggleText, editFormData.underWarranty ? styles.editToggleTextActive : null]}>Yes</Text>
-                    </Pressable>
                     <Pressable
                       style={[styles.editToggleOption, !editFormData.underWarranty ? styles.editToggleOptionActive : null]}
                       onPress={() => updateEditField('underWarranty', false)}
                     >
-                      <Text style={[styles.editToggleText, !editFormData.underWarranty ? styles.editToggleTextActive : null]}>No</Text>
+                      <Text style={[styles.editToggleText, !editFormData.underWarranty ? styles.editToggleTextActive : null]}>{t('no')}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.editToggleOption, editFormData.underWarranty ? styles.editToggleOptionActive : null]}
+                      onPress={() => updateEditField('underWarranty', true)}
+                    >
+                      <Text style={[styles.editToggleText, editFormData.underWarranty ? styles.editToggleTextActive : null]}>{t('yes')}</Text>
                     </Pressable>
                   </View>
                 </View>
 
-                {renderEditInput('Activation Date (YYYY-MM-DD)', editFormData.activationDate, value => updateEditField('activationDate', value))}
-                {renderEditInput('Activation Time', editFormData.activationTime, value => updateEditField('activationTime', value))}
-                {renderEditInput('Contract Date (YYYY-MM-DD)', editFormData.contractDate, value => updateEditField('contractDate', value))}
-                {renderEditInput('Expiry Date (YYYY-MM-DD)', editFormData.expiryDate, value => updateEditField('expiryDate', value))}
-                {renderEditInput('Total Services', editFormData.totalServices, value => updateEditField('totalServices', value), { keyboardType: 'numeric' })}
-                {renderEditInput('Notes', editFormData.note, value => updateEditField('note', value), { multiline: true })}
+                <View style={styles.editRow}>
+                  {renderEditInput('Activation Date *', editFormData.activationDate, value => updateEditField('activationDate', value), { half: true })}
+                  {renderEditInput('Time *', editFormData.activationTime, value => updateEditField('activationTime', value), { half: true })}
+                </View>
+                <View style={styles.editRow}>
+                  {renderEditInput('Contract Date *', editFormData.contractDate, value => updateEditField('contractDate', value), { half: true })}
+                  {renderEditSelect('No. of Services', editFormData.totalServices, () => setEditPicker('services'), true)}
+                </View>
+                <View style={styles.editRow}>
+                  {renderEditSelect(
+                    'Occurrence',
+                    occurrenceOptions.find(o => o.id === editFormData.occurrenceId)?.label ?? '',
+                    () => setEditPicker('occurrence'),
+                    true,
+                  )}
+                  {editFormData.underWarranty
+                    ? null
+                    : renderEditInput('Service Amount *', editFormData.amcAmount, value => updateEditField('amcAmount', sanitizeDecimalInput(value)), { keyboardType: 'decimal-pad', half: true })}
+                </View>
+                <View style={styles.editRow}>
+                  {renderEditInput('Expiry Date', editFormData.expiryDate, value => updateEditField('expiryDate', value), { half: true })}
+                  {renderEditSelect(
+                    'Reminder',
+                    reminderOptions.find(o => o.id === editFormData.reminderId)?.label ?? '',
+                    () => setEditPicker('reminder'),
+                    true,
+                  )}
+                </View>
+                {editFormData.underWarranty
+                  ? null
+                  : renderEditInput('Received Amount', editFormData.receivedAmount, value => updateEditField('receivedAmount', sanitizeDecimalInput(value)), { keyboardType: 'decimal-pad' })}
+                {renderEditInput('Note', editFormData.note, value => updateEditField('note', value), { multiline: true })}
 
                 <Pressable
                   style={[styles.editSaveButton, editLoading ? styles.editSaveButtonDisabled : null]}
@@ -1303,7 +1744,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                   {editLoading ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.editSaveButtonText}>Save</Text>
+                    <Text style={styles.editSaveButtonText}>{t('update').toUpperCase()}</Text>
                   )}
                 </Pressable>
 
@@ -1312,7 +1753,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                   onPress={() => setEditModalVisible(false)}
                   disabled={editLoading}
                 >
-                  <Text style={styles.editCancelButtonText}>Cancel</Text>
+                  <Text style={styles.editCancelButtonText}>{t('cancel')}</Text>
                 </Pressable>
               </ScrollView>
             ) : (
@@ -1320,9 +1761,62 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 <ActivityIndicator color={THEME_PRIMARY} />
               </View>
             )}
+            <PlaceSearchModal
+              visible={placeSearchOpen}
+              onClose={() => setPlaceSearchOpen(false)}
+              onSelect={place => {
+                setEditFormData(current =>
+                  current
+                    ? { ...current, address: place.address, latitude: String(place.latitude), longitude: String(place.longitude) }
+                    : current,
+                );
+                setPlaceSearchOpen(false);
+              }}
+            />
+            {editPickerConfig ? (
+              <SearchPickerModal
+                visible
+                title={editPickerConfig.title}
+                options={editPickerConfig.options}
+                onClose={() => setEditPicker(null)}
+                onSelect={option => {
+                  if (editPicker === 'services') {
+                    updateEditField('totalServices', String(option.id));
+                  } else if (editPicker === 'occurrence') {
+                    updateEditField('occurrenceId', option.id);
+                  } else if (editPicker === 'reminder') {
+                    updateEditField('reminderId', option.id);
+                  }
+                  setEditPicker(null);
+                }}
+              />
+            ) : null}
           </View>
         </View>
       </Modal>
+
+      {/* Java delete_amc_dialog.xml */}
+      <BottomSheetDialog visible={deleteVisible} onRequestClose={() => setDeleteVisible(false)}>
+        <View style={styles.delOuter}>
+          <Text style={styles.delMessage}>
+            {t('rn_do_you_want_to_delete_this_amc_it_will_del')}
+          </Text>
+          <View style={styles.delButtons}>
+            <Pressable style={styles.delNo} onPress={() => setDeleteVisible(false)}>
+              <Text style={styles.delNoText}>{t('no')}</Text>
+            </Pressable>
+            <Pressable
+              style={styles.delYes}
+              onPress={() => {
+                setDeleteVisible(false);
+                confirmDeleteAmc();
+              }}
+            >
+              <Text style={styles.delYesText}>{t('yes').toUpperCase()}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </BottomSheetDialog>
 
       <AddTaskModal
         visible={isAddTaskModalOpen}

@@ -1,62 +1,86 @@
 // src/screens/admin/AdminProfileScreen.tsx
 
+import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, Image, ScrollView, Modal,
-  Pressable, Alert, ActivityIndicator, Platform, StatusBar, TouchableOpacity,
+  View, Text, TextInput, StyleSheet, Image, ScrollView,
+  Pressable, ActivityIndicator, Platform, StatusBar, TouchableOpacity, Share,
 } from 'react-native';
+import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme/theme';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { launchImageLibrary } from 'react-native-image-picker';
+import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getProfileDetails,
+  getUserDetails,
   updateUser as updateUserProfile,
   authenticateMobile,
   authenticateEmail,
 } from '../../api/users/usersService';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
+import SearchPickerModal,{ type PickerOption } from '../../components/SearchPickerModal';
 import type { UserDetailsResultData, UpdateUserResultData } from '../../api/users/users.types';
-import { ms, sp, scale, vs } from '../../utils/responsive';
+import { ms, sp, scale, vs, useAppHeaderHeight } from '../../utils/responsive';
+import { useNavigation } from '@react-navigation/native';
+import { PencilEditIcon, EditFieldIcon } from '../../components/DialogIcons';
+import { getServiceType } from '../../api/customerInquiry/customerInquiryService';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
+import ImageSourceDialog from '../../components/ImageSourceDialog';
+import { tr } from '../../i18n/tr';
 type UserResultData = UserDetailsResultData;
 
-// ─── Field Component (identical contract to TechProfileScreen's) ───────────
+// ─── Field Component (identical to TechProfileScreen's) ─────────────────────
+// Java's TextInputLayoutStyle: 1dp light_gray outlined pill with a floating hint.
 
 interface FieldProps {
   label: string;
   value?: string;
   keyboard?: 'default' | 'email-address' | 'phone-pad' | 'number-pad' | 'url';
+  /** Overlaid plain glyph at the field's top-right corner (Java's imageView_editMobile/Email --
+   *  no border, no background, just the icon sitting over the field's border). */
   showEditIcon?: boolean;
   editable?: boolean;
   onChange?: (v: string) => void;
   onEditIconPress?: () => void;
+  /** Read-only tap target (Google Places address search), like TechProfileScreen's Address. */
+  onPress?: () => void;
   maxLength?: number;
 }
 
 const Field: React.FC<FieldProps> = ({
   label, value, keyboard = 'default', showEditIcon = false, editable = true,
-  onChange, onEditIconPress, maxLength,
+  onChange, onEditIconPress, onPress, maxLength,
 }) => (
   <View style={fieldStyles.wrapper}>
     <Text style={fieldStyles.floatingLabel}>{label}</Text>
-    <View style={fieldStyles.inputBox}>
-      <TextInput
-        style={fieldStyles.input}
-        value={value ?? ''}
-        keyboardType={keyboard}
-        onChangeText={onChange}
-        editable={editable}
-        maxLength={maxLength}
-        cursorColor={COLORS.primary}
-      />
-      {showEditIcon && (
-        <Pressable style={fieldStyles.editIcon} onPress={onEditIconPress}>
-          <Ionicons name="create-outline" size={scale(20)} color={COLORS.primary} />
-        </Pressable>
-      )}
-    </View>
+    {onPress ? (
+      <Pressable style={fieldStyles.inputBox} onPress={onPress}>
+        <Text style={[fieldStyles.input, !value && { color: COLORS.lightGray }]} numberOfLines={1}>
+          {value || ''}
+        </Text>
+      </Pressable>
+    ) : (
+      <View style={fieldStyles.inputBox}>
+        <TextInput
+          style={fieldStyles.input}
+          value={value ?? ''}
+          keyboardType={keyboard}
+          onChangeText={onChange}
+          editable={editable}
+          maxLength={maxLength}
+          cursorColor={COLORS.primary}
+        />
+      </View>
+    )}
+    {showEditIcon && (
+      <Pressable style={fieldStyles.editIconOverlay} onPress={onEditIconPress} hitSlop={8}>
+        <EditFieldIcon size={ms(20)} />
+      </Pressable>
+    )}
   </View>
 );
 
@@ -83,38 +107,35 @@ const isValidWebsite = (value: string) => WEBSITE_REGEX.test(value.trim());
 // Ported from isNumberGreater(): valid range is 1–100.
 const isValidEmployeeCount = (value: string) => /^[1-9][0-9]?$|^100$/.test(value.trim());
 
-const formatAadhar = (raw: string) => {
-  const digits = raw.replace(/\D/g, '').slice(0, 12);
-  const groups = digits.match(/.{1,4}/g) ?? [];
-  return groups.join(' ');
-};
+// Image file names from the server can contain spaces (e.g. "FieldWeb Invoice Generation Workflow.png").
+// Java's Picasso encodes them; React Native's Image on Android does not and silently fails.
+const encodeImageUrl = (url?: string) => (url ?? '').replace(/ /g, '%20');
 
 const fieldStyles = StyleSheet.create({
   wrapper:        { marginBottom: ms(16) },
   floatingLabel:  {
     position: 'absolute', left: ms(22), top: -ms(8),
     backgroundColor: '#fff', paddingHorizontal: ms(4),
-    fontSize: sp(12), color: '#8a8a8a', zIndex: 10,
+    fontSize: sp(12), color: COLORS.lightGray, zIndex: 10,
   },
   inputBox: {
-    height: ms(50), borderRadius: ms(28), borderWidth: 1,
-    borderColor: '#d1d1d1', paddingHorizontal: ms(18),
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', backgroundColor: '#f9f9f9',
+    minHeight: ms(46), borderRadius: ms(28), borderWidth: 1,
+    borderColor: COLORS.lightGray, paddingHorizontal: ms(18), paddingVertical: ms(10),
+    justifyContent: 'center', backgroundColor: '#fff',
   },
-  input:   { flex: 1, fontSize: sp(15), color: '#333' },
-  editIcon: {
-    borderWidth: 1, borderColor: COLORS.primary,
-    borderRadius: ms(6), padding: ms(4),
+  input: { fontSize: sp(16), color: COLORS.textBlack, padding: 0 },
+  // Overlaps the field's top border at its right edge, like Java's negative-margin ImageView.
+  editIconOverlay: {
+    position: 'absolute', top: ms(10), right: ms(10),
   },
 });
 
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
 export default function AdminProfileScreen() {
-  const insets = useSafeAreaInsets();
-  const statusBarHeight =
-    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
+  const {t} = useTranslation();
+  const navigation = useNavigation<any>();
+  const headerHeight = useAppHeaderHeight();
 
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserResultData | null>(null);
@@ -123,16 +144,34 @@ export default function AdminProfileScreen() {
 
   const [companyName, setCompanyName] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
+  // Which address field the Google Places search is currently filling.
+  const [placeSearchFor, setPlaceSearchFor] = useState<'address' | 'companyAddress' | null>(null);
   const [gstOrPan, setGstOrPan] = useState('');
   const [companyWebsite, setCompanyWebsite] = useState('');
   const [companyContactNo, setCompanyContactNo] = useState('');
   const [noOfEmployees, setNoOfEmployees] = useState('');
-  const [docNumber, setDocNumber] = useState('');
+  const [companyDisplayName, setCompanyDisplayName] = useState('');
+  const [companyCity, setCompanyCity] = useState('');
+  // Java: enquiry_spin_services (owner only) -- CustomerInquiry/ServiceTypeList.
+  const [serviceTypeId, setServiceTypeId] = useState(0);
+  const [serviceType, setServiceType] = useState<PickerOption | null>(null);
+  const [serviceTypeOptions, setServiceTypeOptions] = useState<PickerOption[]>([]);
+  const [isServicePickerOpen, setIsServicePickerOpen] = useState(false);
+  // Java "Triggers": Response / Satisfaction code switches + up to 5 lead e-mails (chips).
+  const [responseCode, setResponseCode] = useState(false);
+  const [happyCode, setHappyCode] = useState(false);
+  const [leadEmails, setLeadEmails] = useState<string[]>([]);
+  const [leadEmailInput, setLeadEmailInput] = useState('');
 
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
   // Which image is being picked: profile avatar or company logo. Mirrors
   // isProfileImage in the Java fragment.
   const [photoTarget, setPhotoTarget] = useState<'profile' | 'logo'>('profile');
+  // profile.Photo can be a truthy but unreachable/broken URL, which <Image>
+  // fails to load silently, leaving a blank circle instead of falling back
+  // to the placeholder -- so track load failures and fall back explicitly.
+  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
 
   // Java defers both images to the Save/UpdateUser call rather than
   // uploading immediately (mImageEncodeBaseStringProfile / …Company) —
@@ -163,6 +202,33 @@ export default function AdminProfileScreen() {
     if (userId) fetchProfile();
   }, [userId]);
 
+  useEffect(() => {
+    setPhotoLoadFailed(false);
+    setLogoLoadFailed(false);
+  }, [profile?.Photo, profile?.CompanyLogo]);
+
+  // Java HomeActivityNew.getServiceTypeForProfileFragment -> CustomerInquiry/ServiceTypeList.
+  useEffect(() => {
+    getServiceType()
+      .then(response => {
+        const rows = Array.isArray(response?.ResultData) ? response.ResultData : [];
+        setServiceTypeOptions(
+          rows
+            .map(row => ({id: Number(row.Id) || 0, label: String(row.ServiceName ?? '')}))
+            .filter(option => option.label)
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })),
+        );
+      })
+      .catch(() => setServiceTypeOptions([]));
+  }, []);
+
+  // Pre-select the saved service type once both the profile and the list have loaded.
+  useEffect(() => {
+    if (serviceTypeId && serviceTypeOptions.length > 0) {
+      setServiceType(serviceTypeOptions.find(o => o.id === serviceTypeId) ?? null);
+    }
+  }, [serviceTypeId, serviceTypeOptions]);
+
   // Source: ProfileFragmentNew.getProfileDetails() — GET Users/GetProfileDetails?UserId={userId}
   const fetchProfile = async () => {
     try {
@@ -170,20 +236,46 @@ export default function AdminProfileScreen() {
       const response = await getProfileDetails({ UserId: Number(userId) });
       const user = response?.ResultData ?? null;
       setProfile(user);
+      // Java opens this screen with the HomeActivityNew.getUSerDetails result
+      // (Users/GetUsersByUserId), and that response carries CRMLoginURL while
+      // GetProfileDetails returns it as null -- patch it in for the "Link" field.
+      if (user && !user.CRMLoginURL) {
+        getUserDetails({ UserId: Number(userId) })
+          .then(res => {
+            const crmLoginUrl = res?.ResultData?.CRMLoginURL;
+            if (crmLoginUrl) {
+              setProfile(prev => (prev ? { ...prev, CRMLoginURL: crmLoginUrl } : prev));
+            }
+          })
+          .catch(() => {});
+      }
       setIsMobileNoUpdate(false);
       setIsEmailIdUpdate(false);
       setProfileImageBase64(null);
       setCompanyLogoBase64(null);
       setCompanyLogoRemoved(false);
-      setDocNumber(formatAadhar(user?.AadharCardNo ?? ''));
       setCompanyName(user?.CompanyName ?? '');
       setCompanyAddress(user?.CompanyAddress ?? '');
       setGstOrPan(user?.CompanyGSTorPanNo ?? '');
       setCompanyWebsite(user?.CompanyWebsite ?? '');
       setCompanyContactNo(user?.CompanyContactNo != null ? String(user.CompanyContactNo) : '');
       setNoOfEmployees(user?.NoOfUsers != null ? String(user.NoOfUsers) : '');
+      setCompanyDisplayName(user?.CompanySortName ?? '');
+      setCompanyCity(user?.CompanyCity ?? '');
+      // Triggers (Java: radiobuttonYes / radiobuttonSatisfYes / addEmailChip per saved e-mail).
+      setResponseCode(!!user?.IsResponseCode);
+      setHappyCode(!!user?.IsHappyCode);
+      setLeadEmails(
+        String(user?.LeadsEmail ?? '')
+          .split(',')
+          .map(e => e.trim())
+          .filter(Boolean)
+          .slice(0, 5),
+      );
+      setLeadEmailInput('');
+      setServiceTypeId(user?.CompanyServiceTypeId ?? 0);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to load profile');
+      showFailureMsg(e.message || 'Failed to load profile');
     } finally {
       setLoading(false);
     }
@@ -198,7 +290,7 @@ export default function AdminProfileScreen() {
   const handlePickImage = async (source: 'camera' | 'gallery') => {
     setShowPhotoSourceModal(false);
     const result = source === 'camera'
-      ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.8 })
+      ? await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.8 })
       : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.8 });
 
     const asset = result.assets?.[0];
@@ -218,9 +310,8 @@ export default function AdminProfileScreen() {
   };
 
   // ─── DOB picker (mirrors onDateSet in the Java reference) ──────────────────
-  const handleDobChange = (event: DateTimePickerEvent, date?: Date) => {
+  const handleDobChange = (_event: DateTimePickerChangeEvent, date: Date) => {
     if (Platform.OS === 'android') setShowDobPicker(false);
-    if (event.type === 'dismissed' || !date) return;
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -243,20 +334,20 @@ export default function AdminProfileScreen() {
 
     if (from === 'MOBILE') {
       if (!isValidPhone(newValue)) {
-        Alert.alert('Validation', 'Please enter a valid 10-digit number');
+        showFailureMsg(t('rn_please_enter_a_valid_10_digit_number'));
         return;
       }
       if (newValue === profile?.ContactNo) {
-        Alert.alert('Validation', 'This is a duplicate mobile number');
+        showFailureMsg(t('rn_this_is_a_duplicate_mobile_number'));
         return;
       }
     } else {
       if (!isValidEmailFormat(newValue)) {
-        Alert.alert('Validation', 'Please enter a valid email id');
+        showFailureMsg(t('please_enter_valid_emailid'));
         return;
       }
       if (newValue.toLowerCase() === (profile?.Email ?? '').toLowerCase()) {
-        Alert.alert('Validation', 'This is a duplicate email id');
+        showFailureMsg(t('rn_this_is_a_duplicate_email_id'));
         return;
       }
     }
@@ -267,19 +358,19 @@ export default function AdminProfileScreen() {
         : await authenticateEmail({ EmailId: newValue, UserId: Number(userId) });
 
       if (body?.Message?.toLowerCase().includes('already registered')) {
-        Alert.alert('Notice', body.Message);
+        showFailureMsg(body.Message || 'Notice');
         return;
       }
       setOtpModal(prev => ({ ...prev, stage: 'otp', sentOtp: body?.ResultData?.OTP ?? null }));
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to send OTP');
+      showFailureMsg(e?.message || 'Failed to send OTP');
     }
   };
 
   const handleVerifyOtp = () => {
     const { from, newValue, otpValue, sentOtp } = otpModal;
     if (sentOtp == null || Number(otpValue) !== sentOtp) {
-      Alert.alert('Error', 'Invalid OTP');
+      showFailureMsg(t('invalid_otp'));
       return;
     }
 
@@ -290,7 +381,7 @@ export default function AdminProfileScreen() {
       setProfile(prev => prev ? { ...prev, Email: newValue } : prev);
       setIsEmailIdUpdate(true);
     }
-    Alert.alert('Success', 'OTP verified');
+    showSuccessMsg(t('otp_verified'));
     closeOtpFlow();
   };
 
@@ -333,7 +424,7 @@ export default function AdminProfileScreen() {
   const handleUpdate = async () => {
     const validationError = validate();
     if (validationError) {
-      Alert.alert('Validation', validationError);
+      showFailureMsg(validationError || 'Validation');
       return;
     }
     if (!profile || !userId) return;
@@ -357,18 +448,23 @@ export default function AdminProfileScreen() {
         CompanyAddress: companyAddress,
         CompanyGSTorPanNo: gstOrPan,
         CompanyWebsite: companyWebsite,
+        CompanySortName: companyDisplayName,
       };
+
+      // Java: updateUser.setCompanyCity(...) and the service-type / trigger values.
+      payload.CompanyCity = companyCity.trim();
+      if (serviceType) {
+        payload.CompanyServiceTypeId = serviceType.id;
+      }
+      payload.IsResponseCode = responseCode;
+      payload.IsHappyCode = happyCode;
+      payload.LeadsEmail = leadEmails.join(',');
 
       if (companyContactNo.trim()) {
         payload.CompanyContactNo = Number(companyContactNo);
       }
       if (noOfEmployees.trim()) {
         payload.NoOfUsers = noOfEmployees;
-      }
-
-      const aadharValue = docNumber || profile.AadharCardNo || '';
-      if (aadharValue.trim() !== '') {
-        payload.AadharCardNo = aadharValue;
       }
 
       // Profile photo — only sent if the user picked a new one this session.
@@ -392,7 +488,7 @@ export default function AdminProfileScreen() {
       const isSuccess = code === '200' || code === 'success';
 
       if (isSuccess) {
-        Alert.alert('Success', message);
+        showSuccessMsg(message || 'Success');
         setIsMobileNoUpdate(false);
         setIsEmailIdUpdate(false);
         setProfileImageBase64(null);
@@ -400,10 +496,10 @@ export default function AdminProfileScreen() {
         setCompanyLogoRemoved(false);
         await fetchProfile();
       } else {
-        Alert.alert('Error', message);
+        showFailureMsg(message || 'Error');
       }
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to update profile');
+      showFailureMsg(e?.message || 'Failed to update profile');
     } finally {
       setUpdating(false);
     }
@@ -411,22 +507,50 @@ export default function AdminProfileScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loader}>
+      <View style={[styles.loader, { paddingTop: headerHeight }]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
 
-  const AVATAR = ms(100);
-  const LOGO = ms(72);
+  const AVATAR = ms(120);
+  const hasLogo = !!(companyLogoBase64 || (profile?.CompanyLogo && !companyLogoRemoved && !logoLoadFailed));
+
+  const addLeadEmail = () => {
+    const email = leadEmailInput.trim();
+    if (leadEmails.length >= 5) {
+      showFailureMsg(t('rn_you_can_add_up_to_5_email_id_s_only'));
+    } else if (isValidEmailFormat(email)) {
+      if (!leadEmails.includes(email)) {
+        setLeadEmails(prev => [...prev, email]);
+      }
+      setLeadEmailInput('');
+    } else {
+      showFailureMsg(t('rn_invalid_email'));
+    }
+  };
+
+  // Java SegmentedGroup (No red / Yes green when checked).
+  const renderYesNo = (value: boolean, onChange: (v: boolean) => void) => (
+    <View style={styles.segmented}>
+      <Pressable
+        style={[styles.segment, styles.segmentLeft, !value && { backgroundColor: COLORS.primary }]}
+        onPress={() => onChange(false)}>
+        <Text style={[styles.segmentText, !value && styles.segmentTextOn]}>{t('no')}</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.segment, styles.segmentRight, value && { backgroundColor: COLORS.green500 }]}
+        onPress={() => onChange(true)}>
+        <Text style={[styles.segmentText, value && styles.segmentTextOn]}>{t('yes')}</Text>
+      </Pressable>
+    </View>
+  );
 
   return (
     <View style={styles.root}>
-      <View style={[styles.redBg, { height: vs(10) }]} />
-
       <ScrollView
-        style={styles.whiteSheet}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + ms(40) }]}
+        style={[styles.whiteSheet, { marginTop: headerHeight }]}
+        contentContainerStyle={[styles.content, { paddingBottom: ms(40) }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -436,52 +560,54 @@ export default function AdminProfileScreen() {
             source={
               profileImageBase64
                 ? { uri: `data:image/jpeg;base64,${profileImageBase64}` }
-                : profile?.Photo
-                  ? { uri: profile.Photo }
+                : profile?.Photo && !photoLoadFailed
+                  ? { uri: encodeImageUrl(profile.Photo) }
                   : require('../../../assets/images/image.png')
             }
-            style={[styles.avatar, { width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2 }]}
+            onError={() => setPhotoLoadFailed(true)}
+            style={{ width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2 }}
           />
           <Pressable style={styles.avatarEdit} onPress={() => openPhotoSource('profile')}>
-            <Ionicons name="create-outline" size={scale(14)} color="#fff" />
+            <PencilEditIcon size={ms(40)} />
           </Pressable>
         </View>
 
-        <Field label="First Name" value={profile?.FirstName}
-          onChange={(v) => setProfile(prev => prev ? { ...prev, FirstName: v } : prev)} />
-        <Field label="Last Name" value={profile?.LastName}
-          onChange={(v) => setProfile(prev => prev ? { ...prev, LastName: v } : prev)} />
+        <Field label={t('first_name')} value={profile?.FirstName} maxLength={16}
+          onChange={(v) => setProfile(prev => prev ? { ...prev, FirstName: v.replace(/[^A-Za-z]/g, '') } : prev)} />
+        <Field label={t('last_name')} value={profile?.LastName} maxLength={16}
+          onChange={(v) => setProfile(prev => prev ? { ...prev, LastName: v.replace(/[^A-Za-z]/g, '') } : prev)} />
 
         {/* Contact No — read-only once set, edit via OTP (imageView_editMobile) */}
         <Field
-          label="Contact No"
+          label={t('contact_no_hint')}
           value={profile?.ContactNo}
           keyboard="phone-pad"
+          maxLength={12}
           editable={!profile?.ContactNo}
           showEditIcon={!!profile?.ContactNo}
           onChange={(v) => setProfile(prev => prev ? { ...prev, ContactNo: v } : prev)}
           onEditIconPress={() => openOtpFlow('MOBILE')}
         />
 
-        <Field label="Address" value={profile?.Address}
-          onChange={(v) => setProfile(prev => prev ? { ...prev, Address: v } : prev)} />
+        {/* Address — read-only, opens the Google Places search (Java's AutocompleteActivity) */}
+        <Field label={t('address')} value={profile?.Address}
+          onPress={() => setPlaceSearchFor('address')} />
 
-        {/* E-Mail — read-only once set, edit via OTP (imageView_editEmail) */}
+        {/* E-Mail — Java always disables this field and always shows the pencil icon. */}
         <Field
-          label="E-Mail ID"
+          label={t('e_mail_id')}
           value={profile?.Email}
           keyboard="email-address"
-          editable={!profile?.Email}
-          showEditIcon={!!profile?.Email}
-          onChange={(v) => setProfile(prev => prev ? { ...prev, Email: v } : prev)}
+          editable={false}
+          showEditIcon
           onEditIconPress={() => openOtpFlow('EMAIL')}
         />
 
         <View style={fieldStyles.wrapper}>
-          <Text style={fieldStyles.floatingLabel}>Date of Birth</Text>
+          <Text style={fieldStyles.floatingLabel}>{t('date_of_birth')}</Text>
           <Pressable style={fieldStyles.inputBox} onPress={() => setShowDobPicker(true)}>
-            <Text style={{ fontSize: sp(15), color: profile?.DOB ? '#333' : '#aaa' }}>
-              {profile?.DOB ? new Date(profile.DOB).toLocaleDateString('en-GB').replace(/\//g, '-') : 'Select...'}
+            <Text style={{ fontSize: sp(16), color: profile?.DOB ? COLORS.textBlack : COLORS.lightGray }}>
+              {profile?.DOB ? new Date(profile.DOB).toLocaleDateString('en-GB').replace(/\//g, '-') : tr('Select...')}
             </Text>
           </Pressable>
         </View>
@@ -492,55 +618,116 @@ export default function AdminProfileScreen() {
             mode="date"
             display={Platform.OS === 'android' ? 'calendar' : 'inline'}
             maximumDate={new Date()}
-            onChange={handleDobChange}
+            onValueChange={handleDobChange}
+            onDismiss={() => setShowDobPicker(false)}
           />
         )}
 
-        <Field
-          label="Aadhar Card"
-          value={docNumber}
-          keyboard="phone-pad"
-          maxLength={14}
-          onChange={(v) => setDocNumber(formatAadhar(v))}
-        />
+        {/* Owner-only block of ProfileFragmentNew (company name … number of employees). The
+            Reporting Manager row, Aadhar card and KYC section are technician-only in Java. */}
+        <Field label={t('company_name')} value={companyName} maxLength={40} onChange={setCompanyName} />
+        <Field label={t('company_disp_name')} value={companyDisplayName} maxLength={4}
+          onChange={setCompanyDisplayName} />
 
-        {/* Company Details — Owner/SubAdmin only branch in ProfileFragmentNew (mLinearCompanyDetails) */}
-        <Text style={styles.sectionTitle}>Company Details</Text>
+        {/* enquiry_spin_services: bg_spinner pill (40dp, 34dp radius, light_gray stroke, arrow). */}
+        <Pressable style={styles.serviceSpinner} onPress={() => setIsServicePickerOpen(true)}>
+          <Text
+            style={[styles.serviceSpinnerText, !serviceType && { color: COLORS.lightGray }]}
+            numberOfLines={1}>
+            {serviceType ? serviceType.label : tr('Select Service Type')}
+          </Text>
+          <Ionicons name="chevron-down" size={scale(18)} color={COLORS.textBlack} />
+        </Pressable>
 
-        <View style={styles.logoRow}>
-          <View style={[styles.logoWrapper, { width: LOGO, height: LOGO }]}>
-            {(companyLogoBase64 || (profile?.CompanyLogo && !companyLogoRemoved)) ? (
+        <Field label={t('number_of_emp')} keyboard="number-pad" maxLength={3}
+          value={noOfEmployees} onChange={setNoOfEmployees} />
+
+        {/* linear_company_details */}
+        <Text style={styles.sectionTitle}>{t('title_change_company_name')}</Text>
+
+        <View style={styles.logoBox}>
+          {hasLogo ? (
+            <>
               <Image
-                source={
-                  companyLogoBase64
-                    ? { uri: `data:image/jpeg;base64,${companyLogoBase64}` }
-                    : { uri: profile!.CompanyLogo }
-                }
-                style={{ width: LOGO, height: LOGO, borderRadius: ms(8) }}
-                resizeMode="cover"
+                source={{
+                  uri: companyLogoBase64
+                    ? `data:image/jpeg;base64,${companyLogoBase64}`
+                    : encodeImageUrl(profile!.CompanyLogo),
+                }}
+                style={styles.logoImage}
+                onError={() => setLogoLoadFailed(true)}
+                resizeMode="contain"
               />
-            ) : (
-              <Text style={styles.logoHint}>No Logo</Text>
-            )}
-          </View>
-          <View style={styles.logoActions}>
-            <Pressable onPress={() => openPhotoSource('logo')}>
-              <Text style={styles.logoActionText}>Upload Company Logo</Text>
-            </Pressable>
-            {(companyLogoBase64 || (profile?.CompanyLogo && !companyLogoRemoved)) && (
-              <Pressable onPress={handleRemoveCompanyLogo}>
-                <Text style={[styles.logoActionText, { color: '#999' }]}>Remove</Text>
+              <Pressable style={styles.logoClose} onPress={handleRemoveCompanyLogo} hitSlop={8}>
+                <Ionicons name="close-circle" size={ms(24)} color={COLORS.primary} />
               </Pressable>
-            )}
-          </View>
+            </>
+          ) : (
+            <Pressable style={styles.logoHintRow} onPress={() => openPhotoSource('logo')}>
+              <Ionicons name="add-circle" size={ms(24)} color={COLORS.primary} />
+              <Text style={styles.logoHintText}>{t('company_logo_hint')}</Text>
+            </Pressable>
+          )}
         </View>
 
-        <Field label="Company Name" value={companyName} onChange={setCompanyName} />
-        <Field label="Company Address" value={companyAddress} onChange={setCompanyAddress} />
-        <Field label="GST / PAN No" value={gstOrPan} maxLength={15} onChange={(v) => setGstOrPan(v.toUpperCase())} />
-        <Field label="Company Website" keyboard="url" value={companyWebsite} onChange={setCompanyWebsite} />
-        <Field label="Company Contact No" keyboard="phone-pad" value={companyContactNo} onChange={setCompanyContactNo} />
-        <Field label="No. of Employees" keyboard="number-pad" value={noOfEmployees} onChange={setNoOfEmployees} />
+        <Field label={t('company_address_hint')} value={companyAddress}
+          onPress={() => setPlaceSearchFor('companyAddress')} />
+        <Field label={t('city')} value={companyCity} maxLength={200} onChange={setCompanyCity} />
+        <Field label={t('rn_gst_pan_no')} value={gstOrPan} maxLength={15}
+          onChange={(v) => setGstOrPan(v.replace(/[^0-9A-Za-z]/g, '').toUpperCase())} />
+        <Field label={t('company_cont_no_hint')} keyboard="number-pad" maxLength={12}
+          value={companyContactNo} onChange={setCompanyContactNo} />
+        <Field label={t('company_website_hint')} keyboard="url" maxLength={50}
+          value={companyWebsite} onChange={setCompanyWebsite} />
+
+        {/* edtTinyUrl + imgviewTinyUrl (share): read-only CRM login link. */}
+        <View>
+          <Field label={t('tiny_url')} value={profile?.CRMLoginURL} editable={false} maxLength={50} />
+          <Pressable
+            style={styles.linkShare}
+            hitSlop={8}
+            onPress={() => profile?.CRMLoginURL && Share.share({ message: profile.CRMLoginURL })}>
+            <Ionicons name="share-social" size={ms(22)} color={COLORS.primary} />
+          </Pressable>
+        </View>
+
+        {/* linear_trigger / trigger.xml */}
+        <Text style={styles.sectionTitle}>{t('rn_triggers')}</Text>
+        <View style={styles.triggerRow}>
+          <Text style={styles.triggerLabel}>{t('rn_activate_response_code')}</Text>
+          {renderYesNo(responseCode, setResponseCode)}
+        </View>
+        <View style={[styles.triggerRow, { marginTop: ms(10) }]}>
+          <Text style={styles.triggerLabel}>{t('rn_activate_satisfaction_code')}</Text>
+          {renderYesNo(happyCode, setHappyCode)}
+        </View>
+        <Text style={styles.leadsLabel}>{t('rn_receive_real_time_lead_information_max_5')}</Text>
+        <View style={[fieldStyles.wrapper, { marginTop: ms(8) }]}>
+          <View style={[fieldStyles.inputBox, { minHeight: ms(50) }]}>
+            <TextInput
+              style={fieldStyles.input}
+              placeholder={t('enter_email_id')}
+              placeholderTextColor={COLORS.lightGray}
+              value={leadEmailInput}
+              onChangeText={setLeadEmailInput}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              returnKeyType="done"
+              onSubmitEditing={addLeadEmail}
+              cursorColor={COLORS.primary}
+            />
+          </View>
+        </View>
+        <View style={styles.chipRow}>
+          {leadEmails.map(email => (
+            <View key={email} style={styles.chip}>
+              <Text style={styles.chipText} numberOfLines={1}>{email}</Text>
+              <Pressable hitSlop={8} onPress={() => setLeadEmails(prev => prev.filter(e => e !== email))}>
+                <Ionicons name="close-circle" size={ms(18)} color={COLORS.lightGray} />
+              </Pressable>
+            </View>
+          ))}
+        </View>
 
         {/* Update */}
         <Pressable
@@ -550,51 +737,43 @@ export default function AdminProfileScreen() {
         >
           {updating
             ? <ActivityIndicator size="small" color="#fff" />
-            : <Text style={styles.updateText}>UPDATE</Text>}
+            : <Text style={styles.updateText}>{t('update').toUpperCase()}</Text>}
         </Pressable>
 
-        <Pressable onPress={() => {}}>
-          <Text style={styles.cancelText}>Cancel</Text>
+        <Pressable onPress={() => navigation.navigate('Home')}>
+          <Text style={styles.cancelText}>{t('cancel')}</Text>
         </Pressable>
       </ScrollView>
 
       {/* Photo source picker (shared by avatar + company logo) */}
-      <Modal visible={showPhotoSourceModal} transparent animationType="fade" onRequestClose={() => setShowPhotoSourceModal(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowPhotoSourceModal(false)}>
-          <Pressable>
-            <View style={styles.photoSourceSheet}>
-              <Text style={styles.photoSourceTitle}>Select Image Source</Text>
-              <View style={styles.photoSourceDivider} />
-              <TouchableOpacity style={styles.photoSourceOption} onPress={() => handlePickImage('camera')}>
-                <View style={[styles.photoSourceIconWrap, { backgroundColor: COLORS.primary }]}>
-                  <Ionicons name="camera-outline" size={sp(20)} color="#fff" />
-                </View>
-                <Text style={styles.photoSourceOptionText}>Camera</Text>
-              </TouchableOpacity>
-              <View style={styles.photoSourceDivider} />
-              <TouchableOpacity style={styles.photoSourceOption} onPress={() => handlePickImage('gallery')}>
-                <View style={[styles.photoSourceIconWrap, { backgroundColor: '#6366F1' }]}>
-                  <Ionicons name="images-outline" size={sp(20)} color="#fff" />
-                </View>
-                <Text style={styles.photoSourceOptionText}>Gallery</Text>
-              </TouchableOpacity>
-              <View style={styles.photoSourceDivider} />
-              <TouchableOpacity style={[styles.photoSourceOption, { justifyContent: 'center' }]} onPress={() => setShowPhotoSourceModal(false)}>
-                <Text style={[styles.photoSourceOptionText, { color: COLORS.primary, fontWeight: '600' }]}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <ImageSourceDialog
+        visible={showPhotoSourceModal}
+        onCamera={() => handlePickImage('camera')}
+        onGallery={() => handlePickImage('gallery')}
+        onClose={() => setShowPhotoSourceModal(false)}
+      />
 
       {/* Mobile / Email OTP verification (VerifyOTPDialog in Java) */}
-      <Modal visible={otpModal.visible} transparent animationType="fade" onRequestClose={closeOtpFlow}>
+      <PlaceSearchModal
+        visible={placeSearchFor !== null}
+        onClose={() => setPlaceSearchFor(null)}
+        onSelect={(place) => {
+          if (placeSearchFor === 'address') {
+            setProfile(prev => prev ? { ...prev, Address: place.address } : prev);
+          } else if (placeSearchFor === 'companyAddress') {
+            setCompanyAddress(place.address);
+          }
+          setPlaceSearchFor(null);
+        }}
+      />
+
+      <Modal visible={otpModal.visible}transparent animationType="fade" onRequestClose={closeOtpFlow}>
         <Pressable style={styles.modalBackdrop} onPress={closeOtpFlow}>
           <Pressable>
             <View style={styles.otpSheet}>
               <View style={styles.otpHeaderRow}>
                 <Text style={styles.otpTitle}>
-                  {otpModal.from === 'MOBILE' ? 'Update Mobile Number' : 'Update Email ID'}
+                  {otpModal.from === 'MOBILE' ? tr('Update Mobile Number') : tr('Update Email ID')}
                 </Text>
                 <Pressable onPress={closeOtpFlow}>
                   <Ionicons name="close" size={scale(20)} color="#444" />
@@ -605,30 +784,30 @@ export default function AdminProfileScreen() {
                 <>
                   <TextInput
                     style={styles.otpInput}
-                    placeholder={otpModal.from === 'MOBILE' ? 'Enter new mobile number' : 'Enter new email id'}
+                    placeholder={otpModal.from === 'MOBILE' ? tr('Enter new mobile number') : tr('Enter new email id')}
                     keyboardType={otpModal.from === 'MOBILE' ? 'phone-pad' : 'email-address'}
                     value={otpModal.newValue}
                     onChangeText={(v) => setOtpModal(prev => ({ ...prev, newValue: v }))}
                   />
                   <Pressable style={styles.otpActionBtn} onPress={handleSendOtp}>
-                    <Text style={styles.otpActionText}>Send OTP</Text>
+                    <Text style={styles.otpActionText}>{t('send_otp')}</Text>
                   </Pressable>
                 </>
               ) : (
                 <>
                   <Text style={styles.otpHint}>
-                    Enter the OTP sent to {otpModal.newValue}
+                    {t('rn_enter_the_otp_sent_to')} {otpModal.newValue}
                   </Text>
                   <TextInput
                     style={styles.otpInput}
-                    placeholder="Enter OTP"
+                    placeholder={t('rn_enter_otp')}
                     keyboardType="number-pad"
                     maxLength={6}
                     value={otpModal.otpValue}
                     onChangeText={(v) => setOtpModal(prev => ({ ...prev, otpValue: v }))}
                   />
                   <Pressable style={styles.otpActionBtn} onPress={handleVerifyOtp}>
-                    <Text style={styles.otpActionText}>Verify & Submit</Text>
+                    <Text style={styles.otpActionText}>{t('rn_verify_submit')}</Text>
                   </Pressable>
                 </>
               )}
@@ -636,6 +815,18 @@ export default function AdminProfileScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Java: com.corefield.fieldweb.Util.SearchableSpinner (enquiry_spin_services). */}
+      <SearchPickerModal
+        visible={isServicePickerOpen}
+        title={t('select_service_type')}
+        options={serviceTypeOptions}
+        onSelect={option => {
+          setServiceType(option);
+          setIsServicePickerOpen(false);
+        }}
+        onClose={() => setIsServicePickerOpen(false)}
+      />
     </View>
   );
 }
@@ -645,115 +836,198 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.primary,
   },
-  redBg: {
-    backgroundColor: COLORS.primary,
-  },
   whiteSheet: {
     flex: 1,
     backgroundColor: '#fff',
-    borderTopLeftRadius: ms(28),
-    borderTopRightRadius: ms(28),
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
   },
   content: {
-    padding: ms(16),
+    padding: ms(20),
   },
   loader: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.primary,
   },
 
   /* Avatar */
   avatarWrapper: {
     alignItems: 'center',
     marginBottom: ms(20),
-    marginTop: ms(8),
   },
-  avatar: {},
   avatarEdit: {
     position: 'absolute',
-    bottom: ms(4),
-    right: '38%',
-    backgroundColor: COLORS.primary,
-    width: ms(24),
-    height: ms(24),
-    borderRadius: ms(12),
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
+    bottom: 0,
+    right: '34%',
   },
 
-  /* Company Details */
-  sectionTitle: {
-    fontSize: sp(16),
-    fontWeight: '600',
-    marginTop: ms(8),
-    marginBottom: ms(12),
-    color: COLORS.textPrimary,
-  },
-  logoRow: {
+  /* enquiry_spin_services -- bg_spinner: 40dp, 34dp radius, light_gray stroke, arrow at end */
+  serviceSpinner: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: ms(16),
-    gap: ms(14),
-  },
-  logoWrapper: {
-    borderRadius: ms(8),
+    justifyContent: 'space-between',
+    height: ms(40),
+    borderRadius: ms(34),
     borderWidth: 1,
-    borderColor: '#e2e2e2',
-    backgroundColor: '#f9f9f9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
+    borderColor: COLORS.lightGray,
+    paddingHorizontal: ms(12),
+    marginBottom: ms(15),
+    backgroundColor: '#fff',
   },
-  logoHint: {
-    fontSize: sp(11),
-    color: '#aaa',
-  },
-  logoActions: {
-    gap: ms(8),
-  },
-  logoActionText: {
-    color: COLORS.primary,
-    fontSize: sp(14),
-    fontWeight: '500',
+  serviceSpinnerText: {
+    flex: 1,
+    fontSize: sp(16),
+    color: COLORS.textBlack,
   },
 
-  /* Buttons */
+  /* Company details */
+  sectionTitle: {
+    textAlign: 'center',
+    fontSize: sp(20),
+    color: '#1d2536',
+    marginBottom: ms(20),
+  },
+  // relative_layout_comp_logo: 139dp tall, bg_curve_border (8dp radius, #E3E3E3 0.7dp stroke)
+  logoBox: {
+    alignSelf: 'center',
+    height: ms(139),
+    width: ms(200),
+    borderRadius: ms(8),
+    borderWidth: 0.7,
+    borderColor: '#E3E3E3',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginBottom: ms(20),
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  logoImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  logoClose: {
+    position: 'absolute',
+    top: ms(5),
+    right: ms(5),
+  },
+  logoHintRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: ms(16),
+    gap: ms(5),
+  },
+  logoHintText: {
+    fontSize: sp(16),
+    color: COLORS.lightGray,
+  },
+  linkShare: {
+    position: 'absolute',
+    top: ms(10),
+    right: ms(10),
+  },
+
+  /* Triggers (trigger.xml) */
+  triggerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  triggerLabel: {
+    flex: 1,
+    fontSize: sp(15),
+    color: '#1d2536',
+    paddingRight: ms(20),
+  },
+  segmented: {
+    flexDirection: 'row',
+    height: ms(40),
+    marginTop: ms(5),
+    borderRadius: ms(25),
+    borderWidth: 1,
+    borderColor: '#1d2536',
+    overflow: 'hidden',
+    elevation: 5,
+    backgroundColor: '#fff',
+  },
+  segment: {
+    width: ms(52),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentLeft: {},
+  segmentRight: {
+    borderLeftWidth: 1,
+    borderLeftColor: '#1d2536',
+  },
+  segmentText: {
+    fontSize: sp(14),
+    color: '#1d2536',
+  },
+  segmentTextOn: {
+    color: '#fff',
+  },
+  leadsLabel: {
+    marginTop: ms(10),
+    fontSize: sp(16),
+    color: '#1d2536',
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: ms(8),
+    marginBottom: ms(10),
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: ms(6),
+    maxWidth: '100%',
+    height: ms(32),
+    paddingHorizontal: ms(12),
+    borderRadius: ms(16),
+    backgroundColor: '#E8E8E8',
+  },
+  chipText: {
+    fontSize: sp(14),
+    color: COLORS.textBlack,
+    flexShrink: 1,
+  },
+
+  /* Buttons (rounded_button_new / transparent cancel) */
   updateBtn: {
-    backgroundColor: '#2f2f2f',
-    height: ms(52),
+    backgroundColor: '#353935',
+    height: ms(50),
     borderRadius: ms(30),
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: ms(10),
     elevation: 3,
-    marginTop: ms(8),
   },
   updateText: {
     color: '#fff',
-    fontSize: sp(17),
-    fontWeight: '600',
+    fontSize: sp(18),
   },
   cancelText: {
     textAlign: 'center',
     color: COLORS.primary,
     marginTop: ms(16),
-    fontSize: sp(16),
+    marginBottom: ms(20),
+    fontSize: sp(18),
     paddingVertical: ms(8),
   },
 
   modalBackdrop:         { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: scale(32) },
-  photoSourceSheet:      { backgroundColor: '#fff', borderRadius: scale(16), width: '100%', paddingVertical: vs(8), elevation: 10 },
-  photoSourceTitle:      { fontSize: sp(17), fontWeight: '600', color: '#111', paddingHorizontal: scale(20), paddingVertical: vs(14) },
-  photoSourceDivider:    { height: 1, backgroundColor: '#F3F4F6' },
-  photoSourceOption:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: scale(20), paddingVertical: vs(14), gap: scale(14) },
-  photoSourceIconWrap:   { width: scale(34), height: scale(34), borderRadius: scale(17), alignItems: 'center', justifyContent: 'center' },
-  photoSourceOptionText: { fontSize: sp(15), color: '#1F2937' },
 
   /* OTP modal */
   otpSheet: {
-    backgroundColor: '#fff', borderRadius: scale(16), width: '100%',
+    backgroundColor: '#fff', borderRadius: scale(16), width: '100%', maxWidth: scale(400),
     padding: scale(20), elevation: 10,
   },
   otpHeaderRow: {

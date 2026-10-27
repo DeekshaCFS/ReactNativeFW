@@ -108,6 +108,16 @@ export const downloadTechList = async (params?: Record<string, any>): Promise<Te
 };
 
 /**
+ * Source: URLConstant.Users.GET_HNG_CLIENT
+ * Endpoint: GET Users/IsHNGClient
+ * Code "200" ("User is under HNG") means an HNG client; anything else is a normal client.
+ */
+export const getIsHNGClient = async (params?: Record<string, any>): Promise<{ Code?: string; Message?: string }> => {
+  const response = await apiClient.get('Users/IsHNGClient', { params });
+  return response.data;
+};
+
+/**
  * Source: URLConstant.Users.GET_PROFILE_DETAILS
  * Endpoint: GET Users/GetProfileDetails
  */

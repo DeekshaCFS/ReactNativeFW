@@ -1,15 +1,17 @@
 // src/screens/technician/main/LeaveScreen.tsx
 import {
-  View, Text, StyleSheet, FlatList, Pressable, Modal, Image, ScrollView,
+  View, Text, StyleSheet, FlatList, Pressable, Image, ScrollView,
   Platform, StatusBar, TextInput, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
+import MonthYearPickerDialog from '../../../components/MonthYearPickerDialog';
+import SearchPickerModal from '../../../components/SearchPickerModal';
 import { useState, useCallback, useMemo } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, ms, HEADER_TOP_PADDING } from '../../../utils/responsive';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scale, vs, sp, ms, useAppHeaderHeight } from '../../../utils/responsive';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -19,12 +21,17 @@ import type {
   LeavaBalanceSummaryDTOResultData as LeaveBalanceSummary,
   GetAllLeavesListDTOLeaveDetails as LeaveDetails,
 } from '../../../api/leaveManagement/leaveManagement.types';
+import { showFailureMsg } from '../../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
+import { tr } from '../../../i18n/tr';
 // ── Screen-local UI helpers (not Java DTOs — kept inline) ──────────────────
 const LeaveStatusId = { PENDING: 1, APPROVED: 2, DECLINED: 3 } as const;
 const LEAVE_STATUS_OPTIONS = ['Status', 'Approved', 'Declined', 'Pending'] as const;
 type LeaveStatusOption = (typeof LEAVE_STATUS_OPTIONS)[number];
-const SINGLE_DATE_LEAVE_TYPES: number[] = [1]; // Half Day
+// Java (AddUpdateServiceDialog): Full Day/Casual/Sick show From-To date;
+// everything else (including no type picked yet) shows a single Date field.
+const RANGE_DATE_LEAVE_TYPES: number[] = [2, 4, 5]; // Full Day, Casual, Sick
 
 interface LeaveFormState {
   leaveTypeId: number | null;
@@ -48,18 +55,21 @@ type NavigationProp = NativeStackNavigationProp<TechnicianStackParamList, 'Leave
 const PAGE_SIZE = 50;
 
 const LEAVE_TYPE_COLORS: Record<number, string> = {
-  1: '#1A1A1A', // Half Day - black
-  2: '#22c55e', // Full Day - green
-  4: '#2563eb', // Casual Leave - blue
-  5: '#f59e0b', // Sick Leave - orange
+  1: COLORS.textBlack,     // Half Day - black
+  2: COLORS.green500,      // Full Day - green_500
+  4: COLORS.tagBlue,       // Casual Leave - blue
+  5: COLORS.statusOngoing, // Sick Leave - orange
 };
 
 const statusBg: Record<string, string> = {
-  Approved: '#22c55e',
-  Rejected: '#f87171',
-  Declined: '#f87171',
-  Pending: '#f59e0b',
+  Approved: COLORS.green500,
+  Rejected: COLORS.primary,
+  Declined: COLORS.primary,
+  Pending: COLORS.statusOngoing,
 };
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const YEAR_COUNT = 6; // current year and the five before it
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const monthLabel = (year: number, month0: number) =>
@@ -76,21 +86,25 @@ const formatDisplayDate = (iso?: string) => {
   return `${day}/${m}/${y}`;
 };
 
+// Java: DateUtils.convertDateFormat(...) + timeFormatConversion(..., "hh:mm aa")
 const formatRequestedAt = (iso?: string) => {
   if (!iso) return '';
   const [d, t] = iso.split('T');
   const parts = d.split('-');
   if (parts.length !== 3) return '';
   const [y, m, day] = parts;
-  const time = t ? t.split('.')[0] : '';
-  return `${day}-${m}-${y}  ${time}`;
+  if (!t) return `${day}-${m}-${y}`;
+  const [hStr, minStr] = t.split(':');
+  const h24 = Number(hStr);
+  const suffix = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 || 12;
+  return `${day}-${m}-${y}  ${pad2(h12)}:${minStr} ${suffix}`;
 };
 
 export default function LeaveScreen() {
+  const {t} = useTranslation();
   const navigation = useNavigation<NavigationProp>();
-  const insets = useSafeAreaInsets();
-  const statusBarHeight =
-    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top;
+  const headerHeight = useAppHeaderHeight();
 
   const [userId, setUserId] = useState<number | null>(null);
 
@@ -109,8 +123,11 @@ export default function LeaveScreen() {
   const [statusFilter, setStatusFilter] = useState<LeaveStatusOption>('Status');
   const [activeDropdown, setActiveDropdown] = useState<'status' | null>(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const openMonthPicker = () => setShowMonthPicker(true);
+  // Java sends no month until the user picks one (label still shows the current month).
+  const [monthPicked, setMonthPicked] = useState(false);
 
-  const monthYearParam = `${filterYear}-${pad2(filterMonth + 1)}`;
+  const monthYearParam = monthPicked ? `${filterYear}-${pad2(filterMonth + 1)}` : '';
   const statusIdParam = useMemo(() => {
     if (statusFilter === 'Approved') return LeaveStatusId.APPROVED;
     if (statusFilter === 'Declined') return LeaveStatusId.DECLINED;
@@ -132,7 +149,7 @@ export default function LeaveScreen() {
   const [errorLabel, setErrorLabel] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const isSingleDateType = form.leaveTypeId != null && SINGLE_DATE_LEAVE_TYPES.includes(form.leaveTypeId);
+  const isSingleDateType = form.leaveTypeId == null || !RANGE_DATE_LEAVE_TYPES.includes(form.leaveTypeId);
 
   // ── Bootstrap ──
   useFocusEffect(
@@ -232,7 +249,7 @@ export default function LeaveScreen() {
 
   const openUpdateSheet = (leave: LeaveDetails) => {
     if (leave.LeaveStatusId === LeaveStatusId.APPROVED || leave.LeaveStatusId === LeaveStatusId.DECLINED) {
-      Alert.alert('Not allowed', "You can't edit an Approved or Declined leave.");
+      showFailureMsg(t('rn_you_can_t_edit_an_approved_or_declined_lea'));
       return;
     }
     setSheetMode('update');
@@ -241,9 +258,9 @@ export default function LeaveScreen() {
     setForm({
       leaveTypeId,
       leaveTypeName: leave.LeaveType ?? '',
-      leaveDate: leaveTypeId !== null && SINGLE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveStartDate) : '',
-      fromDate: leaveTypeId === null || !SINGLE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveStartDate) : '',
-      toDate: leaveTypeId === null || !SINGLE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveEndDate) : '',
+      leaveDate: leaveTypeId === null || !RANGE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveStartDate) : '',
+      fromDate: leaveTypeId !== null && RANGE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveStartDate) : '',
+      toDate: leaveTypeId !== null && RANGE_DATE_LEAVE_TYPES.includes(leaveTypeId) ? splitDate(leave.LeaveEndDate) : '',
       reason: leave.ReasonOfLeave ?? '',
     });
     setErrorLabel('');
@@ -265,10 +282,10 @@ export default function LeaveScreen() {
     setErrorLabel('');
   };
 
-  const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
+  const onDateChange = (_event: DateTimePickerChangeEvent, date: Date) => {
     const field = activeDateField;
     setActiveDateField(null);
-    if (event.type === 'dismissed' || !date || !field) return;
+    if (!field) return;
 
     const iso = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
     setForm(prev => {
@@ -340,10 +357,10 @@ export default function LeaveScreen() {
 
   const handleDelete = () => {
     if (!userId || !activeLeave) return;
-    Alert.alert('Delete Leave', 'Are you sure you want to delete this leave request?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(tr('Delete Leave'), tr('Are you sure you want to delete this leave request?'), [
+      { text: tr('Cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: tr('Delete'),
         style: 'destructive',
         onPress: async () => {
           setSubmitting(true);
@@ -354,10 +371,10 @@ export default function LeaveScreen() {
               resetAndLoad();
               loadBalanceSummary();
             } else {
-              Alert.alert('Failed', res.Message || 'Could not delete leave.');
+              showFailureMsg(res.Message || 'Could not delete leave.');
             }
           } catch (e: any) {
-            Alert.alert('Failed', e?.message || 'Could not delete leave.');
+            showFailureMsg(e?.message || 'Could not delete leave.');
           } finally {
             setSubmitting(false);
           }
@@ -374,97 +391,106 @@ export default function LeaveScreen() {
     return (
       <Pressable style={styles.card} onPress={() => openUpdateSheet(item)}>
         <View style={styles.cardTopRow}>
-          <Text style={[styles.leaveType, { color: typeColor }]}>{item.LeaveType}</Text>
-          <View style={[styles.statusPill, { backgroundColor: statusBg[statusName] ?? '#9ca3af' }]}>
+          <View style={[styles.statusPill, { backgroundColor: statusBg[statusName] ?? COLORS.lightGray }]}>
             <Text style={styles.statusPillText}>{statusName}</Text>
           </View>
+          <Text style={styles.requestedAt}>{formatRequestedAt(item.LeaveCreatedDate)}</Text>
         </View>
 
-        <Text style={styles.leaveDateRange}>
-          {formatDisplayDate(item.LeaveStartDate)} - {formatDisplayDate(item.LeaveEndDate)}
-        </Text>
+        <View style={styles.leaveDateRow}>
+          <Text style={styles.leaveDateLabel}>{t('rn_leave_date')} </Text>
+          <Text style={styles.leaveDateValue}>
+            {formatDisplayDate(item.LeaveStartDate)} - {formatDisplayDate(item.LeaveEndDate)}
+          </Text>
+          <Text style={[styles.leaveType, { color: typeColor }]}>{item.LeaveType}</Text>
+        </View>
 
-        {!!item.ReasonOfLeave && (
-          <Text style={styles.leaveNotes} numberOfLines={2}>{item.ReasonOfLeave}</Text>
-        )}
-
-        <Text style={styles.requestedAt}>Requested on {formatRequestedAt(item.LeaveCreatedDate)}</Text>
+        <View style={styles.leaveNotesRow}>
+          <Text style={styles.leaveNotesLabel}>{t('rn_leave_remarks')} </Text>
+          <Text style={styles.leaveNotes} numberOfLines={2}>{item.ReasonOfLeave || 'NA'}</Text>
+        </View>
       </Pressable>
     );
   };
 
+  const listHeader = (
+    <>
+      {/* Tabs */}
+      <View style={[styles.tabRow, { paddingTop: headerHeight + vs(4) }]}>
+        <Pressable style={styles.inactiveTab} onPress={() => navigation.navigate('Attendance')}>
+          <Text style={styles.inactiveTabText}>{t('attendance').toUpperCase()}</Text>
+        </Pressable>
+        <Pressable style={styles.activeTab}>
+          <Text style={styles.activeTabText}>{t('rn_leaves')}</Text>
+        </Pressable>
+      </View>
+
+      {/* Filter row */}
+      <View style={styles.content}>
+        <View style={styles.filterRow}>
+          <Pressable style={styles.filterItem} onPress={openMonthPicker}>
+            <Text style={styles.filterText}>{monthLabel(filterYear, filterMonth)}</Text>
+            <Ionicons name="chevron-down" size={scale(16)} color={COLORS.primary} />
+          </Pressable>
+
+          <Pressable style={styles.filterItem} onPress={() => setActiveDropdown('status')}>
+            <Text style={styles.filterText}>{statusFilter}</Text>
+            <Ionicons name="chevron-down" size={scale(16)} color={COLORS.primary} />
+          </Pressable>
+
+          <Pressable style={styles.leaveBtn} onPress={openRequestSheet}>
+            <Text style={styles.leaveText}>{t('onleave')}</Text>
+          </Pressable>
+        </View>
+      </View>
+    </>
+  );
+
+  const listEmpty = loading ? (
+    <ActivityIndicator color={COLORS.primary} style={{ marginTop: vs(60) }} />
+  ) : (
+    <View style={styles.emptyState}>
+      <Image
+        style={styles.emptyImage}
+        resizeMode="contain"
+        source={require('../../../../assets/images/noresultfound.png')}
+      />
+    </View>
+  );
+
   return (
     <View style={styles.root}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }}>
-        {/* Tabs */}
-        <View style={styles.tabRow}>
-          <Pressable style={styles.inactiveTab} onPress={() => navigation.navigate('TechnicianTabsRoot', { screen: 'Attendance' })}>
-            <Text style={styles.inactiveTabText}>ATTENDANCE</Text>
-          </Pressable>
-          <Pressable style={styles.activeTab}>
-            <Text style={styles.activeTabText}>LEAVES</Text>
-          </Pressable>
-        </View>
+      <FlatList
+        data={leaves}
+        keyExtractor={(item, idx) => `${item.LeaveID}-${idx}`}
+        renderItem={renderItem}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        contentContainerStyle={{ paddingBottom: vs(40) }}
+        onEndReachedThreshold={0.4}
+        onEndReached={onEndReached}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+        }
+        ListFooterComponent={loadingMore ? <ActivityIndicator color={COLORS.primary} style={{ marginVertical: vs(12) }} /> : null}
+      />
 
-        <View style={styles.content}>
-          {/* Filter row */}
-          <View style={styles.filterRow}>
-            <Pressable style={styles.filterItem} onPress={() => setShowMonthPicker(true)}>
-              <Text style={styles.filterText}>{monthLabel(filterYear, filterMonth)}</Text>
-              <Ionicons name="chevron-down" size={scale(16)} color={COLORS.primary} />
-            </Pressable>
-
-            <Pressable style={styles.filterItem} onPress={() => setActiveDropdown('status')}>
-              <Text style={styles.filterText}>{statusFilter}</Text>
-              <Ionicons name="chevron-down" size={scale(16)} color={COLORS.primary} />
-            </Pressable>
-
-            <Pressable style={styles.leaveBtn} onPress={openRequestSheet}>
-              <Text style={styles.leaveText}>+ Leave</Text>
-            </Pressable>
-          </View>
-
-          {loading ? (
-            <ActivityIndicator color={COLORS.primary} style={{ marginTop: vs(60) }} />
-          ) : leaves.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Image
-                style={styles.emptyImage}
-                resizeMode="contain"
-                source={require('../../../../assets/images/noresultfound.png')}
-              />
-            </View>
-          ) : (
-            <FlatList
-              data={leaves}
-              keyExtractor={(item, idx) => `${item.LeaveID}-${idx}`}
-              renderItem={renderItem}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: vs(24) }}
-              onEndReachedThreshold={0.4}
-              onEndReached={onEndReached}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
-              }
-              ListFooterComponent={loadingMore ? <ActivityIndicator color={COLORS.primary} style={{ marginVertical: vs(12) }} /> : null}
-            />
-          )}
-        </View>
-
-        {/* Month picker */}
-        {showMonthPicker && (
-          <DateTimePicker
-            value={new Date(filterYear, filterMonth, 1)}
-            mode="date"
-            display={Platform.OS === 'android' ? 'calendar' : 'inline'}
-            onChange={(event, date) => {
-              setShowMonthPicker(false);
-              if (event.type === 'dismissed' || !date) return;
-              setFilterYear(date.getFullYear());
-              setFilterMonth(date.getMonth());
-            }}
-          />
-        )}
+      {/* Java: Util/MonthYearPickerDialog */}
+      <MonthYearPickerDialog
+        visible={showMonthPicker}
+        minYear={today.getFullYear() - (YEAR_COUNT - 1)}
+        maxYear={today.getFullYear()}
+        activatedMonth={filterMonth}
+        activatedYear={filterYear}
+        onCancel={() => setShowMonthPicker(false)}
+        onConfirm={(month, year) => {
+          setMonthPicked(true);
+          setFilterMonth(month);
+          setFilterYear(year);
+          setShowMonthPicker(false);
+        }}
+      />
 
         {/* Status dropdown */}
         <Modal
@@ -478,7 +504,7 @@ export default function LeaveScreen() {
             {LEAVE_STATUS_OPTIONS.map(item => (
               <Pressable
                 key={item}
-                style={({ pressed }) => [styles.dropdownItem, pressed && { backgroundColor: '#f5f5f5' }]}
+                style={({ pressed }) => [styles.dropdownItem, pressed && { backgroundColor: COLORS.surfaceGray }]}
                 onPress={() => { setStatusFilter(item); setActiveDropdown(null); }}
               >
                 <Text style={[styles.dropdownText, item === statusFilter && { color: COLORS.primary, fontWeight: '600' }]}>
@@ -494,90 +520,78 @@ export default function LeaveScreen() {
           <Pressable style={styles.sheetBackdrop} onPress={closeSheet} />
           <View style={styles.sheet}>
             <View style={styles.sheetHeaderRow}>
-              <Text style={styles.sheetTitle}>{sheetMode === 'request' ? 'Request Leave' : 'Update Leave'}</Text>
+              <Text style={styles.sheetTitle}>{sheetMode === 'request' ? tr('Apply for Leave') : tr('Update Leave')}</Text>
               <Pressable onPress={closeSheet}>
-                <Ionicons name="close" size={scale(22)} color={COLORS.textPrimary} />
+                <Ionicons name="close" size={scale(22)} color={COLORS.white} />
               </Pressable>
             </View>
 
+            <View style={styles.sheetBody}>
             {sheetMode === 'request' && (
-              <View style={styles.balanceRow}>
+              <View style={styles.balanceCard}>
                 {([
-                  ['Half Day', 1], ['Full Day', 2], ['Casual', 4], ['Sick', 5],
-                ] as [string, number][]).map(([label, id]) => {
-                  const bal = balanceFor(id);
-                  return (
-                    <View key={id} style={styles.balanceCard}>
-                      <Text style={styles.balanceLabel}>{label}</Text>
-                      <Text style={styles.balanceValue}>
-                        {bal ? `${bal.LeavesTaken}/${bal.TotalLeaves}` : '0/0'}
-                      </Text>
-                    </View>
-                  );
-                })}
-                <View style={styles.balanceCard}>
-                  <Text style={styles.balanceLabel}>Available</Text>
-                  <Text style={[styles.balanceValue, { color: COLORS.primary }]}>{totalAvailable}</Text>
+                  [['Half Day', 1], ['Full Day', 2]],
+                  [['Casual Leave', 4], ['Sick Leave', 5]],
+                ] as [string, number][][]).map((pair, rowIndex) => (
+                  <View key={rowIndex} style={styles.balanceGridRow}>
+                    {pair.map(([label, id]) => {
+                      const bal = balanceFor(id);
+                      return (
+                        <View key={id} style={styles.balanceCell}>
+                          <Text style={styles.balanceLabel}>{label}: </Text>
+                          <Text style={styles.balanceValue}>
+                            <Text style={styles.balanceTaken}>{bal ? bal.LeavesTaken : 0}</Text>
+                            <Text style={styles.balanceOf}> / {bal ? bal.TotalLeaves : 0}</Text>
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ))}
+                <View style={styles.balanceGridRow}>
+                  <Text style={styles.balanceLabel}>{t('rn_total_available_leave')} </Text>
+                  <Text style={styles.balanceTotalValue}>{totalAvailable}</Text>
                 </View>
               </View>
             )}
 
             {/* Leave Type */}
-            <Text style={styles.fieldLabel}>Leave Type</Text>
-            <Pressable style={styles.inputBox} onPress={() => setShowLeaveTypeDropdown(prev => !prev)}>
-              <Text style={{ fontSize: sp(15), color: form.leaveTypeName ? '#333' : '#aaa' }}>
-                {form.leaveTypeName || 'Select leave type'}
+            <Pressable style={[styles.inputBox, styles.fieldSpacingTop]} onPress={() => setShowLeaveTypeDropdown(prev => !prev)}>
+              <Text style={{ fontSize: sp(15), color: form.leaveTypeName ? COLORS.ink : COLORS.lightGray }}>
+                {form.leaveTypeName || 'Leave Type'}
               </Text>
-              <Ionicons name="chevron-down" size={scale(18)} color="#333" />
+              <Ionicons name="chevron-down" size={scale(18)} color={COLORS.ink} />
             </Pressable>
-
-            {showLeaveTypeDropdown && (
-              <View style={styles.inlineDropdown}>
-                {leaveTypes.map(lt => (
-                  <Pressable
-                    key={lt.Id}
-                    style={({ pressed }) => [styles.dropdownItem, pressed && { backgroundColor: '#f5f5f5' }]}
-                    onPress={() => handleSelectLeaveType(lt)}
-                  >
-                    <Text style={{ fontSize: sp(15) }}>{lt.Name}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
 
             {/* Dates */}
             {isSingleDateType ? (
-              <>
-                <Text style={styles.fieldLabel}>Leave Date</Text>
-                <Pressable style={styles.inputBox} onPress={() => setActiveDateField('leaveDate')}>
-                  <Text style={{ fontSize: sp(15), color: form.leaveDate ? '#333' : '#aaa' }}>
-                    {form.leaveDate || 'Select date'}
-                  </Text>
-                  <Ionicons name="calendar-outline" size={scale(18)} color="#333" />
-                </Pressable>
-              </>
+              <Pressable
+                style={[styles.inputBox, styles.fieldSpacingTop]}
+                onPress={() => setActiveDateField('leaveDate')}
+              >
+                <Text style={{ fontSize: sp(15), color: form.leaveDate ? COLORS.ink : COLORS.lightGray }}>
+                  {form.leaveDate || 'Date'}
+                </Text>
+              </Pressable>
             ) : (
-              <View style={styles.rangeRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>From Date</Text>
-                  <Pressable style={styles.inputBox} onPress={() => setActiveDateField('fromDate')}>
-                    <Text style={{ fontSize: sp(15), color: form.fromDate ? '#333' : '#aaa' }}>
-                      {form.fromDate || 'Select'}
-                    </Text>
-                  </Pressable>
-                </View>
+              <View style={[styles.rangeRow, styles.fieldSpacingTop]}>
+                <Pressable
+                  style={[styles.inputBox, { flex: 1 }]}
+                  onPress={() => setActiveDateField('fromDate')}
+                >
+                  <Text style={{ fontSize: sp(15), color: form.fromDate ? COLORS.ink : COLORS.lightGray }}>
+                    {form.fromDate || 'From'}
+                  </Text>
+                </Pressable>
                 <View style={{ width: scale(12) }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>To Date</Text>
-                  <Pressable
-                    style={styles.inputBox}
-                    onPress={() => { if (form.fromDate) setActiveDateField('toDate'); }}
-                  >
-                    <Text style={{ fontSize: sp(15), color: form.toDate ? '#333' : '#aaa' }}>
-                      {form.toDate || 'Select'}
-                    </Text>
-                  </Pressable>
-                </View>
+                <Pressable
+                  style={[styles.inputBox, { flex: 1 }]}
+                  onPress={() => { if (form.fromDate) setActiveDateField('toDate'); }}
+                >
+                  <Text style={{ fontSize: sp(15), color: form.toDate ? COLORS.ink : COLORS.lightGray }}>
+                    {form.toDate || 'To'}
+                  </Text>
+                </Pressable>
               </View>
             )}
 
@@ -591,18 +605,18 @@ export default function LeaveScreen() {
                 mode="date"
                 display={Platform.OS === 'android' ? 'calendar' : 'inline'}
                 minimumDate={new Date(Date.now() - 7 * 86400000)}
-                onChange={onDateChange}
+                onValueChange={onDateChange}
+                onDismiss={() => setActiveDateField(null)}
               />
             )}
 
             {!!errorLabel && <Text style={styles.errorLabel}>{errorLabel}</Text>}
 
             {/* Reason */}
-            <Text style={styles.fieldLabel}>Reason</Text>
             <TextInput
-              style={styles.reasonInput}
-              placeholder="Enter reason for leave"
-              placeholderTextColor="#aaa"
+              style={[styles.reasonInput, styles.fieldSpacingTop]}
+              placeholder={t('rn_leave_reason_2')}
+              placeholderTextColor={COLORS.lightGray}
               multiline
               value={form.reason}
               onChangeText={(v) => setForm(prev => ({ ...prev, reason: v }))}
@@ -610,11 +624,6 @@ export default function LeaveScreen() {
 
             {/* Actions */}
             <View style={styles.sheetActions}>
-              {sheetMode === 'update' && (
-                <Pressable style={styles.deleteBtn} onPress={handleDelete} disabled={submitting}>
-                  <Text style={styles.deleteBtnText}>Delete</Text>
-                </Pressable>
-              )}
               <Pressable
                 style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
                 onPress={handleSubmit}
@@ -623,27 +632,48 @@ export default function LeaveScreen() {
                 {submitting ? (
                   <ActivityIndicator color={COLORS.white} size="small" />
                 ) : (
-                  <Text style={styles.submitBtnText}>{sheetMode === 'request' ? 'Apply' : 'Update'}</Text>
+                  <Text style={styles.submitBtnText}>{sheetMode === 'request' ? tr('APPLY') : tr('UPDATE')}</Text>
                 )}
               </Pressable>
+              {sheetMode === 'update' && (
+                <Pressable style={styles.deleteBtn} onPress={handleDelete} disabled={submitting}>
+                  <Text style={styles.deleteBtnText}>{t('rn_delete')}</Text>
+                </Pressable>
+              )}
+            </View>
+
+            <Pressable style={styles.cancelLink} onPress={closeSheet}>
+              <Text style={styles.cancelLinkText}>{t('cancel')}</Text>
+            </Pressable>
             </View>
           </View>
         </Modal>
-      </ScrollView>
+
+      {/* Leave type: Java dialog_searchable_spinner_leavetype */}
+      <SearchPickerModal
+        visible={showLeaveTypeDropdown}
+        title={t('rn_select_leave_type')}
+        options={leaveTypes.map(lt => ({ id: lt.Id ?? 0, label: lt.Name ?? '' }))}
+        onSelect={opt => {
+          const lt = leaveTypes.find(t => t.Id === opt.id);
+          if (lt) handleSelectLeaveType(lt);
+        }}
+        onClose={() => setShowLeaveTypeDropdown(false)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root:    { flex: 1, backgroundColor: COLORS.white },
-  content: { flex: 1, padding: scale(16), marginTop: vs(8) },
+  content: { padding: scale(16), paddingBottom: 0 },
 
   tabRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: COLORS.black,
     shadowOpacity: 0.06,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
@@ -651,9 +681,9 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     flex: 1,
-    borderBottomWidth: ms(3),
+    borderBottomWidth: ms(4),
     borderColor: COLORS.primary,
-    backgroundColor: '#f5d7d784',
+    backgroundColor: COLORS.tabSelector,
     height: ms(44),
     alignItems: 'center',
     justifyContent: 'center',
@@ -666,54 +696,82 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: vs(16),
+    marginBottom: vs(2),
     flexWrap: 'wrap',
     gap: scale(8),
   },
-  filterItem: { flexDirection: 'row', alignItems: 'center', gap: scale(6) },
-  filterText: { fontSize: sp(14), color: COLORS.textPrimary },
+  filterItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: scale(10) },
+  filterText: { fontSize: sp(14), color: COLORS.textBlack },
 
   leaveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: scale(16),
-    height: vs(36),
-    borderRadius: scale(12),
-    backgroundColor: '#000',
+    width: scale(60),
+    justifyContent: 'center',
+    height: vs(30),
+    borderRadius: scale(10),
+    backgroundColor: COLORS.textBlack,
   },
-  leaveText: { fontSize: sp(14), color: COLORS.white, fontWeight: '500' },
+  leaveText: { fontSize: sp(12), color: COLORS.white, fontWeight: '500' },
 
   emptyState: { alignItems: 'center', marginTop: vs(180) },
   emptyImage: { width: scale(180), height: scale(180) },
 
   // List card
   card: {
-    backgroundColor: '#fff',
-    borderRadius: scale(12),
-    padding: scale(14),
-    marginBottom: vs(12),
+    backgroundColor: COLORS.white,
+    borderRadius: scale(10),
+    overflow: 'hidden',
+    marginHorizontal: scale(18),
+    marginVertical: scale(8),
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
   },
-  cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  leaveType: { fontSize: sp(15), fontWeight: '700' },
-  statusPill: { paddingHorizontal: scale(10), paddingVertical: vs(3), borderRadius: scale(10) },
-  statusPillText: { color: '#fff', fontSize: sp(11), fontWeight: '600' },
-  leaveDateRange: { marginTop: vs(6), fontSize: sp(13), color: COLORS.textPrimary, fontWeight: '500' },
-  leaveNotes: { marginTop: vs(4), fontSize: sp(13), color: COLORS.textMuted },
-  requestedAt: { marginTop: vs(8), fontSize: sp(11), color: COLORS.textTertiary },
+  cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  statusPill: {
+    width: scale(100),
+    paddingHorizontal: scale(15),
+    paddingVertical: vs(3),
+    borderTopLeftRadius: scale(10),
+    borderBottomRightRadius: scale(10),
+  },
+  statusPillText: { color: COLORS.white, fontSize: sp(12), fontWeight: '700' },
+  requestedAt: { fontSize: sp(14), color: COLORS.darkGray, marginTop: vs(5), marginRight: scale(10) },
+
+  leaveDateRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(8), marginHorizontal: scale(10) },
+  leaveDateLabel: { width: scale(95), fontSize: sp(13), fontWeight: '700', color: COLORS.primary },
+  leaveDateValue: { flex: 1, textAlign: 'center', fontSize: sp(13), color: COLORS.primary },
+  leaveType: { fontSize: sp(14), fontWeight: '700' },
+
+  leaveNotesRow: { flexDirection: 'row', margin: scale(10) },
+  leaveNotesLabel: { width: '35%', fontSize: sp(13), fontWeight: '700', color: COLORS.darkGray },
+  leaveNotes: { flex: 1, fontSize: sp(13), color: COLORS.lightGray },
+
+  monthPickerBox: {
+    position: 'absolute',
+    top: '25%',
+    left: '10%',
+    right: '10%',
+    backgroundColor: COLORS.white,
+    paddingTop: scale(16),
+    borderRadius: scale(12),
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  monthPickerActions: { flexDirection: 'row', borderTopWidth: 1, borderColor: COLORS.lighterGray, marginTop: vs(12) },
+  monthPickerBtn: { flex: 1, paddingVertical: vs(14), alignItems: 'center' },
 
   // Dropdown — centred, positioned below filter row
   dropdown: {
     position: 'absolute',
-    top: '28%',
+    top: '20%',
     alignSelf: 'center',
     backgroundColor: '#fff',
     width: scale(220),
-    left: scale(16),
+    left: scale(80),
     elevation: 8,
     borderRadius: scale(10),
     shadowColor: '#000',
@@ -734,78 +792,104 @@ const styles = StyleSheet.create({
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: scale(20),
-    borderTopRightRadius: scale(20),
-    padding: scale(20),
+    borderTopLeftRadius: scale(25),
+    borderTopRightRadius: scale(25),
+    overflow: 'hidden',
     maxHeight: '90%',
+    width: '100%',
+    maxWidth: scale(560),
+    alignSelf: 'center',
   },
-  sheetHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(12) },
-  sheetTitle: { fontSize: sp(17), fontWeight: '700', color: COLORS.textPrimary },
-
-  balanceRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: vs(16), gap: scale(6) },
-  balanceCard: {
-    flex: 1,
-    backgroundColor: '#f7f7f7',
-    borderRadius: scale(10),
-    paddingVertical: vs(8),
+  sheetHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: COLORS.statusOnHold,
+    paddingHorizontal: scale(20),
+    height: vs(60),
+    borderBottomLeftRadius: scale(25),
+    borderBottomRightRadius: scale(25),
   },
-  balanceLabel: { fontSize: sp(10), color: COLORS.textMuted },
-  balanceValue: { fontSize: sp(14), fontWeight: '700', color: COLORS.textPrimary, marginTop: vs(2) },
+  sheetTitle: { fontSize: sp(22), color: COLORS.white },
+  sheetBody: { paddingHorizontal: scale(30), paddingTop: vs(8), paddingBottom: vs(10) },
+
+  // Java: white 10dp-radius card, 8dp margin, 2dp elevation, 10dp inner margin.
+  balanceCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: scale(10),
+    padding: scale(15),
+    marginHorizontal: -scale(22),
+    marginBottom: vs(4),
+    elevation: 2,
+    shadowColor: COLORS.black,
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  balanceGridRow: { flexDirection: 'row', alignItems: 'center', marginBottom: vs(6) },
+  balanceCell: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  balanceLabel: { fontSize: sp(14), fontWeight: '700', color: COLORS.textBlack },
+  balanceValue: { fontSize: sp(15), color: COLORS.textBlack },
+  balanceTaken: { fontSize: sp(18), fontWeight: '700', color: COLORS.textBlack },
+  balanceOf: { fontSize: sp(12), color: COLORS.alertRed },
+  balanceTotalValue: { fontSize: sp(18), fontWeight: '700', color: COLORS.green500 },
 
   fieldLabel: { fontSize: sp(13), color: COLORS.textMuted, marginTop: vs(10), marginBottom: vs(6) },
+  fieldSpacingTop: { marginTop: vs(24) },
   inputBox: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     height: ms(46),
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: scale(10),
-    paddingHorizontal: scale(14),
+    borderColor: COLORS.lightGray,
+    borderRadius: scale(34),
+    paddingHorizontal: scale(18),
+    backgroundColor: COLORS.white,
   },
   inlineDropdown: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: scale(10),
+    borderColor: COLORS.lightGray,
+    borderRadius: scale(20),
     marginTop: vs(4),
     maxHeight: vs(160),
     overflow: 'hidden',
   },
   rangeRow: { flexDirection: 'row' },
 
-  errorLabel: { color: '#d32f2f', fontSize: sp(12), marginTop: vs(8) },
+  errorLabel: { color: COLORS.primary, fontSize: sp(12), marginTop: vs(8) },
 
   reasonInput: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: scale(10),
-    paddingHorizontal: scale(14),
-    paddingVertical: vs(10),
-    minHeight: ms(70),
+    borderColor: COLORS.lightGray,
+    borderRadius: scale(34),
+    paddingHorizontal: scale(18),
+    paddingVertical: vs(14),
+    minHeight: vs(150),
     fontSize: sp(14),
-    color: '#333',
+    color: COLORS.ink,
     textAlignVertical: 'top',
   },
 
-  sheetActions: { flexDirection: 'row', gap: scale(10), marginTop: vs(18) },
+  sheetActions: { gap: vs(10), marginTop: vs(18) },
   deleteBtn: {
-    flex: 1,
     height: ms(46),
-    borderRadius: scale(23),
+    borderRadius: scale(34),
     borderWidth: 1,
-    borderColor: '#d32f2f',
+    borderColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  deleteBtnText: { color: '#d32f2f', fontWeight: '600', fontSize: sp(14) },
+  deleteBtnText: { color: COLORS.primary, fontWeight: '600', fontSize: sp(14) },
   submitBtn: {
-    flex: 2,
-    height: ms(46),
-    borderRadius: scale(23),
-    backgroundColor: COLORS.primary,
+    height: ms(50),
+    borderRadius: scale(34),
+    backgroundColor: COLORS.statusOnHold,
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 4,
   },
-  submitBtnText: { color: COLORS.white, fontWeight: '600', fontSize: sp(14) },
+  submitBtnText: { color: COLORS.white, fontWeight: '500', fontSize: sp(18) },
+  cancelLink: { alignItems: 'center', marginTop: vs(10), paddingVertical: vs(4) },
+  cancelLinkText: { color: COLORS.primary, fontSize: sp(18) },
 });

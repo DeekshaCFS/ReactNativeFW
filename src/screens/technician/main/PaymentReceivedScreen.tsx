@@ -1,32 +1,61 @@
 // src/screens/technician/main/PaymentReceivedScreen.tsx
 
-import React, { useEffect, useState } from 'react';
+import { launchCameraWithPermission } from '../../../utils/cameraPermission';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   Pressable,
-  Alert,
   ScrollView,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
+import { launchImageLibrary } from 'react-native-image-picker';
+import QRCode from 'react-native-qrcode-svg';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp } from '../../../utils/responsive';
+import { scale, vs, sp, ms } from '../../../utils/responsive';
+import { formatAmount, sanitizeDecimalInput } from '../../../utils/decimal';
 import { getTaskClosureDetails } from '../../../api/taskList/taskListService';
 import { getPgActivationStatus } from '../../../api/paymentGateway/paymentGatewayService';
+import { getProfileDetails } from '../../../api/users/usersService';
 import { updateTaskWithEarnedAmount } from '../../../api/passbook/passbookService';
 import type { UpdateTaskWithEarnedAmountExcessDtl as ExcessAmountDetail } from '../../../api/passbook/passbook.types';
+import type { TaskClosureMultipleItemAssigned as AddedItem } from '../../../api/taskList/taskList.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TASK_STATUS_ID } from '../../../constants/taskStatus';
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
+import { resetToTabsThen } from '../../../navigation/taskFlowNavigation';
+import { getCurrentCurrencySymbol } from '../../../state/session';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
+import { getNetworkQuality, isPostable } from '../../../offline/networkQuality';
+import { savePendingTask, getPendingTask } from '../../../offline/offlineStore';
+import DecimalInput from '../../../components/DecimalInput';
+import { DEV_PG_KEYS } from '../../../payments/devPgKeys';
 
-const PAYMENT_TRANSACTION_TYPES = ['Cash', 'UPI', 'Online', 'NEFT', 'Cheque', 'Credit', 'Other'] as const;
+import { useTranslation } from 'react-i18next';
+import { showImageSourceDialog } from '../../../components/ImageSourceHost';
+
+// Java (TechPaymentReceivedFragmentNew): first spinner is the mode, the type spinner only
+// appears for Offline.
+const PAYMENT_MODES = ['Select Payment Mode', 'Online', 'Offline'] as const;
+const PAYMENT_TYPES = ['Select Payment Type', 'Cash', 'UPI', 'Online', 'NEFT', 'Cheque', 'Credit', 'Other'] as const;
+const MODE_OFFLINE = 'Offline';
+const MODE_ONLINE = 'Online';
 
 const PAYMENT_RECEIVED_STATE = 3; // TaskState.PAYMENT_RECEIVED
+
+// Java: DateUtils.getDate(now, "yyyyMMdd_HHmmss")
+const proofFileTimestamp = () => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+};
 
 interface AdjustmentRow {
   description: string;
@@ -34,25 +63,64 @@ interface AdjustmentRow {
 }
 
 export default function PaymentReceivedScreen({ navigation, route }: any) {
-  const { task: routeTask, elapsedSeconds = 0 } = route.params as {
+  const { t } = useTranslation();
+  const { task: routeTask } = route.params as {
     task: Task;
     elapsedSeconds?: number;
   };
 
   const [loadingContext, setLoadingContext] = useState(true);
+  const [employeeName, setEmployeeName] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const [taskAmount, setTaskAmount] = useState<number | null>(
     routeTask.WagesPerHours ?? null,
   );
 
+  const [paymentMode, setPaymentMode] = useState<string>('');
   const [paymentType, setPaymentType] = useState<string>('');
+
+  // Java (TechPaymentReceivedFragmentNew): an optional "Proof of Payment" photo is
+  // offered for UPI / Online payments and posted as QRCodeImageFileName / ...Base64Str.
+  const [proofPhoto, setProofPhoto] = useState<{ uri: string; base64: string } | null>(null);
+  // Java (spinPaymntMode listener): UPI / Online -> QR image + "+ Add Proof of Payment";
+  const showProofPicker = paymentMode === MODE_OFFLINE && (paymentType === 'UPI' || paymentType === 'Online');
+  const [proofBoxOpen, setProofBoxOpen] = useState(false);
+  // Discount, as an amount (not a percentage), for every payment method; deducted from the total.
+  const [discount, setDiscount] = useState('');
+  const [upiQrUri, setUpiQrUri] = useState('');
+  const [paymentLink, setPaymentLink] = useState('');
+  const [upiQrFailed, setUpiQrFailed] = useState(false);
+
+  const pickProofPhoto = (source: 'camera' | 'gallery') => {
+    const options = { mediaType: 'photo' as const, includeBase64: true, quality: 0.8 as const };
+    const launch = source === 'camera' ? launchCameraWithPermission : launchImageLibrary;
+    launch(options).then(result => {
+      const asset = result.assets?.[0];
+      if (asset?.uri && asset.base64) {
+        setProofPhoto({ uri: asset.uri, base64: asset.base64 });
+      }
+    }).catch(() => {
+      showFailureMsg(t('rn_could_not_load_the_photo_2'));
+    });
+  };
+
+  const openProofPicker = () =>
+    showImageSourceDialog(() => pickProofPhoto('camera'), () => pickProofPhoto('gallery'));
+
   const [earnedAmount, setEarnedAmount] = useState('');
-  const [notes, setNotes] = useState('');
   const [adjustments, setAdjustments] = useState<AdjustmentRow[]>([]);
+  const [pickerOpen, setPickerOpen] = useState<'mode' | 'type' | null>(null);
 
   const [pgActive, setPgActive] = useState(false);
   const [pgName, setPgName] = useState('');
+  const currencySymbol = getCurrentCurrencySymbol();
+  const taskCurrency = !currencySymbol || currencySymbol === 'Rs.' ? '\u20B9' : currencySymbol;
+  const totalCurrency = currencySymbol || 'Rs.';
+
+  // Items used/added during task closure (Java: TaskClosure.MultipleItemAssigned,
+  // rendered on TechPaymentReceivedFragmentNew as a Name / Qty / Price breakdown).
+  const [addedItems, setAddedItems] = useState<AddedItem[]>([]);
 
   // ── Load context: closure detail (for reference amount) + gateway status ──
   useEffect(() => {
@@ -60,10 +128,12 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
       try {
         const uid = await AsyncStorage.getItem('uid');
         const userId = Number(uid) || 0;
+        setEmployeeName((await AsyncStorage.getItem('name')) ?? '');
 
         const results = await Promise.allSettled([
           getTaskClosureDetails({ UserId: userId, TaskID: routeTask.Id }),
-          getPgActivationStatus({ UserId: routeTask.OwnerId ?? userId }),
+          // Java (getPG_ActivationStatus) passes the logged-in user's own id.
+          getPgActivationStatus({ UserId: userId }),
         ]);
 
         const [closureRes, pgRes] = results;
@@ -76,11 +146,26 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
               closure.WagesPerHours ?? closure.TaskAmount ?? null;
             if (inferred != null) setTaskAmount(Number(inferred));
           }
+          // Java only folds the item total into the running total for non-quotation
+          // tasks (getQuotationId() == 0) -- a quotation-based task's amount is the
+          // quoted price alone.
+          if (closure?.MultipleItemAssigned && !routeTask.QuotationId) {
+            setAddedItems(closure.MultipleItemAssigned);
+          }
+        }
+
+        // Closure stored offline: the server has no closure for this task yet, so the items
+        // come from the one kept on the device.
+        if (closureRes.status === 'rejected' || !(closureRes.value?.ResultData as any)?.MultipleItemAssigned) {
+          const pending = await getPendingTask(routeTask.Id as number);
+          const stored = pending?.closure?.MultipleItemAssigned;
+          if (stored && !routeTask.QuotationId) setAddedItems(stored as any);
         }
 
         if (pgRes.status === 'fulfilled') {
           const pg = pgRes.value.ResultData;
-          if (pg?.IsActive) {
+          // Java (getPG_ActivationStatus): active when ResultData carries both keys.
+          if (pg?.APIKey && pg?.SecretKey) {
             setPgActive(true);
             setPgName(pg.PaymentGatewayName || 'Online Payment Gateway');
           }
@@ -94,10 +179,62 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Java (getProfileDetails): choosing UPI loads the owner's QR code image.
+  useEffect(() => {
+    if (!(paymentMode === MODE_OFFLINE && (paymentType === 'UPI' || paymentType === 'Online'))) return;
+    let active = true;
+    (async () => {
+      try {
+        const uid = Number(await AsyncStorage.getItem('uid')) || 0;
+        const res = await getProfileDetails({ UserId: uid });
+        const owner = res?.ResultData?.ownerAccountDetailsDto;
+        if (active) {
+          setUpiQrUri(owner?.QRCodeImage || '');
+          setUpiQrFailed(false);
+          setPaymentLink(owner?.PaymentLink || '');
+        }
+      } catch {
+        if (active) {
+          setUpiQrUri('');
+          setPaymentLink('');
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [paymentMode, paymentType]);
+
+  // Java: getTotal() -- sum(item.UsedItemQty * item.SalesPrice).
+  const itemsTotal = useMemo(
+    () => addedItems.reduce((sum, item) => sum + (item.UsedItemQty ?? 0) * (item.SalesPrice ?? 0), 0),
+    [addedItems],
+  );
+
+  const servicesTotal = useMemo(
+    () => adjustments.reduce((sum, row) => sum + (Number(row.amount) || 0), 0),
+    [adjustments],
+  );
+
+  // Java: mTextViewAmount -- (items) + Task Amount + (services), shown as a
+  // reference total and used as the "can't exceed this" ceiling on submit.
+  const grossTotal = (taskAmount ?? 0) + itemsTotal + servicesTotal;
+  const discountAmount = Math.max(Number(discount) || 0, 0);
+  // The total shown (and the ceiling for the received amount) is the amount after the discount.
+  // Java works from a %.3f string, so round to 3 decimals to avoid float noise (0.1 + 0.2) in the checks.
+  const round3 = (n: number) => Math.round(n * 1000) / 1000;
+  const grandTotal = round3(Math.max(grossTotal - discountAmount, 0));
+
   // ── Adjustment rows (Task_Excess_Amount_Dtls), capped at 5 ──
   const addAdjustmentRow = () => {
     if (adjustments.length >= 5) {
-      Alert.alert('', 'You can add up to 5 adjustment entries.');
+      showFailureMsg(t('rn_you_can_add_up_to_5_adjustment_entries'));
+      return;
+    }
+    // Java: a new service row is only added once the previous one has been filled in.
+    const last = adjustments[adjustments.length - 1];
+    if (last && !last.description.trim() && !last.amount.trim()) {
+      showFailureMsg(t('rn_please_enter_amount_and_description'));
       return;
     }
     setAdjustments(prev => [...prev, { description: '', amount: '' }]);
@@ -118,8 +255,16 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
   // ── Submit ──
   const handleSubmit = async (markPendingParam = false) => {
     if (!markPendingParam) {
+      // Java onClick: nothing typed -> "Please enter the Amount Received!!".
       if (!earnedAmount.trim() || Number.isNaN(Number(earnedAmount))) {
-        Alert.alert('Required', 'Please enter the amount received.');
+        showFailureMsg(t('rn_please_enter_the_amount_received'));
+        return;
+      }
+      // Java: the received amount may not exceed the Total Task Amount shown (which already holds
+      // the services and the discount); the field is cleared.
+      if (round3(Number(earnedAmount)) > grandTotal) {
+        showFailureMsg(t('rn_received_amount_can_not_be_greater_than_to'));
+        setEarnedAmount('');
         return;
       }
     }
@@ -127,28 +272,20 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
     const isZeroAmount = !markPendingParam && Number(earnedAmount) === 0;
     const markPending = markPendingParam || isZeroAmount;
 
-    let adjustmentTotal = 0;
     if (!markPending) {
-      if (!paymentType) {
-        Alert.alert('Required', 'Please select a payment type.');
+      if (!paymentMode) {
+        showFailureMsg(t('rn_select_payment_mode'));
+        return;
+      }
+      if (paymentMode === MODE_OFFLINE && !paymentType) {
+        showFailureMsg(t('rn_select_payment_type'));
         return;
       }
       for (const row of adjustments) {
         if (row.amount.trim() && !row.description.trim()) {
-          Alert.alert('Required', 'Please enter a description for each adjustment amount.');
+          showFailureMsg(t('rn_please_enter_description'));
           return;
         }
-      }
-
-      adjustmentTotal = adjustments.reduce(
-        (sum, row) => sum + (Number(row.amount) || 0),
-        0,
-      );
-      const total = Number(earnedAmount) + adjustmentTotal;
-
-      if (taskAmount != null && taskAmount > 0 && total > taskAmount) {
-        Alert.alert('', 'Received amount cannot be greater than the total task amount.');
-        return;
       }
     }
 
@@ -156,65 +293,148 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
       setSubmitting(true);
       const uid = await AsyncStorage.getItem('uid');
       if (!uid) {
-        Alert.alert('Error', 'User session not found. Please log in again.');
+        showFailureMsg(t('rn_user_session_not_found_please_log_in_again'));
         return;
       }
       const userId = Number(uid);
       const now = new Date().toISOString();
 
-      const excessDtls: ExcessAmountDetail[] = markPending
-        ? []
-        : adjustments
-            .filter(row => row.amount.trim() !== '')
-            .map(row => ({
-              Excess_Amount_Id: 0,
-              TaskId: routeTask.Id,
-              Excess_Amount_Des: row.description.trim(),
-              Excess_Amount: Number(row.amount),
-              IsActive: true,
-              UserId: userId,
-              CreatedBy: userId,
-              CreatedDate: now,
-              UpdatedBy: userId,
-              UpdatedDate: now,
-            }));
+      // Java (UpdatePayment): the first excess row is the task amount itself, then one row per
+      // filled service -- for a "Payment Pending" close too.
+      const excessRow = (description: string, amount: number): ExcessAmountDetail => ({
+        Excess_Amount_Id: 0,
+        TaskId: routeTask.Id,
+        Excess_Amount_Des: description,
+        Excess_Amount: amount,
+        IsActive: true,
+        UserId: userId,
+        CreatedBy: userId,
+        CreatedDate: now,
+        UpdatedBy: userId,
+        UpdatedDate: now,
+      });
+      const excessDtls: ExcessAmountDetail[] = [
+        excessRow(routeTask.Name ?? '', routeTask.WagesPerHours ?? taskAmount ?? 0),
+        ...adjustments
+          .filter(row => row.amount.trim() !== '')
+          .map(row => excessRow(row.description.trim(), Number(row.amount))),
+      ];
 
-      const res = await updateTaskWithEarnedAmount({
+      const paymentBody = {
         Id: 0,
         EarningAmount: markPending ? 0 : Number(earnedAmount),
         TaskId: routeTask.Id,
         UserId: userId,
-        Notes: notes.trim() || undefined,
         TaskState: PAYMENT_RECEIVED_STATE,
         TaskStatus: TASK_STATUS_ID.Completed,
-        PaymentTransactionType: markPending ? 'Payment Pending' : paymentType,
-        // Java sends mTextViewAmount's value here — the running total of task amount +
-        // adjustments (unchanged from the base task amount when no adjustments were made).
-        NewWagePerHours: (taskAmount ?? 0) + (markPending ? 0 : adjustmentTotal),
+        // Java: Online mode posts "RazorPay"; Offline posts the chosen payment type.
+        PaymentTransactionType: markPending ? 'Payment Pending' : paymentMode === MODE_ONLINE ? 'RazorPay' : paymentType,
+        // Java sends mTextViewAmount's value here — items + Task Amount + adjustments
+        // (unchanged from the base task amount when there are no items/adjustments).
+        // With a discount this is the reduced total.
+        NewWagePerHours: grandTotal,
+        // Java only sets it when a discount was typed.
+        ...(discount.trim() !== '' && { TaskDiscountedAmount: discountAmount }),
         Task_Excess_Amount_Dtls: excessDtls,
-      });
+        // Only attach proof when it applies to the chosen payment type.
+        ...(!markPending && showProofPicker && proofPhoto && {
+          QRCodeImageFileName: `${proofFileTimestamp()}_ProofOfPaymntImg_.jpg`,
+          QRCodeImageFileBase64Str: proofPhoto.base64,
+        }),
+      };
 
-      if (res.Code !== '200') {
-        Alert.alert('Failed', res.Message || 'Could not update payment.');
+      if (paymentMode === MODE_ONLINE && !markPending) {
+        navigation.navigate('OnlinePaymentDetails', {
+          task: routeTask,
+          paymentBody,
+          amount: Number(grandTotal),
+          employeeName,
+          customerName: routeTask.CustomerName ?? '',
+          customerContact: routeTask.ContactNo ?? '',
+        });
         return;
       }
 
-      Alert.alert('Task Completed', 'Payment recorded and the task has been closed.', [
-        { text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Home' }] }) },
-      ]);
+      // Java: an Offline-mode payment on a Poor link is stored on the device (RateModeTsk /
+      // Excess amount tables) and posted after the closure from the Sync screen.
+      if (!markPending && paymentMode === MODE_OFFLINE && !isPostable(await getNetworkQuality())) {
+        await savePendingTask(
+          { taskId: routeTask.Id as number, newTaskId: routeTask.NewTaskId ?? String(routeTask.Id), userId },
+          { payment: paymentBody },
+        );
+        showSuccessMsg(t('rn_payment_saved_offline_sync_it_from_the_tas'));
+        resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task: routeTask } });
+        return;
+      }
+
+      const res = await updateTaskWithEarnedAmount(paymentBody);
+
+      if (res.Code !== '200') {
+        showFailureMsg(res.Message || 'Could not update payment.');
+        return;
+      }
+
+      showSuccessMsg(t('rn_payment_recorded_and_the_task_has_been_clo'));
+      // Java: after payment the Tasks tab is shown with the Document Upload sheet on top.
+      resetToTabsThen(navigation, { name: 'DocumentUpload', params: { task: routeTask } });
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.Message || err?.message || 'Something went wrong.');
+      showFailureMsg(err?.response?.data?.Message || err?.message || 'Something went wrong.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ── Gateway placeholder ──
-  const handlePayViaGateway = () => {
-    Alert.alert(
-      'Coming soon',
-      'Online payment via gateway is not yet enabled — order creation needs to be implemented server-side first. Please collect payment manually for now.',
-    );
+  const checkPgActivation = async (): Promise<boolean> => {
+    // DEV ONLY: lets the payment screens be tested before the account is activated on the backend.
+    // devPgKeys.ts must hold test keys (rzp_test_...) for this to take effect.
+    if (__DEV__ && DEV_PG_KEYS) {
+      setPgActive(true);
+      setPgName('Online Payment Gateway (dev)');
+      return true;
+    }
+    try {
+      const uid = await AsyncStorage.getItem('uid');
+      const res = await getPgActivationStatus({ UserId: Number(uid) || 0 });
+      const pg = res?.ResultData;
+      const active = !!pg && !!pg.APIKey && !!pg.SecretKey; // same test as Java
+      setPgActive(active);
+      if (active) setPgName(pg?.PaymentGatewayName || 'Online Payment Gateway');
+      if (__DEV__ && !active) console.warn('PG not active, response:', JSON.stringify(res));
+      return active;
+    } catch (err) {
+      if (__DEV__) console.warn('PG activation check failed', err);
+      setPgActive(false);
+      return false;
+    }
+  };
+
+  const selectMode = async (mode: string) => {
+    setPickerOpen(null);
+
+    if (mode === 'Select Payment Mode') {
+      setPaymentMode('');
+      setPaymentType('');
+      return;
+    }
+
+    if (mode === MODE_OFFLINE) {
+      setPaymentMode(MODE_OFFLINE);
+      setPaymentType('');
+      setProofBoxOpen(false);
+      return;
+    }
+
+    // Online: check the account on every selection, as Java getPG_ActivationStatus() does
+    const active = await checkPgActivation();
+    if (!active) {
+      showFailureMsg(t('rn_online_payment_mode_is_not_activated_for_y'));
+      setPaymentMode('');
+      setPaymentType('');
+      return;
+    }
+    setPaymentMode(MODE_ONLINE);
+    setPaymentType('');
+    setProofBoxOpen(false);
   };
 
   if (loadingContext) {
@@ -235,205 +455,342 @@ export default function PaymentReceivedScreen({ navigation, route }: any) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Task summary ── */}
-        <View style={styles.card}>
+        {/* ── Task details ── */}
+        <View style={[styles.card, styles.taskCard]}>
           <Text style={styles.taskName}>{routeTask.Name}</Text>
-          {taskAmount != null && (
-            <Text style={styles.taskAmount}>Task Amount: ₹{taskAmount}</Text>
-          )}
-        </View>
+          <Text style={[styles.sectionTitle, { marginTop: vs(14) }]}>{t('task_details')}</Text>
 
-        {/* ── Payment Gateway (placeholder) ── */}
-        {pgActive && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Pay via {pgName}</Text>
-            <Text style={styles.cardSubtitle}>
-              Collect payment online instead of cash/manual entry.
-            </Text>
-            <Pressable style={styles.gatewayButton} onPress={handlePayViaGateway}>
-              <Ionicons name="card-outline" size={scale(18)} color={COLORS.white} />
-              <Text style={styles.gatewayButtonText}>Pay via {pgName}</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* ── Manual entry ── */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Payment Type</Text>
-          <View style={styles.chipRow}>
-            {PAYMENT_TRANSACTION_TYPES.map(type => (
-              <Pressable
-                key={type}
-                style={[styles.chip, paymentType === type && styles.chipActive]}
-                onPress={() => setPaymentType(type)}
-              >
-                <Text style={[styles.chipText, paymentType === type && styles.chipTextActive]}>
-                  {type}
-                </Text>
-              </Pressable>
-            ))}
+          <View style={styles.itemLine}>
+            <Text style={styles.taskname}>{routeTask.Name}</Text>
+            <Text style={styles.taskAmount}>{taskCurrency} {formatAmount(taskAmount ?? 0)}</Text>
           </View>
 
-          <Text style={[styles.cardTitle, { marginTop: vs(16) }]}>Amount Received</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter amount"
-            placeholderTextColor={COLORS.textTertiary}
-            keyboardType="numeric"
-            value={earnedAmount}
-            onChangeText={setEarnedAmount}
-          />
-
-          <Text style={[styles.cardTitle, { marginTop: vs(16) }]}>Notes (optional)</Text>
-          <TextInput
-            style={[styles.input, styles.notesInput]}
-            placeholder="Add a note about this payment"
-            placeholderTextColor={COLORS.textTertiary}
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-          />
-        </View>
-
-        {/* ── Adjustments ── */}
-        <View style={styles.card}>
-          <View style={styles.adjustmentsHeader}>
-            <Text style={styles.cardTitle}>Adjustments</Text>
-            {adjustments.length < 5 && (
-              <Pressable onPress={addAdjustmentRow} style={styles.addRowButton}>
-                <Ionicons name="add-circle-outline" size={scale(18)} color={COLORS.primary} />
-                <Text style={styles.addRowText}>Add</Text>
-              </Pressable>
-            )}
-          </View>
-          <Text style={styles.cardSubtitle}>
-            Optional extra charges or deductions (e.g. taxes, discounts)
-          </Text>
-
-          {adjustments.map((row, index) => (
-            <View key={index} style={styles.adjustmentRow}>
-              <TextInput
-                style={[styles.input, styles.adjustmentDesc]}
-                placeholder="Description"
-                placeholderTextColor={COLORS.textTertiary}
-                value={row.description}
-                onChangeText={v => updateAdjustmentRow(index, 'description', v)}
-              />
-              <TextInput
-                style={[styles.input, styles.adjustmentAmount]}
-                placeholder="Amount"
-                placeholderTextColor={COLORS.textTertiary}
-                keyboardType="numeric"
-                value={row.amount}
-                onChangeText={v => updateAdjustmentRow(index, 'amount', v)}
-              />
-              <Pressable onPress={() => removeAdjustmentRow(index)} style={styles.removeRowButton}>
-                <Ionicons name="close-circle" size={scale(20)} color={COLORS.textTertiary} />
-              </Pressable>
+          {addedItems.map((item, idx) => (
+            <View key={idx} style={styles.itemRow}>
+              <Text style={styles.itemName}>{item.ItemName}</Text>
+              <Text style={styles.itemQty}>{item.UsedItemQty ?? 0}</Text>
+              <Text style={styles.itemPrice}>
+                {taskCurrency} {formatAmount((item.UsedItemQty ?? 0) * (item.SalesPrice ?? 0))}
+              </Text>
             </View>
           ))}
         </View>
 
-        {/* ── Actions ── */}
-        <Pressable
-          style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
-          onPress={() => handleSubmit(false)}
-          disabled={submitting}
-        >
-          {submitting ? (
-            <ActivityIndicator color={COLORS.white} />
-          ) : (
-            <Text style={styles.submitButtonText}>Submit Payment & Close Task</Text>
-          )}
-        </Pressable>
+        {/* ── Services (Java: "+ Add Services", up to 5 description/amount rows) ── */}
+        <View style={[styles.card, styles.tintedCard]}>
+          <Text style={styles.sectionTitle}>{t('title_add_services')}</Text>
 
-        <Pressable
-          style={styles.pendingButton}
-          onPress={() =>
-            Alert.alert(
-              'Mark as Payment Pending?',
-              'The task will be closed without recording a received amount.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Confirm', onPress: () => handleSubmit(true) },
-              ],
+          {adjustments.map((row, index) => (
+            <View key={index} style={{ marginTop: vs(6) }}>
+              <View style={styles.serviceHeader}>
+                <Text style={styles.serviceNo}>#{index + 1}</Text>
+                <Pressable onPress={() => removeAdjustmentRow(index)} hitSlop={8}>
+                  <Ionicons name="close" size={scale(24)} color={COLORS.primary} />
+                </Pressable>
+              </View>
+              <View style={styles.adjustmentRow}>
+                <TextInput
+                  style={[styles.pillInput, { flex: 1.3 }]}
+                  placeholder={t('description')}
+                  placeholderTextColor="#9CA3AF"
+                  value={row.description}
+                  onChangeText={v => updateAdjustmentRow(index, 'description', v)}
+                />
+                <DecimalInput
+                  style={[styles.pillInput, { flex: 0.7 }]}
+                  label={t('amount')}
+                  placeholderTextColor="#9CA3AF"
+                  value={row.amount}
+                  onChangeText={v => updateAdjustmentRow(index, 'amount', sanitizeDecimalInput(v))}
+                />
+              </View>
+            </View>
+          ))}
+
+          <Pressable onPress={addAdjustmentRow} style={styles.addRowButton}>
+            <Text style={styles.addRowText}>{t('rn_add_services')}</Text>
+          </Pressable>
+        </View>
+
+        {/* ── Payment mode / type ── */}
+        <View style={styles.selectWrap}>
+          <Pressable style={styles.selectBox} onPress={() => setPickerOpen('mode')}>
+            <Text style={styles.selectText}>{paymentMode || 'Select Payment Mode'}</Text>
+            <Ionicons name="chevron-down" size={scale(20)} color="#1d2536" />
+          </Pressable>
+
+          {paymentMode === MODE_OFFLINE && (
+            <Pressable style={styles.selectBox} onPress={() => setPickerOpen('type')}>
+              <Text style={styles.selectText}>{paymentType || 'Select Payment Type'}</Text>
+              <Ionicons name="chevron-down" size={scale(20)} color="#1d2536" />
+            </Pressable>
+          )}
+
+          {/* Java: UPI shows the owner's QR image (profile avatar until/unless it loads);
+              Online shows a QR generated from the owner's payment link. */}
+          {paymentMode === MODE_OFFLINE && paymentType === 'UPI' && (
+            upiQrUri && !upiQrFailed ? (
+              <Image
+                source={{ uri: upiQrUri }}
+                style={styles.qrImage}
+                resizeMode="stretch"
+                onError={() => setUpiQrFailed(true)}
+              />
+            ) : (
+              <View style={[styles.qrImage, styles.avatarWrap]}>
+                <Ionicons name="person-circle-outline" size={scale(120)} color="#9CA3AF" />
+              </View>
             )
-          }
-          disabled={submitting}
-        >
-          <Text style={styles.pendingButtonText}>Mark as Payment Pending</Text>
-        </Pressable>
+          )}
+          {paymentMode === MODE_OFFLINE && paymentType === 'Online' && !!paymentLink && (
+            <View style={styles.qrImage}>
+              <QRCode value={paymentLink} size={scale(120)} />
+            </View>
+          )}
+        </View>
+
+        {/* ── Payment Details ── */}
+        <View style={[styles.card, styles.tintedCard, { marginTop: vs(10) }]}>
+          <Text style={[styles.sectionTitle, { marginTop: vs(5) }]}>{t('payment_details')}</Text>
+          <View style={styles.detailsBox}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>{t('rn_total_task_amount')}</Text>
+              <Text style={styles.totalCurrency}>{totalCurrency}</Text>
+              <Text style={styles.totalValue}>{formatAmount(grandTotal)}</Text>
+            </View>
+
+            {/* Java: Discount first (shown for every payment mode), then Amount Received. The
+                hint sits inside the pill ("Discount" / "Amount"). */}
+            <View style={[styles.amountReceivedRow, { marginBottom: ms(20) }]}>
+              <Text style={styles.amountReceivedLabel}>{t('discount_if_any')}</Text>
+              <DecimalInput
+                style={styles.amountReceivedInput}
+                placeholder={t('discount')}
+                placeholderTextColor="#9CA3AF"
+                value={discount}
+                onChangeText={text => {
+                  // Java: a discount above the actual amount is refused and cleared.
+                  if (Number(text) > grossTotal) {
+                    showToast(t('rn_discount_cannot_be_greater_than_the_actual'));
+                    setDiscount('');
+                    return;
+                  }
+                  setDiscount(text);
+                }}
+              />
+            </View>
+
+            <View style={styles.amountReceivedRow}>
+              <Text style={styles.amountReceivedLabel}>{t('rn_amount_received_2')}</Text>
+              <DecimalInput
+                style={styles.amountReceivedInput}
+                placeholder={t('amount')}
+                placeholderTextColor="#9CA3AF"
+                value={earnedAmount}
+                onChangeText={value => setEarnedAmount(sanitizeDecimalInput(value))}
+                onBlur={() => {
+                  if (earnedAmount.trim() && !Number.isNaN(Number(earnedAmount))) {
+                    setEarnedAmount(formatAmount(earnedAmount));
+                  }
+                }}
+              />
+            </View>
+
+            {showProofPicker && (
+              <View style={styles.proofWrap}>
+                {(proofBoxOpen || proofPhoto) && (
+                  <Pressable style={styles.proofBox} onPress={openProofPicker}>
+                    {proofPhoto ? (
+                      <Image source={{ uri: proofPhoto.uri }} style={styles.proofImage} resizeMode="cover" />
+                    ) : (
+                      <Ionicons name="camera-outline" size={sp(44)} color="#848891" />
+                    )}
+                  </Pressable>
+                )}
+                {!proofPhoto && !proofBoxOpen && (
+                  <Pressable onPress={() => setProofBoxOpen(true)}>
+                    <Text style={styles.addRowText}>{t('rn_add_proof_of_payment')}</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* ── Actions (Java: Close Task for Offline, Make Payment for Online) ── */}
+        {paymentMode === MODE_OFFLINE && (
+          <Pressable
+            style={[styles.actionButton, submitting && styles.submitButtonDisabled]}
+            onPress={() => handleSubmit(false)}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color={COLORS.white} />
+            ) : (
+              <Text style={styles.actionButtonText}>{t('close_task').toUpperCase()}</Text>
+            )}
+          </Pressable>
+        )}
+        {paymentMode === MODE_ONLINE && (
+          <Pressable
+            style={[styles.actionButton, submitting && styles.submitButtonDisabled]}
+            onPress={() => handleSubmit(false)}
+            disabled={submitting}
+          >
+            <Text style={styles.actionButtonText}>{t('make_payment')}</Text>
+          </Pressable>
+        )}
       </ScrollView>
+
+      {/* Mode / type picker */}
+      <Modal visible={pickerOpen !== null} transparent animationType="fade" onRequestClose={() => setPickerOpen(null)}>
+        <Pressable style={styles.overlay} onPress={() => setPickerOpen(null)} />
+        <View style={styles.pickerModal}>
+          {(pickerOpen === 'mode' ? PAYMENT_MODES : PAYMENT_TYPES).map(option => (
+            <Pressable
+              key={option}
+              style={styles.pickerItem}
+              onPress={() => {
+                if (pickerOpen === 'mode') {
+                  selectMode(option);
+                } else {
+                  setPaymentType(option === 'Select Payment Type' ? '' : option);
+                  setProofBoxOpen(false);
+                  setPickerOpen(null);
+                }
+              }}
+            >
+              <Text style={styles.pickerItemText}>{option}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
+const DARK = '#1d2536';
+
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F7F7F8' },
-  loadingRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7F7F8' },
-  scrollContent: { padding: scale(16), paddingBottom: vs(40) },
+  root: { flex: 1, backgroundColor: COLORS.white },
+  loadingRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FAFAFA' },
+  scrollContent: { paddingTop: vs(12), paddingBottom: vs(40) },
+
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: scale(12),
-    padding: scale(16),
-    marginBottom: vs(14),
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderRadius: scale(30),
+    padding: scale(12),
+    marginBottom: vs(12),
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
-  taskName: { fontSize: sp(16), fontWeight: '700', color: COLORS.textPrimary },
-  taskAmount: { fontSize: sp(14), color: COLORS.textSecondary, marginTop: vs(4) },
-  cardTitle: { fontSize: sp(14), fontWeight: '600', color: COLORS.textPrimary },
-  cardSubtitle: { fontSize: sp(12), color: COLORS.textMuted, marginTop: vs(2), marginBottom: vs(8) },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: scale(8), marginTop: vs(8) },
-  chip: {
-    paddingHorizontal: scale(14),
-    paddingVertical: vs(7),
-    borderRadius: scale(20),
+  taskCard: { paddingBottom: vs(40), paddingTop: vs(10) },
+  tintedCard: { backgroundColor: '#fff0f3' },
+
+  taskName: { fontSize: sp(16), fontWeight: '700', color: DARK, textAlign: 'center' },
+  sectionTitle: { fontSize: sp(15), fontWeight: '700', color: DARK },
+  taskname: { fontSize: sp(13), fontWeight: '700', color: COLORS.primary },
+  taskAmount: { fontSize: sp(13), fontWeight: '700', color: COLORS.success, marginTop: vs(4) },
+  itemLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: scale(5), marginTop: vs(10) },
+  // tech_multiple_item_price_child_row: three equal columns, 13sp.
+  itemRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(10), marginBottom: vs(10), paddingVertical: scale(5), paddingHorizontal: scale(11) },
+  itemName: { width: '33.33%', fontSize: sp(13), color: COLORS.charcoal },
+  itemQty: { width: '33.33%', fontSize: sp(13), color: COLORS.charcoal, textAlign: 'center' },
+  itemPrice: { width: '33.33%', fontSize: sp(13), color: COLORS.charcoal, textAlign: 'center' },
+
+  serviceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: scale(15), paddingVertical: vs(4) },
+  serviceNo: { fontSize: sp(15), fontWeight: '700', color: COLORS.primary },
+  adjustmentRow: { flexDirection: 'row', gap: scale(10), paddingHorizontal: scale(5) },
+  pillInput: {
+    height: vs(44),
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#9CA3AF',
+    borderRadius: scale(34),
+    paddingHorizontal: scale(14),
+    fontSize: sp(16),
+    color: DARK,
     backgroundColor: COLORS.white,
   },
-  chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  chipText: { fontSize: sp(13), color: COLORS.textPrimary },
-  chipTextActive: { color: COLORS.white, fontWeight: '600' },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: scale(8),
-    paddingHorizontal: scale(12),
-    paddingVertical: vs(10),
-    fontSize: sp(14),
-    color: COLORS.textPrimary,
-    marginTop: vs(6),
-  },
-  notesInput: { minHeight: vs(60), textAlignVertical: 'top' },
-  adjustmentsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  addRowButton: { flexDirection: 'row', alignItems: 'center', gap: scale(4) },
-  addRowText: { color: COLORS.primary, fontSize: sp(13), fontWeight: '600' },
-  adjustmentRow: { flexDirection: 'row', alignItems: 'center', gap: scale(8), marginTop: vs(8) },
-  adjustmentDesc: { flex: 2, marginTop: 0 },
-  adjustmentAmount: { flex: 1, marginTop: 0 },
-  removeRowButton: { padding: scale(4) },
-  gatewayButton: {
+  addRowButton: { height: vs(30), marginTop: vs(10), alignItems: 'center', justifyContent: 'center' },
+  addRowText: { color: COLORS.primary, fontSize: sp(18), fontWeight: '700' },
+
+  selectWrap: { paddingHorizontal: scale(10), marginTop: vs(10), gap: vs(8) },
+  selectBox: {
+    height: vs(40),
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: scale(8),
-    backgroundColor: COLORS.primary,
-    borderRadius: scale(8),
-    paddingVertical: vs(12),
-    marginTop: vs(4),
-  },
-  gatewayButtonText: { color: COLORS.white, fontSize: sp(14), fontWeight: '600' },
-  submitButton: {
-    backgroundColor: COLORS.primary,
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
     borderRadius: scale(10),
+    paddingHorizontal: scale(12),
+    marginHorizontal: scale(5),
+  },
+  selectText: { fontSize: sp(18), color: DARK },
+
+  detailsBox: {
+    marginTop: vs(5),
+    paddingVertical: scale(20),
+    paddingHorizontal: scale(16),
+  },
+  totalRow: { flexDirection: 'row', alignItems: 'center' },
+  totalLabel: { flex: 1, fontSize: sp(13.5), color: '#6B7280' },
+  totalCurrency: { fontSize: sp(13.5), color: '#6B7280', marginRight: scale(18) },
+  totalValue: { fontSize: sp(18), fontWeight: '700', color: COLORS.success },
+  amountReceivedRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(14) },
+  amountReceivedLabel: { width: '60%', fontSize: sp(13.5), fontWeight: '700', color: COLORS.primary },
+  amountReceivedInput: {
+    flex: 1,
+    marginLeft: ms(5),
+    height: ms(40),
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+    borderRadius: scale(34),
+    paddingHorizontal: scale(14),
+    fontSize: sp(16),
+    color: DARK,
+    backgroundColor: 'transparent',
+  },
+  proofWrap: { marginTop: vs(14), alignItems: 'center' },
+  proofBox: {
+    height: vs(100),
+    width: scale(160),
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+    borderRadius: scale(14),
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  proofImage: { width: '100%', height: '100%' },
+  avatarWrap: { alignItems: 'center', justifyContent: 'center' },
+  qrImage: { width: scale(170), height: scale(170), alignSelf: 'center', padding: scale(25) },
+
+  actionButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: scale(34),
     paddingVertical: vs(14),
     alignItems: 'center',
-    marginTop: vs(4),
+    marginHorizontal: scale(40),
+    marginTop: vs(30),
   },
+  actionButtonText: { color: COLORS.white, fontSize: sp(18), fontWeight: '500' },
   submitButtonDisabled: { opacity: 0.6 },
-  submitButtonText: { color: COLORS.white, fontSize: sp(15), fontWeight: '700' },
-  pendingButton: { alignItems: 'center', paddingVertical: vs(14) },
-  pendingButtonText: { color: COLORS.textMuted, fontSize: sp(13), textDecorationLine: 'underline' },
+
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
+  pickerModal: {
+    position: 'absolute',
+    top: '30%',
+    left: scale(24),
+    right: scale(24),
+    backgroundColor: COLORS.white,
+    borderRadius: scale(8),
+    paddingVertical: scale(6),
+  },
+  pickerItem: { paddingVertical: vs(14), paddingHorizontal: scale(16) },
+  pickerItemText: { fontSize: sp(17), color: DARK },
 });

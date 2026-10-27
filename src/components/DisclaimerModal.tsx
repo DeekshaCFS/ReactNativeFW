@@ -1,12 +1,15 @@
 // src/components/DisclaimerModal.tsx
 
 import { useState } from 'react';
-import { Modal, View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import Modal from './AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../theme/theme';
 import { ms, sp, scale } from '../utils/responsive';
 import { htmlToText } from '../utils/htmlToText';
+import { showFailureMsg } from '../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type Props = {
   visible: boolean;
   disclaimerHtml: string;
@@ -15,11 +18,12 @@ type Props = {
 };
 
 export default function DisclaimerModal({ visible, disclaimerHtml, loading, onAccept }: Props) {
+  const {t} = useTranslation();
   const [agreed, setAgreed] = useState(false);
 
   const handleContinue = () => {
     if (!agreed) {
-      Alert.alert('', 'Please Click on I Agree');
+      showFailureMsg(t('click_on_agree'));
       return;
     }
     onAccept();
@@ -29,7 +33,7 @@ export default function DisclaimerModal({ visible, disclaimerHtml, loading, onAc
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => {}}>
       <View style={styles.overlay}>
         <View style={styles.card}>
-          <Text style={styles.title}>App Disclaimer</Text>
+          <Text style={styles.title}>{t('app_disclaimer')}</Text>
 
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
             <Text style={styles.bodyText}>{htmlToText(disclaimerHtml)}</Text>
@@ -46,7 +50,7 @@ export default function DisclaimerModal({ visible, disclaimerHtml, loading, onAc
                 size={scale(22)}
                 color={agreed ? COLORS.primary : COLORS.textTertiary}
               />
-              <Text style={styles.agreeText}>I Agree</Text>
+              <Text style={styles.agreeText}>{t('i_agree')}</Text>
             </Pressable>
 
             <Pressable
@@ -57,7 +61,7 @@ export default function DisclaimerModal({ visible, disclaimerHtml, loading, onAc
               {loading ? (
                 <ActivityIndicator color={COLORS.textOnPrimary} size="small" />
               ) : (
-                <Text style={styles.continueText}>Continue</Text>
+                <Text style={styles.continueText}>{t('continue_title')}</Text>
               )}
             </Pressable>
           </View>

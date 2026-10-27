@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Razorpay's standard-core ships CheckoutTheme for tablets (sw600dp-v13) based on
+      Theme.Dialog, which is why the checkout floats inside the screen on tablets.
+      Overriding it here (same name and qualifier) makes the checkout a normal full-window activity.
+      Confirm the qualifier matches the Razorpay version you install.
+    -->
+    <style name="CheckoutTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:windowFullscreen">false</item>
+    </style>
+</resources>

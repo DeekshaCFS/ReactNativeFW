@@ -12,7 +12,25 @@ export interface AddTask {
   Code?: string;
 }
 
+export interface AddTaskWarrantyDetails {
+  BrandId?: number;
+  BrandName?: string;
+  ModelId?: number;
+  ModelName?: string;
+  SerialNoId?: number;
+  SerialNoName?: string;
+  WarrantyTypeId?: number;
+  WarrantyTypeName?: string;
+  StartDate?: string;
+  EndDate?: string;
+  UserId?: number;
+  CreatedBy?: number;
+}
+
 export interface AddTaskResultData {
+  Email?: string;
+  SerialNo?: string;
+  TaskWarrantyDetailsModelDto?: AddTaskWarrantyDetails;
   State?: string;
   City?: string;
   TaskTagId?: number;
@@ -760,7 +778,27 @@ export interface TasksListImages {
 }
 
 // ---- from DTO/Task/UploadTaskDocDTO.java ----
+// UploadTaskDocDTO.Files[] item (Java: UploadTaskDocDTO.Files)
+export interface UploadTaskDocFile {
+  Base64File?: string;
+  FileExtension?: string;
+  ConvertedFileName?: string;
+  OriginalFileName?: string;
+  FilePath?: string;
+  FileId?: number;
+  DocumnetTypeId?: number;
+  DocumnetTypeName?: string;
+  TaskId?: number;
+}
+
+// GET TaskList/GetDocumentTypes returns a bare array (no Code/Message wrapper).
+export interface DocAttachmentType {
+  DocumentId?: number;
+  DocumentName?: string;
+}
+
 export interface UploadTaskDocDTO {
+  Files?: UploadTaskDocFile[];
   ResultData?: string;
   RecordCount?: number;
   PageSize?: number;
@@ -788,7 +826,19 @@ export interface GetPostedTaskDocDTO {
   Code?: string;
 }
 
+// GetPostedTaskDocDTO.Files item
+export interface GetPostedTaskDocFile {
+  Base64File?: string;
+  FileExtension?: string;
+  ConvertedFileName?: string;
+  OriginalFileName?: string;
+  FilePath?: string;
+  FileId?: number;
+  DocumnetTypeId?: number;
+}
+
 export interface GetPostedTaskDocDTOResultData {
+  Files?: GetPostedTaskDocFile[];
   Base64File?: string;
   FileExtension?: string;
   ConvertedFileName?: string;
@@ -826,4 +876,47 @@ export interface GetBeforeAfterOnHoldTaskImgDTOFileLists {
   OriginalFileName?: string;
   FilePath?: string;
   FileId?: number;
+}
+
+// ---- from DTO/QRCode/QRPostDataDTO.java ----
+// Note: QRcodeScanNo is an int in the request, but a string ("Scan 1") in the GET response below.
+export interface QRPostDataDTOField {
+  QRcodeScanNo?: number;
+  FieldName?: string;
+  FieldValue?: string;
+}
+
+export interface QRPostDataDTO {
+  TaskId?: number;
+  ScanBy?: number;
+  CreatedBy?: number;
+  QRCodeText?: string;
+  Fields?: QRPostDataDTOField[];
+  Message?: string;
+  Code?: string;
+}
+
+// ---- from DTO/QRCode/QRGetScannedDTO.java ----
+export interface QRGetScannedDTOField {
+  QRcodeScanNo?: string;
+  FieldName?: string;
+  FieldValue?: string;
+}
+
+export interface QRGetScannedDTOResultData {
+  Fields?: QRGetScannedDTOField[];
+  ScanBy?: number;
+  ScanDate?: string;
+  QRCodeText?: string;
+  TaskId?: number;
+  ScanMasterId?: number;
+}
+
+export interface QRGetScannedDTO {
+  ResultData?: QRGetScannedDTOResultData | null;
+  RecordCount?: number;
+  PageSize?: number;
+  PageIndex?: number;
+  Message?: string;
+  Code?: string;
 }

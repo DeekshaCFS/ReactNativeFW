@@ -35,6 +35,8 @@ local.properties
 !debug.keystore
 .kotlin/
 
+android/app/src/main/assets/index.android.bundle
+
 # node.js
 #
 node_modules/
@@ -73,3 +75,12 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Google API key for Directions/Places (see src/config/mapsKey.example.ts)
+src/config/mapsKey.ts
+
+#Dev testing Payment keys
+src/payments/devPgKeys.ts
+
+android/app/src/main/assets/
+

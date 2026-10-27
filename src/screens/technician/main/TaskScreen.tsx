@@ -1,35 +1,38 @@
 // src/screens/technician/main/TaskScreen.tsx
+import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useState, useEffect, } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, TextInput, Modal,
-  FlatList, ActivityIndicator, Alert, Image, Linking,
+  View, Text, StyleSheet, Pressable, TextInput,
+  FlatList, ActivityIndicator, Image, Linking,
 } from 'react-native';
+import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../../theme/theme';
-import { scale, vs, sp, hp, HEADER_TOP_PADDING } from '../../../utils/responsive';
+import { scale, vs, sp, ms, useAppHeaderHeight } from '../../../utils/responsive';
+import TaskListCard from '../../../components/TaskListCard';
 import { getTaskListSearchNew } from '../../../api/taskList/taskListService';
 import { getTaskTagList } from '../../../api/task/taskService';
+import { getTaskDoc } from '../../../api/taskList/taskListService';
+import type { GetPostedTaskDocFile } from '../../../api/taskList/taskList.types';
+import TaskAttachmentsSheet from '../../../components/TaskAttachmentsSheet';
+import TaskTrackingSheet from '../../../components/TaskTrackingSheet';
+import { getPendingTasks } from '../../../offline/offlineStore';
+import { prefetchFsrForTasks } from '../../../offline/offlineCache';
 import { userPermissions } from '../../../api/userPermission/userPermissionService';
 import { downloadReport } from '../../../api/report/reportService';
 import type { TasksListResultData as Task, TagListResultData as TaskTag } from '../../../api/task/task.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DrumPicker from '../../../components/DrumPicker';
-import { launchCamera } from 'react-native-image-picker';
+import SearchPickerModal from '../../../components/SearchPickerModal';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTaskStatus } from '../../../hooks/useTaskStatus';
+import { useOpenTask } from '../../../hooks/useOpenTask';
+import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 
-const getStatusStyle = (status: string) => {
-  switch (status) {
-    case 'Completed': return styles.ribbonCompleted;
-    case 'Rejected': return styles.ribbonRejected;
-    case 'Ongoing': return styles.ribbonOngoing;
-    case 'InActive': return styles.ribbonInactive;
-    case 'OnHold': return styles.ribbonOnHold;
-    default: return styles.ribbonInactive;
-  }
-};
-
+import {useTranslation} from 'react-i18next';
 export default function TaskScreen({ navigation, route }: any) {
+  const {t} = useTranslation();
+  const headerHeight = useAppHeaderHeight();
   const [uid, setUid] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
@@ -42,11 +45,13 @@ export default function TaskScreen({ navigation, route }: any) {
   const [selectedStatus, setSelectedStatus] = useState<any>(null);
 
   const [search, setSearch] = useState('');
-  const [tagSearch, setTagSearch] = useState('');
-  const [statusSearch, setStatusSearch] = useState('');
 
-  const [pageIndex, setPageIndex] = useState(1);
-  const [recordCount, setRecordCount] = useState(0);
+  // Paging bookkeeping lives in refs so a fetch loop and onEndReached always see current values.
+  const pageRef = React.useRef(1);
+  const rawLoadedRef = React.useRef(0);
+  const hasMoreRef = React.useRef(false);
+  const fetchingRef = React.useRef(false);
+  const requestRef = React.useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,7 +63,7 @@ export default function TaskScreen({ navigation, route }: any) {
   const [showMonthPicker, setShowMonthPicker] = useState(false);
 
   const errorMessageRef = React.useRef<string | null>(null);
-  const { acceptTask, rejectTask, errorMessage } = useTaskStatus();
+  const { acceptTask, rejectTask, errorMessage, wasTaskUnavailable } = useTaskStatus();
 
   const [showLateRejectSheet, setShowLateRejectSheet] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -97,7 +102,7 @@ export default function TaskScreen({ navigation, route }: any) {
     setList: React.Dispatch<React.SetStateAction<{ uri: string; base64?: string }[]>>,
     index: number,
   ) => {
-    const result = await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
+    const result = await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
     if (result.assets?.[0]) {
       const asset = result.assets[0];
       const updated = [...list];
@@ -132,34 +137,80 @@ export default function TaskScreen({ navigation, route }: any) {
     }, [sessionReady, uid, ownerId, selectedStatus, selectedTag, search, selectedDate])
   );
 
+  // Java (MainTaskFragmentNew): isAllData is false only for the default view -- no status
+  // picked and the current month -- where the server hands back the open tasks. Any other
+  // month or a status filter asks for all data.
+  const isCurrentMonth = () => {
+    const now = new Date();
+    return selectedDate.getMonth() === now.getMonth() && selectedDate.getFullYear() === now.getFullYear();
+  };
+
+  const PAGE_FILL = 10;
+
   const fetchTasks = async (page = 1, reset = false) => {
     if (!uid || !ownerId) return;
-    if (reset) setTasks([]);
-    try {
+    if (!reset && (fetchingRef.current || !hasMoreRef.current)) return;
+
+    const requestId = ++requestRef.current;
+    fetchingRef.current = true;
+    if (reset) {
+      setTasks([]);
+      rawLoadedRef.current = 0;
+      hasMoreRef.current = false;
+      page = 1;
       setLoading(true);
-      const response = await getTaskListSearchNew({
-        UserId: uid,
-        searchparam: search,
-        TaskStatusID: statusParam,
-        TaskTypeID: 0,
-        pageIndex: page,
-        TaskMonth: selectedDate.getMonth() + 1,
-        TaskYear: selectedDate.getFullYear(),
-        TaskTagId: selectedTag?.TaskTagId || 0,
-        AllData: true,
+    }
+
+    try {
+      const allData = !(selectedStatus == null && isCurrentMonth());
+      const collected: Task[] = [];
+      let current = page;
+
+      // Completed tasks are hidden until the Status filter asks for them, so a page can
+      // contribute nothing. Keep reading pages until the list has something new to show
+      // (or the server runs out) -- otherwise scrolling would stall on an all-completed page.
+      for (;;) {
+        const response = await getTaskListSearchNew({
+          UserId: uid,
+          searchparam: search,
+          TaskStatusID: statusParam,
+          TaskTypeID: 0,
+          pageIndex: current,
+          TaskMonth: selectedDate.getMonth() + 1,
+          TaskYear: selectedDate.getFullYear(),
+          TaskTagId: selectedTag?.TaskTagId || 0,
+          AllData: allData,
+        });
+        if (requestId !== requestRef.current) return; // a newer fetch superseded this one
+
+        const rows: Task[] = response.ResultData || [];
+        const total = response.RecordCount || 0;
+        rawLoadedRef.current += rows.length;
+        pageRef.current = current;
+        collected.push(
+          ...(selectedStatus == null ? rows.filter(t => t.TaskStatus !== 'Completed') : rows),
+        );
+
+        hasMoreRef.current = rows.length > 0 && rawLoadedRef.current < total;
+        if (!hasMoreRef.current || collected.length >= PAGE_FILL) break;
+        current += 1;
+      }
+
+      // Download the FSR checklists of these tasks now so they open offline later.
+      prefetchFsrForTasks(Number(uid), collected).catch(() => {});
+
+      const sortByIdDesc = (arr: Task[]) => [...arr].sort((x, y) => (y.Id ?? 0) - (x.Id ?? 0));
+      setTasks(prev => {
+        const seen = new Set(reset ? [] : prev.map(t => t.Id));
+        return sortByIdDesc([...(reset ? [] : prev), ...collected.filter(t => !seen.has(t.Id))]);
       });
-      const newTasks: Task[] = response.ResultData || [];
-      const visibleTasks =
-        selectedStatus == null
-          ? newTasks.filter(t => t.TaskStatus !== 'Completed' && t.TaskStatus !== 'Rejected')
-          : newTasks;
-      const sortByIdDesc = (arr: Task[]) => [...arr].sort((a, b) => (b.Id ?? 0) - (a.Id ?? 0));
-      setTasks(prev => reset ? sortByIdDesc(visibleTasks) : sortByIdDesc([...prev, ...visibleTasks]));
-      setRecordCount(response.RecordCount || 0);
     } catch (err: any) { /* silent */ }
     finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === requestRef.current) {
+        fetchingRef.current = false;
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -201,19 +252,54 @@ export default function TaskScreen({ navigation, route }: any) {
       if (res.Code === '200' && res.Message) {
         await Linking.openURL(res.Message);
       } else {
-        Alert.alert('Download Failed', res.Message || 'Could not generate the report.');
+        showFailureMsg(res.Message || 'Could not generate the report.');
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.Message || err?.message || 'Could not download the report.');
+      showFailureMsg(err?.response?.data?.Message || err?.message || 'Could not download the report.');
     }
   };
 
-  const formatDateTime = (dateString?: string) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleString('en-GB', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
+  // Java: TasksListAdapter.getTaskCompletionDoc -- an InActive task looks up the documents
+  // posted with the task (taskId 0 + customer), a Completed one the closure documents.
+  const [attachmentFiles, setAttachmentFiles] = useState<GetPostedTaskDocFile[]>([]);
+  const [attachmentTask, setAttachmentTask] = useState<Task | null>(null);
+
+  const handleViewAttachments = async (task: Task) => {
+    if (!uid) return;
+    try {
+      const response = await getTaskDoc({
+        userId: Number(uid),
+        taskId: task.TaskStatus === 'InActive' ? 0 : task.Id,
+        customerId: task.CustomerDetailsid,
+      });
+      const files = response?.ResultData?.Files ?? [];
+      if (files.length === 0) {
+        showToast(t('rn_you_have_no_attachment'));
+        return;
+      }
+      setAttachmentFiles(files);
+      setAttachmentTask(task);
+    } catch {
+      showToast(t('rn_you_have_no_attachment'));
+    }
+  };
+
+  const handleDownloadFile = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch (err: any) {
+      showFailureMsg(err?.message || 'Could not open the file.');
+    }
+  };
+
+  // Java: the red FAB opens the Sync screen, or says there is nothing to sync.
+  const handleSyncFab = async () => {
+    const pending = await getPendingTasks(Number(uid) || undefined);
+    if (pending.length === 0) {
+      showToast(t('rn_you_have_no_offline_data_to_be_sync'));
+      return;
+    }
+    navigation.navigate('SyncOffline');
   };
 
   const handleRefresh = () => {
@@ -222,9 +308,16 @@ export default function TaskScreen({ navigation, route }: any) {
     setSelectedStatus(null);
     setSearch('');
     setSelectedDate(new Date());
-    setPageIndex(1);
-    //fetchTasks(1, true);
+    fetchTasks(1, true);
   };
+
+  // Re-tapping the Task tab while already on it refreshes the screen.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      if (navigation.isFocused()) handleRefresh();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   React.useEffect(()=> {
     errorMessageRef.current = errorMessage;
@@ -232,12 +325,12 @@ export default function TaskScreen({ navigation, route }: any) {
 
   const handleRejectTask = async () => {
     if (!rejectReason.trim()) {
-      Alert.alert('Validation', 'Please enter reason');
+      showFailureMsg(t('rn_please_enter_reason'));
       return;
     }
     const photosWithImage = rejectPhotos.filter(p => p?.base64);
     if (photosWithImage.length === 0) {
-      Alert.alert('Validation', 'At least one image is mandatory to reject the task');
+      showFailureMsg(t('rn_at_least_one_image_is_mandatory_to_reject_'));
       return;
     }
     try {
@@ -248,7 +341,12 @@ export default function TaskScreen({ navigation, route }: any) {
         photosWithImage,
       );
       if (!success) {
-        Alert.alert('Error', errorMessageRef.current ?? 'Failed to reject task');
+        if (wasTaskUnavailable()) {
+          // Java refreshes the list when the task no longer exists.
+          closeLateRejectSheet();
+          fetchTasks(1, true);
+        }
+        showFailureMsg(errorMessageRef.current ?? 'Failed to reject task');
         return;
       }
 
@@ -263,9 +361,9 @@ export default function TaskScreen({ navigation, route }: any) {
 
       fetchTasks(1, true);
 
-      Alert.alert('Success', 'Task rejected successfully.');
+      showSuccessMsg(t('rn_task_rejected_successfully'));
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to reject task');
+      showFailureMsg(err?.message || 'Failed to reject task');
     }
   };
 
@@ -276,149 +374,41 @@ export default function TaskScreen({ navigation, route }: any) {
     setRejectPhotos([]);
   };
 
-  const loadMore = () => {
-    if (tasks.length >= recordCount) return;
-    const nextPage = pageIndex + 1;
-    setPageIndex(nextPage);
-    fetchTasks(nextPage);
-  };
+  const loadMore = () => fetchTasks(pageRef.current + 1);
 
-  const openTask = async (task: Task) => {
-    // ── Terminal states ──────────────────────────────────────────
-    if (task.TaskStatus === 'Completed') {
-      Alert.alert('Task Completed', 'This task has already been completed.');
-      return;
-    }
-    if (task.TaskStatus === 'Rejected') {
-      Alert.alert('Task Rejected', 'This task has been rejected.');
-      return;
-    }
+  // Java opens the accept / resume dialog over the Task list.
+  const [tracking, setTracking] = useState<{ task: Task; resumeOnHold: boolean } | null>(null);
 
-    if (task.TaskStatus === 'Ongoing') {
-      switch (task.TaskState) {
-        case 0: // NOT_STARTED 
-        case 1: // STARTED_NOT_ENDED 
-          navigation.navigate('TaskRouteMap', { task });
-          break;
-        case 2: // ENDED_NO_PAYMENT
-          if (task.PaymentMode === 'Rate') {
-            if (task.TaskClosureStatus === true) {
-              navigation.navigate('PaymentReceived', { task });
-            } else {
-              navigation.navigate('TaskClosure', { task });
-            }
-          } else {
-            navigation.navigate('TaskClosure', { task });
-          }
-          break;
-        case 3: // PAYMENT_RECEIVED
-          if (task.TaskClosureStatus !== true) {
-            navigation.navigate('TaskClosure', { task });
-          } else {
-            Alert.alert('Task Completed', 'This task is completed and payment is received.');
-          }
-          break;
-        case 4: // TASK_CLOSURE → fully closed (e.g. AMC, no payment step)
-          Alert.alert('Task Closed', 'This task has already been closed.');
-          break;
-        default:
-          navigation.navigate('TaskRouteMap', { task });
+  const openTask = useOpenTask(navigation, {
+    onOpenTracking: (t, options) => setTracking({ task: t, resumeOnHold: !!options?.resumeOnHold }),
+    onLateInactive: t => {
+      setSelectedTask(t);
+      setShowLateRejectSheet(true);
+    },
+  });
+
+  // Java: the PDF download icon sits beside the amount on a Completed task when the
+  // technician has the Task PDF permission.
+  const renderItem = ({ item }: { item: Task }) => (
+    <TaskListCard
+      task={item}
+      onPress={() => openTask(item)}
+      actions={
+        <>
+          {canDownloadReport && item.TaskStatus === 'Completed' ? (
+            <Pressable onPress={() => handleDownloadReport(item)} hitSlop={8} style={styles.actionIcon}>
+              <Ionicons name="download-outline" size={ms(20)} color={COLORS.primary} />
+            </Pressable>
+          ) : null}
+          {item.TaskStatus === 'InActive' || item.TaskStatus === 'Completed' ? (
+            <Pressable onPress={() => handleViewAttachments(item)} hitSlop={8} style={styles.actionIcon}>
+              <Ionicons name="attach" size={ms(20)} color={COLORS.primary} />
+            </Pressable>
+          ) : null}
+        </>
       }
-      return;
-    }
-
-    // ── Pending / Not yet started ───────────────────────────────
-    if (task.TaskState === 0 || task.TaskState === 1) {
-      if (task.TaskStatus === 'InActive') {
-        const taskDate = new Date(task.TaskDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        taskDate.setHours(0, 0, 0, 0);
-        const diffDays = Math.round(
-          (today.getTime() - taskDate.getTime()) / (1000 * 60 * 60 * 24)
-        );
-
-        if (taskDate > today) {
-          Alert.alert('Too Early', "It's too early to accept this task!");
-          return;
-        }
-        if (diffDays > 3) {
-          setSelectedTask(task);
-          setShowLateRejectSheet(true);
-          return;
-        }
-
-        navigation.navigate('TaskTracking', { task });
-        return;
-      }
-
-      if (task.TaskStatus === 'OnHold') {
-        navigation.navigate('TaskTracking', { task, resumeOnHold: true });
-        return;
-      }
-    }
-  };
-
-  const getTaskTag = (task: Task) => {
-    return task.Task_TagName &&
-          task.Task_TagName.toUpperCase() !== 'NA'
-      ? task.Task_TagName.toUpperCase()
-      : null;
-  };
-
-  const renderItem = ({ item }: { item: Task }) => {
-    const Task_Tag = getTaskTag(item);
-    return (
-      <Pressable style={styles.card} onPress={() => openTask(item)}>
-        <View style={styles.topRow}>
-          <View style={[styles.statusBadge, getStatusStyle(item.TaskStatus)]}>
-            <Text style={styles.statusText}>{item.TaskStatus?.toUpperCase()}</Text>
-          </View>
-          {Task_Tag && (
-            <View style={styles.tagBadge}>
-              <Text style={styles.tagText}>{Task_Tag}</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-            {item.Name}{' '}
-          </Text>
-          <Text style={styles.taskId}>[{item.NewTaskId}]</Text>
-          <Text style={styles.dateText}>{formatDateTime(item.CreatedDate)}</Text>
-        </View>
-        <View style={styles.contentRow}>
-          <View style={styles.leftCol}>
-            <Text style={styles.address} numberOfLines={2}>{item.LocationName}</Text>
-            <View style={styles.customerRow}>
-              <Text style={styles.customer}>{item.CustomerName}</Text>
-              {canDownloadReport && item.TaskStatus === 'Completed' && (
-                <Pressable
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleDownloadReport(item);
-                  }}
-                  hitSlop={8}
-                >
-                  <Ionicons name="download-outline" size={sp(18)} style={[{color: COLORS.primary}, { marginLeft: sp(170) }]} />
-                </Pressable>
-              )}
-            </View>
-          </View>
-          <View style={styles.rightCol}>
-            <View style={styles.itemEntry}>
-              <Text style={styles.itemName}>
-                {item.FSRName && item.FSRName.toUpperCase() !== 'NA' ? item.FSRName : ''}
-              </Text>
-              {!!item.WagesPerHours && (
-                <Text style={styles.itemPrice}>Rs.{item.WagesPerHours}</Text>
-              )}
-            </View>
-          </View>
-        </View>
-      </Pressable>
-    );
-  };
+    />
+  );
 
   const renderPhotoSlots = (
     list: { uri: string; base64?: string }[],
@@ -438,7 +428,7 @@ export default function TaskScreen({ navigation, route }: any) {
 
   return (
     <View style={styles.root}>
-      <View style={styles.redBg} />
+      <View style={[styles.redBg, { height: headerHeight }]} />
 
       <View style={styles.monthRow}>
         <Pressable style={styles.monthWrapper} 
@@ -451,20 +441,18 @@ export default function TaskScreen({ navigation, route }: any) {
 
       <View style={styles.whiteSheet}>
         <View style={styles.searchContainer}>
-          {!search && <Ionicons name="search" size={sp(18)} color="#9CA3AF" />}
+          <Ionicons name="search" size={ms(22)} color={COLORS.lightGray} />
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Customer Or Task Id Number"
-            placeholderTextColor="#9CA3AF"
+            placeholder={t('customer_number_taskid')}
+            placeholderTextColor={COLORS.lightGray}
             style={styles.searchInput}
             cursorColor={COLORS.primary}
           />
-          {search !== '' && (
-            <Pressable onPress={() => setSearch('')}>
-              <Ionicons name="close" size={sp(18)} color="#9CA3AF" />
-            </Pressable>
-          )}
+          <Pressable onPress={() => setSearch('')} hitSlop={10}>
+            <Ionicons name="close" size={ms(22)} color={COLORS.textBlack} />
+          </Pressable>
         </View>
 
         <View style={styles.filterRow}>
@@ -472,21 +460,21 @@ export default function TaskScreen({ navigation, route }: any) {
             <Text style={styles.filterText} numberOfLines={1}>
               {selectedTag?.TaskTagName || 'Select Task Tag'}
             </Text>
-            <Ionicons name="chevron-down" size={sp(14)} color={COLORS.primary} />
+            <Ionicons name="chevron-down" size={ms(20)} color={COLORS.primary} />
           </Pressable>
 
           <Pressable style={styles.filterItem} onPress={() => setActiveDropdown('STATUS')}>
-            <Text style={styles.filterText}>{selectedStatus?.Name || 'Status'}</Text>
-            <Ionicons name="chevron-down" size={sp(14)} color={COLORS.primary} />
+            <Text style={styles.filterText} numberOfLines={1}>{selectedStatus?.Name || 'Status'}</Text>
+            <Ionicons name="chevron-down" size={ms(20)} color={COLORS.primary} />
           </Pressable>
 
           <Pressable style={styles.refreshItem} onPress={handleRefresh}>
-            <Text style={styles.refreshText}>Refresh</Text>
-            <Ionicons name="refresh" size={sp(14)} color={COLORS.primary} />
+            <Text style={styles.refreshText}>{t('rn_refresh_list')}</Text>
+            <Ionicons name="refresh-outline" size={ms(20)} color={COLORS.primary} />
           </Pressable>
         </View>
 
-        {loading && pageIndex === 1 ? (
+        {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: vs(40) }} />
         ) : tasks.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -505,85 +493,60 @@ export default function TaskScreen({ navigation, route }: any) {
             renderItem={renderItem}
             onEndReached={loadMore}
             onEndReachedThreshold={0.5}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
+            contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
           />
         )}
       </View>
 
-      {/* TAG MODAL */}
-      <Modal visible={activeDropdown === 'TAG'} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setActiveDropdown(null)} />
-        <View style={styles.centerModal}>
-          <Text style={styles.modalTitle}>Select Task Tag</Text>
-          <View style={styles.modalSearchBox}>
-            <TextInput
-              value={tagSearch}
-              onChangeText={setTagSearch}
-              placeholder="Search..."
-              placeholderTextColor="#9CA3AF"
-              style={styles.modalSearchInput}
-              cursorColor={COLORS.primary}
-            />
-          </View>
-          <FlatList
-            data={tagList.filter(tag =>
-              tag.TaskTagName.toLowerCase().includes(tagSearch.toLowerCase())
-            )}
-            keyExtractor={(item, index) =>
-              item?.TaskTagId ? item.TaskTagId.toString() : index.toString()
-            }
-            renderItem={({ item }) => (
-              <Pressable style={styles.modalItem} onPress={() => {
-                setSelectedTag(item); setTagSearch(''); setActiveDropdown(null);
-              }}>
-                <Text style={styles.itemText}>{item.TaskTagName}</Text>
-              </Pressable>
-            )}
-            style={{ maxHeight: vs(220) }}
-            showsVerticalScrollIndicator
-            bounces={false}
-          />
-        </View>
-      </Modal>
+      <Pressable style={styles.syncFab} onPress={handleSyncFab} accessibilityLabel="Sync Data">
+        <Ionicons name="sync-outline" size={ms(30)} color={COLORS.white} />
+      </Pressable>
 
-      {/* STATUS MODAL */}
-      <Modal visible={activeDropdown === 'STATUS'} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setActiveDropdown(null)} />
-        <View style={styles.centerModal}>
-          <Text style={styles.modalTitle}>Select Status</Text>
-          <View style={styles.modalSearchBox}>
-            <TextInput
-              value={statusSearch}
-              onChangeText={setStatusSearch}
-              placeholder="Search..."
-              placeholderTextColor="#9CA3AF"
-              style={styles.modalSearchInput}
-              cursorColor={COLORS.primary}
-            />
-          </View>
-          <FlatList
-            data={statusList.filter(item =>
-              item.Name.toLowerCase().includes(statusSearch.toLowerCase())
-            )}
-            keyExtractor={(item, index) =>
-              item?.Id !== undefined ? item.Id.toString() : index.toString()
-            }
-            renderItem={({ item }) => (
-              <Pressable style={styles.modalItem} onPress={() => {
-                setSelectedStatus({ Id: item.Id, Name: item.Name });
-                setStatusSearch(''); setActiveDropdown(null);
-              }}>
-                <Text style={styles.itemText}>{item.Name}</Text>
-              </Pressable>
-            )}
-            style={{ maxHeight: vs(220) }}
-            showsVerticalScrollIndicator
-            bounces={false}
-          />
-        </View>
-      </Modal>
+      {tracking && (
+        <TaskTrackingSheet
+          task={tracking.task}
+          resumeOnHold={tracking.resumeOnHold}
+          navigation={navigation}
+          onClose={() => setTracking(null)}
+          onFinished={() => setTracking(null)}
+          onRejected={() => fetchTasks(1, true)}
+        />
+      )}
+
+      <TaskAttachmentsSheet
+        visible={attachmentTask !== null}
+        taskName={attachmentTask?.Name}
+        files={attachmentFiles}
+        onClose={() => setAttachmentTask(null)}
+        onDownload={handleDownloadFile}
+      />
+
+      {/* Java: dialog_searchable_spinner_tasktag / _status -- the shared searchable dialog. */}
+      <SearchPickerModal
+        visible={activeDropdown === 'TAG'}
+        title={t('select_task_tag')}
+        options={tagList.map(tag => ({ id: Number(tag.TaskTagId) || 0, label: tag.TaskTagName }))}
+        onSelect={option => {
+          const tag = tagList.find(t => (Number(t.TaskTagId) || 0) === option.id && t.TaskTagName === option.label);
+          if (tag) {
+            setSelectedTag(tag);
+          }
+          setActiveDropdown(null);
+        }}
+        onClose={() => setActiveDropdown(null)}
+      />
+
+      <SearchPickerModal
+        visible={activeDropdown === 'STATUS'}
+        title={t('status')}
+        options={statusList.map(item => ({ id: Number(item.Id) || 0, label: String(item.Name ?? '') }))}
+        onSelect={option => {
+          setSelectedStatus({ Id: option.id, Name: option.label });
+          setActiveDropdown(null);
+        }}
+        onClose={() => setActiveDropdown(null)}
+      />
 
       {/* MONTH PICKER MODAL */}
       <Modal visible={showMonthPicker} transparent animationType="fade">
@@ -595,7 +558,7 @@ export default function TaskScreen({ navigation, route }: any) {
           </View>
           <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: '#eee', marginTop: vs(12) }}>
             <Pressable style={{ flex: 1, paddingVertical: vs(14), alignItems: 'center' }} onPress={() => setShowMonthPicker(false)}>
-              <Text style={{ fontSize: sp(15), color: '#888' }}>Cancel</Text>
+              <Text style={{ fontSize: sp(15), color: '#888' }}>{t('cancel')}</Text>
             </Pressable>
             <Pressable
               style={{ flex: 1, paddingVertical: vs(14), alignItems: 'center' }}
@@ -605,7 +568,7 @@ export default function TaskScreen({ navigation, route }: any) {
                 setShowMonthPicker(false);
               }}
             >
-              <Text style={{ fontSize: sp(15), color: COLORS.primary, fontWeight: '600' }}>OK</Text>
+              <Text style={{ fontSize: sp(15), color: COLORS.primary, fontWeight: '600' }}>{t('qr_code_positive_button_know')}</Text>
             </Pressable>
           </View>
         </View>
@@ -621,17 +584,17 @@ export default function TaskScreen({ navigation, route }: any) {
 
           <Text style={styles.sheetTitle}>{selectedTask?.Name}</Text>
           <Text style={styles.sheetText}>
-            It's too Late to Accept the Task !{'\n'}
-            Do you wish to proceed for Reject the task ?
+            {t('rn_it_s_too_late_to_accept_the_task')}{'\n'}
+            {t('rn_do_you_wish_to_proceed_for_reject_the_task')}
           </Text>
 
           {lateRejectPhase === 'confirm' ? (
             <View style={[styles.btnRow, { marginTop: 'auto' }]}>
               <Pressable style={styles.cancelBtn} onPress={closeLateRejectSheet}>
-                <Text style={styles.btnText}>CANCEL</Text>
+                <Text style={styles.btnText}>{t('cancel').toUpperCase()}</Text>
               </Pressable>
               <Pressable style={styles.rejectBtn} onPress={() => setLateRejectPhase('upload')}>
-                <Text style={styles.btnText}>REJECT</Text>
+                <Text style={styles.btnText}>{t('reject_task').toUpperCase()}</Text>
               </Pressable>
             </View>
           ) : (
@@ -639,7 +602,7 @@ export default function TaskScreen({ navigation, route }: any) {
               {renderPhotoSlots(rejectPhotos, setRejectPhotos)}
               <View style={styles.inputBox}>
                 <TextInput
-                  placeholder="Reason for Reject"
+                  placeholder={t('reject_reason')}
                   value={rejectReason}
                   onChangeText={setRejectReason}
                   style={{ flex: 1, fontSize: sp(16) }}
@@ -648,10 +611,10 @@ export default function TaskScreen({ navigation, route }: any) {
               </View>
               <View style={styles.btnRow}>
                 <Pressable style={styles.cancelBtn} onPress={closeLateRejectSheet}>
-                  <Text style={styles.btnText}>CANCEL</Text>
+                  <Text style={styles.btnText}>{t('cancel').toUpperCase()}</Text>
                 </Pressable>
                 <Pressable style={styles.rejectBtn} onPress={handleRejectTask}>
-                  <Text style={styles.btnText}>REJECT</Text>
+                  <Text style={styles.btnText}>{t('reject_task').toUpperCase()}</Text>
                 </Pressable>
               </View>
             </>
@@ -664,138 +627,58 @@ export default function TaskScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   root:       { flex: 1, backgroundColor: COLORS.primary },
-  redBg:      { height: HEADER_TOP_PADDING + hp(1), backgroundColor: COLORS.primary },
+  redBg:      { backgroundColor: COLORS.primary },
 
+  // main_task_fragment.xml: white CardView, 30dp corners, 10dp top margin.
   whiteSheet: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderTopLeftRadius: scale(28),
-    borderTopRightRadius: scale(28),
-    padding: scale(14),
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    paddingTop: ms(10),
+    overflow: 'hidden',
   },
-
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: scale(16),
-    padding: scale(12),
-    marginBottom: vs(12),
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-  },
-
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: vs(5),
-  },
-
-  statusBadge: {
-    width: scale(80),
-    height: vs(24),
-    borderBottomRightRadius: scale(16),
-    borderTopLeftRadius: scale(16),
-    alignItems: 'center',
-    justifyContent: 'center',
-    left: -scale(12),
-    top: -vs(12),
-  },
-
-  statusText: {
-    fontSize: sp(12),
-    color: '#fff',
-    fontWeight: '500',
-  },
-
-  tagBadge: {
-    backgroundColor: '#2563EB',
-    width: scale(100),
-    height: vs(24),
-    borderBottomLeftRadius: scale(16),
-    borderTopRightRadius: scale(16),
-    alignItems: 'center',
-    justifyContent: 'center',
-    right: -scale(12),
-    top: -vs(12),
-  },
-
-  tagText: {
-    color: '#fff',
-    fontSize: sp(12),
-    fontWeight: '500',
-    textAlign: 'center',
-    flexShrink: 1,
-  },
-
-  ribbonOngoing:   { backgroundColor: '#F59E0B' },
-  ribbonCompleted: { backgroundColor: '#16A34A' },
-  ribbonInactive:  { backgroundColor: '#9CA3AF' },
-  ribbonOnHold:    { backgroundColor: '#000' },
-  ribbonRejected:  { backgroundColor: '#DC2626' },
-
-  dateText: {
-    fontSize: sp(12),
-    color: '#4f5258',
-    flexShrink: 0,
-  },
-
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: vs(6),
-  },
-
-  title: {
-    fontSize: sp(15),
-    fontWeight: '600',
-    color: '#111827',
-    flex: 1,
-    marginRight: scale(5),
-  },
-
-  taskId: {
-    color: '#2563EB',
-    fontWeight: '500',
-    fontSize: sp(15),
-    marginRight: scale(15),
-  },
-
-  address:  { marginBottom: vs(6), fontSize: sp(13), color: '#898e98', width: '60%' },
-  customer: { marginRight: scale(6), fontSize: sp(13), color: '#171a1e' },
 
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingHorizontal: scale(14),
-    height: vs(44),
+    height: ms(40),
+    marginLeft: ms(8),
+    marginRight: ms(33), // SearchView takes weight 0.94 of the row
+    paddingHorizontal: ms(8),
     borderBottomWidth: 1,
-    borderColor: '#222222',
-    marginBottom: vs(14),
+    borderColor: COLORS.textBlack,
   },
+  searchInput: { flex: 1, marginLeft: ms(8), fontSize: sp(16), color: COLORS.textBlack, paddingVertical: 0 },
 
-  searchInput: {
-    flex: 1,
-    marginLeft: scale(8),
-    fontSize: sp(15),
-    color: '#222222',
-  },
-
+  // 30dp row, 10dp above; the two spinners share the width, "Refresh List" sits at the end.
   filterRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: vs(16),
+    height: ms(30),
+    marginTop: ms(10),
   },
+  filterItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginLeft: ms(10) },
+  filterText: { flexShrink: 1, fontSize: sp(14), color: COLORS.textBlack },
+  refreshItem: { flexDirection: 'row', alignItems: 'center', marginLeft: ms(10), marginRight: ms(5) },
+  refreshText: { marginRight: ms(5), fontSize: sp(13), fontWeight: 'bold', color: COLORS.primary },
 
-  filterItem:  { flexDirection: 'row', alignItems: 'center', gap: scale(4), flex: 1, marginRight: scale(8) },
-  filterText:  { fontSize: sp(13), color: '#111827', flexShrink: 1 },
-
-  refreshItem: { flexDirection: 'row', alignItems: 'center', gap: scale(4) },
-  refreshText: { fontSize: sp(13), color: COLORS.primary, fontWeight: '600' },
+  // RecyclerView: 10dp side/top padding, 25dp bottom margin.
+  listContent: { paddingHorizontal: ms(10), paddingTop: ms(10), paddingBottom: ms(80) },
+  actionIcon: { marginRight: ms(8) },
+  // FloatingActionButton: 56dp, colorPrimaryDark, 16dp margin, bottom end.
+  syncFab: {
+    position: 'absolute',
+    right: ms(16),
+    bottom: ms(10),
+    width: ms(56),
+    height: ms(56),
+    borderRadius: ms(28),
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+  },
 
   monthRow: {
     flexDirection: 'row',
@@ -805,7 +688,7 @@ const styles = StyleSheet.create({
   },
 
   monthWrapper: { flexDirection: 'row', alignItems: 'center', gap: scale(6) },
-  monthText:    { color: '#fff', fontSize: sp(16), fontWeight: '500' },
+  monthText:    { color: COLORS.white, fontSize: sp(18) },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
 
@@ -845,6 +728,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     width: '100%',
+    maxWidth: scale(560),
+    alignSelf: 'center',
     backgroundColor: '#fff',
     borderTopLeftRadius: scale(24),
     borderTopRightRadius: scale(24),
@@ -934,48 +819,13 @@ const styles = StyleSheet.create({
     fontSize: sp(18),
   },
 
-  contentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginTop: vs(4),
-  },
-
-  leftCol: { flex: 1, marginRight: scale(12) },
-  rightCol: { alignItems: 'flex-end' },
-
-  customerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: vs(4),
-  },
-
-  itemEntry: {
-    alignItems: 'flex-end',
-    width: scale(100),
-  },
-
-  itemName: {
-    fontSize: sp(13),
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-
-  itemPrice: {
-    fontSize: sp(13),
-    fontWeight: '600',
-    color: COLORS.primary,
-    textAlign: 'right',
-    marginTop: vs(22),
-  },
-
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyImage: {
-    width: scale(220),
-    height: scale(220),
+    width: ms(200),
+    height: ms(200),
   },
 });

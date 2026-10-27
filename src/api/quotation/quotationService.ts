@@ -2,7 +2,7 @@
 // Auto-generated from URLConstant.java (Quotation endpoints actually used by the Android app)
 // Request/response types sourced from the shared DTO.zip — see quotation.types.ts
 import apiClient from '../apiClient';
-import type { CRMQuotationDTO, CRMQuotationDTOResultData, DeleteQuotationDetailsDTO, DownloadQuotationPdfDTO, DownloadQuotationPdfDTOResultData, QuotationDetailsDTO, QuotationDetailsDTOResultData, QuotationListDTO, QuotationListDTOResultData, QuoteBindListDTO, QuoteBindListDTOResultData, SaveQuotationDTO, SaveQuotationsNonOwnerDTO, SelfInvoiceCreateDTO, TaxDetails, TaxDetailsResultData, UpdateQuotationStatusDTO } from './quotation.types';
+import type { CRMQuotationDTO, CRMQuotationDTOResultData, DeleteQuotationDetailsDTO, DownloadQuotationPdfDTO, DownloadQuotationPdfDTOResultData, QuotationDetailsDTO, QuotationDetailsDTOResultData, QuotationListDTO, QuotationListDTOResultData, QuoteBindListDTO, QuoteBindListDTOResultData, SaveQuotationDTO, SaveQuotationsNonOwnerDTO, SelfInvoiceCreateDTO, TaxDetails, TaxDetailsResultData, UpdateQuotationStatusDTO, UpdateQuotationStatusRequest } from './quotation.types';
 
 /**
  * Source: URLConstant.Accounts.GET_QuotationList
@@ -70,9 +70,21 @@ export const deleteQuotationDetails = async (params?: Record<string, any>): Prom
 /**
  * Source: URLConstant.Accounts.UPDATE_QUOTATION_STATUS
  * Endpoint: POST Quotation/UpdateQuotationStatus
+ * Java's Api.updateQuotationStatus() is @FormUrlEncoded with fields
+ * QuotationId/UserId/StatusId/Notes — posting a JSON body against it is a
+ * no-op on the backend, so we build a urlencoded body instead (same fix
+ * pattern as src/api/lead/leadService.ts#updateLeadStatus).
  */
-export const updateQuotationStatus = async (data?: Partial<UpdateQuotationStatusDTO>): Promise<UpdateQuotationStatusDTO> => {
-  const response = await apiClient.post('Quotation/UpdateQuotationStatus', data);
+export const updateQuotationStatus = async (data: UpdateQuotationStatusRequest): Promise<UpdateQuotationStatusDTO> => {
+  const body = new URLSearchParams();
+  body.append('QuotationId', String(data.QuotationId));
+  body.append('UserId', String(data.UserId));
+  body.append('StatusId', String(data.StatusId));
+  body.append('Notes', data.Notes ?? '');
+
+  const response = await apiClient.post('Quotation/UpdateQuotationStatus', body.toString(), {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
   return response.data;
 };
 

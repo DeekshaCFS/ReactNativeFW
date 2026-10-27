@@ -467,6 +467,8 @@ export type UpdateCustomerDetailsRequest = {
   SecondaryMobileNumber?: string;
   State: string;
   UpdatedBy: number;
+  latitude?: string;
+  Longitude?: string;
 };
 
 export type AddCustomerLeadRequest = {
@@ -659,6 +661,8 @@ export type YearlyPassbookResponse = {
 };
 
 export type AssignedItemListItem = {
+  techFullName?: string | null;
+  TechFullName?: string | null;
   id?: number;
   Id?: number;
   itemId?: number;
@@ -801,6 +805,8 @@ export type FocStatusTagResponse = {
 };
 
 export type ItemInventoryListItem = {
+  serialNoValue?: string | null;
+  SerialNoValue?: string | null;
   id?: number;
   Id?: number;
   ownerId?: number | null;
@@ -907,6 +913,8 @@ export type ItemInventoryListResponse = {
 };
 
 export type UsedItemListItem = {
+  techFullName?: string | null;
+  TechFullName?: string | null;
   id?: number;
   Id?: number;
   itemId?: number;

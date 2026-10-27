@@ -1,42 +1,69 @@
 // src/screens/auth/CompanyDetailsScreen.tsx
 import {
-  View, TextInput, Text, Image, ImageBackground, Alert,
-  KeyboardAvoidingView, ScrollView, Platform, StatusBar, StyleSheet,
+  View, TextInput, Text, Image, ImageBackground, KeyboardAvoidingView, ScrollView, Platform, StatusBar, StyleSheet,
 } from 'react-native';
 import Slider from '@react-native-community/slider'; // matches legacy SeekBar 0–100
 import { useState } from 'react';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppButton from '../../components/AppButton';
 import { COLORS } from '../../theme/theme';
 import { GlobalStyles } from '../../styles/globalStyles';
 import { getRegister } from '../../api/signUp/signUpService';
-import { authEvents, AUTH_CHANGED } from '../../utils/authEvents';
+import { completeLogin } from '../../utils/completeLogin';
+import { isAccountEnabled, isBiometricAvailable, promptBiometric, addBiometricAccount } from '../../utils/biometricAuth';
+import BiometricEnableDialog from '../../components/BiometricEnableDialog';
+import type { LoginSession } from '../../utils/completeLogin';
 import { getAndroidId } from '../../utils/deviceId';
-import { ms, sp, scale } from '../../utils/responsive';
+import { sp, dp } from '../../utils/responsive';
+import { AuthBackButton } from '../../components/AuthExtras';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
 type AuthStackParamList = {
   CompanyDetails: {
     emailOrContactNo: string;   // mobile or email captured at signup
     touchlessSignupId: number;
     countryDetailsId: number;
+    displayName?: string;       // Google sign-up: pre-fills first / last name
   };
 };
 
 const MIN_WORKERS = 1;
 const MAX_WORKERS = 100;
 
+// Java wraps these in a ConstraintLayout that centres the content vertically.
+const CENTER_CONTENT = { justifyContent: 'center' as const };
+
 export default function CompanyDetailsScreen() {
+  const {t} = useTranslation();
   const route = useRoute<RouteProp<AuthStackParamList, 'CompanyDetails'>>();
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
-  const { emailOrContactNo, touchlessSignupId, countryDetailsId } = route.params;
+  const { emailOrContactNo, touchlessSignupId, countryDetailsId, displayName } = route.params;
+  // Java WelcomeActivity splits the Google display name on spaces.
+  const nameParts = (displayName ?? '').trim().split(' ').filter(Boolean);
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [firstName, setFirstName] = useState(nameParts[0] ?? '');
+  const [lastName, setLastName] = useState(nameParts.slice(1).join(' '));
   const [companyName, setCompanyName] = useState('');
-  const [noOfFieldWorkers, setNoOfFieldWorkers] = useState('');
+  const [noOfFieldWorkers, setNoOfFieldWorkers] = useState('1');
+  // The slider keeps its own value: feeding the text back into it on every drag tick
+  // (text -> value -> text) made the thumb jitter. Dragging only updates the text.
+  const [sliderValue, setSliderValue] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [pendingSession, setPendingSession] = useState<LoginSession | null>(null);
+
+  // "Enable Biometric Login?" dialog result: Enable / Not Now both finish the login.
+  const finishPending = async (enable: boolean) => {
+    const sess = pendingSession;
+    setPendingSession(null);
+    if (!sess) return;
+    if (enable && (await promptBiometric('Authenticate to enable biometric login'))) {
+      await addBiometricAccount(sess.mobile);
+      showSuccessMsg(t('rn_biometric_login_enabled'));
+    }
+    await completeLogin(sess);
+  };
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // keep the text input and slider in sync, same behaviour as the legacy
@@ -44,6 +71,7 @@ export default function CompanyDetailsScreen() {
   const handleWorkersTextChange = (val: string) => {
     const cleaned = val.replace(/\D/g, '');
     setNoOfFieldWorkers(cleaned);
+    setSliderValue(Math.min(Number(cleaned) || 0, MAX_WORKERS));
   };
 
   const handleSliderChange = (val: number) => {
@@ -90,24 +118,27 @@ export default function CompanyDetailsScreen() {
       });
 
       if (response.Code !== '200' || !response.ResultData?.LoginOutPut) {
-        Alert.alert('Error', response.Message || 'Could not create your account');
+        showFailureMsg(response.Message || 'Could not create your account');
         return;
       }
 
       const login = response.ResultData.LoginOutPut;
-      await AsyncStorage.multiSet([
-        ['uid',      String(login.UserID ?? 0)],
-        ['token',    login.Token ?? ''],
-        ['role',     login.UserGroupName ?? ''],
-        ['username', emailOrContactNo],
-        ['owner_id', String(login.UserID ?? 0)], // new owner is their own OwnerId
-      ]);
-      // RootNavigator remounts via key={token ? 'app' : 'auth'} on this event —
-      // no manual navigation.reset() needed (that call was a silent no-op, same
-      // reasoning as OtpScreen; LoginScreen relies on the same event flow).
-      authEvents.emit(AUTH_CHANGED);
+      const session = {
+        userId: login.UserID ?? 0,
+        token: login.Token ?? '',
+        role: login.UserGroupName ?? '',
+        ownerId: login.UserID ?? 0, // new owner is their own OwnerId
+        mobile: emailOrContactNo,
+      };
+      // First sign-in from this device: offer Fingerprint / Face / MPIN quick login. Otherwise
+      // persist and let RootNavigator swap to the app via AUTH_CHANGED (key={token ? 'app' : 'auth'}).
+      if ((await isBiometricAvailable()) && !(await isAccountEnabled(session.mobile))) {
+        setPendingSession(session);
+        return;
+      }
+      await completeLogin(session);
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Something went wrong');
+      showFailureMsg(err?.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -119,120 +150,151 @@ export default function CompanyDetailsScreen() {
       style={GlobalStyles.container}
       resizeMode="cover"
     >
-      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
+      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : ms(20)}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={GlobalStyles.scrollContent}
+          contentContainerStyle={[GlobalStyles.scrollContent, CENTER_CONTENT]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={GlobalStyles.header}>
+          <View style={[GlobalStyles.header, { marginTop: dp(89) }]}>
             <Image source={require('../../../assets/images/logo.png')} style={GlobalStyles.logo} resizeMode="contain" />
           </View>
 
-          <Text style={GlobalStyles.title}>Glad To Meet You!</Text>
-          <Text style={GlobalStyles.subtitle}>Please Enter Your Details</Text>
+          <Text style={GlobalStyles.title}>{t('glad_to_meet')}</Text>
+          <Text style={styles.subtitle}>{t('please_enter_details')}</Text>
 
-          <TextInput
-            placeholder="First Name"
-            style={GlobalStyles.input}
-            value={firstName}
-            onChangeText={setFirstName}
-            cursorColor={COLORS.primary}
-            returnKeyType="next"
-          />
-          {errors.firstName && <Text style={GlobalStyles.errorText}>{errors.firstName}</Text>}
-
-          <TextInput
-            placeholder="Last Name"
-            style={GlobalStyles.input}
-            value={lastName}
-            onChangeText={setLastName}
-            cursorColor={COLORS.primary}
-            returnKeyType="next"
-          />
-          {errors.lastName && <Text style={GlobalStyles.errorText}>{errors.lastName}</Text>}
-
-          <TextInput
-            placeholder="Company Name"
-            style={GlobalStyles.input}
-            value={companyName}
-            onChangeText={setCompanyName}
-            cursorColor={COLORS.primary}
-            returnKeyType="next"
-          />
-          {errors.companyName && <Text style={GlobalStyles.errorText}>{errors.companyName}</Text>}
-
-          {/* Slider now lives as a sibling inside this box, not nested inside
-              the TextInput (TextInput can't render child views). */}
-          <View style={styles.workersBox}>
-            <Text style={styles.workersLabel}>Select No. of Field Workers (1-100)</Text>
-
-            <Slider
-              style={styles.slider}
-              minimumValue={0}
-              maximumValue={MAX_WORKERS}
-              step={1}
-              value={Number(noOfFieldWorkers) || 0}
-              onValueChange={handleSliderChange}
-              minimumTrackTintColor={COLORS.primary}
-              maximumTrackTintColor="#d0d0d0"
+          <View style={[GlobalStyles.form, { marginTop: dp(10) }]}>
+            <TextInput
+              placeholder={t('first_name')}
+              placeholderTextColor={COLORS.authText}
+              style={[styles.input, !!errors.firstName && GlobalStyles.inputError]}
+              value={firstName}
+              onChangeText={t => setFirstName(t.replace(/[^A-Za-z]/g, ''))}
+              maxLength={20}
+              autoCapitalize="words"
+              cursorColor={COLORS.primary}
+              returnKeyType="next"
             />
+            {!!errors.firstName && <Text style={GlobalStyles.errorText}>{errors.firstName}</Text>}
 
             <TextInput
-              placeholder="1"
-              keyboardType="number-pad"
-              style={styles.workersValueInput}
-              value={noOfFieldWorkers}
-              onChangeText={handleWorkersTextChange}
-              maxLength={3}
+              placeholder={t('last_name')}
+              placeholderTextColor={COLORS.authText}
+              style={[styles.input, !!errors.lastName && GlobalStyles.inputError]}
+              value={lastName}
+              onChangeText={t => setLastName(t.replace(/[^A-Za-z]/g, ''))}
+              maxLength={20}
+              autoCapitalize="words"
               cursorColor={COLORS.primary}
-              textAlign="center"
-              returnKeyType="done"
-              onSubmitEditing={registerOwner}
+              returnKeyType="next"
             />
-          </View>
-          {errors.noOfFieldWorkers && <Text style={GlobalStyles.errorText}>{errors.noOfFieldWorkers}</Text>}
+            {!!errors.lastName && <Text style={GlobalStyles.errorText}>{errors.lastName}</Text>}
 
-          <AppButton title="PROCEED" onPress={registerOwner} loading={loading} />
+            <TextInput
+              placeholder={t('company_name')}
+              placeholderTextColor={COLORS.authText}
+              style={[styles.input, !!errors.companyName && GlobalStyles.inputError]}
+              value={companyName}
+              onChangeText={setCompanyName}
+              maxLength={40}
+              autoCapitalize="words"
+              cursorColor={COLORS.primary}
+              returnKeyType="next"
+            />
+            {!!errors.companyName && <Text style={GlobalStyles.errorText}>{errors.companyName}</Text>}
+
+            <View style={styles.workersBox}>
+              <Text style={styles.workersLabel}>{t('please_select_no_of_worker')}</Text>
+
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={MAX_WORKERS}
+                step={1}
+                value={sliderValue}
+                onValueChange={handleSliderChange}
+                onSlidingComplete={setSliderValue}
+                minimumTrackTintColor={COLORS.primary}
+                maximumTrackTintColor="#d0d0d0"
+                thumbTintColor={COLORS.primary}
+              />
+
+              <TextInput
+                placeholder="1"
+                keyboardType="number-pad"
+                style={styles.workersValueInput}
+                value={noOfFieldWorkers}
+                onChangeText={handleWorkersTextChange}
+                maxLength={3}
+                cursorColor={COLORS.primary}
+                textAlign="center"
+                returnKeyType="done"
+                onSubmitEditing={registerOwner}
+              />
+            </View>
+            {!!errors.noOfFieldWorkers && <Text style={GlobalStyles.errorText}>{errors.noOfFieldWorkers}</Text>}
+
+            <AppButton title={t('proceed').toUpperCase()} onPress={registerOwner} loading={loading} />
+          </View>
+
+          <View style={{ margin: dp(20) }}>
+            <AuthBackButton onPress={() => navigation.goBack()} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <BiometricEnableDialog
+        visible={!!pendingSession}
+        onEnable={() => finishPending(true)}
+        onNotNow={() => finishPending(false)}
+      />
     </ImageBackground>
   );
 }
 
+// welcome_activity.xml: inputs/boxes carry a 5dp margin (the shared input style uses 10dp).
 const styles = StyleSheet.create({
+  subtitle: {
+    fontSize: sp(16),
+    color: COLORS.authText,
+    textAlign: 'center',
+    margin: dp(5),
+  },
+  input: {
+    ...GlobalStyles.input,
+    margin: dp(5),
+  },
   workersBox: {
-    marginTop: ms(8),
-    marginBottom: ms(4),
-    padding: ms(16),
+    margin: dp(5),
+    paddingLeft: dp(5),
     borderWidth: 1,
-    borderColor: '#3e3e3e',
-    borderRadius: 20,
-    alignItems: 'center',
+    borderColor: COLORS.lightGray,
+    borderRadius: dp(20),
   },
   workersLabel: {
-    fontSize: sp(18),
-    color: COLORS.textTertiary,
-    alignSelf: 'flex-start',
-    marginBottom: ms(4),
+    marginTop: dp(5),
+    paddingLeft: dp(10),
+    fontSize: sp(16),
+    color: COLORS.authText,
   },
   slider: {
-    width: '100%',
-    height: ms(40),
+    marginTop: dp(8),
+    marginBottom: dp(12),
+    height: dp(24),
   },
   workersValueInput: {
-    width: scale(90),
-    height: ms(44),
+    width: dp(100),
+    height: dp(30),
+    alignSelf: 'center',
+    margin: dp(10),
+    padding: 0,
     borderWidth: 1,
-    borderColor: '#3e3e3e',
-    borderRadius: 22,
-    marginTop: ms(8),
+    borderColor: COLORS.lightGray,
+    borderRadius: dp(20),
     fontSize: sp(16),
-    color: COLORS.textPrimary,
+    color: COLORS.ink,
   },
 });

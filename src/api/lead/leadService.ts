@@ -31,13 +31,27 @@ export const getLeadetailsByLeadId = async (params?: Record<string, any>): Promi
   return response.data;
 };
 
-// Java's Lead/UpdateLeadStatus is @FormUrlEncoded — see
-// src/api/signUp/signUpService.ts for the same fix pattern.
+// Java posts Lead/UpdateLeadStatus as a JSON @Body (AddCustomerLeadInternalDTO
+// .ResultData), not form-encoded: the lead's own fields go back alongside the
+// new LeadStatusId, and the follow-up note travels in FollowUpNotes.
 export type UpdateLeadStatusRequest = {
   UserId: number;
+  OwnerId: number;
   LeadId: number;
   LeadStatusId: number;
+  LeadStatus: number;
+  FollowUpNotes: string;
   Description?: string;
+  CustomerName?: string;
+  MobileNumber?: string;
+  Address?: string;
+  LocName?: string;
+  LocationId?: number;
+  ServiceName?: string;
+  ServicesId?: number;
+  CreatedBy?: number;
+  UpdatedBy?: number;
+  IsActive?: boolean;
 };
 
 /**
@@ -45,15 +59,7 @@ export type UpdateLeadStatusRequest = {
  * Endpoint: POST Lead/UpdateLeadStatus
  */
 export const updateLeadStatus = async (data: UpdateLeadStatusRequest): Promise<LeadStatusListDTO> => {
-  const body = new URLSearchParams();
-  body.append('UserId', String(data.UserId));
-  body.append('LeadId', String(data.LeadId));
-  body.append('LeadStatusId', String(data.LeadStatusId));
-  body.append('Description', data.Description ?? '');
-
-  const response = await apiClient.post('Lead/UpdateLeadStatus', body.toString(), {
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  });
+  const response = await apiClient.post('Lead/UpdateLeadStatus', data);
   return response.data;
 };
 

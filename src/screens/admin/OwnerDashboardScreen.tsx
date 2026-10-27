@@ -1,9 +1,9 @@
 // src/screens/admin/OwnerDashboardScreen.tsx
 
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,11 +13,19 @@ import {
 import {getDashboardData} from '../../api/dashboard/dashboardService';
 import {getPassbookForDashboard} from '../../api/passbook/passbookService';
 import {getAmcDashboardCountDetails} from '../../api/amc/amcService';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {ms, sp} from '../../utils/responsive';
+import {COLORS} from '../../theme/theme';
+import {formatAmount} from '../../utils/decimal';
+import {getCurrentCurrencySymbol} from '../../state/session';
+import { showFailureMsg } from '../../utils/toast';
 
+import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
 export type DayFilter = 'Today' | 'Week' | 'Month' | 'Year';
 
-const RING_SIZE = 170;
-const RING_THICKNESS = 16;
+const RING_SIZE = ms(170);
+const RING_THICKNESS = ms(16);
 const RING_SEGMENTS = 60;
 const RING_RADIUS = RING_SIZE / 2 - RING_THICKNESS / 2;
 const RING_SEGMENT_ANGLE = 360 / RING_SEGMENTS;
@@ -47,11 +55,29 @@ const toNumber = (value: unknown, fallback = 0) => {
 type OwnerDashboardScreenProps = {
   ownerId: number;
   filter: DayFilter;
+  onCreateTask?: () => void;
+  // Matches Java's Earnings/mEarnings.setOnClickListener — both the value
+  // and the ⓘ icon navigate to Passbook (HomePassbookFragmentNew).
+  onEarningsPress?: () => void;
+  // Matches Java's mTextViewAMCStatus/mAMC.setOnClickListener — both
+  // navigate to the AMC list (AMCListFragment).
+  onAmcStatusPress?: () => void;
+  // Matches Java's mAttendance/mAttend.setOnClickListener — navigates to
+  // Leave management (LeaveTabHost / PersonalLeaveTabHost for Manager and
+  // Zone Head roles), not a dedicated attendance screen.
+  onAttendancePress?: () => void;
 };
 
-const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
+const OwnerDashboardScreen = ({
+  ownerId,
+  filter,
+  onCreateTask,
+  onEarningsPress,
+  onAmcStatusPress,
+  onAttendancePress,
+}: OwnerDashboardScreenProps) => {
+  const {t} = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
-  const [profileCompletion, setProfileCompletion] = useState(0);
   const [taskStats, setTaskStats] = useState({
     complete: 0,
     urgent: 0,
@@ -84,10 +110,15 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
     );
   }, [taskStats.complete, taskStats.inactive, taskStats.onHold, taskStats.reject, taskStats.urgent]);
 
-  useEffect(() => {
-    let isMounted = true;
+  const isMountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      isMountedRef.current = false;
+    },
+    [],
+  );
 
-    const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
       setIsLoading(true);
       try {
         const [dashboardResponse, earningResponse, amcResponse] = await Promise.all([
@@ -107,13 +138,23 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
           }),
         ]);
 
-        if (!isMounted) {
+        if (!isMountedRef.current) {
           return;
         }
 
         const dashboardData = getResultData<Record<string, unknown>>(dashboardResponse);
         const earningData = getResultData<Record<string, unknown>>(earningResponse);
         const amcData = getResultData<Record<string, unknown>>(amcResponse);
+
+        // TEMP DEBUG — remove once we've confirmed what the "year" filter
+        // actually returns. Compares the raw AMC response against what
+        // Java's FWLogger line logs (amcDashboardCount.getMessage()) for
+        // the same filter/account so we can tell a data issue apart from
+        // a parsing issue.
+        if (__DEV__ && filter === 'Year') {
+          console.log('[AMC][Year] raw response:', JSON.stringify(amcResponse));
+          console.log('[AMC][Year] resolved amcData:', amcData);
+        }
 
         const tasksCountList =
           ((dashboardData?.tasksCount ?? dashboardData?.TasksCount) as
@@ -189,48 +230,55 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
           toNumber(earningData?.earningAmount ?? earningData?.EarningAmount),
         );
 
+        // AMCDashboardCountResultData uses PascalCase (TotalUpcomming is the
+        // actual, misspelled field name on the backend), so the camelCase
+        // keys here never matched and AMC Status always rendered as 0s.
         setAmcStatus({
-          upcoming: toNumber(amcData?.totalUpcomming ?? amcData?.totalUpcoming),
-          renewal: toNumber(amcData?.totalRenewal),
-          expired: toNumber(amcData?.totalExpired),
+          upcoming: toNumber(amcData?.TotalUpcomming ?? amcData?.totalUpcomming ?? amcData?.totalUpcoming),
+          renewal: toNumber(amcData?.TotalRenewal ?? amcData?.totalRenewal),
+          expired: toNumber(amcData?.TotalExpired ?? amcData?.totalExpired),
         });
-
-        const profileData =
-          (dashboardData?.profile as Record<string, unknown> | undefined) ??
-          (dashboardData?.Profile as Record<string, unknown> | undefined);
-        setProfileCompletion(
-          toNumber(
-            profileData?.completionPercentage ??
-              profileData?.CompletionPercentage ??
-              dashboardData?.profileCompletion ??
-              dashboardData?.ProfileCompletion,
-          ),
-        );
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unable to load dashboard data';
-        Alert.alert('Dashboard API error', message);
+        showFailureMsg(message || 'Dashboard API error');
       } finally {
-        if (isMounted) {
+        if (isMountedRef.current) {
           setIsLoading(false);
         }
       }
-    };
-
-    loadDashboard();
-
-    return () => {
-      isMounted = false;
-    };
   }, [ownerId, filter]);
+
+  // Same refresh logic as the technician tabs: reload whenever the Home tab gains focus
+  // (and when the owner / Today-Week-Month-Year filter changes while it is focused) ...
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard();
+    }, [loadDashboard]),
+  );
+
+  // ... and re-tapping the Home tab while already on it refreshes the dashboard.
+  const navigation = useNavigation();
+  useEffect(() => {
+    const unsubscribe = (navigation as any).addListener('tabPress', () => {
+      if (navigation.isFocused()) {
+        loadDashboard();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, loadDashboard]);
 
   const taskChartItems = useMemo(
     () => [
-      {key: 'complete', label: 'Completed', value: taskStats.complete, color: '#16A34A'},
-      {key: 'urgent', label: 'Ongoing', value: taskStats.urgent, color: '#F59E0B'},
-      {key: 'inactive', label: 'Inactive', value: taskStats.inactive, color: '#9CA3AF'},
-      {key: 'reject', label: 'Rejected', value: taskStats.reject, color: '#c3002f'},
-      {key: 'onHold', label: 'OnHold', value: taskStats.onHold, color: '#7C3AED'},
+      // Colors match Java's R.color values used in the FitChart:
+      // Completed -> green (#03DE73), Ongoing -> orange (#FF9B00),
+      // InActive -> light_gray (#9A9FAA), Rejected -> colorPrimaryDark
+      // (#C3002F), OnHold -> onhold (#353935).
+      {key: 'complete', label: tr('Completed'), value: taskStats.complete, color: '#03DE73'},
+      {key: 'urgent', label: tr('Ongoing'), value: taskStats.urgent, color: '#FF9B00'},
+      {key: 'inactive', label: tr('Inactive'), value: taskStats.inactive, color: '#9A9FAA'},
+      {key: 'reject', label: tr('Rejected'), value: taskStats.reject, color: '#c3002f'},
+      {key: 'onHold', label: tr('OnHold'), value: taskStats.onHold, color: '#353935'},
     ],
     [taskStats.complete, taskStats.inactive, taskStats.onHold, taskStats.reject, taskStats.urgent],
   );
@@ -258,31 +306,38 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
     });
   }, [taskChartItems, totalTasks]);
 
+  // Java's MaterialRatingBar: stepSize 0.5, primary tint, outline for the rest.
   const ratingStars = useMemo(
-    () => Array.from({length: 5}, (_, index) => index < Math.round(avgRating)),
+    () =>
+      Array.from({length: 5}, (_, index) => {
+        const diff = avgRating - index;
+        if (diff >= 0.75) {
+          return 'star';
+        }
+        return diff >= 0.25 ? 'star-half' : 'star-outline';
+      }),
     [avgRating],
+  );
+
+  // Java shows ₹ for India; the API symbol comes back as 'Rs.'.
+  const apiSymbol = getCurrentCurrencySymbol();
+  const currency = !apiSymbol || /^(rs.?|inr)$/i.test(apiSymbol) ? '₹' : apiSymbol;
+
+  const renderInfo = () => (
+    <Ionicons name="information-circle-outline" size={ms(20)} color={COLORS.lightGray} />
   );
 
   return (
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Java home_gradient: red hero showing behind the top of the first card */}
+      <View style={styles.hero} />
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Profile Completion</Text>
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              {width: `${Math.min(Math.max(profileCompletion, 0), 100)}%`},
-            ]}
-          />
-        </View>
-
-        <View style={styles.rowBetween}>
-          <View style={styles.showingDataRow}>
-            <Text style={styles.muted}>Showing Data for :</Text>
-            <Text style={styles.valueStrong}> {filter}</Text>
-          </View>
-          <Pressable style={styles.ctaButton}>
-            <Text style={styles.ctaButtonText}>Create Task</Text>
+        <View style={styles.showingRow}>
+          <Text style={styles.muted}>{t('showing_data_for') + ' :'}</Text>
+          <Text style={styles.valueStrong}> {filter}</Text>
+          <View style={styles.flex1} />
+          <Pressable style={styles.ctaButton} onPress={onCreateTask}>
+            <Text style={styles.ctaButtonText}>{t('app_tour_3_title')}</Text>
           </Pressable>
         </View>
 
@@ -305,12 +360,14 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
                 />
               ))}
               <Text style={styles.taskChartTotal}>{totalTasks}</Text>
-              <Text style={styles.taskChartTotalLabel}>Total Task</Text>
+              <Text style={styles.taskChartTotalLabel}>{t('total_task')}</Text>
             </View>
           </View>
           <View style={styles.taskChartLegend}>
-            {taskChartItems.map(item => (
-              <View key={item.key} style={styles.taskLegendItem}>
+            {taskChartItems.map((item, index) => (
+              <View
+                key={item.key}
+                style={[styles.taskLegendItem, index > 0 ? styles.legendGap : null]}>
                 <Text style={[styles.taskLegendValue, {color: item.color}]}>
                   {String(item.value).padStart(2, '0')}
                 </Text>
@@ -321,52 +378,57 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
         </View>
 
         <View style={styles.metricsRow}>
-          <View style={styles.metricBlock}>
+          <Pressable style={styles.earningsBlock} onPress={onEarningsPress}>
             <View style={styles.metricLabelRow}>
-              <Text style={styles.metricLabel}>Earnings</Text>
-              <Text style={styles.infoIcon}>ⓘ</Text>
+              <Text style={styles.metricLabel}>{t('earnings')}</Text>
+              <View style={styles.infoGap}>{renderInfo()}</View>
             </View>
-            <Text style={styles.metricValueGreen}>Rs. {earningAmount.toFixed(0)}</Text>
-          </View>
-          <View style={styles.metricBlock}>
-            <View style={[styles.metricLabelRow, styles.metricLabelRowCenter]}>
-              <Text style={styles.metricLabelCenter}>AMC Status</Text>
-              <Text style={styles.infoIcon}>ⓘ</Text>
+            <Text style={styles.metricValueGreen}>
+              {currency} {formatAmount(earningAmount)}
+            </Text>
+          </Pressable>
+          <Pressable style={styles.amcBlock} onPress={onAmcStatusPress}>
+            <View style={styles.metricLabelRow}>
+              <Text style={styles.metricLabel}>{t('AMC_status')}</Text>
+              <View style={styles.infoGap}>{renderInfo()}</View>
             </View>
-            <View style={styles.metricInline}>
-              <Text style={styles.metricValueOrange}>{amcStatus.upcoming}</Text>
-              <Text style={styles.metricHintOrange}> Upcoming</Text>
+            <View style={styles.amcRow}>
+              <View style={styles.amcCell}>
+                <Text style={[styles.amcValue, {color: COLORS.statusOngoing}]}>
+                  {amcStatus.upcoming}
+                </Text>
+                <Text style={[styles.amcHint, {color: COLORS.statusOngoing}]}>{t('rn_upcoming')}</Text>
+              </View>
+              <View style={styles.amcCell}>
+                <Text style={[styles.amcValue, {color: COLORS.blue500}]}>{amcStatus.renewal}</Text>
+                <Text style={[styles.amcHint, {color: COLORS.blue500}]}>{t('rn_renewal')}</Text>
+              </View>
             </View>
-            <View style={styles.metricInline}>
-              <Text style={styles.metricValueBlue}>{amcStatus.renewal}</Text>
-              <Text style={styles.metricHintBlue}> Renewal</Text>
+            <View style={styles.amcRow}>
+              <View style={styles.amcCell}>
+                <Text style={[styles.amcValue, {color: COLORS.statusRejected}]}>
+                  {amcStatus.expired}
+                </Text>
+                <Text style={[styles.amcHint, {color: COLORS.statusRejected}]}>{t('rn_expired')}</Text>
+              </View>
             </View>
-            <View style={styles.metricInline}>
-              <Text style={styles.metricValuePrimary}>{amcStatus.expired}</Text>
-              <Text style={styles.metricHintPrimary}> Expired</Text>
-            </View>
-          </View>
+          </Pressable>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.summaryRow}>
           <View style={styles.summaryBlock}>
-            <Text style={styles.summaryTitle}>Avg. Task Resolution Time</Text>
+            <Text style={styles.summaryTitle}>{t('rn_avg_task_resolution_time')}</Text>
             <Text style={styles.summaryValue}>{avgResolutionTime}</Text>
           </View>
           <View style={styles.summaryBlock}>
-            <Text style={styles.summaryTitle}>Avg. Customer Rating</Text>
+            <Text style={styles.summaryTitle}>{t('rn_avg_customer_rating')}</Text>
             <View style={styles.ratingRow}>
-              <Text style={styles.ratingValue}>{avgRating.toFixed(1)}</Text>
+              <Text style={styles.ratingValue}>{avgRating.toFixed(2)}</Text>
               <View style={styles.starsRow}>
-                {ratingStars.map((filled, index) => (
-                  <Text
-                    key={index}
-                    style={filled ? styles.starFilled : styles.starEmpty}
-                  >
-                    ★
-                  </Text>
+                {ratingStars.map((name, index) => (
+                  <Ionicons key={index} name={name} size={ms(16)} color={COLORS.primary} />
                 ))}
               </View>
             </View>
@@ -374,177 +436,102 @@ const OwnerDashboardScreen = ({ownerId, filter}: OwnerDashboardScreenProps) => {
         </View>
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.rowBetween}>
-          <Text style={styles.sectionTitle}>Today's Attendance</Text>
-          <Text style={styles.infoIcon}>ⓘ</Text>
+      <Pressable style={[styles.card, styles.attendanceCard]} onPress={onAttendancePress}>
+        <View style={styles.attendanceHeader}>
+          <Text style={styles.sectionTitle}>{t('today_s_attendance')}</Text>
+          <View style={styles.infoGap}>{renderInfo()}</View>
         </View>
         <View style={styles.attendanceRow}>
-          <View style={[styles.attendanceBox, styles.presentBg]}>
-            <Text style={styles.attendanceCount}>{attendance.present}</Text>
-            <Text style={styles.attendanceLabel}>Present</Text>
-          </View>
-          <View style={[styles.attendanceBox, styles.absentBg]}>
-            <Text style={styles.attendanceCount}>{attendance.absent}</Text>
-            <Text style={styles.attendanceLabel}>Absent</Text>
-          </View>
-          <View style={[styles.attendanceBox, styles.idleBg]}>
-            <Text style={styles.attendanceCount}>{attendance.idle}</Text>
-            <Text style={styles.attendanceLabel}>Idle</Text>
-          </View>
-          <View style={[styles.attendanceBox, styles.leaveBg]}>
-            <Text style={styles.attendanceCount}>{attendance.onLeave}</Text>
-            <Text style={styles.attendanceLabel}>On Leave</Text>
-          </View>
+          {[
+            {label: tr('Present'), value: attendance.present, bg: COLORS.success, fg: COLORS.success},
+            {label: tr('Absent'), value: attendance.absent, bg: COLORS.attAbsent, fg: COLORS.alertRed},
+            {label: tr('Idle'), value: attendance.idle, bg: COLORS.statusOngoing, fg: COLORS.statusOngoing},
+            {label: tr('On Leave'), value: attendance.onLeave, bg: COLORS.attLeave, fg: COLORS.textBlack},
+          ].map(item => (
+            <View key={item.label} style={styles.attendanceCell}>
+              <View style={[styles.attendanceBox, {backgroundColor: item.bg}]}>
+                <Text style={styles.attendanceCount}>{item.value}</Text>
+              </View>
+              <Text style={[styles.attendanceLabel, {color: item.fg}]}>{item.label}</Text>
+            </View>
+          ))}
         </View>
-      </View>
+      </Pressable>
       {isLoading ? (
         <View style={styles.loaderRow}>
-          <ActivityIndicator color="#c3002f" />
-          <Text style={styles.loaderText}>Refreshing dashboard...</Text>
+          <ActivityIndicator color={COLORS.primary} />
+          <Text style={styles.loaderText}>{t('rn_refreshing_dashboard')}</Text>
         </View>
       ) : null}
     </ScrollView>
   );
 };
 
+const cardShadow = {
+  elevation: 8,
+  shadowColor: '#000',
+  shadowOpacity: 0.15,
+  shadowRadius: ms(6),
+  shadowOffset: {width: 0, height: ms(3)},
+};
+
 const styles = StyleSheet.create({
   container: {
-    padding: 10,
-    paddingBottom: 24,
+    paddingHorizontal: ms(10),
+    paddingTop: ms(10),
+    paddingBottom: ms(10),
   },
+  hero: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: ms(330),
+    backgroundColor: COLORS.primary,
+  },
+  flex1: {flex: 1},
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: ms(30),
+    marginBottom: ms(10),
+    paddingTop: ms(20),
+    ...cardShadow,
   },
-  rowBetween: {
+  showingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  sectionTitle: {
-    color: '#111827',
-    fontSize: 15,
-    fontWeight: '700',
+    marginHorizontal: ms(20),
   },
   muted: {
-    color: '#6B7280',
-    fontSize: 13,
+    color: COLORS.authText,
+    fontSize: sp(14),
   },
   valueStrong: {
-    color: '#111827',
+    color: COLORS.textBlack,
     fontWeight: '700',
-    fontSize: 13,
-  },
-  progressTrack: {
-    height: 7,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 12,
-    marginTop: 10,
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#c3002f',
-  },
-  showingDataRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    fontSize: sp(14),
   },
   ctaButton: {
-    backgroundColor: '#c3002f',
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    width: ms(100),
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(34),
+    paddingVertical: ms(5),
+    alignItems: 'center',
   },
   ctaButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 13,
-  },
-  infoIcon: {
-    color: '#9CA3AF',
-    fontSize: 13,
-    marginLeft: 4,
-  },
-  metricsRow: {
-    marginTop: 16,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  metricBlock: {
-    flex: 1,
-  },
-  metricLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  metricLabelRowCenter: {
-    justifyContent: 'center',
-  },
-  metricLabel: {
-    color: '#9CA3AF',
-    fontWeight: '700',
-  },
-  metricLabelCenter: {
-    color: '#9CA3AF',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  metricValueGreen: {
-    color: '#10B981',
-    fontWeight: '700',
-    fontSize: 22,
-    marginTop: 6,
-  },
-  metricInline: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 6,
-  },
-  metricValueOrange: {
-    color: '#F59E0B',
-    fontWeight: '700',
-  },
-  metricHintOrange: {
-    color: '#F59E0B',
-    fontWeight: '600',
-  },
-  metricValueBlue: {
-    color: '#2563EB',
-    fontWeight: '700',
-  },
-  metricHintBlue: {
-    color: '#2563EB',
-    fontWeight: '600',
-  },
-  metricValuePrimary: {
-    color: '#c3002f',
-    fontWeight: '700',
-  },
-  metricHintPrimary: {
-    color: '#c3002f',
-    fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: 12,
+    fontSize: sp(14),
   },
   taskChartRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 18,
+    marginHorizontal: ms(20),
+    marginTop: ms(10),
   },
   taskChartLeft: {
-    flex: 0.56,
+    flex: 0.6,
+    padding: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -565,125 +552,166 @@ const styles = StyleSheet.create({
     borderRadius: RING_THICKNESS / 2,
   },
   taskChartTotal: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#111827',
-    lineHeight: 34,
+    fontSize: sp(32),
+    fontWeight: '700',
+    color: COLORS.textBlack,
   },
   taskChartTotalLabel: {
-    fontSize: 14,
-    color: '#4B5563',
-    marginTop: 2,
-    fontWeight: '600',
+    fontSize: sp(15),
+    color: COLORS.textBlack,
   },
   taskChartLegend: {
-    flex: 0.44,
+    flex: 0.4,
     justifyContent: 'center',
-    paddingVertical: 2,
+    paddingLeft: ms(15),
   },
   taskLegendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
   },
+  legendGap: {marginTop: ms(20)},
   taskLegendValue: {
-    minWidth: 24,
-    fontSize: 15,
+    fontSize: sp(15),
     fontWeight: '700',
   },
   taskLegendLabel: {
-    marginLeft: 10,
-    fontSize: 13,
+    marginLeft: ms(10),
+    fontSize: sp(13),
     fontWeight: '700',
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    marginHorizontal: ms(20),
+    marginTop: ms(15),
+  },
+  earningsBlock: {flex: 0.4},
+  amcBlock: {flex: 0.6},
+  metricLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  infoGap: {marginLeft: ms(10)},
+  metricLabel: {
+    color: COLORS.lightGray,
+    fontSize: sp(15),
+    fontWeight: '700',
+  },
+  metricValueGreen: {
+    color: COLORS.success,
+    fontWeight: '700',
+    fontSize: sp(22),
+    margin: ms(2),
+  },
+  amcRow: {
+    flexDirection: 'row',
+    marginTop: ms(10),
+  },
+  amcCell: {
+    flex: 0.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  amcValue: {
+    fontSize: sp(15),
+    fontWeight: '700',
+  },
+  amcHint: {
+    marginLeft: ms(5),
+    fontSize: sp(13),
+    fontWeight: '700',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.dividerGray,
+    marginHorizontal: ms(20),
+    marginTop: ms(10),
   },
   summaryRow: {
     flexDirection: 'row',
-    gap: 12,
+    padding: ms(15),
+    marginBottom: ms(10),
   },
   summaryBlock: {
     flex: 1,
     alignItems: 'center',
   },
   summaryTitle: {
-    color: '#6B7280',
-    fontSize: 13,
+    color: COLORS.lightGray,
+    fontSize: sp(14),
     textAlign: 'center',
     fontWeight: '700',
   },
   summaryValue: {
-    marginTop: 8,
-    color: '#111827',
-    fontSize: 14,
+    marginTop: ms(10),
+    color: COLORS.textBlack,
+    fontSize: sp(14),
   },
   ratingRow: {
-    marginTop: 8,
+    marginTop: ms(10),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
   },
   ratingValue: {
-    color: '#111827',
-    fontSize: 14,
+    color: COLORS.primary,
+    fontSize: sp(14),
+    marginRight: ms(10),
   },
   starsRow: {
     flexDirection: 'row',
   },
-  starFilled: {
-    color: '#c3002f',
-    fontSize: 14,
-    marginHorizontal: 1,
+  attendanceCard: {
+    height: ms(150),
+    marginBottom: ms(5),
+    paddingTop: 0,
   },
-  starEmpty: {
-    color: '#F3D0D6',
-    fontSize: 14,
-    marginHorizontal: 1,
+  attendanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: ms(20),
+    marginTop: ms(10),
+  },
+  sectionTitle: {
+    color: COLORS.lightGray,
+    fontSize: sp(15),
+    fontWeight: '700',
   },
   attendanceRow: {
     flexDirection: 'row',
-    marginTop: 14,
-    gap: 8,
+    marginHorizontal: ms(10),
+    marginTop: ms(15),
+  },
+  attendanceCell: {
+    flex: 1,
+    alignItems: 'center',
   },
   attendanceBox: {
-    flex: 1,
-    borderRadius: 12,
-    minHeight: 78,
+    width: '80%',
+    height: ms(55),
+    borderRadius: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  presentBg: {
-    backgroundColor: '#16A34A',
-  },
-  absentBg: {
-    backgroundColor: '#E2726A',
-  },
-  idleBg: {
-    backgroundColor: '#F59E0B',
-  },
-  leaveBg: {
-    backgroundColor: '#111827',
   },
   attendanceCount: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 20,
+    fontSize: sp(20),
   },
   attendanceLabel: {
-    color: '#FFFFFF',
-    fontSize: 12,
+    marginTop: ms(8),
+    fontSize: sp(12),
     fontWeight: '700',
-    marginTop: 4,
   },
   loaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: ms(4),
+    marginBottom: ms(8),
   },
   loaderText: {
-    marginLeft: 8,
-    color: '#4B5563',
-    fontSize: 12,
+    marginLeft: ms(8),
+    color: COLORS.slate,
+    fontSize: sp(12),
   },
 });
 

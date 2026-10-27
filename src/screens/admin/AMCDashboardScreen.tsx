@@ -6,12 +6,15 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import {ms, sp} from '../../utils/responsive';
+import {COLORS} from '../../theme/theme';
+import {AmcIcon, ContactBookIcon} from '../../components/FabIcons';
+import {ensureSuccess} from '../../utils/apiResponse';
+import {sanitizeDecimalInput} from '../../utils/decimal';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -21,6 +24,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Modal from '../../components/AppModal';
+import SearchPickerModal from '../../components/SearchPickerModal';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getAmcTypeList, getServiceOccurrenceList, getReminderModeList, getAmcServiceMonthList, addAmc } from '../../api/amc/amcService';
@@ -39,11 +45,35 @@ type AMCLookupItem =
 type CustomerLookupItem = CustomerListResultData;
 import { getCurrentUserId } from '../../state/session';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
+import PlaceSearchModal from '../../components/PlaceSearchModal';
+import DecimalInput from '../../components/DecimalInput';
+
+import {useTranslation} from 'react-i18next';
+import { tr } from '../../i18n/tr';
+/** Java AMCDialog.addAMCFromQuoteDialog: the Add AMC form opened from a quotation, pre-filled from it. */
+export type AddAmcPrefill = {
+  name: string;
+  customerName: string;
+  customerNumber: string;
+  address: string;
+  landmark: string;
+  latitude: string;
+  longitude: string;
+  /** Grand total, shown as the AMC amount. */
+  amount: number;
+  /** Quote CreatedDate (ISO): becomes the activation date and service time. */
+  createdDate: string;
+  customerId?: number;
+};
 
 type AMCDashboardScreenProps = {
   ownerId: number;
   openAddAmcTrigger?: number;
   onAddAmcModalClose?: () => void;
+  /** Render only the Add AMC form (no list / header), used from Quotation Details. */
+  modalOnly?: boolean;
+  addAmcPrefill?: AddAmcPrefill;
 };
 
 type AMCTypeOption = {
@@ -94,7 +124,7 @@ const MONTH_LABELS = [
   'Dec',
 ];
 
-const getResultData = <T,>(response: {
+export const getResultData = <T,>(response: {
   resultData?: T[] | null;
   ResultData?: T[] | null;
 }) => response.resultData ?? response.ResultData ?? [];
@@ -283,7 +313,7 @@ const normalizeAMCType = (item: AMCTypeItem): AMCTypeOption | null => {
   return { id, name };
 };
 
-const normalizeLookupOption = (
+export const normalizeLookupOption = (
   item: AMCLookupItem,
   index: number,
 ): AddAMCDropdownOption | null => {
@@ -504,19 +534,39 @@ const getAMCTitle = (item: AMCListItem) =>
     'AMCName',
   ]) || 'AMC';
 
+// Java: AMCListAdapter.AMCName -- a distinct field from CustomerName, shown
+// as the small label above the bold customer name.
+const getAMCName = (item: AMCListItem) =>
+  getStringValue(item as Record<string, unknown>, ['amcName', 'AMCName']);
+
+// Java: AMCListAdapter binds the "Service Type" text to
+// amcItem.getServiceOccuranceType() (e.g. "Monthly"), NOT to a field named
+// ServiceType/AMCTypeName -- those key names used to be in this list, which
+// meant this accidentally picked up AMCTypeName (the Renewal/Expired/
+// Upcoming/Completed status, see getAMCStatus below) instead.
 const getAMCServiceType = (item: AMCListItem) =>
   getStringValue(item as Record<string, unknown>, [
+    'serviceOccuranceType',
+    'ServiceOccuranceType',
     'serviceType',
     'ServiceType',
-    'amcTypeName',
-    'AMCTypeName',
-    'servicetype',
-    'amctypename',
-    'service_type',
-    'Service_Type',
-    'amc_type_name',
-    'AMC_Type_Name',
   ]);
+
+// Java: amcItem.getAMCTypeName() -- "Renewal" | "Expired" | "Upcomming" |
+// "Completed" -- drives the colored status badge (amc_status_*.xml), not
+// displayed as text. Used for the timeline stripe color below.
+const getAMCStatus = (item: AMCListItem) =>
+  getStringValue(item as Record<string, unknown>, ['amcTypeName', 'AMCTypeName']);
+
+const AMC_STATUS_COLORS: Record<string, string> = {
+  Renewal: '#FF9B00',
+  Expired: '#9AA0A6',
+  Upcomming: '#2776FF',
+  Completed: '#03DE73',
+};
+
+const getAMCStatusColor = (item: AMCListItem) =>
+  AMC_STATUS_COLORS[getAMCStatus(item)] || '#8D99A6';
 
 const getAMCFieldWorker = (item: AMCListItem) =>
   item.TaskDetails?.TechnicianName?.trim() ||
@@ -559,29 +609,38 @@ const getAMCTaskId = (item: AMCListItem) =>
     'task_ID',
   ]);
 
+// Java: AMCListAdapter binds this to amcItem.getAMCServiceDate() only --
+// TaskDetails.TaskDate is a different, unrelated field (the linked task's
+// own date, shown only alongside Fieldworker/Task ID below), and checking
+// it first here meant any row with a linked task showed that task's date
+// instead of the AMC's own scheduled service date.
 const getAMCRawDate = (item: AMCListItem) =>
-  item.TaskDetails?.TaskDate ||
   getStringValue(item as Record<string, unknown>, [
+    'amcServiceDate',
+    'AMCServiceDate',
     'taskDate',
     'TaskDate',
     'date',
     'Date',
     'amcDate',
     'AMCDate',
-    'amcServiceDate',
-    'AMCServiceDate',
   ]);
 
-const getAMCTime = (item: AMCListItem, index: number) =>
-  item.TaskDetails?.TaskTime ||
+// Java: AMCListAdapter binds this to amcItem.getActivationTime() only (a
+// bare "HH:mm:ss" string) -- TaskDetails.TaskTime is the linked task's own
+// time, a different field Java never uses here. Same TaskDetails-priority
+// bug as getAMCRawDate above.
+const getAMCTime = (item: AMCListItem) =>
   getStringValue(item as Record<string, unknown>, [
+    'activationTime',
+    'ActivationTime',
     'taskTime',
     'TaskTime',
     'serviceTime',
     'ServiceTime',
     'time',
     'Time',
-  ]) || (index === 0 ? '03:00 am' : '02:00 am');
+  ]) || item.TaskDetails?.TaskTime || '';
 
 const getAMCServiceDetailsId = (item: AMCListItem) =>
   getNumberValue(item as Record<string, unknown>, [
@@ -610,6 +669,21 @@ const getContactNo = (item: AMCListItem) =>
   ]);
 
 const formatTimeLabel = (rawTime: string) => {
+  if (!rawTime) {
+    return '';
+  }
+
+  // ActivationTime comes back as a bare "HH:mm:ss" (no date part), which
+  // `new Date(rawTime)` can't parse -- handle it directly first.
+  const bareTimeMatch = rawTime.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (bareTimeMatch) {
+    const hours = Number(bareTimeMatch[1]);
+    const minutes = bareTimeMatch[2];
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    return `${hour12}:${minutes} ${period}`;
+  }
+
   const date = new Date(rawTime);
   if (!Number.isNaN(date.getTime())) {
     return date
@@ -618,7 +692,7 @@ const formatTimeLabel = (rawTime: string) => {
         minute: '2-digit',
         hour12: true,
       })
-      .toLowerCase();
+      .toUpperCase();
   }
 
   return rawTime;
@@ -658,7 +732,10 @@ const AMCDashboardScreen = ({
   ownerId,
   openAddAmcTrigger,
   onAddAmcModalClose,
+  modalOnly = false,
+  addAmcPrefill,
 }: AMCDashboardScreenProps) => {
+  const {t} = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<AdminStackParamList>>();
   const today = useMemo(() => new Date(), []);
   const monthOptions = useMemo(buildMonthOptions, []);
@@ -706,17 +783,21 @@ const AMCDashboardScreen = ({
     useState<AddAMCDropdownOption | null>(null);
   const [activeAddDropdown, setActiveAddDropdown] =
     useState<AddAMCDropdownKind | null>(null);
-  const [addDropdownSearch, setAddDropdownSearch] = useState('');
   const [amcName, setAmcName] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerNumber, setCustomerNumber] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [customerLat, setCustomerLat] = useState('');
+  const [customerLng, setCustomerLng] = useState('');
+  const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
   const [customerLandmark, setCustomerLandmark] = useState('');
   const [brandName, setBrandName] = useState('');
   const [modelName, setModelName] = useState('');
   const [serialNo, setSerialNo] = useState('');
   const [note, setNote] = useState('');
+  const [amcAmount, setAmcAmount] = useState('');
+  const [receivedAmount, setReceivedAmount] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allCustomerOptions, setAllCustomerOptions] = useState<
@@ -727,6 +808,7 @@ const AMCDashboardScreen = ({
   >([]);
   const [isCustomerLoading, setIsCustomerLoading] = useState(false);
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
+  const [showNumberSuggestions, setShowNumberSuggestions] = useState(false);
   const latestRequestId = useRef(0);
   const latestCustomerRequestId = useRef(0);
 
@@ -807,12 +889,6 @@ const AMCDashboardScreen = ({
         }
 
         const amcData = getResultData(response);
-        if (amcData && amcData.length > 0) {
-          console.log('[AMC List Debug] First item fields:', Object.keys(amcData[0]));
-          console.log('[AMC List Debug] Sample serviceType:', getAMCServiceType(amcData[0]));
-          console.log('[AMC List Debug] Sample fieldWorker:', getAMCFieldWorker(amcData[0]));
-          console.log('[AMC List Debug] Sample taskId:', getAMCTaskId(amcData[0]));
-        }
         setItems(amcData);
       } catch (error) {
         if (latestRequestId.current !== requestId) {
@@ -821,7 +897,7 @@ const AMCDashboardScreen = ({
 
         const message =
           error instanceof Error ? error.message : 'Unable to load AMC data.';
-        Alert.alert('AMC Error', message);
+        showFailureMsg(message || 'AMC Error');
         setItems([]);
       } finally {
         if (latestRequestId.current === requestId) {
@@ -903,17 +979,33 @@ const AMCDashboardScreen = ({
     [allCustomerOptions, ownerId],
   );
 
+  // Typing a customer number suggests saved customers whose number contains the digits typed;
+  // picking one autofills the whole form, exactly like picking by name.
+  const numberSuggestions = useMemo(() => {
+    const digits = customerNumber.replace(/\D/g, '');
+    if (!showNumberSuggestions || digits.length < 3) {
+      return [];
+    }
+    return allCustomerOptions
+      .filter(option => option.phone.replace(/\D/g, '').includes(digits))
+      .slice(0, 20);
+  }, [allCustomerOptions, customerNumber, showNumberSuggestions]);
+
   const resetAddAMCForm = () => {
     setAmcName('');
     setCustomerName('');
     setCustomerNumber('');
     setCustomerEmail('');
     setCustomerAddress('');
+    setCustomerLat('');
+    setCustomerLng('');
     setCustomerLandmark('');
     setBrandName('');
     setModelName('');
     setSerialNo('');
     setNote('');
+    setAmcAmount('');
+    setReceivedAmount('');
     setSelectedCustomerId(0);
     setUnderWarranty(true);
     setActivationDate(null);
@@ -935,69 +1027,88 @@ const AMCDashboardScreen = ({
     const owner = ownerId || getCurrentUserId();
 
     if (!amcName.trim()) {
-      Alert.alert('Validation', 'Please enter AMC Name.');
+      showFailureMsg(t('please_enter_amc_name'));
       return;
     }
 
     if (!customerName.trim()) {
-      Alert.alert('Validation', 'Please enter Customer Name.');
+      showFailureMsg(t('please_enter_cust_name'));
       return;
     }
 
     if (!customerNumber.trim()) {
-      Alert.alert('Validation', 'Please enter Customer Number.');
+      showFailureMsg(t('please_enter_cust_number'));
       return;
     }
 
     if (!customerAddress.trim()) {
-      Alert.alert('Validation', 'Please enter Address.');
+      showFailureMsg(t('please_enter_address'));
       return;
     }
 
     if (!customerLandmark.trim()) {
-      Alert.alert('Validation', 'Please enter Landmark.');
+      showFailureMsg(t('please_enter_landmark'));
+      return;
+    }
+
+    if (!brandName.trim()) {
+      showFailureMsg(t('rn_please_enter_brand_name'));
       return;
     }
 
     if (!modelName.trim()) {
-      Alert.alert('Validation', 'Please enter Model Name.');
+      showFailureMsg(t('rn_please_enter_model_name'));
       return;
     }
 
     if (!serialNo.trim()) {
-      Alert.alert('Validation', 'Please enter Serial No.');
+      showFailureMsg(t('rn_please_enter_serial_no'));
       return;
     }
 
     if (!activationDate) {
-      Alert.alert('Validation', 'Please select Activation Date.');
+      showFailureMsg(t('rn_please_select_activation_date'));
       return;
     }
 
     if (!contractDate) {
-      Alert.alert('Validation', 'Please select Contract Date.');
+      showFailureMsg(t('rn_please_select_contract_date'));
       return;
     }
 
     if (!serviceTime) {
-      Alert.alert('Validation', 'Please select Service Time.');
+      showFailureMsg(t('rn_please_select_service_time'));
       return;
     }
 
     if (!selectedServiceCount) {
-      Alert.alert('Validation', 'Please select number of services.');
+      showFailureMsg(t('rn_please_select_number_of_services'));
       return;
     }
 
     if (!selectedOccurrence) {
-      Alert.alert('Validation', 'Please select occurrence.');
+      showFailureMsg(t('rn_please_select_occurrence'));
+      return;
+    }
+
+    // Same rules as Java's AMCDialog: amount is required when the product is
+    // out of warranty, and the received amount can't exceed it.
+    // Amount fields are hidden under warranty, so don't send stale values.
+    const amcAmountValue = underWarranty ? 0 : Number(amcAmount) || 0;
+    const receivedAmountValue = underWarranty ? 0 : Number(receivedAmount) || 0;
+    if (!underWarranty && !amcAmount.trim()) {
+      showFailureMsg(t('rn_please_enter_service_amount'));
+      return;
+    }
+    if (receivedAmountValue > amcAmountValue) {
+      showFailureMsg(t('rn_received_amount_cannot_be_greater_than_ser'));
       return;
     }
 
     try {
       setIsSubmitting(true);
-      await addAmc({
-        AMCAmount: 0,
+      ensureSuccess(await addAmc({
+        AMCAmount: amcAmountValue,
         AMCName: amcName.trim(),
         AMCNotes: note.trim(),
         AMCSetReminderId: selectedReminder ? Number(selectedReminder.id) : 0,
@@ -1043,11 +1154,11 @@ const AMCDashboardScreen = ({
             Description: customerLandmark.trim(),
             Id: 0,
             IsActive: true,
-            Longitude: '',
+            Longitude: customerLng,
             Name: '',
-            PinCode: '',
+            PinCode: '', // editText_pin_code is 'gone' in dialog_add_amc_new.xml
             UpdatedBy: owner,
-            latitude: '',
+            latitude: customerLat,
           },
           ProductBrand: brandName.trim(),
           ProductDetailsId: 0,
@@ -1058,14 +1169,14 @@ const AMCDashboardScreen = ({
           UserId: owner,
         },
         ProductId: 0,
-        ReceivedAmount: 0.0,
+        ReceivedAmount: receivedAmountValue,
         ServiceOccuranceId: Number(selectedOccurrence.id),
         TotalServices: Number(selectedServiceCount.name),
         UpdatedBy: owner,
         UserId: owner,
-      });
+      }));
 
-      Alert.alert('Success', 'AMC added successfully.');
+      showSuccessMsg(t('rn_amc_added_successfully'));
       setAddModalVisible(false);
       onAddAmcModalClose?.();
       resetAddAMCForm();
@@ -1073,7 +1184,7 @@ const AMCDashboardScreen = ({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to add AMC.';
-      Alert.alert('AMC Error', message);
+      showFailureMsg(message || 'AMC Error');
     } finally {
       setIsSubmitting(false);
     }
@@ -1125,8 +1236,11 @@ const AMCDashboardScreen = ({
   }, [loadAMCFormLookups]);
 
   useEffect(() => {
+    if (modalOnly) {
+      return;
+    }
     loadAMCList();
-  }, [loadAMCList]);
+  }, [loadAMCList, modalOnly]);
 
   useEffect(() => {
     if (addModalVisible) {
@@ -1137,6 +1251,25 @@ const AMCDashboardScreen = ({
   useEffect(() => {
     if (openAddAmcTrigger) {
       setAddModalVisible(true);
+      if (addAmcPrefill) {
+        // Java addAMCFromQuoteDialog: customer block, AMC name = quote name, amount = grand total
+        // (paid AMC, so the amount fields show), activation date / time = the quote's created date.
+        setAmcName(addAmcPrefill.name);
+        setCustomerName(addAmcPrefill.customerName);
+        setCustomerNumber(addAmcPrefill.customerNumber);
+        setCustomerAddress(addAmcPrefill.address);
+        setCustomerLandmark(addAmcPrefill.landmark);
+        setCustomerLat(addAmcPrefill.latitude);
+        setCustomerLng(addAmcPrefill.longitude);
+        setSelectedCustomerId(addAmcPrefill.customerId ?? 0);
+        setAmcAmount(String(Math.round(addAmcPrefill.amount)));
+        setUnderWarranty(false);
+        const created = new Date(addAmcPrefill.createdDate);
+        if (!Number.isNaN(created.getTime())) {
+          setActivationDate(created);
+          setServiceTime(created);
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openAddAmcTrigger]);
@@ -1185,11 +1318,12 @@ const AMCDashboardScreen = ({
     return items.filter(item => {
       const searchable = [
         getAMCTitle(item),
+        getAMCName(item),
         getAMCServiceType(item),
         getAMCFieldWorker(item),
         getAMCTaskId(item),
         getAMCRawDate(item),
-        getAMCTime(item, 0),
+        getAMCTime(item),
       ]
         .join(' ')
         .toLowerCase();
@@ -1197,13 +1331,8 @@ const AMCDashboardScreen = ({
     });
   }, [items, search]);
 
-  const renderAMCItem = ({
-    item,
-    index,
-  }: {
-    item: AMCListItem;
-    index: number;
-  }) => {
+  const renderAMCItem = ({item}: {item: AMCListItem}) => {
+    const itemAmcName = getAMCName(item);
     const serviceType = getAMCServiceType(item);
     const fieldWorker = getAMCFieldWorker(item);
     const taskId = getAMCTaskId(item);
@@ -1226,23 +1355,27 @@ const AMCDashboardScreen = ({
 
     return (
       <Pressable style={styles.card} onPress={handleAMCPress}>
-        <View style={styles.timeColumn}>
-          <Text style={styles.timeText}>
-            {formatTimeLabel(getAMCTime(item, index))}
-          </Text>
-          <View style={styles.timeline} />
-        </View>
+        <Text style={styles.timeText}>
+          {formatTimeLabel(getAMCTime(item))}
+        </Text>
 
+        <View style={styles.cardSurface}>
+        <View style={[styles.timeline, {backgroundColor: getAMCStatusColor(item)}]} />
         <View style={styles.cardBody}>
           <View style={styles.cardTopRow}>
             <View style={styles.titleBlock}>
               <Text numberOfLines={1} style={styles.typeText}>
-                {serviceType || 'Service Type'}
+                {itemAmcName || 'AMC'}
               </Text>
               <Text numberOfLines={1} style={styles.customerText}>
                 {getAMCTitle(item)}
               </Text>
-              <Text style={styles.serviceLabel}>Service Type</Text>
+              <View style={styles.serviceRow}>
+                <Text style={styles.serviceLabel}>{t('service_type')}</Text>
+                <Text numberOfLines={1} style={styles.serviceValue}>
+                  {serviceType ? `  ${serviceType}` : ''}
+                </Text>
+              </View>
             </View>
             <View style={styles.countBlock}>
               <Text style={styles.dateText}>{date}</Text>
@@ -1254,16 +1387,27 @@ const AMCDashboardScreen = ({
             </View>
           </View>
 
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Fieldworker :</Text>
-            <Text numberOfLines={1} style={styles.metaValue}>
-              {fieldWorker || '-'}
-            </Text>
-            <Text style={styles.taskLabel}>Task ID :</Text>
-            <Text numberOfLines={1} style={styles.taskValue}>
-              {taskId || '-'}
-            </Text>
-          </View>
+          {fieldWorker || taskId ? (
+            <View style={styles.metaRow}>
+              {fieldWorker ? (
+                <>
+                  <Text style={styles.metaLabel}>{t('technician_title')}</Text>
+                  <Text numberOfLines={1} style={styles.metaValue}>
+                    {fieldWorker}
+                  </Text>
+                </>
+              ) : null}
+              {taskId ? (
+                <>
+                  <Text style={styles.taskLabel}>{t('task_id_title')}</Text>
+                  <Text numberOfLines={1} style={styles.taskValue}>
+                    {taskId}
+                  </Text>
+                </>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
         </View>
       </Pressable>
     );
@@ -1298,24 +1442,38 @@ const AMCDashboardScreen = ({
       value?: string;
       onChangeText?: (text: string) => void;
       onFocus?: () => void;
-      keyboardType?: 'default' | 'email-address' | 'phone-pad';
+      editable?: boolean;
+      keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'decimal-pad' | 'number-pad';
     } = {},
   ) => (
     <View
       style={[styles.formInputShell, options.half ? styles.formHalf : null]}
     >
-      <TextInput
-        style={styles.formInput}
-        placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
-        value={options.value}
-        onChangeText={options.onChangeText}
-        onFocus={options.onFocus}
-        keyboardType={options.keyboardType ?? 'default'}
-      />
+      {options.keyboardType === 'decimal-pad' ? (
+        // amounts: 0.000 placeholder, max 3 decimals, padded on blur (the label floats permanently)
+        <DecimalInput
+          style={styles.formInput}
+          value={options.value}
+          onChangeText={options.onChangeText}
+          onFocus={options.onFocus}
+        />
+      ) : (
+        <TextInput
+          style={styles.formInput}
+          placeholder={placeholder}
+          placeholderTextColor={COLORS.lightGray}
+          value={options.value}
+          onChangeText={options.onChangeText}
+          onFocus={options.onFocus}
+          editable={options.editable}
+          keyboardType={options.keyboardType ?? 'default'}
+        />
+      )}
       {options.trailing ? (
         <View style={styles.formTrailing}>{options.trailing}</View>
       ) : null}
+      {/* Java's outlined TextInputLayout floats the hint onto the border once filled. */}
+      {options.value || options.keyboardType === 'decimal-pad' ? <Text style={styles.formFloatLabel}>{placeholder}</Text> : null}
     </View>
   );
 
@@ -1338,6 +1496,7 @@ const AMCDashboardScreen = ({
       {options.trailing ? (
         <View style={styles.formTrailing}>{options.trailing}</View>
       ) : null}
+      {value ? <Text style={styles.formFloatLabel}>{placeholder}</Text> : null}
     </Pressable>
   );
 
@@ -1357,32 +1516,31 @@ const AMCDashboardScreen = ({
       >
         {value || placeholder}
       </Text>
-      <Text style={styles.formSelectArrow}>v</Text>
+      <Ionicons name="chevron-down" style={styles.formSelectArrow} />
     </Pressable>
   );
 
   const openAddDropdown = (kind: AddAMCDropdownKind) => {
     setActiveAddDropdown(kind);
-    setAddDropdownSearch('');
   };
 
   const getActiveAddDropdownConfig = () => {
     if (activeAddDropdown === 'services') {
       return {
-        title: 'Select No. of Services',
+        title: tr('Select No. of Services'),
         options: serviceCountOptions,
         selected: selectedServiceCount,
       };
     }
     if (activeAddDropdown === 'occurrence') {
       return {
-        title: 'Select Occurrence',
+        title: tr('Select Occurrence'),
         options: occurrenceOptions,
         selected: selectedOccurrence,
       };
     }
     return {
-      title: 'Select Reminder',
+      title: tr('Select Reminder'),
       options: reminderOptions,
       selected: selectedReminder,
     };
@@ -1406,12 +1564,45 @@ const AMCDashboardScreen = ({
     setCustomerNumber(customer.phone);
     setCustomerEmail(customer.email);
     setCustomerAddress(customer.address);
+    setCustomerLat('');
+    setCustomerLng('');
     setCustomerLandmark(customer.landmark);
     setBrandName(customer.brandName);
     setModelName(customer.modelName);
     setSerialNo(customer.serialNo);
     setCustomerSuggestions([]);
     setShowCustomerSuggestions(false);
+    setShowNumberSuggestions(false);
+  };
+
+  const renderNumberSuggestions = () => {
+    if (numberSuggestions.length === 0) {
+      return null;
+    }
+    return (
+      <View style={styles.customerSuggestionPanel}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          style={styles.customerSuggestionList}
+        >
+          {numberSuggestions.map(customer => (
+            <Pressable
+              key={`${customer.id}-${customer.phone}`}
+              style={styles.customerSuggestionItem}
+              onPress={() => handleCustomerSelect(customer)}
+            >
+              <Text numberOfLines={1} style={styles.customerSuggestionName}>
+                {customer.phone}
+              </Text>
+              <Text numberOfLines={1} style={styles.customerSuggestionMeta}>
+                {customer.name}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+    );
   };
 
   const renderCustomerSuggestions = () => {
@@ -1430,7 +1621,7 @@ const AMCDashboardScreen = ({
           <View style={styles.customerSuggestionStatus}>
             <ActivityIndicator color={THEME_PRIMARY} size="small" />
             <Text style={styles.customerSuggestionStatusText}>
-              Loading customers...
+              {t('rn_loading_customers')}
             </Text>
           </View>
         ) : (
@@ -1448,6 +1639,11 @@ const AMCDashboardScreen = ({
                 <Text numberOfLines={1} style={styles.customerSuggestionName}>
                   {customer.name}
                 </Text>
+                {customer.phone ? (
+                  <Text numberOfLines={1} style={styles.customerSuggestionMeta}>
+                    {customer.phone}
+                  </Text>
+                ) : null}
               </Pressable>
             ))}
           </ScrollView>
@@ -1456,74 +1652,29 @@ const AMCDashboardScreen = ({
     );
   };
 
+  // Java AMCDialog: dialog_searchable_spinner_occurence / _reminder -- the shared dialog.
   const renderAddDropdownModal = () => {
     if (!activeAddDropdown) {
       return null;
     }
 
     const config = getActiveAddDropdownConfig();
-    const filteredOptions = config.options.filter(option =>
-      option.name
-        .toLowerCase()
-        .includes(addDropdownSearch.trim().toLowerCase()),
-    );
 
     return (
-      <Modal
-        transparent
-        animationType="fade"
+      <SearchPickerModal
         visible
-        onRequestClose={() => setActiveAddDropdown(null)}
-      >
-        <Pressable
-          style={styles.searchDropdownBackdrop}
-          onPress={() => setActiveAddDropdown(null)}
-        >
-          <Pressable style={styles.searchDropdownPanel} onPress={() => {}}>
-            <Text style={styles.searchDropdownTitle}>{config.title}</Text>
-            <TextInput
-              style={styles.searchDropdownInput}
-              placeholder="Search..."
-              placeholderTextColor="#777777"
-              value={addDropdownSearch}
-              onChangeText={setAddDropdownSearch}
-              autoFocus
-            />
-            <ScrollView
-              style={styles.searchDropdownList}
-              keyboardShouldPersistTaps="handled"
-            >
-              {filteredOptions.map(option => {
-                const selected = option.id === config.selected?.id;
-                return (
-                  <Pressable
-                    key={`${option.id}-${option.name}`}
-                    style={[
-                      styles.searchDropdownOption,
-                      selected ? styles.searchDropdownOptionSelected : null,
-                    ]}
-                    onPress={() => handleAddDropdownSelect(option)}
-                  >
-                    <Text
-                      style={[
-                        styles.searchDropdownOptionText,
-                        selected
-                          ? styles.searchDropdownOptionTextSelected
-                          : null,
-                      ]}
-                    >
-                      {option.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-              {filteredOptions.length === 0 ? (
-                <Text style={styles.searchDropdownEmpty}>No results found</Text>
-              ) : null}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        title={config.title}
+        options={config.options.map(option => ({id: option.id, label: option.name}))}
+        onSelect={picked => {
+          const option = config.options.find(
+            o => o.id === picked.id && o.name === picked.label,
+          );
+          if (option) {
+            handleAddDropdownSelect(option);
+          }
+        }}
+        onClose={() => setActiveAddDropdown(null)}
+      />
     );
   };
 
@@ -1669,10 +1820,10 @@ const AMCDashboardScreen = ({
 
               <View style={styles.dialogActionRow}>
                 <Pressable onPress={() => setActiveDateField(null)}>
-                  <Text style={styles.dialogActionText}>CANCEL</Text>
+                  <Text style={styles.dialogActionText}>{t('cancel').toUpperCase()}</Text>
                 </Pressable>
                 <Pressable onPress={confirmDatePicker}>
-                  <Text style={styles.dialogActionText}>OK</Text>
+                  <Text style={styles.dialogActionText}>{t('qr_code_positive_button_know')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -1710,7 +1861,7 @@ const AMCDashboardScreen = ({
                       period === 'AM' ? styles.periodTextActive : null,
                     ]}
                   >
-                    AM
+                    {t('am')}
                   </Text>
                 </Pressable>
                 <Pressable onPress={() => toggleClockPeriod('PM')}>
@@ -1720,7 +1871,7 @@ const AMCDashboardScreen = ({
                       period === 'PM' ? styles.periodTextActive : null,
                     ]}
                   >
-                    PM
+                    {t('pm')}
                   </Text>
                 </Pressable>
               </View>
@@ -1767,10 +1918,10 @@ const AMCDashboardScreen = ({
                 <Text style={styles.keyboardIcon}>⌨</Text>
                 <View style={styles.timeActionButtons}>
                   <Pressable onPress={() => setTimePickerVisible(false)}>
-                    <Text style={styles.dialogActionText}>CANCEL</Text>
+                    <Text style={styles.dialogActionText}>{t('cancel').toUpperCase()}</Text>
                   </Pressable>
                   <Pressable onPress={confirmTimePicker}>
-                    <Text style={styles.dialogActionText}>OK</Text>
+                    <Text style={styles.dialogActionText}>{t('qr_code_positive_button_know')}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1797,7 +1948,7 @@ const AMCDashboardScreen = ({
       >
         <View style={styles.addModalPanel}>
           <View style={styles.addModalHeader}>
-            <Text style={styles.addModalTitle}>Add AMC</Text>
+            <Text style={styles.addModalTitle}>{t('add_amc')}</Text>
             <Pressable
               hitSlop={10}
               onPress={() => {
@@ -1807,7 +1958,7 @@ const AMCDashboardScreen = ({
               }}
               style={styles.addModalClose}
             >
-              <Text style={styles.addModalCloseText}>x</Text>
+              <Ionicons name="close" size={ms(26)} color="#FFFFFF" />
             </Pressable>
           </View>
 
@@ -1826,34 +1977,53 @@ const AMCDashboardScreen = ({
                 onChangeText: text => {
                   setCustomerName(text);
                   setShowCustomerSuggestions(true);
+                  setShowNumberSuggestions(false);
                 },
                 onFocus: () => {
                   setShowCustomerSuggestions(true);
+                  setShowNumberSuggestions(false);
                   preloadCustomers();
                 },
               })}
               {renderCustomerSuggestions()}
             </View>
-            {renderFormInput('Customer Number *', {
-              value: customerNumber,
-              onChangeText: setCustomerNumber,
-              keyboardType: 'phone-pad',
-              trailing: <Text style={styles.contactIcon}>ID</Text>,
-            })}
+            <View style={styles.customerNumberWrapper}>
+              {renderFormInput('Customer Number *', {
+                value: customerNumber,
+                onChangeText: text => {
+                  setCustomerNumber(text);
+                  setShowNumberSuggestions(true);
+                  setShowCustomerSuggestions(false);
+                },
+                onFocus: () => {
+                  setShowNumberSuggestions(true);
+                  setShowCustomerSuggestions(false);
+                  preloadCustomers();
+                },
+                keyboardType: 'phone-pad',
+                trailing: <ContactBookIcon size={ms(25)} />,
+              })}
+              {renderNumberSuggestions()}
+            </View>
             {renderFormInput('Email ID', {
               value: customerEmail,
               onChangeText: setCustomerEmail,
               keyboardType: 'email-address',
             })}
-            {renderFormInput('Address *', {
-              value: customerAddress,
-              onChangeText: setCustomerAddress,
-            })}
+            {/* Java (dialog_add_amc_new): the address field is not focusable -- tapping it opens Google Places. */}
+            <Pressable onPress={() => setPlaceSearchOpen(true)}>
+              <View pointerEvents="none">
+                {renderFormInput('Address *', {
+                  value: customerAddress,
+                  editable: false,
+                })}
+              </View>
+            </Pressable>
             {renderFormInput('Landmark *', {
               value: customerLandmark,
               onChangeText: setCustomerLandmark,
             })}
-            {renderFormInput('Brand Name', {
+            {renderFormInput('Brand Name *', {
               value: brandName,
               onChangeText: setBrandName,
             })}
@@ -1867,7 +2037,7 @@ const AMCDashboardScreen = ({
             })}
 
             <View style={styles.warrantyRow}>
-              <Text style={styles.warrantyLabel}>Under Warranty</Text>
+              <Text style={styles.warrantyLabel}>{t('under_warranty')}</Text>
               <View style={styles.warrantyControl}>
                 <Pressable
                   style={[
@@ -1882,7 +2052,7 @@ const AMCDashboardScreen = ({
                       !underWarranty ? styles.warrantyTextActive : null,
                     ]}
                   >
-                    NO
+                    {t('no')}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -1898,12 +2068,15 @@ const AMCDashboardScreen = ({
                       underWarranty ? styles.warrantyTextActive : null,
                     ]}
                   >
-                    Yes
+                    {t('yes')}
                   </Text>
                 </Pressable>
               </View>
             </View>
 
+            {/* Field order follows dialog_add_amc_new.xml. Service Amount and
+                Received Amount are only shown when Under Warranty = NO
+                (AMCDialog's segmentedGroupWarranty listener). */}
             <View style={styles.formPairRow}>
               {renderPickerInput(
                 'Activation Date *',
@@ -1940,6 +2113,13 @@ const AMCDashboardScreen = ({
               selectedOccurrence?.name ?? '',
               () => openAddDropdown('occurrence'),
             )}
+            {underWarranty
+              ? null
+              : renderFormInput('Service Amount *', {
+                  value: amcAmount,
+                  onChangeText: (t: string) => setAmcAmount(sanitizeDecimalInput(t)),
+                  keyboardType: 'decimal-pad',
+                })}
             <View style={styles.formPairRow}>
               {renderPickerInput(
                 'Expiry Date',
@@ -1954,6 +2134,13 @@ const AMCDashboardScreen = ({
                 true,
               )}
             </View>
+            {underWarranty
+              ? null
+              : renderFormInput('Received Amount', {
+                  value: receivedAmount,
+                  onChangeText: (t: string) => setReceivedAmount(sanitizeDecimalInput(t)),
+                  keyboardType: 'decimal-pad',
+                })}
             {renderFormInput('Note', {
               value: note,
               onChangeText: setNote,
@@ -1963,9 +2150,10 @@ const AMCDashboardScreen = ({
               style={styles.submitAMCButton}
               onPress={handleSubmitAddAMC}
             >
-              <Text style={styles.submitAMCIcon}>+</Text>
-              <Text style={styles.submitAMCText}>ADD</Text>
-              <View style={styles.submitAMCRightSpace} />
+              <View style={styles.submitAMCIconWrap}>
+                <AmcIcon size={ms(30)} color="#FFFFFF" />
+              </View>
+              <Text style={styles.submitAMCText}>{t('add').toUpperCase()}</Text>
             </Pressable>
 
             <Pressable
@@ -1976,13 +2164,27 @@ const AMCDashboardScreen = ({
                 resetAddAMCForm();
               }}
             >
-              <Text style={styles.cancelAMCText}>Cancel</Text>
+              <Text style={styles.cancelAMCText}>{t('cancel')}</Text>
             </Pressable>
           </ScrollView>
         </View>
+        <PlaceSearchModal
+          visible={placeSearchOpen}
+          onClose={() => setPlaceSearchOpen(false)}
+          onSelect={place => {
+            setCustomerAddress(place.address);
+            setCustomerLat(String(place.latitude));
+            setCustomerLng(String(place.longitude));
+            setPlaceSearchOpen(false);
+          }}
+        />
       </KeyboardAvoidingView>
     </Modal>
   );
+
+  if (modalOnly) {
+    return renderAddAMCModal();
+  }
 
   return (
     <View style={styles.container}>
@@ -1998,7 +2200,7 @@ const AMCDashboardScreen = ({
             <Text numberOfLines={1} style={styles.headerFilterText}>
               {selectedType.name}
             </Text>
-            <Text style={styles.headerArrow}>v</Text>
+            <Ionicons name="chevron-down" style={styles.headerArrow} />
           </Pressable>
 
           <Pressable
@@ -2008,38 +2210,42 @@ const AMCDashboardScreen = ({
             <Text numberOfLines={1} style={styles.headerFilterText}>
               {selectedMonth.label}
             </Text>
-            <Text style={styles.headerArrow}>v</Text>
+            <Ionicons name="chevron-down" style={styles.headerArrow} />
           </Pressable>
         </View>
       </View>
 
+      <View style={styles.sheet}>
       <View style={styles.searchRow}>
-        <Text style={styles.searchIcon}>Search</Text>
+        <View style={styles.searchBox}>
+        <Ionicons name="search" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search AMC"
-          placeholderTextColor="#8a8a8a"
+          placeholder={t('rn_search_amc')}
+          placeholderTextColor={COLORS.lightGray}
           value={search}
           onChangeText={setSearch}
           returnKeyType="search"
         />
         {search ? (
           <Pressable onPress={() => setSearch('')} style={styles.clearButton}>
-            <Text style={styles.clearText}>x</Text>
+            <Ionicons name="close" style={styles.clearText} />
           </Pressable>
         ) : null}
+        </View>
         <Pressable
           style={styles.addButton}
           onPress={() => setAddModalVisible(true)}
         >
-          <Text style={styles.addButtonText}>+AMC</Text>
+          <Text style={styles.addButtonText}>{t('title_amc').toUpperCase()}</Text>
         </Pressable>
+        <View style={{flex: 0.06}} />
       </View>
 
       {loading ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={THEME_PRIMARY} />
-          <Text style={styles.loadingText}>Loading AMC...</Text>
+          <Text style={styles.loadingText}>{t('rn_loading_amc')}</Text>
         </View>
       ) : (
         <FlatList
@@ -2061,11 +2267,12 @@ const AMCDashboardScreen = ({
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyMark}>!</Text>
-              <Text style={styles.emptyTitle}>No AMC records found</Text>
+              <Text style={styles.emptyTitle}>{t('rn_no_amc_records_found')}</Text>
             </View>
           }
         />
       )}
+      </View>
 
       {renderPickerModal(
         typeModalVisible,
@@ -2140,49 +2347,55 @@ const AMCDashboardScreen = ({
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: THEME_PRIMARY },
+  sheet: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: ms(30),
+    borderTopRightRadius: ms(30),
+    paddingTop: ms(10),
+    overflow: 'hidden',
+  },
   header: {
     backgroundColor: THEME_PRIMARY,
-    paddingTop: 6,
+    paddingTop: ms(6),
   },
   toolbar: {
     alignItems: 'center',
     flexDirection: 'row',
-    height: 42,
-    paddingHorizontal: 16,
+    height: ms(42),
+    paddingHorizontal: ms(16),
   },
   menuButton: {
     alignItems: 'flex-start',
     justifyContent: 'center',
-    width: 30,
+    width: ms(30),
   },
   menuIcon: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: sp(15),
   },
   toolbarTitle: {
     color: '#FFFFFF',
     flex: 1,
-    fontSize: 16,
+    fontSize: sp(16),
     fontWeight: '700',
   },
   toolbarActions: {
     flexDirection: 'row',
-    gap: 18,
+    gap: ms(18),
   },
   toolbarIcon: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: sp(15),
     fontWeight: '700',
   },
   filterRow: {
     alignItems: 'center',
-    borderTopColor: 'rgba(0, 0, 0, 0.06)',
-    borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    height: 36,
+    height: ms(44),
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: ms(16),
   },
   headerFilter: {
     alignItems: 'center',
@@ -2191,172 +2404,190 @@ const styles = StyleSheet.create({
   },
   headerFilterText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    marginRight: 8,
+    fontSize: sp(16),
+    marginRight: ms(10),
   },
   headerArrow: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: ms(22),
   },
   searchRow: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderBottomColor: '#E7E7E7',
-    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    height: 42,
-    paddingLeft: 18,
-    paddingRight: 8,
+    paddingHorizontal: 10,
+    paddingBottom: ms(5),
+  },
+  searchBox: {
+    flex: 0.94,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.darkGray,
+    paddingHorizontal: ms(8),
   },
   searchIcon: {
-    color: '#A2A2A2',
-    fontSize: 10,
-    marginRight: 6,
+    color: COLORS.lightGray,
+    fontSize: ms(20),
+    marginRight: ms(8),
   },
   searchInput: {
-    color: '#222222',
+    color: COLORS.textBlack,
     flex: 1,
-    fontSize: 14,
-    height: 40,
+    fontSize: sp(14),
     paddingHorizontal: 0,
     paddingVertical: 0,
+    height: ms(40),
   },
   clearButton: {
     alignItems: 'center',
-    height: 28,
+    height: ms(28),
     justifyContent: 'center',
-    width: 28,
+    width: ms(28),
   },
   clearText: {
-    color: '#4E4E4E',
-    fontSize: 16,
+    color: COLORS.textBlack,
+    fontSize: ms(20),
   },
   addButton: {
     alignItems: 'center',
-    backgroundColor: '#050505',
-    borderRadius: 8,
-    height: 28,
+    backgroundColor: COLORS.textBlack,
+    borderRadius: ms(15),
+    height: ms(30),
     justifyContent: 'center',
-    marginLeft: 8,
-    paddingHorizontal: 10,
+    width: ms(60),
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: sp(12),
   },
   listContent: {
-    paddingBottom: 18,
+    paddingHorizontal: 10,
+    paddingBottom: ms(18),
   },
   emptyListContent: {
     flexGrow: 1,
   },
   card: {
     flexDirection: 'row',
-    minHeight: 78,
+    alignItems: 'flex-start',
   },
-  timeColumn: {
-    alignItems: 'center',
-    width: 82,
+  cardSurface: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: ms(10),
+    margin: ms(8),
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: {width: 0, height: 1},
   },
   timeText: {
-    alignSelf: 'flex-start',
-    color: '#101010',
-    fontSize: 11,
+    color: COLORS.ink,
+    fontSize: sp(14),
     fontWeight: '700',
-    marginLeft: 16,
-    marginTop: 13,
+    marginLeft: ms(5),
+    marginTop: ms(16),
+    paddingRight: ms(5),
   },
   timeline: {
     backgroundColor: '#8D99A6',
-    borderRadius: 2,
-    flex: 1,
-    marginTop: 4,
-    width: 3,
+    borderBottomRightRadius: ms(10),
+    borderTopRightRadius: ms(10),
+    marginVertical: ms(15),
+    width: ms(5),
   },
   cardBody: {
-    borderBottomColor: '#EEEEEE',
-    borderBottomWidth: 1,
     flex: 1,
     justifyContent: 'center',
-    paddingRight: 12,
-    paddingVertical: 9,
+    paddingRight: ms(10),
+    paddingVertical: ms(10),
+    paddingLeft: 10,
   },
   cardTopRow: {
     flexDirection: 'row',
   },
   titleBlock: {
     flex: 1,
-    paddingRight: 10,
+    paddingRight: ms(10),
   },
   typeText: {
-    color: '#5B5B5B',
-    fontSize: 11,
-    marginBottom: 4,
+    color: COLORS.ink,
+    fontSize: sp(14),
+    marginBottom: ms(5),
   },
   customerText: {
-    color: '#111111',
-    fontSize: 12,
-    fontWeight: '800',
-    marginBottom: 5,
+    color: COLORS.ink,
+    fontSize: sp(15),
+    fontWeight: '700',
+    marginBottom: ms(5),
+  },
+  serviceRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
   },
   serviceLabel: {
-    color: '#111111',
-    fontSize: 9,
-    fontWeight: '800',
+    color: COLORS.textBlack,
+    fontSize: sp(12),
+    fontWeight: '700',
+  },
+  serviceValue: {
+    color: COLORS.authText,
+    fontSize: sp(12),
   },
   countBlock: {
     alignItems: 'flex-end',
-    minWidth: 58,
+    minWidth: ms(58),
   },
   dateText: {
-    color: '#B5B5B5',
-    fontSize: 9,
-    marginBottom: 8,
+    color: COLORS.lightGray,
+    fontSize: sp(12),
+    fontStyle: 'italic',
+    marginBottom: ms(4),
   },
   countText: {
-    color: '#0C1733',
-    fontSize: 17,
-    fontWeight: '500',
+    color: COLORS.ink,
+    fontSize: sp(24),
+    fontWeight: '700',
   },
   countSlash: {
-    color: '#0C1733',
-    fontSize: 13,
-    fontWeight: '600',
+    color: COLORS.ink,
+    fontSize: sp(15),
+    fontWeight: '700',
   },
   countTotal: {
-    color: THEME_PRIMARY,
-    fontSize: 13,
-    fontWeight: '800',
+    color: COLORS.primary,
+    fontSize: sp(15),
+    fontWeight: '700',
   },
   metaRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    marginTop: 8,
+    marginTop: ms(8),
   },
   metaLabel: {
-    color: '#111111',
-    fontSize: 9,
-    fontWeight: '800',
-    marginRight: 4,
+    color: COLORS.ink,
+    flex: 0.26,
+    fontSize: sp(12),
+    fontWeight: '700',
   },
   metaValue: {
-    color: '#6F6F6F',
-    flex: 1,
-    fontSize: 9,
-    marginRight: 8,
+    color: COLORS.authText,
+    flex: 0.34,
+    fontSize: sp(12),
   },
   taskLabel: {
-    color: '#111111',
-    fontSize: 9,
-    fontWeight: '800',
-    marginRight: 4,
+    color: COLORS.textBlack,
+    flex: 0.2,
+    fontSize: sp(12),
+    fontWeight: '700',
   },
   taskValue: {
-    color: '#6F6F6F',
-    fontSize: 9,
-    minWidth: 48,
+    color: COLORS.authText,
+    flex: 0.2,
+    fontSize: sp(12),
   },
   loadingRow: {
     alignItems: 'center',
@@ -2365,204 +2596,222 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     color: '#777777',
-    fontSize: 13,
-    marginTop: 8,
+    fontSize: sp(13),
+    marginTop: ms(8),
   },
   emptyState: {
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    padding: 24,
+    padding: ms(24),
   },
   emptyMark: {
     color: '#B8B8B8',
-    fontSize: 30,
+    fontSize: sp(30),
     fontWeight: '800',
-    marginBottom: 8,
+    marginBottom: ms(8),
   },
   emptyTitle: {
     color: '#777777',
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
   },
   modalBackdrop: {
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
     flex: 1,
     justifyContent: 'center',
-    padding: 22,
+    alignItems: 'center',
+    padding: ms(22),
   },
   modalPanel: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    borderRadius: ms(8),
+    width: '100%',
+    maxWidth: ms(420),
     maxHeight: '75%',
-    paddingVertical: 10,
+    paddingVertical: ms(10),
   },
   modalTitle: {
     color: '#111111',
-    fontSize: 16,
+    fontSize: sp(16),
     fontWeight: '800',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(10),
   },
   optionRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(13),
   },
   optionRowSelected: {
     backgroundColor: '#F8E6EA',
   },
   optionText: {
     color: '#222222',
-    fontSize: 14,
+    fontSize: sp(14),
   },
   optionTextSelected: {
     color: THEME_PRIMARY,
     fontWeight: '800',
   },
   addModalRoot: {
-    backgroundColor: 'rgba(0, 0, 0, 0.18)',
+    backgroundColor: COLORS.dialogDim,
     flex: 1,
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   addModalPanel: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    maxHeight: '90%',
+    width: '100%',
+    maxWidth: ms(560),
+    borderTopLeftRadius: ms(25),
+    borderTopRightRadius: ms(25),
+    maxHeight: '94%',
     overflow: 'hidden',
   },
   addModalHeader: {
     alignItems: 'center',
-    backgroundColor: '#303530',
-    borderBottomLeftRadius: 18,
-    borderBottomRightRadius: 18,
+    backgroundColor: COLORS.statusOnHold,
+    borderRadius: ms(20),
     flexDirection: 'row',
-    minHeight: 60,
-    paddingHorizontal: 16,
+    height: ms(60),
+    paddingHorizontal: ms(20),
   },
   addModalTitle: {
     color: '#FFFFFF',
     flex: 1,
-    fontSize: 22,
+    fontSize: sp(22),
     fontWeight: '500',
   },
   addModalClose: {
     alignItems: 'center',
-    height: 38,
+    height: ms(38),
     justifyContent: 'center',
-    width: 38,
+    width: ms(38),
   },
   addModalCloseText: {
     color: '#FFFFFF',
-    fontSize: 32,
+    fontSize: sp(32),
     fontWeight: '300',
-    lineHeight: 34,
+    lineHeight: sp(34),
   },
   addFormScroll: {
     backgroundColor: '#FFFFFF',
   },
   addFormContent: {
-    paddingBottom: 18,
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingBottom: ms(18),
+    paddingHorizontal: ms(20),
+    paddingTop: ms(12),
   },
   formInputShell: {
     alignItems: 'center',
-    borderColor: '#999999',
-    borderRadius: 19,
-    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: ms(34),
+    borderWidth: ms(1),
     flexDirection: 'row',
-    height: 39,
-    marginBottom: 18,
-    paddingHorizontal: 14,
+    height: ms(41),
+    marginBottom: ms(26),
+    paddingHorizontal: ms(18),
   },
   formInput: {
-    color: '#1F2937',
+    color: '#000000',
     flex: 1,
-    fontSize: 15,
-    height: 38,
+    fontSize: sp(16),
+    height: ms(40),
     paddingHorizontal: 0,
     paddingVertical: 0,
+  },
+  formFloatLabel: {
+    backgroundColor: '#FFFFFF',
+    color: COLORS.lightGray,
+    fontSize: sp(12),
+    left: ms(14),
+    paddingHorizontal: ms(4),
+    position: 'absolute',
+    top: -ms(8),
   },
   formTrailing: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
+    marginLeft: ms(8),
   },
   customerAutocompleteWrapper: {
+    zIndex: 30,
+  },
+  customerNumberWrapper: {
     zIndex: 20,
   },
   customerSuggestionPanel: {
     backgroundColor: '#FFFFFF',
     borderColor: '#D9D9D9',
-    borderRadius: 8,
-    borderWidth: 1,
+    borderRadius: ms(8),
+    borderWidth: ms(1),
     elevation: 8,
     left: 0,
-    maxHeight: 210,
+    maxHeight: ms(210),
     position: 'absolute',
     right: 0,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
-    top: 43,
+    top: ms(43),
     zIndex: 30,
   },
   customerSuggestionList: {
-    maxHeight: 208,
+    maxHeight: ms(208),
   },
   customerSuggestionItem: {
     borderBottomColor: '#EEEEEE',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: ms(14),
+    paddingVertical: ms(10),
   },
   customerSuggestionName: {
     color: '#111111',
-    fontSize: 15,
+    fontSize: sp(15),
     fontWeight: '700',
   },
   customerSuggestionMeta: {
     color: '#777777',
-    fontSize: 12,
-    marginTop: 3,
+    fontSize: sp(12),
+    marginTop: ms(3),
   },
   customerSuggestionStatus: {
     alignItems: 'center',
     flexDirection: 'row',
-    minHeight: 52,
-    paddingHorizontal: 14,
+    minHeight: ms(52),
+    paddingHorizontal: ms(14),
   },
   customerSuggestionStatusText: {
     color: '#777777',
-    fontSize: 13,
-    marginLeft: 8,
+    fontSize: sp(13),
+    marginLeft: ms(8),
   },
   contactIcon: {
     color: THEME_PRIMARY,
-    fontSize: 15,
+    fontSize: sp(15),
     fontWeight: '800',
   },
   warrantyRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    marginBottom: 18,
-    minHeight: 38,
+    marginBottom: ms(26),
+    minHeight: ms(30),
   },
   warrantyLabel: {
-    color: '#777777',
+    color: COLORS.darkGray,
     flex: 1,
-    fontSize: 13,
+    fontSize: sp(14),
+    marginLeft: ms(4),
   },
   warrantyControl: {
-    borderColor: '#70798A',
-    borderRadius: 18,
-    borderWidth: 1,
+    borderColor: COLORS.ink,
+    borderRadius: ms(25),
+    borderWidth: ms(1),
     flexDirection: 'row',
-    height: 38,
+    height: ms(30),
     overflow: 'hidden',
-    width: '50%',
+    width: '45%',
   },
   warrantyOption: {
     alignItems: 'center',
@@ -2570,19 +2819,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   warrantyOptionActive: {
-    backgroundColor: '#1E2738',
+    backgroundColor: COLORS.ink,
   },
   warrantyText: {
-    color: '#1E2738',
-    fontSize: 13,
-    fontWeight: '700',
+    color: COLORS.ink,
+    fontSize: sp(14),
+    fontWeight: '400',
   },
   warrantyTextActive: {
     color: '#FFFFFF',
   },
   formPairRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: ms(10),
   },
   formHalf: {
     flex: 1,
@@ -2590,74 +2839,68 @@ const styles = StyleSheet.create({
   formSelectText: {
     color: '#777777',
     flex: 1,
-    fontSize: 15,
+    fontSize: sp(15),
   },
   formValueText: {
     color: '#1F2937',
   },
   formSelectArrow: {
     color: '#1F2937',
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '800',
-    marginLeft: 8,
+    marginLeft: ms(8),
   },
   clockIcon: {
     color: '#6B7280',
-    fontSize: 18,
+    fontSize: sp(18),
     fontWeight: '700',
   },
   submitAMCButton: {
     alignItems: 'center',
     backgroundColor: THEME_PRIMARY,
-    borderRadius: 22,
+    borderRadius: ms(34),
     elevation: 4,
     flexDirection: 'row',
-    height: 48,
-    justifyContent: 'space-between',
-    marginTop: 8,
-    paddingHorizontal: 24,
+    height: ms(48),
+    justifyContent: 'center',
+    marginTop: ms(10),
+    marginBottom: ms(10),
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3,
   },
-  submitAMCIcon: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '300',
-    width: 44,
+  submitAMCIconWrap: {
+    left: ms(17),
+    position: 'absolute',
   },
   submitAMCText: {
     color: '#FFFFFF',
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: sp(18),
+    fontWeight: '500',
     textAlign: 'center',
-  },
-  submitAMCRightSpace: {
-    width: 44,
   },
   cancelAMCButton: {
     alignItems: 'center',
-    height: 52,
+    height: ms(52),
     justifyContent: 'center',
   },
   cancelAMCText: {
     color: THEME_PRIMARY,
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: sp(18),
+    fontWeight: '500',
   },
   pickerOverlay: {
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: ms(24),
   },
   dateDialog: {
     backgroundColor: '#FFFFFF',
     elevation: 8,
-    maxWidth: 420,
+    maxWidth: ms(420),
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.24,
@@ -2666,39 +2909,39 @@ const styles = StyleSheet.create({
   },
   dateDialogHeader: {
     backgroundColor: '#C8142E',
-    paddingHorizontal: 24,
-    paddingVertical: 18,
+    paddingHorizontal: ms(24),
+    paddingVertical: ms(18),
   },
   dateDialogYear: {
     color: '#F5B3BC',
-    fontSize: 16,
+    fontSize: sp(16),
     fontWeight: '800',
   },
   dateDialogTitle: {
     color: '#FFFFFF',
-    fontSize: 31,
+    fontSize: sp(31),
     fontWeight: '800',
-    marginTop: 4,
+    marginTop: ms(4),
   },
   calendarBody: {
-    paddingHorizontal: 28,
-    paddingTop: 22,
+    paddingHorizontal: ms(28),
+    paddingTop: ms(22),
   },
   calendarMonthRow: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 22,
+    marginBottom: ms(22),
   },
   calendarNav: {
     color: '#222222',
-    fontSize: 36,
+    fontSize: sp(36),
     fontWeight: '300',
-    lineHeight: 38,
+    lineHeight: sp(38),
   },
   calendarMonthText: {
     color: '#222222',
-    fontSize: 16,
+    fontSize: sp(16),
     fontWeight: '800',
   },
   calendarGrid: {
@@ -2707,32 +2950,32 @@ const styles = StyleSheet.create({
   },
   weekdayText: {
     color: '#888888',
-    fontSize: 14,
+    fontSize: sp(14),
     fontWeight: '700',
-    marginBottom: 18,
+    marginBottom: ms(18),
     textAlign: 'center',
     width: `${100 / 7}%`,
   },
   calendarDay: {
     alignItems: 'center',
-    height: 42,
+    height: ms(42),
     justifyContent: 'center',
-    marginBottom: 2,
+    marginBottom: ms(2),
     width: `${100 / 7}%`,
   },
   calendarDayInner: {
     alignItems: 'center',
-    height: 42,
+    height: ms(42),
     justifyContent: 'center',
-    width: 42,
+    width: ms(42),
   },
   calendarDaySelected: {
     backgroundColor: '#C8142E',
-    borderRadius: 21,
+    borderRadius: ms(21),
   },
   calendarDayText: {
     color: '#444444',
-    fontSize: 16,
+    fontSize: sp(16),
   },
   calendarDayTextSelected: {
     color: '#FFFFFF',
@@ -2741,20 +2984,20 @@ const styles = StyleSheet.create({
   dialogActionRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 34,
+    gap: ms(34),
     justifyContent: 'flex-end',
-    paddingBottom: 24,
-    paddingTop: 22,
+    paddingBottom: ms(24),
+    paddingTop: ms(22),
   },
   dialogActionText: {
     color: '#C8142E',
-    fontSize: 15,
+    fontSize: sp(15),
     fontWeight: '800',
   },
   timeDialog: {
     backgroundColor: '#FFFFFF',
     elevation: 8,
-    maxWidth: 520,
+    maxWidth: ms(520),
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.24,
@@ -2766,68 +3009,68 @@ const styles = StyleSheet.create({
     backgroundColor: '#C8142E',
     flexDirection: 'row',
     justifyContent: 'center',
-    minHeight: 118,
+    minHeight: ms(118),
   },
   timeDisplay: {
     color: '#FFFFFF',
-    fontSize: 54,
+    fontSize: sp(54),
     fontWeight: '300',
-    marginRight: 18,
+    marginRight: ms(18),
   },
   periodText: {
     color: '#F5B3BC',
-    fontSize: 19,
+    fontSize: sp(19),
     fontWeight: '800',
-    lineHeight: 30,
+    lineHeight: sp(30),
   },
   periodTextActive: {
     color: '#FFFFFF',
   },
   clockBody: {
-    paddingBottom: 22,
-    paddingHorizontal: 24,
-    paddingTop: 22,
+    paddingBottom: ms(22),
+    paddingHorizontal: ms(24),
+    paddingTop: ms(22),
   },
   clockFace: {
     alignSelf: 'center',
     backgroundColor: '#EEEEEE',
-    borderRadius: 112,
-    height: 224,
-    marginBottom: 14,
-    width: 224,
+    borderRadius: ms(112),
+    height: ms(224),
+    marginBottom: ms(14),
+    width: ms(224),
   },
   clockHand: {
     backgroundColor: '#C8142E',
-    height: 78,
-    left: 111,
+    height: ms(78),
+    left: ms(111),
     position: 'absolute',
-    top: 44,
+    top: ms(44),
     transform: [{ rotate: '30deg' }],
-    width: 2,
+    width: ms(2),
   },
   clockCenterDot: {
     backgroundColor: '#C8142E',
-    borderRadius: 5,
-    height: 10,
-    left: 107,
+    borderRadius: ms(5),
+    height: ms(10),
+    left: ms(107),
     position: 'absolute',
-    top: 107,
-    width: 10,
+    top: ms(107),
+    width: ms(10),
   },
   clockNumber: {
     alignItems: 'center',
-    borderRadius: 18,
-    height: 36,
+    borderRadius: ms(18),
+    height: ms(36),
     justifyContent: 'center',
     position: 'absolute',
-    width: 36,
+    width: ms(36),
   },
   clockNumberSelected: {
     backgroundColor: '#C8142E',
   },
   clockNumberText: {
     color: '#333333',
-    fontSize: 18,
+    fontSize: sp(18),
   },
   clockNumberTextSelected: {
     color: '#FFFFFF',
@@ -2840,58 +3083,58 @@ const styles = StyleSheet.create({
   },
   keyboardIcon: {
     color: '#777777',
-    fontSize: 22,
+    fontSize: sp(22),
   },
   timeActionButtons: {
     flexDirection: 'row',
-    gap: 34,
+    gap: ms(34),
   },
   searchDropdownBackdrop: {
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 28,
+    paddingHorizontal: ms(28),
   },
   searchDropdownPanel: {
     backgroundColor: '#FFFFFF',
     maxHeight: '62%',
-    maxWidth: 540,
-    paddingBottom: 20,
-    paddingHorizontal: 22,
-    paddingTop: 22,
+    maxWidth: ms(540),
+    paddingBottom: ms(20),
+    paddingHorizontal: ms(22),
+    paddingTop: ms(22),
     width: '100%',
   },
   searchDropdownTitle: {
     color: '#666666',
-    fontSize: 22,
+    fontSize: sp(22),
     fontWeight: '800',
-    marginBottom: 14,
+    marginBottom: ms(14),
   },
   searchDropdownInput: {
     borderColor: '#FF4054',
-    borderRadius: 8,
-    borderWidth: 1,
+    borderRadius: ms(8),
+    borderWidth: ms(1),
     color: '#111111',
-    fontSize: 19,
-    height: 54,
-    marginBottom: 16,
-    paddingHorizontal: 14,
+    fontSize: sp(19),
+    height: ms(54),
+    marginBottom: ms(16),
+    paddingHorizontal: ms(14),
   },
   searchDropdownList: {
-    maxHeight: 260,
+    maxHeight: ms(260),
   },
   searchDropdownOption: {
     justifyContent: 'center',
-    minHeight: 54,
-    paddingHorizontal: 10,
+    minHeight: ms(54),
+    paddingHorizontal: ms(10),
   },
   searchDropdownOptionSelected: {
     backgroundColor: '#F8E6EA',
   },
   searchDropdownOptionText: {
     color: '#111111',
-    fontSize: 18,
+    fontSize: sp(18),
   },
   searchDropdownOptionTextSelected: {
     color: THEME_PRIMARY,
@@ -2899,9 +3142,9 @@ const styles = StyleSheet.create({
   },
   searchDropdownEmpty: {
     color: '#777777',
-    fontSize: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 18,
+    fontSize: sp(16),
+    paddingHorizontal: ms(10),
+    paddingVertical: ms(18),
   },
 });
 

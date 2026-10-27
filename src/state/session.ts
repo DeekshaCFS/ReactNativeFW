@@ -23,6 +23,12 @@ export type SessionUserProfile = {
 let currentPreferredLanguage = 'English';
 let currentUserId = 0;
 let currentCountryDetailsId = 1;
+// Populated once per session from CountryDetails/GetCountryExtensionCodeByUserId
+// (Java: HomeActivityNew.GetCountrySymbol(), cached in SharedPrefManager as
+// CountryCode/CurrencySymbol). Used to prefix phone numbers and format money
+// the same way the Java app does.
+let currentCountryCode = '';
+let currentCurrencySymbol = '';
 let currentUserProfile: SessionUserProfile = {
   details: null,
   mobileOrEmail: '',
@@ -98,6 +104,18 @@ export const getCurrentCountryDetailsId = () => currentCountryDetailsId;
 
 export const isIndiaCountryDetailsId = () => currentCountryDetailsId === 1;
 
+export const setCurrentCountryDetails = (
+  countryCode: string | null | undefined,
+  currencySymbol: string | null | undefined,
+) => {
+  currentCountryCode = getSafeString(countryCode);
+  currentCurrencySymbol = getSafeString(currencySymbol);
+};
+
+export const getCurrentCountryCode = () => currentCountryCode;
+
+export const getCurrentCurrencySymbol = () => currentCurrencySymbol;
+
 export const setCurrentUserProfile = (userDetails: UserDetailsResultData | null | undefined) => {
   const details = userDetails ?? null;
   const contactNo = getSafeString(details?.ContactNo);
@@ -118,6 +136,8 @@ export const getCurrentUserProfile = () => currentUserProfile;
 export const clearCurrentUserId = () => {
   currentUserId = 0;
   currentCountryDetailsId = 1;
+  currentCountryCode = '';
+  currentCurrencySymbol = '';
   currentUserProfile = {
     details: null,
     mobileOrEmail: '',

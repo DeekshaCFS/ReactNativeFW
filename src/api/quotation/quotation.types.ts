@@ -521,6 +521,16 @@ export interface UpdateQuotationStatusDTO {
   Code?: string;
 }
 
+// Request shape for Quotation/UpdateQuotationStatus.
+// The Java endpoint is @FormUrlEncoded with @Field("QuotationId") — NOT "Id" or
+// "QuoteId" — see Api.java: updateQuotationStatus(QuotationId, UserId, StatusId, Notes).
+export interface UpdateQuotationStatusRequest {
+  QuotationId: number;
+  UserId: number;
+  StatusId: number;
+  Notes?: string;
+}
+
 // ---- from DTO/Account/QuoteBindListDTO.java ----
 export interface QuoteBindListDTO {
   ResultData?: QuoteBindListDTOResultData[];

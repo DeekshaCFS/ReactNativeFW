@@ -144,6 +144,9 @@ export interface UpdateTaskWithEarnedAmountRequest {
   Task_Excess_Amount_Dtls: UpdateTaskWithEarnedAmountExcessDtl[];
   QRCodeImageFileName?: string;
   QRCodeImageFileBase64Str?: string;
+  // Discount (an amount, not a percentage) given by the technician; NewWagePerHours is already
+  // the total after this discount. Backend field: Passbooks.TaskDiscountedAmount.
+  TaskDiscountedAmount?: number;
 }
 
 export interface UpdateTaskWithEarnedAmountExcessDtl {

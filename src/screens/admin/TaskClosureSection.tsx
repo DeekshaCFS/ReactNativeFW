@@ -1,0 +1,500 @@
+// src/screens/admin/TaskClosureSection.tsx
+//
+// Lower half of Java's TaskDetailsFragmentNew (dialog_task_details.xml): the
+// "Warranty Details" block followed by include layout_task_closure_new.
+// Completed tasks load Tasklist/GetTaskClosureList; Rejected tasks load
+// TaskList/GetTaskClosureList-1 (setTaskClosureToView / setRejectedTaskClosureToView).
+// Also owns the three popups that screen opens: the CHK POINT / INPUT FORM data,
+// the posted task documents ("View Document") and the QR-scan history.
+import React, {forwardRef, useEffect, useImperativeHandle, useState} from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import Modal from '../../components/AppModal';
+import {
+  getQRScannedData,
+  getRejectedTaskDetails,
+  getTaskClosureDetails,
+  getTaskDoc,
+} from '../../api/taskList/taskListService';
+import {getAllChkpointInputformData} from '../../api/fsrManagement/fsrManagementService';
+import {formatAmount} from '../../utils/decimal';
+import {ms, sp, vs} from '../../utils/responsive';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {COLORS} from '../../theme/theme';
+import { showToast } from '../../utils/toast';
+
+import {useTranslation} from 'react-i18next';
+type AnyRecord = Record<string, unknown>;
+
+export type TaskClosureSectionHandle = {
+  openDocuments: () => void;
+  openQrHistory: () => void;
+};
+
+type Props = {
+  ownerId: number;
+  taskId: number;
+  taskName: string;
+  newTaskId: string;
+  customerId: number;
+  isRejected: boolean;
+  /** Task-list PaymentMode ("Rate" shows the Payment Details block). */
+  paymentMode: string;
+  earningAmount: number;
+  /** Discount given at payment (Java: TaskDiscountedAmount). */
+  discountAmount?: number;
+  /** Currency shown before the amounts (Java: ₹ for Rs.). */
+  currencySymbol?: string;
+  assignedTo: string;
+  /** Called once closure data loads (Java only shows Earned Amount after that). */
+  onClosureLoaded?: (loaded: boolean) => void;
+  /** Java shows the QR icon only when at least one scan exists. */
+  onQrAvailable?: (available: boolean) => void;
+};
+
+const NA = 'NA';
+// Java prints a double reading as "2.0" (Double.toString), never "2".
+const javaDouble = (v: unknown) => {
+  const text = (v === null || v === undefined ? '' : String(v)).trim();
+  const n = Number(text);
+  return text !== '' && Number.isFinite(n) && Number.isInteger(n) ? `${n}.0` : text;
+};
+const str = (v: unknown) => (v === null || v === undefined ? '' : String(v)).trim();
+const arr = (v: unknown) => (Array.isArray(v) ? (v as AnyRecord[]) : []);
+const rec = (v: unknown) => (v && typeof v === 'object' ? (v as AnyRecord) : {});
+
+// DateUtils.getStringDate(..., "dd/MM/YYYY")
+const toDdMmYyyy = (raw: unknown) => {
+  const [y, m, d] = str(raw).split('T')[0].split('-');
+  return y && m && d ? `${d}/${m}/${y}` : '';
+};
+
+const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
+  (
+    {
+      ownerId,
+      taskId,
+      taskName,
+      newTaskId,
+      customerId,
+      isRejected,
+      paymentMode,
+      earningAmount,
+      discountAmount,
+      currencySymbol,
+      assignedTo,
+      onClosureLoaded,
+      onQrAvailable,
+    },
+    ref,
+  ) => {
+  const {t} = useTranslation();
+    const [closure, setClosure] = useState<AnyRecord | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [chkPoint, setChkPoint] = useState<AnyRecord | null>(null);
+    const [chkPointOpen, setChkPointOpen] = useState(false);
+    const [docs, setDocs] = useState<AnyRecord[] | null>(null);
+    const [qrScans, setQrScans] = useState<{no: number; fields: {name: string; value: string}[]}[]>([]);
+    const [qrOpen, setQrOpen] = useState(false);
+
+    useEffect(() => {
+      let active = true;
+      setLoading(true);
+      const params = {UserId: ownerId, TaskID: taskId};
+      (isRejected ? getRejectedTaskDetails(params) : getTaskClosureDetails(params))
+        .then(response => {
+          if (!active) {
+            return;
+          }
+          const ok =
+            response?.Code === '200' && String(response?.Message ?? '').toLowerCase() === 'success';
+          const data = isRejected
+            ? arr((response as AnyRecord)?.ResultData)[0] ?? null
+            : ((response?.ResultData as AnyRecord | undefined) ?? null);
+          setClosure(ok ? data : null);
+          onClosureLoaded?.(ok && !!data);
+        })
+        .catch(() => active && setClosure(null))
+        .finally(() => active && setLoading(false));
+
+      getAllChkpointInputformData({UserId: ownerId, TaskId: taskId})
+        .then(response => active && setChkPoint(rec(response?.ResultData)))
+        .catch(() => {});
+
+      getQRScannedData({taskId})
+        .then(response => {
+          if (!active) {
+            return;
+          }
+          const grouped = new Map<number, {name: string; value: string}[]>();
+          for (const field of response?.ResultData?.Fields ?? []) {
+            const no = Number(str(field.QRcodeScanNo).replace('Scan', '').trim()) || 0;
+            grouped.set(no, [...(grouped.get(no) ?? []), {name: str(field.FieldName), value: str(field.FieldValue)}]);
+          }
+          const scans = [...grouped.entries()].sort((a, b) => a[0] - b[0]).map(([no, fields]) => ({no, fields}));
+          setQrScans(scans);
+          onQrAvailable?.(scans.length > 0);
+        })
+        .catch(() => onQrAvailable?.(false));
+      return () => {
+        active = false;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ownerId, taskId, isRejected]);
+
+    const openDocuments = async () => {
+      try {
+        const response = await getTaskDoc({userId: ownerId, taskId, customerId});
+        const result = rec(response?.ResultData);
+        const files = arr(result.Files).length ? arr(result.Files) : result.FilePath ? [result] : [];
+        if (!files.length) {
+          showToast(t('rn_you_have_no_attachment'));
+          return;
+        }
+        setDocs(files);
+      } catch {
+        showToast(t('rn_you_have_no_attachment'));
+      }
+    };
+
+    useImperativeHandle(ref, () => ({
+      openDocuments,
+      openQrHistory: () => setQrOpen(true),
+    }));
+
+    if (loading) {
+      return <ActivityIndicator style={styles.loader} color="#c3002f" />;
+    }
+    if (!closure) {
+      // Java hides mTaskClosureWrapper / mLinearLayoutRatingWrapper when there's no closure.
+      return null;
+    }
+
+    const pre = rec(closure.PreDeviceInfoDto);
+    const newBefore = arr(pre.Images).map(i => str(i.FilePath)).filter(Boolean);
+    const newAfter = arr(closure.AfterImages).map(i => str(i.FilePath)).filter(Boolean);
+    const useNewPhotos = newBefore.length > 0 || newAfter.length > 0;
+    const beforePhotos = useNewPhotos
+      ? newBefore
+      : [pre.DeviceInfoImagePath, pre.DeviceInfoImagePath1, pre.DeviceInfoImagePath2].map(str).filter(Boolean);
+    const afterPhotos = useNewPhotos
+      ? newAfter
+      : [closure.FieldPhoto, closure.FieldPhoto1, closure.FieldPhoto2].map(str).filter(Boolean);
+    const notes = arr(closure.TechnicalNotedto);
+    const devices = arr(closure.DeviceInfoList);
+    const warranty = closure.TaskWarrantyDetailsModelDtocls
+      ? rec(closure.TaskWarrantyDetailsModelDtocls)
+      : null;
+    const excess = arr(closure.Task_Excess_Amount_Dtls);
+    const isRate = paymentMode.toLowerCase() === 'rate';
+    const grandTotal =
+      earningAmount !== 0 ? excess.reduce((sum, e) => sum + (Number(e.Excess_Amount) || 0), 0) : earningAmount;
+    const symbol = currencySymbol || '₹';
+    // Java: mResultData.getTaskDiscountedAmount() -- a field of the closure details response.
+    const closureDiscount = Number(closure.TaskDiscountedAmount) || 0;
+    const discount = closureDiscount > 0 ? closureDiscount : discountAmount && discountAmount > 0 ? discountAmount : 0;
+    // The total after the discount (Java's Grand Total is the total minus the discount).
+    const netTotal = Math.max(grandTotal - discount, 0);
+    const mobileNo = Number(closure.MobileNo) || 0;
+    const rating = Number(closure.RatingBar) || 0;
+    const fsr = arr(chkPoint?.lstFSRManagement)[0];
+    const inputText = arr(chkPoint?.lstInputText)[0];
+    const chkPointLabel = str(inputText?.Name) || str(fsr?.FSRName) || 'CHK POINT / INPUT FORM';
+
+    const photoRow = (label: string, photos: string[]) => (
+      <View style={styles.photoBlock}>
+        <Text style={styles.subLabel}>{label}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {photos.length ? (
+            photos.map(uri => <Image key={uri} source={{uri}} style={styles.photo} />)
+          ) : (
+            <Text style={styles.value}>{NA}</Text>
+          )}
+        </ScrollView>
+      </View>
+    );
+
+    return (
+      <View>
+        {warranty ? (
+          <>
+            <Text style={styles.heading}>{t('warranty_details')}</Text>
+            {(
+              [
+                ['Warranty Type', str(warranty.WarrantyTypeName)],
+                ['Start Date', toDdMmYyyy(warranty.StartDate)],
+                ['End Date', toDdMmYyyy(warranty.EndDate)],
+                ['Brand Name', str(warranty.BrandName)],
+                ['Model Name', str(warranty.ModelName)],
+                ['Serial No', str(warranty.SerialNoName)],
+              ] as const
+            ).map(([label, value]) => (
+              <View key={label} style={styles.row}>
+                <Text style={styles.label}>{label}</Text>
+                <Text style={styles.value}>{value || '-NA-'}</Text>
+              </View>
+            ))}
+          </>
+        ) : null}
+
+        <Text style={styles.heading}>{t('field_photo')}</Text>
+        {photoRow('Before', beforePhotos)}
+        {photoRow('After', afterPhotos)}
+
+        <View style={styles.workModeRow}>
+          <Text style={styles.workModeText}>{t('work_mode_without_colon')}</Text>
+          <Text style={styles.workModeText}> : </Text>
+          <Text style={[styles.workModeText, {color: COLORS.primary}]}>{str(closure.WorkModeType) || NA}</Text>
+        </View>
+
+        {notes.length ? (
+          <>
+            <Text style={styles.heading}>{t('technical_note')}</Text>
+            {notes.map((note, i) => (
+              <Text key={i} style={styles.noteText}>
+                {i + 1}. {str(note.TechnicalNote1)}
+              </Text>
+            ))}
+          </>
+        ) : null}
+
+        {devices.length ? (
+          <>
+            <Text style={styles.heading}>{t('device_list')}</Text>
+            {devices.map((device, i) => (
+              <View key={i} style={styles.deviceCard}>
+                <Text style={styles.deviceText}>{t('device') + ':'} {str(device.DeviceName)}</Text>
+                <Text style={styles.deviceText}>{t('company_model') + ':'} {str(device.ModelNumber)}</Text>
+                <Text style={styles.deviceText}>{t('device_reading') + ':'} {javaDouble(device.DeviceReading)}</Text>
+                <View style={styles.devicePhotos}>
+                  {[device.DevicePhoto1, device.DevicePhoto2, device.DevicePhoto3].map((photo, idx) => {
+                    const uri = str(photo);
+                    return uri ? (
+                      <Image key={idx} source={{uri}} style={styles.devicePhoto} resizeMode="stretch" />
+                    ) : (
+                      <View key={idx} style={[styles.devicePhoto, styles.devicePhotoEmpty]}>
+                        <Ionicons name="camera-outline" size={ms(56)} color="#9AA0A6" />
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+          </>
+        ) : null}
+
+        {str(closure.DocPath) ? (
+          <View style={styles.row}>
+            <Text style={styles.label}>{t('attachment') + ' :'} </Text>
+            <Text style={styles.link} onPress={() => Linking.openURL(str(closure.DocPath)).catch(() => {})}>
+              {t('rn_view_task_attachment')}
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.signRow}>
+          <View style={styles.signCol}>
+            <Text style={styles.signLabel}>{t('rn_cust_sign')}</Text>
+            {str(closure.CustomerSignatureImage) ? (
+              <Image source={{uri: str(closure.CustomerSignatureImage)}} style={styles.sign} resizeMode="contain" />
+            ) : (
+              <View style={styles.sign} />
+            )}
+            <Text style={styles.subText}>{t('name_title')} {str(closure.SignedBy) || NA}</Text>
+          </View>
+          <View style={styles.signCol}>
+            <Text style={styles.signLabel}>{t('rn_tech_sign')}</Text>
+            {str(closure.TechSignatureImage) ? (
+              <>
+                <Image source={{uri: str(closure.TechSignatureImage)}} style={styles.sign} resizeMode="contain" />
+                <Text style={styles.subText}>{t('name_title')} {assignedTo || NA}</Text>
+              </>
+            ) : (
+              <View style={styles.sign} />
+            )}
+          </View>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>{t('mobile_no_title')}</Text>
+          <Text style={styles.value}>{mobileNo ? String(mobileNo) : NA}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>{t('rn_rating')}</Text>
+          <Text style={styles.value}>
+            {'★'.repeat(Math.round(rating))}
+            {'☆'.repeat(Math.max(0, 5 - Math.round(rating)))} {rating.toFixed(1)}
+          </Text>
+        </View>
+
+        {chkPoint && (fsr || inputText) ? (
+          <Pressable onPress={() => setChkPointOpen(true)}>
+            <Text style={styles.link}>{chkPointLabel}</Text>
+          </Pressable>
+        ) : null}
+
+        {isRate ? (
+          <>
+            <Text style={styles.heading}>{t('payment_details')}</Text>
+            <View style={styles.tableHead}>
+              <Text style={[styles.cellSr, styles.bold]}>{t('rn_sr_no')} </Text>
+              <Text style={[styles.cellDesc, styles.bold]}>{t('description')}</Text>
+              <Text style={[styles.cellAmt, styles.bold]}>{t('amount')}</Text>
+            </View>
+            {excess.map((e, i) => (
+              <View key={i} style={styles.payCard}>
+                <Text style={styles.cellSr}>{i + 1}.</Text>
+                <Text style={styles.cellDesc}>{str(e.Excess_Amount_Des)}</Text>
+                <Text style={styles.cellAmt}>{symbol} {formatAmount(e.Excess_Amount)}</Text>
+              </View>
+            ))}
+            {/* Java (lnlDiscount): shown with the payment details, in green. */}
+            <View style={styles.totalLine}>
+              <Text style={[styles.totalLabel, {color: COLORS.success}]}>{t('rn_discount_amount')}</Text>
+              <Text style={[styles.totalValue, {color: COLORS.success}]}>{symbol} {formatAmount(discount)}</Text>
+            </View>
+            <View style={styles.totalLine}>
+              <Text style={[styles.totalLabel, {color: COLORS.primary}]}>{t('rn_grand_total_2')}</Text>
+              <Text style={[styles.totalValue, {color: COLORS.primary}]}>{symbol} {formatAmount(netTotal)}</Text>
+            </View>
+          </>
+        ) : null}
+
+        {/* CHK POINT / INPUT FORM data */}
+        <Modal visible={chkPointOpen} transparent animationType="fade" onRequestClose={() => setChkPointOpen(false)}>
+          <Pressable style={styles.backdrop} onPress={() => setChkPointOpen(false)}>
+            <Pressable style={styles.dialog}>
+              <Text style={styles.dialogTitle}>{chkPointLabel}</Text>
+              <ScrollView>
+                {arr(fsr?.lstFSRCategories).map((cat, ci) => (
+                  <View key={`c${ci}`}>
+                    <Text style={styles.bold}>{str(cat.CategoryName)}</Text>
+                    {arr(cat.lstCheckpointDTo).map((cp, pi) => (
+                      <View key={pi} style={styles.row}>
+                        <Text style={styles.label}>{str(cp.CheckpointName)}</Text>
+                        <Text style={styles.value}>
+                          {str(rec(cp.SelectedCheckpointStatus).CheckpointStatusName) || NA}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+                {arr(inputText?.lstInputTextCategoryDtos).map((field, fi) => (
+                  <View key={`i${fi}`} style={styles.row}>
+                    <Text style={styles.label}>{str(field.Name)}</Text>
+                    <Text style={styles.value}>{str(field.Description) || NA}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* Posted task documents (viewAttachmentPopup) */}
+        <Modal visible={docs !== null} transparent animationType="fade" onRequestClose={() => setDocs(null)}>
+          <Pressable style={styles.backdrop} onPress={() => setDocs(null)}>
+            <Pressable style={styles.dialog}>
+              <Text style={styles.dialogTitle}>{taskName}</Text>
+              {(docs ?? []).map((file, i) => (
+                <Text
+                  key={i}
+                  style={[styles.link, styles.docRow]}
+                  onPress={() => Linking.openURL(str(file.FilePath)).catch(() => {})}>
+                  {str(file.OriginalFileName) || str(file.ConvertedFileName) || `Document ${i + 1}`}
+                </Text>
+              ))}
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* QR Code Scanned Details */}
+        <Modal visible={qrOpen} transparent animationType="fade" onRequestClose={() => setQrOpen(false)}>
+          <Pressable style={styles.backdrop} onPress={() => setQrOpen(false)}>
+            <Pressable style={styles.dialog}>
+              <Text style={styles.dialogTitle}>{t('rn_qr_code_scanned_details')}</Text>
+              <Text style={styles.subText}>
+                {taskName} / {newTaskId}
+              </Text>
+              <ScrollView>
+                {qrScans.map(scan => (
+                  <View key={scan.no} style={styles.qrScan}>
+                    <Text style={styles.bold}>{t('title_activity_scan_qr_code')} {scan.no}</Text>
+                    {scan.fields.map((f, i) => (
+                      <View key={i} style={styles.row}>
+                        <Text style={styles.label}>{f.name}</Text>
+                        <Text style={styles.value}>{f.value}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      </View>
+    );
+  },
+);
+
+const styles = StyleSheet.create({
+  loader: {marginVertical: vs(16)},
+  heading: {fontSize: sp(14), fontWeight: '700', color: '#20283A', marginTop: vs(16), marginBottom: vs(6)},
+  row: {flexDirection: 'row', paddingVertical: vs(5)},
+  label: {flex: 1, fontSize: sp(13), color: '#5f6368'},
+  value: {flex: 1.3, fontSize: sp(13), color: '#20283A'},
+  subLabel: {fontSize: sp(12), color: '#5f6368', marginBottom: vs(4)},
+  subText: {fontSize: sp(12), color: '#5f6368'},
+  listText: {fontSize: sp(13), color: '#20283A', paddingVertical: vs(2)},
+  workModeRow: {flexDirection: 'row', alignItems: 'center', paddingVertical: vs(8)},
+  workModeText: {fontSize: sp(15), color: COLORS.ink},
+  noteText: {fontSize: sp(12), color: COLORS.lightGray, paddingLeft: ms(10), paddingVertical: vs(3)},
+  deviceText: {fontSize: sp(12), color: COLORS.lightGray, paddingLeft: ms(5)},
+  signLabel: {fontSize: sp(14), fontWeight: '700', color: COLORS.ink, marginBottom: vs(6)},
+  payCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: ms(10),
+    paddingVertical: ms(14),
+    paddingHorizontal: ms(6),
+    marginTop: vs(6),
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: {width: 0, height: 1},
+  },
+  totalLine: {flexDirection: 'row', alignItems: 'center', marginTop: ms(16), paddingHorizontal: ms(6)},
+  totalLabel: {flex: 1, fontSize: sp(16), fontWeight: '700'},
+  totalValue: {flex: 1, fontSize: sp(16), fontWeight: '700', textAlign: 'center'},
+  photoBlock: {marginBottom: vs(8)},
+  photo: {width: ms(76), height: ms(76), borderRadius: ms(8), marginRight: ms(8), backgroundColor: '#f1f3f4'},
+  deviceCard: {padding: ms(5), marginBottom: vs(6)},
+  devicePhotos: {flexDirection: 'row', gap: ms(15), marginTop: vs(15)},
+  devicePhoto: {flex: 1, height: ms(100), borderRadius: ms(10)},
+  devicePhotoEmpty: {alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF'},
+  link: {fontSize: sp(13), color: '#1a73e8', textDecorationLine: 'underline', marginVertical: vs(6)},
+  signRow: {flexDirection: 'row', gap: ms(12), marginTop: vs(12)},
+  signCol: {flex: 1},
+  sign: {width: ms(150), height: ms(80), borderWidth: 1, borderColor: '#eceff1', borderRadius: ms(6), marginBottom: vs(4)},
+  tableHead: {flexDirection: 'row', paddingVertical: vs(4), paddingHorizontal: ms(6)},
+  tableRow: {flexDirection: 'row', paddingVertical: vs(4)},
+  cellSr: {flex: 1, fontSize: sp(13), color: '#20283A'},
+  cellDesc: {flex: 1, fontSize: sp(13), color: '#20283A', textAlign: 'center'},
+  cellAmt: {flex: 1, fontSize: sp(13), color: '#20283A', textAlign: 'center'},
+  bold: {fontWeight: '700', color: '#20283A'},
+  backdrop: {flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: ms(20)},
+  dialog: {backgroundColor: '#fff', borderRadius: ms(12), padding: ms(16), maxHeight: '80%'},
+  dialogTitle: {fontSize: sp(15), fontWeight: '700', color: '#20283A', marginBottom: vs(8)},
+  docRow: {paddingVertical: vs(4)},
+  qrScan: {marginTop: vs(8)},
+});
+
+export default TaskClosureSection;
