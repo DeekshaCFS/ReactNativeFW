@@ -8,14 +8,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import Modal from '../../components/AppModal';
 import OutlinedInput from '../../components/OutlinedInput';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
-import {ContactBookIcon, EnquiryIcon} from '../../components/FabIcons';
+import {EnquiryIcon} from '../../components/FabIcons';
+import ContactBookButton from '../../components/ContactBookButton';
+import {useContactPicker} from '../../hooks/useContactPicker';
 import {COLORS} from '../../theme/theme';
 import {taskStyles} from './AddTaskModal';
 import {
@@ -27,8 +28,14 @@ import {
   type StateListResponse,
   type UpdateCustomerDetailsRequest,
 } from './adminLegacyApiTypes';
-import { ensureSuccess } from '../../utils/apiResponse';
-import { getStateList, getCityList, updateCustomerDetails, addCustomer, getCustomerTagList } from '../../api/customerList/customerListService';
+import {ensureSuccess} from '../../utils/apiResponse';
+import {
+  getStateList,
+  getCityList,
+  updateCustomerDetails,
+  addCustomer,
+  getCustomerTagList,
+} from '../../api/customerList/customerListService';
 import {
   CUSTOMER_ADDRESS_KEYS,
   CUSTOMER_ID_KEYS,
@@ -44,10 +51,11 @@ import {
   type CityOption,
   type StateOption,
 } from './crmShared';
-import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
+import {showFailureMsg, showSuccessMsg} from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
-import { tr } from '../../i18n/tr';
+import {tr} from '../../i18n/tr';
+
 const STATE_KEYS = ['state', 'State', 'stateName', 'StateName'];
 const CITY_KEYS = ['city', 'City', 'cityName', 'CityName'];
 const PINCODE_KEYS = ['pinCode', 'PinCode', 'pincode', 'Pincode', 'zipCode', 'ZipCode'];
@@ -205,6 +213,8 @@ const EditCustomerModal = ({
   // Which address field the Google Places search is currently filling.
   const [placeSearchFor, setPlaceSearchFor] = useState<'address' | 'secondaryAddress' | null>(null);
   const [pickedCoords, setPickedCoords] = useState<{latitude: string; longitude: string} | null>(null);
+  // Which phone field the device contact picker should fill.
+  const [contactTarget, setContactTarget] = useState<'mobile' | 'secondary'>('mobile');
 
   useEffect(() => {
     setPickedCoords(null);
@@ -274,6 +284,24 @@ const EditCustomerModal = ({
 
   const setField = (key: keyof typeof EMPTY_FORM, value: string) => {
     setForm(previous => ({...previous, [key]: value}));
+  };
+
+  // Fills the phone field that opened the picker. The primary number also fills the name
+  // when it is still empty, matching the other customer forms.
+  const {openContacts, contactPickerModal} = useContactPicker(contact => {
+    if (contactTarget === 'secondary') {
+      setField('secondaryMobileNumber', contact.phone);
+    } else {
+      setField('mobileNumber', contact.phone);
+      if (!form.customerName.trim()) {
+        setField('customerName', contact.name);
+      }
+    }
+  });
+
+  const openContactsFor = (target: 'mobile' | 'secondary') => {
+    setContactTarget(target);
+    openContacts();
   };
 
   const loadStateSuggestions = async (query: string) => {
@@ -515,309 +543,311 @@ const EditCustomerModal = ({
               contentContainerStyle={taskStyles.modalScrollContent}
               keyboardShouldPersistTaps="handled"
             >
-            <LabeledField
-              label={t('customer_name')}
-              required
-              value={form.customerName}
-              onChangeText={text => setField('customerName', text)}
-            />
+              <LabeledField
+                label={t('customer_name')}
+                required
+                value={form.customerName}
+                onChangeText={text => setField('customerName', text)}
+              />
 
-            <Text style={styles.sectionLabel}>{t('primary_details')}</Text>
+              <Text style={styles.sectionLabel}>{t('primary_details')}</Text>
 
-            <LabeledField
-              label={t('primary_address')}
-              required
-              value={form.address}
-              onChangeText={text => setField('address', text)}
-              onPress={() => setPlaceSearchFor('address')}
-            />
+              <LabeledField
+                label={t('primary_address')}
+                required
+                value={form.address}
+                onChangeText={text => setField('address', text)}
+                onPress={() => setPlaceSearchFor('address')}
+              />
 
-            <LabeledField
-              label={t('rn_building_flat_number')}
-              value={form.buildingNumber}
-              onChangeText={text => setField('buildingNumber', text)}
-            />
+              <LabeledField
+                label={t('rn_building_flat_number')}
+                value={form.buildingNumber}
+                onChangeText={text => setField('buildingNumber', text)}
+              />
 
-            <View style={styles.fieldRow}>
-              <View style={[styles.halfWrap, styles.stateZIndex]}>
-                <LabeledField
-                  label={t('state')}
-                  required
-                  half
-                  value={form.state}
-                  onChangeText={text => {
-                    setField('state', text);
-                    setSelectedStateId(0);
-                    setShowStateSuggestions(true);
-                    if (text.trim().length >= 2) {
-                      loadStateSuggestions(text);
-                    } else {
-                      setStateSuggestions([]);
-                    }
-                  }}
-                  onFocus={() => setShowStateSuggestions(true)}
-                />
-                {showStateSuggestions &&
-                form.state.trim().length >= 2 &&
-                (isStateLoading || stateSuggestions.length > 0) ? (
-                  <View style={styles.suggestionBox}>
-                    {isStateLoading ? (
-                      <ActivityIndicator
-                        color={THEME_PRIMARY}
-                        size="small"
-                        style={styles.suggestionLoader}
-                      />
-                    ) : (
-                      <ScrollView style={styles.suggestionScroll} nestedScrollEnabled>
-                        {stateSuggestions.map(option => (
-                          <TouchableOpacity
-                            key={option.id}
-                            style={styles.suggestionItem}
-                            onPress={() => handleStateSelect(option)}
-                          >
-                            <Text numberOfLines={1} style={styles.suggestionItemText}>
-                              {option.name}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    )}
-                  </View>
-                ) : null}
-              </View>
-              <View style={styles.halfWrap}>
-                <LabeledField
-                  label={t('city')}
-                  required
-                  half
-                  value={form.city}
-                  onChangeText={text => {
-                    setField('city', text);
-                    setShowCitySuggestions(true);
-                    if (selectedStateId && text.trim().length >= 2) {
-                      loadCitySuggestions(text, selectedStateId);
-                    } else {
-                      setCitySuggestions([]);
-                    }
-                  }}
-                  onFocus={() => setShowCitySuggestions(true)}
-                />
-                {showCitySuggestions &&
-                form.city.trim().length >= 2 &&
-                (isCityLoading || citySuggestions.length > 0) ? (
-                  <View style={styles.suggestionBox}>
-                    {isCityLoading ? (
-                      <ActivityIndicator
-                        color={THEME_PRIMARY}
-                        size="small"
-                        style={styles.suggestionLoader}
-                      />
-                    ) : (
-                      <ScrollView style={styles.suggestionScroll} nestedScrollEnabled>
-                        {citySuggestions.map(option => (
-                          <TouchableOpacity
-                            key={option.id}
-                            style={styles.suggestionItem}
-                            onPress={() => handleCitySelect(option)}
-                          >
-                            <Text numberOfLines={1} style={styles.suggestionItemText}>
-                              {option.name}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    )}
-                  </View>
-                ) : null}
-              </View>
-            </View>
-
-            {/* Row order follows dialog_add_customer.xml:
-                [Pin Code | Mobile Number], then [Landmark/PACI | Telephone]. */}
-            <View style={styles.fieldRow}>
-              <View style={styles.halfWrap}>
-                <LabeledField
-                  label={t('pin_code')}
-                  required
-                  half
-                  value={form.pinCode}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  onChangeText={text => setField('pinCode', text.replace(/[^0-9]/g, '').slice(0, 6))}
-                />
-              </View>
-              <View style={styles.halfWrap}>
-                <LabeledField
-                  label={t('mobile_number')}
-                  required
-                  half
-                  value={form.mobileNumber}
-                  keyboardType="phone-pad"
-                  icon="👤"
-                  onChangeText={text => setField('mobileNumber', text)}
-                />
-              </View>
-            </View>
-
-            <View style={styles.fieldRow}>
-              <View style={styles.halfWrap}>
-                <LabeledField
-                  label={t('sec_landmark_paci')}
-                  required
-                  half
-                  value={form.description}
-                  onChangeText={text => setField('description', text)}
-                />
-              </View>
-              {isAddMode ? (
+              <View style={styles.fieldRow}>
+                <View style={[styles.halfWrap, styles.stateZIndex]}>
+                  <LabeledField
+                    label={t('state')}
+                    required
+                    half
+                    value={form.state}
+                    onChangeText={text => {
+                      setField('state', text);
+                      setSelectedStateId(0);
+                      setShowStateSuggestions(true);
+                      if (text.trim().length >= 2) {
+                        loadStateSuggestions(text);
+                      } else {
+                        setStateSuggestions([]);
+                      }
+                    }}
+                    onFocus={() => setShowStateSuggestions(true)}
+                  />
+                  {showStateSuggestions &&
+                  form.state.trim().length >= 2 &&
+                  (isStateLoading || stateSuggestions.length > 0) ? (
+                    <View style={styles.suggestionBox}>
+                      {isStateLoading ? (
+                        <ActivityIndicator
+                          color={THEME_PRIMARY}
+                          size="small"
+                          style={styles.suggestionLoader}
+                        />
+                      ) : (
+                        <ScrollView style={styles.suggestionScroll} nestedScrollEnabled>
+                          {stateSuggestions.map(option => (
+                            <TouchableOpacity
+                              key={option.id}
+                              style={styles.suggestionItem}
+                              onPress={() => handleStateSelect(option)}
+                            >
+                              <Text numberOfLines={1} style={styles.suggestionItemText}>
+                                {option.name}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      )}
+                    </View>
+                  ) : null}
+                </View>
                 <View style={styles.halfWrap}>
                   <LabeledField
-                    label={t('tele_number')}
+                    label={t('city')}
+                    required
                     half
-                    value={form.telephoneNumber}
-                    keyboardType="phone-pad"
-                    onChangeText={text => setField('telephoneNumber', text)}
+                    value={form.city}
+                    onChangeText={text => {
+                      setField('city', text);
+                      setShowCitySuggestions(true);
+                      if (selectedStateId && text.trim().length >= 2) {
+                        loadCitySuggestions(text, selectedStateId);
+                      } else {
+                        setCitySuggestions([]);
+                      }
+                    }}
+                    onFocus={() => setShowCitySuggestions(true)}
+                  />
+                  {showCitySuggestions &&
+                  form.city.trim().length >= 2 &&
+                  (isCityLoading || citySuggestions.length > 0) ? (
+                    <View style={styles.suggestionBox}>
+                      {isCityLoading ? (
+                        <ActivityIndicator
+                          color={THEME_PRIMARY}
+                          size="small"
+                          style={styles.suggestionLoader}
+                        />
+                      ) : (
+                        <ScrollView style={styles.suggestionScroll} nestedScrollEnabled>
+                          {citySuggestions.map(option => (
+                            <TouchableOpacity
+                              key={option.id}
+                              style={styles.suggestionItem}
+                              onPress={() => handleCitySelect(option)}
+                            >
+                              <Text numberOfLines={1} style={styles.suggestionItemText}>
+                                {option.name}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      )}
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+
+              {/* Row order follows dialog_add_customer.xml:
+                  [Pin Code | Mobile Number], then [Landmark/PACI | Telephone]. */}
+              <View style={styles.fieldRow}>
+                <View style={styles.halfWrap}>
+                  <LabeledField
+                    label={t('pin_code')}
+                    required
+                    half
+                    value={form.pinCode}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    onChangeText={text => setField('pinCode', text.replace(/[^0-9]/g, '').slice(0, 6))}
                   />
                 </View>
-              ) : null}
-            </View>
-
-            <View style={styles.fieldRow}>
-              <View style={styles.halfWrap}>
-                <LabeledField
-                  label={t('email_id')}
-                  half
-                  value={form.emailId}
-                  keyboardType="email-address"
-                  onChangeText={text => setField('emailId', text)}
-                />
+                <View style={styles.halfWrap}>
+                  <LabeledField
+                    label={t('mobile_number')}
+                    required
+                    half
+                    value={form.mobileNumber}
+                    keyboardType="phone-pad"
+                    icon="👤"
+                    onIconPress={() => openContactsFor('mobile')}
+                    onChangeText={text => setField('mobileNumber', text)}
+                  />
+                </View>
               </View>
-              <View style={styles.halfWrap}>
-                <TouchableOpacity
-                  style={styles.dropdownField}
-                onPress={() => {
-                  loadCustomerTags();
-                  setIsTagModalOpen(true);
-                }}
-              >
-                <Text
-                  style={
-                    customerTagName
-                      ? styles.dropdownValueText
-                      : styles.dropdownPlaceholderText
-                  }
-                  numberOfLines={1}
-                >
-                  {customerTagName || 'Select Customer Tag'}
-                </Text>
-                <Ionicons name="chevron-down" style={styles.dropdownChevron} />
-              </TouchableOpacity>
-</View>
-            </View>
 
-            <View style={styles.fieldRow}>
-              <View style={styles.halfWrap}>
-                <LabeledField
-                  label={t('representative_name')}
-                  half
-                  value={form.representativeName}
-                  onChangeText={text => setField('representativeName', text)}
-                />
-              </View>
-              <View style={styles.halfWrap}>
-                <LabeledField
-                  label={t('representative_number')}
-                  half
-                  value={form.representativeNumber}
-                  keyboardType="phone-pad"
-                  onChangeText={text => setField('representativeNumber', text)}
-                />
-              </View>
-            </View>
-
-            <LabeledField
-              label={t('notes')}
-              value={form.instructions}
-              onChangeText={text => setField('instructions', text)}
-            />
-
-            <Text style={styles.sectionLabel}>{t('secondary_details')}</Text>
-
-            <LabeledField
-              label={t('secondary_address')}
-              value={form.secondaryAddress}
-              onChangeText={text => setField('secondaryAddress', text)}
-              onPress={() => setPlaceSearchFor('secondaryAddress')}
-            />
-
-            <View style={styles.fieldRow}>
-              <View style={styles.halfWrap}>
-                <LabeledField
-                  label={t('sec_landmark_paci')}
-                  half
-                  value={form.secondaryDescription}
-                  onChangeText={text => setField('secondaryDescription', text)}
-                />
-              </View>
-              <View style={styles.halfWrap}>
-                <LabeledField
-                  label={t('phone_number')}
-                  half
-                  value={form.secondaryMobileNumber}
-                  keyboardType="phone-pad"
-                  icon="👤"
-                  onChangeText={text => setField('secondaryMobileNumber', text)}
-                />
-              </View>
-            </View>
-
-            <LabeledField
-              label={t('email_id')}
-              value={form.secondaryEmailId}
-              keyboardType="email-address"
-              onChangeText={text => setField('secondaryEmailId', text)}
-            />
-
-            <LabeledField
-              label={t('notes')}
-              value={form.secondaryInstructions}
-              onChangeText={text => setField('secondaryInstructions', text)}
-            />
-
-            <Text style={styles.sectionLabel}>{t('rn_asset_details')}</Text>
-
-            <LabeledField
-              label={t('label_brand_name')}
-              value={form.brandName}
-              onChangeText={text => setField('brandName', text)}
-            />
-
-            <LabeledField
-              label={t('model_number')}
-              value={form.modelNumber}
-              onChangeText={text => setField('modelNumber', text)}
-            />
-
-            <TouchableOpacity
-              style={styles.updateButton}
-              onPress={handleUpdate}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <View style={styles.updateButtonIconWrap}>
-                    <EnquiryIcon size={ms(30)} color="#FFFFFF" />
+              <View style={styles.fieldRow}>
+                <View style={styles.halfWrap}>
+                  <LabeledField
+                    label={t('sec_landmark_paci')}
+                    required
+                    half
+                    value={form.description}
+                    onChangeText={text => setField('description', text)}
+                  />
+                </View>
+                {isAddMode ? (
+                  <View style={styles.halfWrap}>
+                    <LabeledField
+                      label={t('tele_number')}
+                      half
+                      value={form.telephoneNumber}
+                      keyboardType="phone-pad"
+                      onChangeText={text => setField('telephoneNumber', text)}
+                    />
                   </View>
-                  <Text style={styles.updateButtonText}>{isAddMode ? tr('ADD') : tr('UPDATE')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
+                ) : null}
+              </View>
 
-            <TouchableOpacity onPress={onClose}>
-              <Text style={taskStyles.cancelText}>{t('cancel')}</Text>
-            </TouchableOpacity>
+              <View style={styles.fieldRow}>
+                <View style={styles.halfWrap}>
+                  <LabeledField
+                    label={t('email_id')}
+                    half
+                    value={form.emailId}
+                    keyboardType="email-address"
+                    onChangeText={text => setField('emailId', text)}
+                  />
+                </View>
+                <View style={styles.halfWrap}>
+                  <TouchableOpacity
+                    style={styles.dropdownField}
+                    onPress={() => {
+                      loadCustomerTags();
+                      setIsTagModalOpen(true);
+                    }}
+                  >
+                    <Text
+                      style={
+                        customerTagName
+                          ? styles.dropdownValueText
+                          : styles.dropdownPlaceholderText
+                      }
+                      numberOfLines={1}
+                    >
+                      {customerTagName || 'Select Customer Tag'}
+                    </Text>
+                    <Ionicons name="chevron-down" style={styles.dropdownChevron} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.fieldRow}>
+                <View style={styles.halfWrap}>
+                  <LabeledField
+                    label={t('representative_name')}
+                    half
+                    value={form.representativeName}
+                    onChangeText={text => setField('representativeName', text)}
+                  />
+                </View>
+                <View style={styles.halfWrap}>
+                  <LabeledField
+                    label={t('representative_number')}
+                    half
+                    value={form.representativeNumber}
+                    keyboardType="phone-pad"
+                    onChangeText={text => setField('representativeNumber', text)}
+                  />
+                </View>
+              </View>
+
+              <LabeledField
+                label={t('notes')}
+                value={form.instructions}
+                onChangeText={text => setField('instructions', text)}
+              />
+
+              <Text style={styles.sectionLabel}>{t('secondary_details')}</Text>
+
+              <LabeledField
+                label={t('secondary_address')}
+                value={form.secondaryAddress}
+                onChangeText={text => setField('secondaryAddress', text)}
+                onPress={() => setPlaceSearchFor('secondaryAddress')}
+              />
+
+              <View style={styles.fieldRow}>
+                <View style={styles.halfWrap}>
+                  <LabeledField
+                    label={t('sec_landmark_paci')}
+                    half
+                    value={form.secondaryDescription}
+                    onChangeText={text => setField('secondaryDescription', text)}
+                  />
+                </View>
+                <View style={styles.halfWrap}>
+                  <LabeledField
+                    label={t('phone_number')}
+                    half
+                    value={form.secondaryMobileNumber}
+                    keyboardType="phone-pad"
+                    icon="👤"
+                    onIconPress={() => openContactsFor('secondary')}
+                    onChangeText={text => setField('secondaryMobileNumber', text)}
+                  />
+                </View>
+              </View>
+
+              <LabeledField
+                label={t('email_id')}
+                value={form.secondaryEmailId}
+                keyboardType="email-address"
+                onChangeText={text => setField('secondaryEmailId', text)}
+              />
+
+              <LabeledField
+                label={t('notes')}
+                value={form.secondaryInstructions}
+                onChangeText={text => setField('secondaryInstructions', text)}
+              />
+
+              <Text style={styles.sectionLabel}>{t('rn_asset_details')}</Text>
+
+              <LabeledField
+                label={t('label_brand_name')}
+                value={form.brandName}
+                onChangeText={text => setField('brandName', text)}
+              />
+
+              <LabeledField
+                label={t('model_number')}
+                value={form.modelNumber}
+                onChangeText={text => setField('modelNumber', text)}
+              />
+
+              <TouchableOpacity
+                style={styles.updateButton}
+                onPress={handleUpdate}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <View style={styles.updateButtonIconWrap}>
+                      <EnquiryIcon size={ms(30)} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.updateButtonText}>{isAddMode ? tr('ADD') : tr('UPDATE')}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={onClose}>
+                <Text style={taskStyles.cancelText}>{t('cancel')}</Text>
+              </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
         </View>
@@ -871,6 +901,8 @@ const EditCustomerModal = ({
           setPlaceSearchFor(null);
         }}
       />
+
+      {contactPickerModal}
     </Modal>
   );
 };
@@ -879,6 +911,7 @@ type LabeledFieldProps = {
   label: string;
   value: string;
   onChangeText: (text: string) => void;
+  onIconPress?: () => void;
   required?: boolean;
   half?: boolean;
   icon?: string;
@@ -897,6 +930,7 @@ const LabeledField = ({
   value,
   onChangeText,
   icon,
+  onIconPress,
   keyboardType,
   maxLength,
   onFocus,
@@ -920,9 +954,7 @@ const LabeledField = ({
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onPress} />
       ) : null}
       {icon ? (
-        <View style={taskStyles.phonebookButton} pointerEvents="none">
-          <ContactBookIcon size={ms(25)} />
-        </View>
+        <ContactBookButton onPress={onIconPress ?? (() => {})} style={taskStyles.phonebookButton} />
       ) : null}
     </View>
   );

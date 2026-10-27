@@ -31,6 +31,7 @@
     "react-native": "0.85.1",
     "react-native-audio-record": "^0.2.2",
     "react-native-camera-kit": "^18.0.1",
+    "react-native-contacts": "^8.0.10",
     "react-native-device-info": "^15.0.2",
     "react-native-file-viewer": "^2.1.5",
     "react-native-fs": "^2.20.0",

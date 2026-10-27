@@ -23,7 +23,10 @@ import Modal from '../../components/AppModal';
 import OutlinedInput from '../../components/OutlinedInput';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
 import {geocodeAddress as geocodeWithGoogle} from '../../utils/googleMaps';
-import {ContactBookIcon, InvoiceIcon} from '../../components/FabIcons';
+import {InvoiceIcon} from '../../components/FabIcons';
+import ContactBookButton from '../../components/ContactBookButton';
+import {useContactPicker} from '../../hooks/useContactPicker';
+import type {DeviceContact} from '../../utils/contactPicker';
 import {COLORS} from '../../theme/theme';
 import {ms, sp} from '../../utils/responsive';
 import {getCurrentUserId, getCurrentUserProfile, isIndiaCountryDetailsId} from '../../state/session';
@@ -1479,6 +1482,30 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     Keyboard.dismiss();
   };
 
+  const {openContacts, contactPickerModal} = useContactPicker(contact => {
+    setTaskCustomerNumber(contact.phone);
+    setShowTaskNumberSuggestions(false);
+    if (!taskCustomerName.trim()) {
+      setTaskCustomerName(contact.name);
+    }
+    if (!initialValues?.leadId && !initialValues?.customerId) {
+      setTaskCustomerId(0);
+      setTaskLocationId(0);
+    }
+  });
+
+  const handleContactPicked = (contact: DeviceContact) => {
+    setTaskCustomerNumber(contact.phone);
+    setShowTaskNumberSuggestions(false);
+    if (!taskCustomerName.trim()) {
+      setTaskCustomerName(contact.name);
+    }
+    if (!initialValues?.leadId && !initialValues?.customerId) {
+      setTaskCustomerId(0);
+      setTaskLocationId(0);
+    }
+  };
+
   // Java TaskDialogNew quote spinner + getQuotationIdWiseDetails(): picking a quote names the task
   // after it, clears the customer block and refills it from Quotation/getquotationsbyid (customer,
   // location, grand total as the Rate amount). The task is then posted with that customer and
@@ -2728,9 +2755,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                           maxLength={15}
                           editable={!initialValues?.leadId}
                         />
-                        <View style={styles.phonebookButton} pointerEvents="none">
-                          <ContactBookIcon size={ms(25)} />
-                        </View>
+                        <ContactBookButton onPress={openContacts} style={styles.phonebookButton} />
                       </View>
                       {taskNumberSuggestions.length > 0 ? (
                         <View style={styles.suggestionBox}>
@@ -2992,6 +3017,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             </KeyboardAvoidingView>
           </View>
         </View>
+        {contactPickerModal}
       </Modal>
 
       <PlaceSearchModal

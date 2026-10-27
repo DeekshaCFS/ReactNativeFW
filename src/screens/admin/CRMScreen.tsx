@@ -11,6 +11,8 @@ import {getCustomerTagList} from '../../api/customerList/customerListService';
 import SearchPickerModal, {type PickerOption} from '../../components/SearchPickerModal';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
+import ContactBookButton from '../../components/ContactBookButton';
+import {useContactPicker} from '../../hooks/useContactPicker';
 import {
   ActivityIndicator,
   Alert,
@@ -130,7 +132,7 @@ type AdvanceServiceItem = ServiceTypeListDTOResultData & {
 import AddTaskModal, {type AddTaskInitialValues, taskStyles} from './AddTaskModal';
 import OutlinedInput from '../../components/OutlinedInput';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
-import {ContactBookIcon, EnquiryIcon, InvoiceIcon, WhatsappIcon} from '../../components/FabIcons';
+import {EnquiryIcon, InvoiceIcon, WhatsappIcon} from '../../components/FabIcons';
 import CustomerDetailsScreen from './CustomerDetailsScreen';
 import EditCustomerModal from './EditCustomerModal';
 import {
@@ -579,6 +581,14 @@ const CRMScreen = ({
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
   const [addTaskInitialValues, setAddTaskInitialValues] =
     useState<AddTaskInitialValues | null>(null);
+
+  const {openContacts, contactPickerModal} = useContactPicker(contact => {
+    setPhone(contact.phone);
+    if (!customerName.trim()) {
+      setCustomerName(contact.name);
+    }
+    setShowNumberSuggestions(false);
+  });
 
   const fetchEnquiries = useCallback(
     async (refreshing = false) => {
@@ -2064,9 +2074,8 @@ const CRMScreen = ({
                       }}
                       keyboardType="phone-pad"
                     />
-                    <View style={eq.phonebookButton} pointerEvents="none">
-                      <ContactBookIcon size={ms(25)} />
-                    </View>
+                    <ContactBookButton onPress={openContacts} style={eq.phonebookButton} />
+                    {contactPickerModal}
                   </View>
                   {numberSuggestions.length > 0 ? (
                     <View style={eq.suggestionBox}>

@@ -16,7 +16,7 @@ import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {OutlinedInput} from '../../components/OutlinedInput';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
-import {FieldErrorDot, FieldErrorTip} from '../../components/BottomSheetDialog';
+import {FieldErrorTip} from '../../components/BottomSheetDialog';
 import AddQuotePreview, {type QuotePreviewData} from '../../components/AddQuotePreview';
 import DateTimePicker, {type DateTimePickerChangeEvent} from '@react-native-community/datetimepicker';
 import {pick} from '@react-native-documents/picker';
@@ -31,18 +31,18 @@ import {transactionTpye} from '../../api/paymentTransaction/paymentTransactionSe
 import type {
   SaveQuotationDTOQuoteItemList,
   SaveQuotationDTOQuoteServiceList,
-  SaveQuotationDTOQuoteTaxList,
 } from '../../api/quotation/quotation.types';
-import {sp, ms, vs} from '../../utils/responsive';
+import {sp, ms} from '../../utils/responsive';
 import {COLORS} from '../../theme/theme';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {getCurrentUserId, isIndiaCountryDetailsId} from '../../state/session';
 import {getCustomerList} from '../../api/customerList/customerListService';
 import type {CustomerListResultData} from '../../api/customerList/customerList.types';
-import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
+import {sanitizeDecimalInput} from '../../utils/decimal';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
-
+import ContactBookButton from '../../components/ContactBookButton';
+import {useContactPicker} from '../../hooks/useContactPicker';
 import {useTranslation} from 'react-i18next';
 import { tr } from '../../i18n/tr';
 type LeadServiceTypeItem = EnquiryServiceTypeDTOResultData;
@@ -1167,6 +1167,16 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   );
   const isErr = (field: string) => errorField === field;
 
+  const {openContacts, contactPickerModal} = useContactPicker(contact => {
+    setPhoneNumber(contact.phone);
+    if (!customerName.trim()) {
+      setCustomerName(contact.name);
+    }
+    setCustomerId(0);
+    setSuggestFor(null);
+    clearError('phone');
+  });
+
   const pickerKind = openDropdownKey?.startsWith('service-') ? 'service' : openDropdownKey?.startsWith('item-') ? 'item' : null;
   const pickerRowId = openDropdownKey ? openDropdownKey.replace(/^(service|item)-/, '') : '';
 
@@ -1292,9 +1302,9 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                   />
                   {isErr('landmark') && <ErrorMark />}
                 </View>
-                <View style={styles.halfInput}>
+                                <View style={styles.halfInput}>
                   <OutlinedInput
-                    style={[styles.pillInput, isErr('phone') && styles.pillError]}
+                    style={[styles.pillInput, isErr('phone') && styles.pillError, {paddingRight: ms(68)}]}
                     placeholder={t('star_phone_number')}
                     placeholderTextColor={COLORS.lightGray}
                     keyboardType="phone-pad"
@@ -1307,6 +1317,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                       setCustomerId(0);
                     }}
                   />
+                  <ContactBookButton onPress={openContacts} style={styles.phoneContactButton} />
                   {isErr('phone') && <ErrorMark />}
                 </View>
               </View>
@@ -1687,6 +1698,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         paymentTypeLabel={selectedPaymentType?.label ?? ''}
         onPickPaymentType={openPaymentTypePicker}
       />
+      {contactPickerModal}
     </Modal>
   );
 };
@@ -1794,6 +1806,13 @@ const styles = StyleSheet.create({
     fontSize: sp(16),
     color: COLORS.ink,
     marginBottom: ms(26), // Material errorEnabled reserves ~20dp under every field
+  },
+  phoneContactButton: {
+    position: 'absolute',
+    right: ms(40),
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
   },
   termInput: {
     marginTop: ms(4),

@@ -8,7 +8,9 @@ import React, {
 } from 'react';
 import {ms, sp} from '../../utils/responsive';
 import {COLORS} from '../../theme/theme';
-import {AmcIcon, ContactBookIcon} from '../../components/FabIcons';
+import {AmcIcon} from '../../components/FabIcons';
+import ContactBookButton from '../../components/ContactBookButton';
+import {useContactPicker} from '../../hooks/useContactPicker';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {sanitizeDecimalInput} from '../../utils/decimal';
 import {
@@ -818,6 +820,14 @@ const AMCDashboardScreen = ({
   const [showNumberSuggestions, setShowNumberSuggestions] = useState(false);
   const latestRequestId = useRef(0);
   const latestCustomerRequestId = useRef(0);
+
+  const {openContacts, contactPickerModal} = useContactPicker(contact => {
+    setCustomerNumber(contact.phone);
+    setShowNumberSuggestions(false);
+    if (!customerName.trim()) {
+      setCustomerName(contact.name);
+    }
+  });
 
   const serviceCountOptions = useMemo(
     () =>
@@ -2012,7 +2022,7 @@ const AMCDashboardScreen = ({
                   preloadCustomers();
                 },
                 keyboardType: 'phone-pad',
-                trailing: <ContactBookIcon size={ms(25)} />,
+                trailing: <ContactBookButton onPress={openContacts} />,
               })}
               {renderNumberSuggestions()}
             </View>
@@ -2191,6 +2201,7 @@ const AMCDashboardScreen = ({
             setPlaceSearchOpen(false);
           }}
         />
+        {contactPickerModal}
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -2258,7 +2269,7 @@ const AMCDashboardScreen = ({
           style={styles.addButton}
           onPress={() => setAddModalVisible(true)}
         >
-          <Text style={styles.addButtonText}>{t('title_amc').toUpperCase()}</Text>
+          <Text style={styles.addButtonText}>+ {t('title_amc').toUpperCase()}</Text>
         </Pressable>
         <View style={{flex: 0.06}} />
       </View>
