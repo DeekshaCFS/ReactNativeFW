@@ -221,6 +221,11 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   };
   const clearError = (field: string) => setErrorField(prev => (prev === field ? null : prev));
 
+  const showRequiredError = (field: string, message: string) => {
+    showFieldError(field, message);
+    showFailureMsg(message);
+  };
+
   const resetForm = useCallback(() => {
     setQuoteName('');
     setQuoteDate(getTodayDateString());
@@ -621,36 +626,42 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
   // Java addQuote / addInvoice validation chain (strings.xml messages). Returns false after flagging the field.
   const validateAdmin = (): boolean => {
     const leadingSpace = (v: string) => /^\s/.test(v) || !v.trim();
+
+    // Checks run in the same order as the form, top to bottom.
+
+    // 1. Quote Name
     if (!quoteName) {
-      showFieldError('name', t('please_enter_task_name'));
+      showRequiredError('name', t('please_enter_task_name'));
       return false;
     }
     if (leadingSpace(quoteName)) {
       showFieldError('name', t('space_is_not_allowed'));
       return false;
     }
-    if (customerName && leadingSpace(customerName)) {
-      showFieldError('customer', t('space_is_not_allowed'));
-      return false;
-    }
-    if (!address) {
-      showFieldError('address', t('please_enter_address'));
-      return false;
-    }
-    if (!landmark) {
-      showFieldError('landmark', t('please_enter_landmark'));
-      return false;
-    }
-    if (leadingSpace(landmark)) {
-      showFieldError('landmark', t('space_is_not_allowed'));
-      return false;
-    }
+
+    // 2. Quote Date and Validity Date
     if (!quoteDate.trim()) {
-      showFieldError('date', t('please_enter_date'));
+      showRequiredError('date', t('please_enter_date'));
       return false;
     }
     if (!validityDate.trim()) {
-      showFieldError('validity', t('please_enter_date'));
+      showRequiredError('validity', t('please_enter_date'));
+      return false;
+    }
+    if (quoteDate.trim() > validityDate.trim()) {
+      showToast(t('rn_validity_date_should_not_be_less_than_quot'));
+      return false;
+    }
+
+    // 3. Customer Name (optional, format check only)
+    if (!customerName && leadingSpace(customerName)) {
+      showRequiredError('customer', t('please_enter_cust_name'));
+      return false;
+    }
+
+    // 4. Address
+    if (!address) {
+      showRequiredError('address', t('please_enter_address'));
       return false;
     }
     if (!(Number(customerLat) || 0) || !(Number(customerLng) || 0)) {
@@ -658,33 +669,46 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
       showToast(t('please_enter_address_correctly'));
       return false;
     }
-    if (extraName && !extraPrice) {
-      showFieldError('extraPrice', 'Please Enter Price');
+
+    // 5. Landmark
+    if (!landmark) {
+      showRequiredError('landmark', t('please_enter_landmark'));
       return false;
     }
-    if (quoteDate.trim() > validityDate.trim()) {
-      showToast(t('rn_validity_date_should_not_be_less_than_quot'));
+    if (leadingSpace(landmark)) {
+      showFieldError('landmark', t('space_is_not_allowed'));
       return false;
     }
+
+    // 6. Phone Number
+    const phone = phoneNumber.trim();
+    if (!phone) {
+      showRequiredError('phone', t('rn_please_enter_customer_number', {defaultValue: 'Please enter customer number'}));
+      return false;
+    }
+    if (Number(phone) === 0 || (isIndiaCountryDetailsId() ? !/^\d{10,12}$/.test(phone) : phone.length <= 6)) {
+      showFieldError('phone', t('please_enter_valid_number'));
+      return false;
+    }
+
+    // 7. Services section
     if (!serviceRows.some(r => r.serviceTypeId && Number(r.quantity) > 0)) {
       showToast(t('rn_please_add_a_service'), true);
       return false;
     }
-    const phone = phoneNumber.trim();
-    const invalidPhone = () => {
-      showFieldError('phone', t('please_enter_valid_number'));
+
+    // 8. Extra (sits below the services section)
+    if (extraName && !extraPrice) {
+      showRequiredError('extraPrice', t('rn_please_enter_extra_item_price', {defaultValue: 'Please enter extra item price'}));
       return false;
-    };
-    if (!phone || Number(phone) === 0) {
-      return invalidPhone();
     }
-    if (isIndiaCountryDetailsId() ? !/^\d{10,12}$/.test(phone) : phone.length <= 6) {
-      return invalidPhone();
-    }
+
+    // 9. Items section
     if (itemRows.some(r => r.itemId && !(Number(r.quantity) > 0))) {
       showToast(t('rn_item_qty_cannot_be_zero'));
       return false;
     }
+
     return true;
   };
 
@@ -1192,6 +1216,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                     <OutlinedInput
                       style={[styles.pillInput, isErr('date') && styles.pillError]}
                       placeholder={`${docLabel} Date*`}
+                      placeholderTextColor={COLORS.lightGray}
                       value={quoteDate}
                       editable={false}
                     />
@@ -1202,7 +1227,8 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                   <View pointerEvents="none">
                     <OutlinedInput
                       style={[styles.pillInput, isErr('validity') && styles.pillError]}
-                      placeholder={t('rn_validity_date')}
+                      placeholder={t('rn_validity_date', {defaultValue: 'Validity Date*'})}
+                      placeholderTextColor={COLORS.lightGray}
                       value={validityDate}
                       editable={false}
                     />
