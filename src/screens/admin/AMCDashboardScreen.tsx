@@ -109,6 +109,12 @@ type CustomerOption = {
 };
 
 const THEME_PRIMARY = '#d30035';
+
+const SERIAL_NO_MAX_LENGTH = 10;
+
+const normalizeSerialNo = (text: string) =>
+  text.toUpperCase().slice(0, SERIAL_NO_MAX_LENGTH);
+
 const MONTH_LABELS = [
   'Jan',
   'Feb',
@@ -756,6 +762,7 @@ const AMCDashboardScreen = ({
   const [monthModalVisible, setMonthModalVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [underWarranty, setUnderWarranty] = useState(true);
+  const showReceivedAmount = !underWarranty && !modalOnly;
   const [activeDateField, setActiveDateField] = useState<AMCDateField | null>(
     null,
   );
@@ -1095,7 +1102,7 @@ const AMCDashboardScreen = ({
     // out of warranty, and the received amount can't exceed it.
     // Amount fields are hidden under warranty, so don't send stale values.
     const amcAmountValue = underWarranty ? 0 : Number(amcAmount) || 0;
-    const receivedAmountValue = underWarranty ? 0 : Number(receivedAmount) || 0;
+    const receivedAmountValue = showReceivedAmount ? Number(receivedAmount) || 0 : 0;
     if (!underWarranty && !amcAmount.trim()) {
       showFailureMsg(t('rn_please_enter_service_amount'));
       return;
@@ -1444,6 +1451,8 @@ const AMCDashboardScreen = ({
       onFocus?: () => void;
       editable?: boolean;
       keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'decimal-pad' | 'number-pad';
+      maxLength?: number;
+      autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
     } = {},
   ) => (
     <View
@@ -1467,6 +1476,8 @@ const AMCDashboardScreen = ({
           onFocus={options.onFocus}
           editable={options.editable}
           keyboardType={options.keyboardType ?? 'default'}
+          maxLength={options.maxLength}
+          autoCapitalize={options.autoCapitalize ?? 'sentences'}
         />
       )}
       {options.trailing ? (
@@ -1569,7 +1580,7 @@ const AMCDashboardScreen = ({
     setCustomerLandmark(customer.landmark);
     setBrandName(customer.brandName);
     setModelName(customer.modelName);
-    setSerialNo(customer.serialNo);
+    setSerialNo(normalizeSerialNo(customer.serialNo));
     setCustomerSuggestions([]);
     setShowCustomerSuggestions(false);
     setShowNumberSuggestions(false);
@@ -2033,7 +2044,9 @@ const AMCDashboardScreen = ({
             })}
             {renderFormInput('Serial No. *', {
               value: serialNo,
-              onChangeText: setSerialNo,
+              onChangeText: text => setSerialNo(normalizeSerialNo(text)),
+              autoCapitalize: 'characters',
+              maxLength: SERIAL_NO_MAX_LENGTH,
             })}
 
             <View style={styles.warrantyRow}>
@@ -2134,13 +2147,13 @@ const AMCDashboardScreen = ({
                 true,
               )}
             </View>
-            {underWarranty
-              ? null
-              : renderFormInput('Received Amount', {
+            {showReceivedAmount
+              ? renderFormInput('Received Amount', {
                   value: receivedAmount,
                   onChangeText: (t: string) => setReceivedAmount(sanitizeDecimalInput(t)),
                   keyboardType: 'decimal-pad',
-                })}
+                })
+              : null}
             {renderFormInput('Note', {
               value: note,
               onChangeText: setNote,
@@ -2182,9 +2195,17 @@ const AMCDashboardScreen = ({
     </Modal>
   );
 
-  if (modalOnly) {
-    return renderAddAMCModal();
-  }
+    // Show the Add AMC form with its pickers (calendar, time, No. of Services, Occurrence, Reminder).
+    if (modalOnly) {
+      return (
+        <>
+          {renderAddAMCModal()}
+          {renderAddDropdownModal()}
+          {renderCalendarDialog()}
+          {renderTimeDialog()}
+        </>
+      );
+    }
 
   return (
     <View style={styles.container}>
