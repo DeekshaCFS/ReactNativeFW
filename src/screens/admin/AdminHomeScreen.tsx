@@ -134,6 +134,7 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
   // `addEnquiryTrigger` to the CRM tab.
   const [addAmcTrigger, setAddAmcTrigger] = useState(0);
   const [selectedDrawerLabel, setSelectedDrawerLabel] = useState('Dashboard');
+  const [drawerVisit, setDrawerVisit] = useState(0);
   const [isUserDetailsLoading, setIsUserDetailsLoading] = useState(false);
 
   // The real Drawer (CustomDrawerContent) opens sections here via a
@@ -142,6 +143,7 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
     const section = route.params?.drawerSection;
     if (section) {
       setSelectedDrawerLabel(section);
+      setDrawerVisit(prev => prev + 1);
       // Clear it so re-selecting the same drawer item still fires next time.
       navigation.setParams({ drawerSection: undefined });
     }
@@ -358,6 +360,7 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
     if (isItemInventorySection) {
       return (
         <ItemInventoryTabHost
+          key={drawerVisit}
           ownerId={ownerId}
           isFieldWorker={isFieldWorkerUser}
         />
@@ -365,28 +368,29 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
     }
 
     if (isPassbookSection) {
-      return <PassbookExpenditureTabHost userId={ownerId} />;
+      return <PassbookExpenditureTabHost key={drawerVisit} userId={ownerId} />;
     }
 
     if (isLeadSection) {
-      return <LeadList userId={ownerId} />;
+      return <LeadList key={drawerVisit} userId={ownerId} />;
     }
 
     if (isAccountsSection) {
-      return <AccountsScreen ownerId={ownerId} />;
+      return <AccountsScreen key={drawerVisit} ownerId={ownerId} />;
     }
 
     if (isServicesSection) {
-      return <ServiceCategoryTabHost ownerId={ownerId} />;
+      return <ServiceCategoryTabHost key={drawerVisit} ownerId={ownerId} />;
     }
 
     if (isBrandManagementSection) {
-      return <BrandModelTabHost ownerId={ownerId} />;
+      return <BrandModelTabHost key={drawerVisit} ownerId={ownerId} />;
     }
 
     if (isAMCSection) {
       return (
         <AMCDashboardScreen
+          key={drawerVisit}
           ownerId={ownerId}
           openAddAmcTrigger={addAmcTrigger}
         />
