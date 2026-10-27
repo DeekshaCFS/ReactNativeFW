@@ -1903,6 +1903,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     [serviceTree, taskServiceTypeSearch],
   );
 
+  const notifySuccessAfterClose = (message: string) => {
+    setTimeout(() => showSuccessMsg(message), 400);
+  };
+
   const handleAddTaskSubmit = async () => {
     if (isSubmittingTask) {
       return;
@@ -2107,11 +2111,12 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       console.log('[AddTask] payload', JSON.stringify(payload));
     }
     try {
+      let successMessage = '';
       if (formMode === 'edit') {
         ensureSuccess(
           await updateTask({...payload, ...existingTaskFields} as unknown as Parameters<typeof updateTask>[0]),
         );
-        showSuccessMsg(t('task_updated_successfully'));
+        successMessage = t('task_updated_successfully');
       } else if (formMode === 'reassign') {
         ensureSuccess(
           await reassignTaskNew({
@@ -2120,16 +2125,17 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             NewTaskId: initialValues?.newTaskId ?? '',
           } as unknown as Parameters<typeof reassignTaskNew>[0]),
         );
-        showSuccessMsg(t('rn_task_re_assigned_successfully'));
+        successMessage = t('rn_task_re_assigned_successfully');
       } else if (formMode === 'reassignCompleted') {
         ensureSuccess(await addTask({...payload, Id: 0, OnHoldTaskId: sourceTaskId}));
-        showSuccessMsg(t('rn_task_re_assigned_successfully'));
+        successMessage = t('rn_task_re_assigned_successfully');
       } else {
         ensureSuccess(await addTask(payload));
-        showSuccessMsg(t('rn_task_created_successfully'));
+        successMessage = tr('Task Added Successfully');
       }
       onSaved?.();
       onClose();
+      notifySuccessAfterClose(successMessage);
     } catch (error) {
       if (__DEV__) {
         console.log('[AddTask] failed', (error as any)?.response?.data ?? error);
@@ -2230,7 +2236,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   >
                     {selectedFieldworker
                       ? selectedFieldworker.name
-                      : tr('Select Fieldworkers')}
+                      : tr('Select Fieldworkers*')}
                   </Text>
                   <Ionicons name="chevron-down" style={styles.dropdownChevron} />
                 </TouchableOpacity>
