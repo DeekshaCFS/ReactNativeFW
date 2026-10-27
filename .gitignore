@@ -35,6 +35,8 @@ local.properties
 !debug.keystore
 .kotlin/
 
+android/app/src/main/assets/index.android.bundle
+
 # node.js
 #
 node_modules/
@@ -78,4 +80,7 @@ yarn-error.log
 src/config/mapsKey.ts
 
 #Dev testing Payment keys
-src/payments/devPgKeys.tsandroid/app/src/main/assets/
+src/payments/devPgKeys.ts
+
+android/app/src/main/assets/
+
