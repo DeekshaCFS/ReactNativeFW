@@ -10,6 +10,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, PixelRatio, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import {
+  TOAST_DURATION_MS,
+  getActiveToast,
   isTopToastHost,
   registerToastHost,
   subscribeToastHosts,
@@ -18,7 +20,6 @@ import {
 } from '../utils/toast';
 import { ms, sp } from '../utils/responsive';
 
-const SHOW_MS = 4000;
 const SLIDE_MS = 500;
 const PX = 1 / PixelRatio.get();
 
@@ -53,6 +54,23 @@ const ToastHost: React.FC = () => {
   const slide = useRef(new Animated.Value(-100)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Shows a toast on this host for `remainingMs`. The toast itself stays in toast.ts until it
+  // expires, so a different host can take it over if this one stops being topmost.
+  const show = (next: ToastMessage, remainingMs: number) => {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+    }
+    setToast(next);
+    slide.setValue(-100);
+    Animated.timing(slide, {
+      toValue: 0,
+      duration: SLIDE_MS,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+    hideTimer.current = setTimeout(() => setToast(null), remainingMs);
+  };
+
   useEffect(() => {
     const unregister = registerToastHost(hostId);
     const sync = () => setIsTop(isTopToastHost(hostId));
@@ -64,27 +82,29 @@ const ToastHost: React.FC = () => {
     };
   }, [hostId]);
 
+  // When this host becomes topmost, show any toast that is still active. This covers a toast
+  // sent just before the modal hosting it closed.
+  useEffect(() => {
+    if (!isTop) {
+      return;
+    }
+    const active = getActiveToast();
+    if (active) {
+      show(active.toast, active.remainingMs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTop]);
+
   useEffect(
     () =>
       subscribeToasts(next => {
         // Only the topmost window draws the banner.
-        if (!isTopToastHost(hostId)) {
-          return;
+        if (isTopToastHost(hostId)) {
+          show(next, TOAST_DURATION_MS);
         }
-        if (hideTimer.current) {
-          clearTimeout(hideTimer.current);
-        }
-        setToast(next);
-        slide.setValue(-100);
-        Animated.timing(slide, {
-          toValue: 0,
-          duration: SLIDE_MS,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }).start();
-        hideTimer.current = setTimeout(() => setToast(null), SHOW_MS);
       }),
-    [hostId, slide],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hostId],
   );
 
   useEffect(
@@ -95,13 +115,6 @@ const ToastHost: React.FC = () => {
     },
     [],
   );
-
-  // A host that stops being the top window (e.g. a modal opened) drops its banner.
-  useEffect(() => {
-    if (!isTop) {
-      setToast(null);
-    }
-  }, [isTop]);
 
   if (!toast || !isTop) {
     return null;

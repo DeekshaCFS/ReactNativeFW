@@ -58,6 +58,7 @@ const emit = (kind: ToastKind, message: unknown) => {
     return;
   }
   const toast: ToastMessage = { id: nextId++, kind, message: text };
+  active = { toast, until: Date.now() + TOAST_DURATION_MS };
   listeners.forEach(l => l(toast));
 };
 
@@ -79,4 +80,17 @@ export const showToast = (message?: unknown, long = false) => {
     // iOS has no platform toast; draw the same plain message as an in-app pill.
     emit('info', text);
   }
+};
+
+export const TOAST_DURATION_MS = 4000;
+
+// The toast currently on screen, kept here rather than inside a ToastHost so it survives a host
+// going away (e.g. a modal closing). Any host that becomes topmost picks up what's left of it.
+let active: { toast: ToastMessage; until: number } | null = null;
+
+export const getActiveToast = () => {
+  if (!active || active.until <= Date.now()) {
+    return null;
+  }
+  return { toast: active.toast, remainingMs: active.until - Date.now() };
 };
