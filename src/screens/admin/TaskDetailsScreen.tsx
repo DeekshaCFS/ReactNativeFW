@@ -39,10 +39,12 @@ import TaskClosureSection, {type TaskClosureSectionHandle} from './TaskClosureSe
 import OwnerTaskTrackingMap from './OwnerTaskTrackingMap';
 import {getCurrentCountryCode, getCurrentCurrencySymbol} from '../../state/session';
 import {getTaskClosureDetails} from '../../api/taskList/taskListService';
-import { showFailureMsg } from '../../utils/toast';
-
+import {showFailureMsg} from '../../utils/toast';
+import {usePdfDownload} from '../../hooks/usePdfDownload';
 import {useTranslation} from 'react-i18next';
-import { tr } from '../../i18n/tr';
+import {tr} from '../../i18n/tr';
+import { toUserMessage } from '../../utils/userErrorMessage';
+
 type TaskDetailsTask = TasksListResultData | TaskListItem;
 
 type TaskDetailsScreenProps = {
@@ -81,8 +83,6 @@ const getString = (
   const value = item[camelKey] ?? item[pascalKey];
   return typeof value === 'string' ? value.trim() : '';
 };
-
-const getTaskId = (item: TaskDetailsTask) => Number(item.Id) || 0;
 
 const getNewTaskId = (item: TaskDetailsTask) =>
   getString(item as Record<string, unknown>, 'newTaskId', 'NewTaskId') ||
@@ -231,6 +231,7 @@ const TaskDetailsScreen = ({
   sheetStyle = false,
 }: TaskDetailsScreenProps) => {
   const {t} = useTranslation();
+  const pdf = usePdfDownload();
   const closureRef = useRef<TaskClosureSectionHandle>(null);
   const insets = useSafeAreaInsets();
   // With the shared (absolute) AppHeader above and no back bar, push the whole screen below it.
@@ -500,19 +501,22 @@ const TaskDetailsScreen = ({
   // (MainTaskFragmentNew -> TaskDetailsFragmentNew / CRMTaskDetailsFragmentNew).
   const isCompleted = status.toLowerCase() === 'completed';
 
-  const handleDownloadReport = async () => {
-    const id = getNumberField(record, ['id', 'Id']) || taskId;
-    try {
-      const response = await downloadReport({UserId: ownerId, TaskID: id});
-      if (response?.Code === '200' && response.Message) {
-        await Linking.openURL(response.Message);
-      } else {
-        showFailureMsg(response?.Message || 'Could not generate the task report.');
+    // Fetches the task report link, then downloads it with the loading overlay and opens it in the
+    // in-app viewer (or the device's apps for non-PDF files).
+    const handleDownloadReport = async () => {
+      const id = getNumberField(record, ['id', 'Id']) || taskId;
+      try {
+        const response = await downloadReport({UserId: ownerId, TaskID: id});
+        const reportUrl = String(response?.Message ?? '').trim();
+        if (response?.Code === '200' && reportUrl) {
+          await pdf.openFile(reportUrl, `TaskDetail_${taskId}`);
+        } else {
+          showFailureMsg(response?.Message || 'Could not generate the task report.');
+        }
+      } catch (err) {
+        showFailureMsg(toUserMessage(err, 'Could not download the report. Please try again.'));
       }
-    } catch (err) {
-      showFailureMsg(err instanceof Error ? err.message : tr('Could not download the report.'));
-    }
-  };
+    };
 
   const startDateTime = formatJavaDateTime(record.StartDate ?? record.startDate, true);
   const endDateTime = formatJavaDateTime(record.EndDate ?? record.endDate, true);
@@ -1021,6 +1025,7 @@ const TaskDetailsScreen = ({
         initialValues={reassignValues}
         onClose={() => setReassignValues(null)}
       />
+      {pdf.modals}
     </View>
   );
 };

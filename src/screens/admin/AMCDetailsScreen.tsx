@@ -9,11 +9,10 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  Linking,
   Pressable,
-  Alert,
   ActivityIndicator,
   TextInput,
-  Linking,
   Image,
 } from 'react-native';
 import Modal from '../../components/AppModal';
@@ -34,16 +33,15 @@ import { DeleteAccIcon } from '../../components/JavaIcons';
 import BottomSheetDialog from '../../components/BottomSheetDialog';
 import DecimalInput from '../../components/DecimalInput';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
-
+import {usePdfDownload} from '../../hooks/usePdfDownload';
 import {useTranslation} from 'react-i18next';
 import {trf, tr} from '../../i18n/tr';
+import { toUserMessage } from '../../utils/userErrorMessage';
 type AMCDetailsScreenProps = NativeStackScreenProps<AdminStackParamList, 'AMCDetails'>;
 
 const THEME_PRIMARY = '#d30035';
 const THEME_GRAY_TEXT = '#525760';
-const GRAY = '#404040';
 const THEME_BORDER = '#E5E7EB';
-const SECTION_TITLE_COLOR = '#dc2626';
 
 const styles = StyleSheet.create({
   // fragment_amc_details_new.xml: red background, white card with 30dp top corners.
@@ -198,34 +196,6 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
   },
-  infoCard: {
-    backgroundColor: '#d9e1e9',
-    paddingHorizontal: ms(16),
-    paddingVertical: ms(8),
-    marginHorizontal: ms(15),
-    marginTop: 2,
-    borderRadius: ms(8),
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginVertical: ms(4),
-  },
-  infoLabel: {
-    fontSize: sp(13),
-    color: '#1F2937',
-    fontWeight: '600',
-    flexBasis: '42%',
-    flexShrink: 0,
-  },
-  infoValue: {
-    fontSize: sp(13),
-    fontWeight: '400',
-    color: THEME_GRAY_TEXT,
-    flex: 1,
-    flexShrink: 1,
-    textAlign: 'left',
-  },
   statusText: {
     fontSize: sp(14),
     fontWeight: '700',
@@ -233,10 +203,6 @@ const styles = StyleSheet.create({
   },
   statusTextInactive: {
     color: THEME_GRAY_TEXT,
-  },
-  statusValueActive: {
-    color: '#16A34A',
-    fontWeight: '600',
   },
   section: {
     marginHorizontal: ms(18),
@@ -248,12 +214,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     paddingVertical: ms(5),
-  },
-  serviceSubTitle: {
-    fontSize: sp(13),
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: ms(4),
   },
   label: {
     fontSize: sp(14),
@@ -268,46 +228,6 @@ const styles = StyleSheet.create({
     flex: 1,
     flexShrink: 1,
     textAlign: 'left',
-  },
-  headerToolbar: {
-    flexDirection: 'row',
-    gap: ms(12),
-  },
-  headerToolbarButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: ms(8),
-    paddingVertical: ms(4),
-  },
-  toolbarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: ms(16),
-    backgroundColor: '#FFFFFF',
-  },
-  toolbarContainer: {
-    flexDirection: 'row',
-    flexShrink: 1,
-  },
-  toolbarContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  toolbarButton: {
-    alignItems: 'center',
-    paddingVertical: ms(8),
-    paddingHorizontal: ms(8),
-    minWidth: ms(44),
-  },
-  toolbarIcon: {
-    fontSize: sp(24),
-    marginBottom: ms(2),
-  },
-  toolbarButtonText: {
-    fontSize: sp(11),
-    color: THEME_PRIMARY,
-    fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,
@@ -665,6 +585,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   const [isDeletingAmc, setIsDeletingAmc] = useState(false);
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
   const [addTaskInitialValues, setAddTaskInitialValues] = useState<AddTaskInitialValues | null>(null);
+  const pdf = usePdfDownload();
 
   useEffect(() => {
     fetchAMCDetails();
@@ -1267,30 +1188,30 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     });
   };
 
-  const handleDownloadPress = async () => {
-    const downloadAmcId = getResolvedAmcId();
-    const userId = getResolvedUserId();
+    const handleDownloadPress = async () => {
+      const downloadAmcId = getResolvedAmcId();
+      const userId = getResolvedUserId();
 
-    if (!downloadAmcId) {
-      showToast(t('rn_amc_report_is_not_available'));
-      return;
-    }
-
-    setIsDownloadingReport(true);
-    try {
-      const response = await downloadAmcReport({ AMCsId: downloadAmcId, UserId: userId });
-      if (response.Code === '200' && response.Message) {
-        await Linking.openURL(response.Message);
-      } else {
-        showFailureMsg(response.Message || 'Could not generate the AMC report.');
+      if (!downloadAmcId) {
+        showToast(t('rn_amc_report_is_not_available'));
+        return;
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not download the report.';
-      showFailureMsg(message || 'Error');
-    } finally {
-      setIsDownloadingReport(false);
-    }
-  };
+
+      setIsDownloadingReport(true);
+      try {
+        const response = await downloadAmcReport({AMCsId: downloadAmcId, UserId: userId});
+        if (response.Code === '200' && response.Message) {
+          await pdf.openFile(response.Message, `AMC_Report_${downloadAmcId}`);
+        } else {
+          showFailureMsg(response.Message || 'Could not generate the AMC report.');
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not download the report.';
+        showFailureMsg(toUserMessage(err, 'Could not download the report. Please try again.'));
+      } finally {
+        setIsDownloadingReport(false);
+      }
+    };
 
   const confirmDeleteAmc = async () => {
     const deleteAmcId = getResolvedAmcId();
@@ -1824,6 +1745,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         ownerId={ownerId || 0}
         initialValues={addTaskInitialValues}
       />
+      {pdf.modals}
     </SafeAreaView>
   );
 };

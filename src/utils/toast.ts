@@ -5,18 +5,35 @@
 // removes itself after 4 seconds. The banner itself is drawn by <ToastHost/>.
 //
 // Java's plain Toast.makeText() is the platform toast -- use `showToast` for those.
-import { Platform, ToastAndroid } from 'react-native';
+//
+// Every message passes through sanitizeForUser, so no server address or raw network error is
+// ever shown to the user.
+import {Platform, ToastAndroid} from 'react-native';
+import {sanitizeForUser} from './safeMessage';
+
+export const TOAST_DURATION_MS = 4000;
 
 // 'info' is the plain platform-toast look (dark pill, no icon): used for showToast on iOS, which has
 // no native toast.
 export type ToastKind = 'success' | 'failure' | 'info';
 
-export type ToastMessage = { id: number; kind: ToastKind; message: string };
+export type ToastMessage = {id: number; kind: ToastKind; message: string};
 
 type Listener = (toast: ToastMessage) => void;
 
 let nextId = 1;
 const listeners = new Set<Listener>();
+
+// The toast currently on screen. It lives here rather than inside a ToastHost, so when the modal
+// that was showing it closes, the app-root host can pick up the remaining time.
+let active: {toast: ToastMessage; until: number} | null = null;
+
+export const getActiveToast = () => {
+  if (!active || active.until <= Date.now()) {
+    return null;
+  }
+  return {toast: active.toast, remainingMs: active.until - Date.now()};
+};
 
 // <ToastHost/> is mounted once at the app root and again inside every AppModal (a Modal is a
 // separate window drawn above the app, so a root-level banner would be hidden behind it). Only
@@ -53,12 +70,13 @@ export const subscribeToasts = (listener: Listener) => {
 };
 
 const emit = (kind: ToastKind, message: unknown) => {
-  const text = String(message ?? '').trim();
-  if (!text) {
+  const raw = String(message ?? '').trim();
+  if (!raw) {
     return;
   }
-  const toast: ToastMessage = { id: nextId++, kind, message: text };
-  active = { toast, until: Date.now() + TOAST_DURATION_MS };
+  const toast: ToastMessage = {id: nextId++, kind, message: sanitizeForUser(raw)};
+  // Store before notifying, so a host that mounts a moment later can still show it.
+  active = {toast, until: Date.now() + TOAST_DURATION_MS};
   listeners.forEach(l => l(toast));
 };
 
@@ -70,27 +88,15 @@ export const showFailureMsg = (message?: unknown) => emit('failure', message);
 
 /** Java: Toast.makeText(context, message, Toast.LENGTH_SHORT / LONG). */
 export const showToast = (message?: unknown, long = false) => {
-  const text = String(message ?? '').trim();
-  if (!text) {
+  const raw = String(message ?? '').trim();
+  if (!raw) {
     return;
   }
+  const text = sanitizeForUser(raw);
   if (Platform.OS === 'android') {
     ToastAndroid.show(text, long ? ToastAndroid.LONG : ToastAndroid.SHORT);
   } else {
     // iOS has no platform toast; draw the same plain message as an in-app pill.
     emit('info', text);
   }
-};
-
-export const TOAST_DURATION_MS = 4000;
-
-// The toast currently on screen, kept here rather than inside a ToastHost so it survives a host
-// going away (e.g. a modal closing). Any host that becomes topmost picks up what's left of it.
-let active: { toast: ToastMessage; until: number } | null = null;
-
-export const getActiveToast = () => {
-  if (!active || active.until <= Date.now()) {
-    return null;
-  }
-  return { toast: active.toast, remainingMs: active.until - Date.now() };
 };

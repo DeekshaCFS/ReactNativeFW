@@ -4,8 +4,6 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   Image,
-  Linking,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,7 +16,7 @@ import {OutlinedInput, OutlinedSelect} from '../../components/OutlinedInput';
 import SearchPickerModal from '../../components/SearchPickerModal';
 import {COLORS} from '../../theme/theme';
 import {CalendarInvoiceIcon} from '../../components/AccountsIcons';
-import {ActionCell, DETAIL_DARK, DETAIL_GREEN, DETAIL_LIGHT, DetailRow, SectionTitle, StatusIconRow} from '../../components/AccountsDetailParts';
+import {ActionCell, DETAIL_DARK, DETAIL_GREEN, DetailRow, SectionTitle, StatusIconRow} from '../../components/AccountsDetailParts';
 import {
   getInvoicedetailsByInvoiceId,
   deleteInvoiceDetails,
@@ -33,26 +31,25 @@ import {ensureSuccess} from '../../utils/apiResponse';
 import {formatAmount, sanitizeDecimalInput} from '../../utils/decimal';
 import {DeleteAccIcon, EditProfileIcon} from '../../components/JavaIcons';
 import {getCurrentCountryCode} from '../../state/session';
-import { showFailureMsg, showToast } from '../../utils/toast';
-import DecimalInput from '../../components/DecimalInput';
-
+import {showFailureMsg, showToast} from '../../utils/toast';
+import {usePdfDownload} from '../../hooks/usePdfDownload';
 import {useTranslation} from 'react-i18next';
-import { tr } from '../../i18n/tr';
+import {tr} from '../../i18n/tr';
+
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
-const GREEN_AMOUNT = '#2E7D32';
 const RED = '#c3002f';
 
 // Matches Java's UpdatePaymentStatus() dialog spinner exactly
 // (dialog_update_payment_status / InvoiceDetailsFragment.java).
 const PAYMENT_TYPES = ['Cash', 'UPI', 'NEFT', 'Cheque', 'Credit', 'Other'] as const;
 
-const getTodayDateString = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+// Extra item fields returned on the invoice details response.
+type ExtraFields = {
+  ExtraItem?: string | null;
+  ExtraAmount?: number | null;
+  // Assumed field name for the extra item's quantity. Confirm against the API response.
+  ExtraQuantity?: number | null;
 };
 
 // Java String.valueOf(double): 0 -> "0.0", 12.5 -> "12.5".
@@ -62,14 +59,6 @@ const javaDouble = (value: unknown) => {
     return '0.0';
   }
   return Number.isInteger(num) ? num.toFixed(1) : String(num);
-};
-
-const formatPercent = (value: unknown) => {
-  const num = Number(value ?? 0);
-  if (!Number.isFinite(num)) {
-    return '0.0';
-  }
-  return Number.isInteger(num) ? num.toFixed(1) : String(Number(num.toFixed(3)));
 };
 
 const formatDateOnly = (raw?: string | null) => {
@@ -120,10 +109,17 @@ const InvoiceDetailsScreen = ({
   onUpdated,
 }: InvoiceDetailsScreenProps) => {
   const {t} = useTranslation();
+  const pdf = usePdfDownload();
   const [details, setDetails] = useState<InvoiceDetailsDTOResultData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Paid / Pending come from GetPaymentStatusByInvoiceId so they stay current.
+  const [summaryStatus, setSummaryStatus] = useState<{
+    total?: number;
+    received?: number;
+    remaining?: number;
+  } | null>(null);
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   // Java (InvoiceDetailsFragment.getInvoicePaymentStatus) refreshes Total /
@@ -148,12 +144,26 @@ const InvoiceDetailsScreen = ({
   const loadDetails = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await getInvoicedetailsByInvoiceId({
-        InvoiceId: invoiceId,
-        UserId: ownerId,
-      });
-      const resultData = response.ResultData ?? null;
-      setDetails(resultData);
+      const [response, statusResponse] = await Promise.all([
+        getInvoicedetailsByInvoiceId({
+          InvoiceId: invoiceId,
+          UserId: ownerId,
+        }),
+        getInvoicePaymentStatus({Id: invoiceId, UserId: ownerId}).catch(() => null),
+      ]);
+      setDetails(response.ResultData ?? null);
+      const row = Array.isArray(statusResponse?.ResultData)
+        ? statusResponse.ResultData[0]
+        : undefined;
+      setSummaryStatus(
+        row
+          ? {
+              total: row.TotalAmount,
+              received: row.RecievedAmount,
+              remaining: row.RemainingAmount,
+            }
+          : null,
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load invoice details.';
@@ -188,8 +198,9 @@ const InvoiceDetailsScreen = ({
     }
   };
 
+  // Fetches the invoice PDF link, then downloads it with the loading overlay and opens it in the
+  // in-app viewer (or the device's apps for non-PDF files).
   const handleDownload = async () => {
-    setIsDownloading(true);
     try {
       const response = await getInvoicePdf({UserId: ownerId, invoiceId: invoiceId});
       const pdfUrl = String(response.ResultData?.InvoicePdfPath ?? '').trim();
@@ -197,12 +208,10 @@ const InvoiceDetailsScreen = ({
         showToast(t('rn_pdf_is_not_available_for_this_invoice'));
         return;
       }
-      await Linking.openURL(pdfUrl);
+      await pdf.openFile(pdfUrl, `Invoice_${invoiceId}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to download PDF.';
       showFailureMsg(message || 'Download failed');
-    } finally {
-      setIsDownloading(false);
     }
   };
 
@@ -310,12 +319,25 @@ const InvoiceDetailsScreen = ({
   // Partial Paid / UnPaid — see setInvoiceStatusUI() in the Java source.
   const normalizedStatus = statusLabel.trim().toLowerCase().replace(/[\s-]/g, '');
   const isPaid = normalizedStatus === 'paid';
+
   const rawTaxName = details?.TaxName;
-  const taxLabel = rawTaxName === null || rawTaxName === undefined || String(rawTaxName).toLowerCase() === 'null' ? 'Tax' : String(rawTaxName);
+  const taxLabel =
+    rawTaxName === null || rawTaxName === undefined || String(rawTaxName).toLowerCase() === 'null'
+      ? 'Tax'
+      : String(rawTaxName);
   const taskDiscountAmount = Number((details as any)?.TaskDiscountedAmount ?? 0);
   const itemList = details?.ItemList ?? [];
   const serviceList = details?.ServiceList ?? [];
   const paymentList = details?.PaymentList ?? [];
+
+  // Paid / Pending come from the payment-status API, falling back to the invoice details.
+  const paidAmount = Number(summaryStatus?.received ?? details?.ReceivedAmount ?? 0);
+  const pendingAmount = Number(summaryStatus?.remaining ?? details?.RemainingAmount ?? 0);
+
+  const extra = details as unknown as ExtraFields | null;
+  const extraItemName = String(extra?.ExtraItem ?? '').trim();
+  const extraAmount = Number(extra?.ExtraAmount ?? 0);
+  const extraQuantity = Number(extra?.ExtraQuantity ?? 0);
 
   return (
     <View style={styles.screen}>
@@ -337,7 +359,7 @@ const InvoiceDetailsScreen = ({
                 <ActionCell hidden={isPaid} onPress={openFollowUpModal}>
                   <Image source={require('../../../assets/images/ic_calendar.png')} style={styles.pngIcon} />
                 </ActionCell>
-                <ActionCell hidden={!isPaid} onPress={handleDownload} disabled={isDownloading}>
+                <ActionCell hidden={!isPaid} onPress={handleDownload} disabled={pdf.isDownloading}>
                   <Image source={require('../../../assets/images/ic_download.png')} style={styles.pngIcon} />
                 </ActionCell>
               </StatusIconRow>
@@ -385,6 +407,25 @@ const InvoiceDetailsScreen = ({
                 </View>
               ))}
 
+              {extraItemName || extraAmount !== 0 ? (
+                <>
+                  <View style={[styles.tableHeaderRow, {marginTop: ms(10)}]}>
+                    <Text style={[styles.tableHeaderCell, {flex: 0.4}]}>
+                      {t('rn_extra_name', {defaultValue: 'Extra Name'})}
+                    </Text>
+                    <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>{t('rn_qty')}</Text>
+                    <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>
+                      {t('rn_extra_price', {defaultValue: 'Extra Price'})}
+                    </Text>
+                  </View>
+                  <View style={styles.listRow}>
+                    <Text style={[styles.rowCell, {flex: 0.42, textAlign: 'left'}]}>{extraItemName}</Text>
+                    <Text style={[styles.rowCell, {flex: 0.3, textAlign: 'left'}]}>{extraQuantity}</Text>
+                    <Text style={[styles.rowCell, {flex: 0.28}]}>₹ {formatAmount(extraAmount)}</Text>
+                  </View>
+                </>
+              ) : null}
+
               <SectionTitle>{t('rn_tax_discounts_quote_amount')}</SectionTitle>
               <DetailRow first label={t('rn_total_amount')} value={`₹ ${formatAmount(details?.InvoiceAmount ?? details?.SubTotalAmount)}`} />
               <DetailRow
@@ -397,17 +438,13 @@ const InvoiceDetailsScreen = ({
               />
               {taskDiscountAmount !== 0 ? (
                 <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
-                  <Text style={{flex: 0.4, fontSize: sp(14), color: DETAIL_DARK}}>{t('rn_task_discount_amount')}</Text>
-                  <Text style={{flex: 0.6, fontSize: sp(14), color: DETAIL_GREEN, fontWeight: '700'}}>
-                    ₹ {formatAmount(taskDiscountAmount)}
-                  </Text>
+                  <Text style={styles.summaryLabelGreen}>{t('rn_task_discount_amount')}</Text>
+                  <Text style={styles.summaryValueGreen}>₹ {formatAmount(taskDiscountAmount)}</Text>
                 </View>
               ) : null}
               <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
-                <Text style={{flex: 0.4, fontSize: sp(14), color: DETAIL_DARK}}>{t('rn_grand_total_amount')}</Text>
-                <Text style={{flex: 0.6, fontSize: sp(14), color: DETAIL_GREEN, fontWeight: '700'}}>
-                  ₹ {formatAmount(details?.GrandTotalAmount)}
-                </Text>
+                <Text style={styles.summaryLabelGreen}>{t('rn_grand_total_amount')}</Text>
+                <Text style={styles.summaryValueGreen}>₹ {formatAmount(details?.GrandTotalAmount)}</Text>
               </View>
 
               <SectionTitle>{t('rn_payment_history')}</SectionTitle>
@@ -424,14 +461,15 @@ const InvoiceDetailsScreen = ({
                 </View>
               ))}
 
-              {isPaid ? null : (
-                <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
-                  <Text style={{flex: 0.4, fontSize: sp(14), fontWeight: '700', color: DETAIL_DARK}}>{t('rn_pending_amount')}</Text>
-                  <Text style={{flex: 0.6, fontSize: sp(14), fontWeight: '700', color: THEME_PRIMARY}}>
-                    ₹ {formatAmount(details?.RemainingAmount)}
-                  </Text>
-                </View>
-              )}
+              {/* Paid and Pending are always shown, in red, from the payment-status API. */}
+              <View style={[styles.rowPlain, {marginTop: ms(10)}]}>
+                <Text style={styles.summaryLabel}>{t('rn_paid_amount', {defaultValue: 'Paid Amount'})}</Text>
+                <Text style={styles.summaryValue}>₹ {formatAmount(paidAmount)}</Text>
+              </View>
+              <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
+                <Text style={styles.summaryLabel}>{t('rn_pending_amount')}</Text>
+                <Text style={styles.summaryValue}>₹ {formatAmount(pendingAmount)}</Text>
+              </View>
             </>
           )}
         </View>
@@ -553,6 +591,9 @@ const InvoiceDetailsScreen = ({
           negativeButton={{label: tr('CANCEL'), textColor: COLORS.primary}}
         />
       ) : null}
+
+      {/* In-app download overlay and PDF viewer for the invoice PDF. */}
+      {pdf.modals}
     </View>
   );
 };
@@ -618,7 +659,29 @@ const styles = StyleSheet.create({
   listRow: {flexDirection: 'row', alignItems: 'center', margin: ms(10)},
   rowCell: {fontSize: sp(13), color: DETAIL_DARK, textAlign: 'center'},
   rowPlain: {flexDirection: 'row'},
-  invisible: {opacity: 0},
+  summaryLabel: {
+    flex: 0.4,
+    fontSize: sp(14),
+    fontWeight: '700',
+    color: DETAIL_DARK,
+  },
+  summaryValue: {
+    flex: 0.6,
+    fontSize: sp(14),
+    fontWeight: '700',
+    color: THEME_PRIMARY,
+  },
+  summaryLabelGreen: {
+    flex: 0.4,
+    fontSize: sp(14),
+    color: DETAIL_DARK,
+  },
+  summaryValueGreen: {
+    flex: 0.6,
+    fontSize: sp(14),
+    color: DETAIL_GREEN,
+    fontWeight: '700',
+  },
   amountRow: {flexDirection: 'row', marginTop: ms(20)},
   amountLabel: {flex: 0.5, fontSize: sp(14), color: '#808080'},
   amountValue: {flex: 0.5, fontSize: sp(14), color: '#808080'},

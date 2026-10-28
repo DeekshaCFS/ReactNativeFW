@@ -9,7 +9,6 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -35,10 +34,11 @@ import {
 } from '../../api/umEmployeeList/umEmployeeListService';
 import {getDesignationType} from '../../api/umDesignations/umDesignationsService';
 import {getAllZoneList, getManagerListByServzone} from '../../api/umServiceZone/umServiceZoneService';
-import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
-
+import {showFailureMsg, showSuccessMsg} from '../../utils/toast';
+import {usePdfDownload} from '../../hooks/usePdfDownload';
 import {useTranslation} from 'react-i18next';
-import { tr } from '../../i18n/tr';
+import {tr} from '../../i18n/tr';
+
 type Props = {
   visible: boolean;
   ownerId: number;
@@ -83,6 +83,7 @@ const EditEmployeeModal: React.FC<Props> = ({
   onUpdated,
 }) => {
   const {t} = useTranslation();
+  const pdf = usePdfDownload();
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -385,12 +386,12 @@ const EditEmployeeModal: React.FC<Props> = ({
                     : tr('Choose .pdf, .jpeg, .jpg, .png, .xlsx, .txt, .zip, etc. max file size is 6 MB')}
                 </Text>
               </TouchableOpacity>
-              {/* Existing KYC document link (Java's docTinyUrl, Linkify'd). */}
+              {/* Existing KYC document link (Java's docTinyUrl, Linkify'd), opened in-app. */}
               {/^https?:\/\//i.test(kycDocName) ? (
                 <Text
                   style={styles.docLink}
                   numberOfLines={1}
-                  onPress={() => Linking.openURL(kycDocName).catch(() => {})}>
+                  onPress={() => pdf.openFile(kycDocName, 'KYC_Document')}>
                   {kycDocName}
                 </Text>
               ) : null}
@@ -434,6 +435,9 @@ const EditEmployeeModal: React.FC<Props> = ({
         onSelect={handlePick}
         onClose={() => setPicker(null)}
       />
+
+      {/* In-app download overlay and PDF viewer for the KYC document. */}
+      {pdf.modals}
     </Modal>
   );
 };

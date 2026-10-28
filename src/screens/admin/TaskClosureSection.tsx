@@ -10,7 +10,6 @@ import React, {forwardRef, useEffect, useImperativeHandle, useState} from 'react
 import {
   ActivityIndicator,
   Image,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -29,9 +28,10 @@ import {formatAmount} from '../../utils/decimal';
 import {ms, sp, vs} from '../../utils/responsive';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {COLORS} from '../../theme/theme';
-import { showToast } from '../../utils/toast';
-
+import {showToast} from '../../utils/toast';
+import {usePdfDownload} from '../../hooks/usePdfDownload';
 import {useTranslation} from 'react-i18next';
+
 type AnyRecord = Record<string, unknown>;
 
 export type TaskClosureSectionHandle = {
@@ -96,7 +96,9 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
     },
     ref,
   ) => {
-  const {t} = useTranslation();
+    const {t} = useTranslation();
+    // Hook calls must come before the early returns below.
+    const pdf = usePdfDownload();
     const [closure, setClosure] = useState<AnyRecord | null>(null);
     const [loading, setLoading] = useState(true);
     const [chkPoint, setChkPoint] = useState<AnyRecord | null>(null);
@@ -294,7 +296,9 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
         {str(closure.DocPath) ? (
           <View style={styles.row}>
             <Text style={styles.label}>{t('attachment') + ' :'} </Text>
-            <Text style={styles.link} onPress={() => Linking.openURL(str(closure.DocPath)).catch(() => {})}>
+            <Text
+              style={styles.link}
+              onPress={() => pdf.openFile(str(closure.DocPath), 'Closure_Document')}>
               {t('rn_view_task_attachment')}
             </Text>
           </View>
@@ -397,7 +401,8 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
           </Pressable>
         </Modal>
 
-        {/* Posted task documents (viewAttachmentPopup) */}
+        {/* Posted task documents (viewAttachmentPopup). Closing the list before opening a document
+            keeps the two modals from stacking. */}
         <Modal visible={docs !== null} transparent animationType="fade" onRequestClose={() => setDocs(null)}>
           <Pressable style={styles.backdrop} onPress={() => setDocs(null)}>
             <Pressable style={styles.dialog}>
@@ -406,7 +411,13 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
                 <Text
                   key={i}
                   style={[styles.link, styles.docRow]}
-                  onPress={() => Linking.openURL(str(file.FilePath)).catch(() => {})}>
+                  onPress={() => {
+                    const path = str(file.FilePath);
+                    const name =
+                      str(file.OriginalFileName) || str(file.ConvertedFileName) || `Task_File_${i + 1}`;
+                    setDocs(null);
+                    pdf.openFile(path, name);
+                  }}>
                   {str(file.OriginalFileName) || str(file.ConvertedFileName) || `Document ${i + 1}`}
                 </Text>
               ))}
@@ -438,6 +449,9 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
             </Pressable>
           </Pressable>
         </Modal>
+
+        {/* In-app download overlay and PDF viewer for task documents. */}
+        {pdf.modals}
       </View>
     );
   },

@@ -32,7 +32,7 @@ import {
 } from './adminLegacyApiTypes';
 import { getLeadstatusList, getLeadetailsByLeadId, updateLeadStatus as updateLeadStatusApi } from '../../api/lead/leadService';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
-
+import {BASE_URL} from '../../api/apiClient';
 import {useTranslation} from 'react-i18next';
 import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
 type LeadDetailsScreenProps = {
@@ -660,7 +660,7 @@ const LeadDetailsScreen = ({
   const photoUrl = (path: string) =>
     path.startsWith('http')
       ? path
-      : `http://192.169.3.8/API/${path.startsWith('/') ? path.slice(1) : path}`;
+      : `${BASE_URL}/${path.startsWith('/') ? path.slice(1) : path}`;
   const notes =
     getStringValue(lead, ['Description', 'description', 'notes', 'Notes', 'requirement', 'Requirement']) || '-NA-';
 

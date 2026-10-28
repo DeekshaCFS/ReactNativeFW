@@ -4,11 +4,9 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   Image,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import {AccountsDeleteSheet, AccountsFormSheet, sheetPill} from '../../components/AccountsSheets';
@@ -17,7 +15,15 @@ import SearchPickerModal from '../../components/SearchPickerModal';
 import AddTaskModal, {type AddTaskInitialValues} from './AddTaskModal';
 import AMCDashboardScreen, {type AddAmcPrefill} from './AMCDashboardScreen';
 import {COLORS} from '../../theme/theme';
-import {ActionCell, DETAIL_DARK, DETAIL_GREEN, DETAIL_LIGHT, DetailRow, SectionTitle, StatusIconRow} from '../../components/AccountsDetailParts';
+import {
+  ActionCell,
+  DETAIL_DARK,
+  DETAIL_GREEN,
+  DETAIL_LIGHT,
+  DetailRow,
+  SectionTitle,
+  StatusIconRow,
+} from '../../components/AccountsDetailParts';
 import {
   getQuotationdetailsByQuoteId,
   deleteQuotationDetails,
@@ -32,17 +38,14 @@ import {formatAmount} from '../../utils/decimal';
 import {DeleteAccIcon} from '../../components/JavaIcons';
 import {TickIcon} from '../../components/AccountsIcons';
 import {AmcIcon} from '../../components/FabIcons';
-import { showFailureMsg, showToast } from '../../utils/toast';
-
+import {showFailureMsg, showToast} from '../../utils/toast';
+import {usePdfDownload} from '../../hooks/usePdfDownload';
 import {useTranslation} from 'react-i18next';
-const THEME_PRIMARY = '#c3002f';
-const HEADER_PRIMARY = '#a80030';
-const GREEN_AMOUNT = '#2E7D32';
-const RED = '#c3002f';
 
-// Matches Java's Quotation/UpdateQuotationStatus flow (UpdateQuotationStatus()
-// in QuotationDetailsFragment.java): the only status a quotation can be moved
-// to from here is "Lost" (StatusId 4) — there's no full status picker.
+const THEME_PRIMARY = '#c3002f';
+
+// Matches Java's Quotation/UpdateQuotationStatus flow: the only status a quotation can be
+// moved to from here is "Lost" (StatusId 4).
 const LOST_STATUS_ID = 4;
 
 // Java String.valueOf(double): 0 -> "0.0", 12.5 -> "12.5".
@@ -52,14 +55,6 @@ const javaDouble = (value: unknown) => {
     return '0.0';
   }
   return Number.isInteger(num) ? num.toFixed(1) : String(num);
-};
-
-const formatPercent = (value: unknown) => {
-  const num = Number(value ?? 0);
-  if (!Number.isFinite(num)) {
-    return '0.0';
-  }
-  return Number.isInteger(num) ? num.toFixed(1) : String(Number(num.toFixed(3)));
 };
 
 const formatDateOnly = (raw?: string | null) => {
@@ -116,6 +111,7 @@ const QuotationDetailsScreen = ({
   onUpdated,
 }: QuotationDetailsScreenProps) => {
   const {t} = useTranslation();
+  const pdf = usePdfDownload();
   const [details, setDetails] = useState<QuotationDetailsDTOResultData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -135,8 +131,7 @@ const QuotationDetailsScreen = ({
         Id: quotationId,
         UserId: ownerId,
       });
-      const resultData = response.ResultData ?? null;
-      setDetails(resultData);
+      setDetails(response.ResultData ?? null);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load quotation details.';
@@ -155,7 +150,9 @@ const QuotationDetailsScreen = ({
     setIsDeleteOpen(false);
     setIsDeleting(true);
     try {
-      const response = ensureSuccess(await deleteQuotationDetails({Id: quoteIdForApi, UserId: ownerId}));
+      const response = ensureSuccess(
+        await deleteQuotationDetails({Id: quotationId, UserId: ownerId}),
+      );
       showToast((response as {Message?: string})?.Message);
       if (onDeleted) {
         onDeleted();
@@ -171,18 +168,17 @@ const QuotationDetailsScreen = ({
     }
   };
 
-  const quoteIdForApi = quotationId;
-
+  // Fetches the quotation PDF link, then downloads it with the loading overlay and opens it
+  // in the in-app viewer (or the device's apps for non-PDF files).
   const handleDownload = async () => {
     try {
       const response = await getQuotationPdf({Id: quotationId, UserId: ownerId});
-      const resultData = response.ResultData ?? null;
-      const pdfUrl = String(resultData?.QuotationPdfPath ?? '').trim();
+      const pdfUrl = String(response.ResultData?.QuotationPdfPath ?? '').trim();
       if (!pdfUrl) {
         showToast(t('rn_pdf_is_not_available_for_this_quotation'));
         return;
       }
-      await Linking.openURL(pdfUrl);
+      await pdf.openFile(pdfUrl, `Quotation_${quotationId}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to download PDF.';
       showFailureMsg(message || 'Download failed');
@@ -203,12 +199,14 @@ const QuotationDetailsScreen = ({
     }
     setIsUpdatingStatus(true);
     try {
-      const response = ensureSuccess(await updateQuotationStatus({
-        QuotationId: quotationId,
-        UserId: ownerId,
-        StatusId: LOST_STATUS_ID,
-        Notes: statusNote.trim(),
-      }));
+      const response = ensureSuccess(
+        await updateQuotationStatus({
+          QuotationId: quotationId,
+          UserId: ownerId,
+          StatusId: LOST_STATUS_ID,
+          Notes: statusNote.trim(),
+        }),
+      );
       setIsStatusModalOpen(false);
       showToast((response as {Message?: string})?.Message);
       if (onUpdated) {
@@ -292,13 +290,21 @@ const QuotationDetailsScreen = ({
 
   // Java: taxname TextView shows TaxName as-is (blank when ""), "Tax" only when null / "null".
   const taxNameRaw = (taxInfo as any)?.TaxName;
-  const taxLabel = taxNameRaw === null || taxNameRaw === undefined || String(taxNameRaw).toLowerCase() === 'null' ? 'Tax' : String(taxNameRaw);
+  const taxLabel =
+    taxNameRaw === null ||
+    taxNameRaw === undefined ||
+    String(taxNameRaw).toLowerCase() === 'null'
+      ? 'Tax'
+      : String(taxNameRaw);
   const extraItem = String(details?.ExtraItem ?? '').trim();
   const extraAmount = details?.ExtraAmount ?? 0;
 
   return (
     <View style={styles.screen}>
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
+        showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           {isLoading ? (
             <View style={styles.centerBox}>
@@ -307,11 +313,17 @@ const QuotationDetailsScreen = ({
           ) : (
             <>
               <StatusIconRow status={statusLabel} color={statusColor}>
-                <ActionCell hidden={actionsHidden} onPress={() => setIsDeleteOpen(true)} disabled={isDeleting}>
+                <ActionCell
+                  hidden={actionsHidden}
+                  onPress={() => setIsDeleteOpen(true)}
+                  disabled={isDeleting}>
                   <DeleteAccIcon size={ms(20)} color={THEME_PRIMARY} />
                 </ActionCell>
                 <ActionCell hidden={actionsHidden} onPress={openStatusSheet}>
-                  <Image source={require('../../../assets/images/ic_calendar.png')} style={styles.pngIcon} />
+                  <Image
+                    source={require('../../../assets/images/ic_calendar.png')}
+                    style={styles.pngIcon}
+                  />
                 </ActionCell>
                 <ActionCell hidden={actionsHidden} onPress={openAddTask}>
                   <TickIcon size={ms(20)} color="#000" />
@@ -319,8 +331,11 @@ const QuotationDetailsScreen = ({
                 <ActionCell hidden={actionsHidden} onPress={() => setAmcTrigger(n => n + 1)}>
                   <AmcIcon size={ms(20)} color="#000" />
                 </ActionCell>
-                <ActionCell onPress={handleDownload}>
-                  <Image source={require('../../../assets/images/ic_download.png')} style={styles.pngIcon} />
+                <ActionCell onPress={handleDownload} disabled={pdf.isDownloading}>
+                  <Image
+                    source={require('../../../assets/images/ic_download.png')}
+                    style={styles.pngIcon}
+                  />
                 </ActionCell>
               </StatusIconRow>
 
@@ -341,14 +356,18 @@ const QuotationDetailsScreen = ({
               <DetailRow label={t('landmark')} value={location?.Description ?? ''} />
 
               <View style={[styles.tableHeaderRow, {marginTop: ms(5)}]}>
-                <Text style={[styles.tableHeaderCell, styles.eq, {textAlign: 'left'}]}>{t('item_details')}</Text>
+                <Text style={[styles.tableHeaderCell, styles.eq, {textAlign: 'left'}]}>
+                  {t('item_details')}
+                </Text>
                 <Text style={[styles.tableHeaderCell, styles.eq]}>{t('rn_qty')}</Text>
                 <Text style={[styles.tableHeaderCell, styles.eq]}>{t('rn_unit_price')}</Text>
                 <Text style={[styles.tableHeaderCell, styles.eq]}>{t('rn_total_price')}</Text>
               </View>
               {itemList.map((line, index) => (
                 <View key={`item-${index}`} style={styles.listRow}>
-                  <Text style={[styles.rowCell, styles.eq, {textAlign: 'left'}]}>{line.ItemName ?? ''}</Text>
+                  <Text style={[styles.rowCell, styles.eq, {textAlign: 'left'}]}>
+                    {line.ItemName ?? ''}
+                  </Text>
                   <Text style={[styles.rowCell, styles.eq]}>{line.Quantity ?? 0}</Text>
                   <Text style={[styles.rowCell, styles.eq]}>₹ {formatAmount(line.UnitPrice)}</Text>
                   <Text style={[styles.rowCell, styles.eq]}>₹ {formatAmount(line.TotalPrice)}</Text>
@@ -356,14 +375,20 @@ const QuotationDetailsScreen = ({
               ))}
 
               <View style={[styles.tableHeaderRow, {marginTop: ms(10)}]}>
-                <Text style={[styles.tableHeaderCell, {flex: 0.4}]}>{t('service_name_add_task')}</Text>
+                <Text style={[styles.tableHeaderCell, {flex: 0.4}]}>
+                  {t('service_name_add_task')}
+                </Text>
                 <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>{t('rn_qty')}</Text>
                 <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>{t('rn_service_price_2')}</Text>
               </View>
               {serviceList.map((line, index) => (
                 <View key={`service-${index}`} style={styles.listRow}>
-                  <Text style={[styles.rowCell, {flex: 0.42, textAlign: 'left'}]}>{line.ServiceName ?? ''}</Text>
-                  <Text style={[styles.rowCell, {flex: 0.3, textAlign: 'left'}]}>{line.Quantity ?? 0}</Text>
+                  <Text style={[styles.rowCell, {flex: 0.42, textAlign: 'left'}]}>
+                    {line.ServiceName ?? ''}
+                  </Text>
+                  <Text style={[styles.rowCell, {flex: 0.3, textAlign: 'left'}]}>
+                    {line.Quantity ?? 0}
+                  </Text>
                   <Text style={[styles.rowCell, {flex: 0.28}]}>₹ {formatAmount(line.Price)}</Text>
                 </View>
               ))}
@@ -374,7 +399,9 @@ const QuotationDetailsScreen = ({
               </View>
               <View style={[styles.tableHeaderRow, {marginLeft: ms(10), marginTop: 0, marginBottom: 0}]}>
                 <Text style={[styles.rowCell, {flex: 0.6, textAlign: 'left'}]}>{extraItem}</Text>
-                <Text style={[styles.rowCell, {flex: 0.4, textAlign: 'left', color: DETAIL_LIGHT}]} numberOfLines={1}>
+                <Text
+                  style={[styles.rowCell, {flex: 0.4, textAlign: 'left', color: DETAIL_LIGHT}]}
+                  numberOfLines={1}>
                   ₹ {formatAmount(extraAmount)}
                 </Text>
               </View>
@@ -390,7 +417,9 @@ const QuotationDetailsScreen = ({
                 value={`₹ ${javaDouble(taxInfo?.TaxAmount)}(${javaDouble(taxInfo?.Tax)}%)`}
               />
               <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
-                <Text style={{flex: 0.4, fontSize: sp(14), color: DETAIL_DARK}}>{t('rn_grand_total_amount')}</Text>
+                <Text style={{flex: 0.4, fontSize: sp(14), color: DETAIL_DARK}}>
+                  {t('rn_grand_total_amount')}
+                </Text>
                 <Text style={{flex: 0.6, fontSize: sp(14), color: DETAIL_GREEN, fontWeight: '700'}}>
                   ₹ {formatAmount(details?.GrandTotalAmount)}
                 </Text>
@@ -468,6 +497,9 @@ const QuotationDetailsScreen = ({
         ownerId={ownerId}
         initialValues={addTaskValues}
       />
+
+      {/* In-app PDF download overlay and viewer. */}
+      {pdf.modals}
     </View>
   );
 };
@@ -497,7 +529,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pngIcon: {width: ms(20), height: ms(20), resizeMode: 'contain', tintColor: '#000'},
+  pngIcon: {
+    width: ms(20),
+    height: ms(20),
+    resizeMode: 'contain',
+    tintColor: '#000',
+  },
   tableHeaderRow: {
     flexDirection: 'row',
   },
@@ -507,7 +544,10 @@ const styles = StyleSheet.create({
     color: DETAIL_DARK,
     textAlign: 'left',
   },
-  eq: {flex: 1, textAlign: 'center'},
+  eq: {
+    flex: 1,
+    textAlign: 'center',
+  },
   listRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -518,13 +558,14 @@ const styles = StyleSheet.create({
     color: DETAIL_DARK,
     textAlign: 'center',
   },
-  rowPlain: {flexDirection: 'row'},
+  rowPlain: {
+    flexDirection: 'row',
+  },
   termsText: {
     flex: 0.6,
     fontSize: sp(15),
     color: DETAIL_LIGHT,
   },
-  invisible: {opacity: 0},
   notesPill: {
     height: ms(100),
     borderWidth: 1,
@@ -540,6 +581,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
 });
-
 
 export default QuotationDetailsScreen;

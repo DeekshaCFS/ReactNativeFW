@@ -27,24 +27,25 @@ import {
   type LeaveListItem,
   type LeaveListResponse,
 } from './adminLegacyApiTypes';
-import { getAllDesignation } from '../../api/umDesignations/umDesignationsService';
-import { getAllEmpList, getEmpDetailsForEdit } from '../../api/umEmployeeList/umEmployeeListService';
-import { WhatsappIcon, DeleteIcon } from '../../components/FabIcons';
-import { getAllEmployeeLeaveList } from '../../api/leaveManagement/leaveManagementService';
+import {getAllDesignation} from '../../api/umDesignations/umDesignationsService';
+import {getAllEmpList, getEmpDetailsForEdit} from '../../api/umEmployeeList/umEmployeeListService';
+import {WhatsappIcon, DeleteIcon} from '../../components/FabIcons';
+import {getAllEmployeeLeaveList} from '../../api/leaveManagement/leaveManagementService';
 import LeaveApprovalModal from './LeaveApprovalModal';
-import { deleteEmpAccount, downloadTechList } from '../../api/users/usersService';
-import { ensureSuccess } from '../../utils/apiResponse';
+import {deleteEmpAccount, downloadTechList} from '../../api/users/usersService';
+import {ensureSuccess} from '../../utils/apiResponse';
 import EditEmployeeModal from './EditEmployeeModal';
 import EmployeeAttendanceModal from './EmployeeAttendanceModal';
 import TechnicianLiveMapScreen from './TechnicianLiveMapScreen';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { COLORS } from '../../theme/theme';
+import {COLORS} from '../../theme/theme';
 import TabStrip from '../../components/TabStrip';
 import SearchPickerModal from '../../components/SearchPickerModal';
-import { showFailureMsg, showToast } from '../../utils/toast';
-
+import {showFailureMsg, showToast} from '../../utils/toast';
+import {usePdfDownload} from '../../hooks/usePdfDownload';
 import {useTranslation} from 'react-i18next';
 import {tr, trf} from '../../i18n/tr';
+
 type EmployeeManagementScreenProps = {
   ownerId: number;
   // Non-zero only when mounted under the shared AppHeader (the Employee tab
@@ -213,6 +214,7 @@ const EmployeeManagementScreen = ({
   onActiveTabChange,
 }: EmployeeManagementScreenProps) => {
   const {t} = useTranslation();
+  const pdf = usePdfDownload();
   const [activeTab, setActiveTab] = useState<EmployeeTab>('employee');
 
   // `onActiveTabChange` is intentionally excluded from the deps: AdminTabs
@@ -688,13 +690,13 @@ const EmployeeManagementScreen = ({
   };
 
   // EmployeeListFragment.getDownloadTechList: the server builds the file and
-  // returns its URL in ResultData.TechFilePath.
+  // returns its URL in ResultData.TechFilePath. The file opens through the in-app download flow.
   const handleDownloadEmployees = async () => {
     try {
       const response = await downloadTechList({OwnerId: ownerId});
       const url = String(response?.ResultData?.TechFilePath ?? '');
       if (response?.Code === '200' && url) {
-        await Linking.openURL(url);
+        await pdf.openFile(url, 'Employee_List');
       } else {
         showFailureMsg(response?.Message || 'Unable to download the employee list.');
       }
@@ -1399,6 +1401,8 @@ const EmployeeManagementScreen = ({
           refreshList();
         }}
       />
+      {/* In-app download overlay and PDF viewer for the employee list. */}
+      {pdf.modals}
     </View>
   );
 };

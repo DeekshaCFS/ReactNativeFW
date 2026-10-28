@@ -7,7 +7,7 @@ import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Image, ScrollView,
-  Pressable, ActivityIndicator, Platform, TouchableOpacity, Linking,
+  Pressable, ActivityIndicator, Platform, TouchableOpacity,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -34,7 +34,7 @@ import { PencilEditIcon, EditFieldIcon } from '../../../components/DialogIcons';
 import PlaceSearchModal from '../../../components/PlaceSearchModal';
 import SearchPickerModal from '../../../components/SearchPickerModal';
 import { showFailureMsg, showToast } from '../../../utils/toast';
-
+import {usePdfDownload} from '../../../hooks/usePdfDownload';
 import {useTranslation} from 'react-i18next';
 import ImageSourceDialog from '../../../components/ImageSourceDialog';
 import { tr } from '../../../i18n/tr';
@@ -186,6 +186,7 @@ export default function TechProfileScreen() {
   const {t} = useTranslation();
   const navigation = useNavigation<any>();
   const headerHeight = useAppHeaderHeight();
+  const pdf = usePdfDownload();
 
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserResultData | null>(null);
@@ -668,9 +669,9 @@ export default function TechProfileScreen() {
         {/* File Attach */}
         <Text style={styles.attachLabel}>{t('rn_attach_file')}</Text>
 
-        {/* Existing uploaded document link (docTinyUrl in Java) */}
+        {/* Existing uploaded document link (docTinyUrl in Java), opened in-app. */}
         {hasExistingDoc && (
-          <Pressable onPress={() => Linking.openURL(profile!.EmpDocument!)}>
+          <Pressable onPress={() => pdf.openFile(profile!.EmpDocument!, 'Employee_Document')}>
             <Text style={styles.existingDocLink} numberOfLines={1}>
               {profile!.EmpDocument}
             </Text>
@@ -798,6 +799,9 @@ export default function TechProfileScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* In-app download overlay and PDF viewer for the employee document. */}
+      {pdf.modals}
     </View>
   );
 }

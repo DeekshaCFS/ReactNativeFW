@@ -1,7 +1,7 @@
 // src/screens/technician/main/HomeScreen.tsx
 import {
   View, Text, StyleSheet, FlatList,
-  Pressable, ActivityIndicator, Linking,
+  Pressable, ActivityIndicator,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import { COLORS } from '../../../theme/theme';
@@ -36,8 +36,9 @@ import {
 import { getCurrentLocationAndAddress } from '../../../utils/locationPermision';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 import { prefetchFsrForTasks } from '../../../offline/offlineCache';
-
+import {usePdfDownload} from '../../../hooks/usePdfDownload';
 import {useTranslation} from 'react-i18next';
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 // ── component ─────────────────────────────────────────────────────────────────
@@ -45,6 +46,7 @@ import {useTranslation} from 'react-i18next';
 export default function HomeScreen({ navigation }: any) {
   const {t} = useTranslation();
   const headerHeight = useAppHeaderHeight();
+  const pdf = usePdfDownload();
   const [filter, setFilter] = useState<'Today' | 'Week' | 'Month' | 'Year'>('Today');
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
@@ -449,11 +451,7 @@ export default function HomeScreen({ navigation }: any) {
   };
 
   const handleDownloadFile = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch (err: any) {
-      showFailureMsg(err?.message || 'Could not open the file.');
-    }
+    await pdf.openFile(url, 'Attachment');
   };
 
   // ── task card ─────────────────────────────────────────────────────────────
@@ -657,6 +655,9 @@ export default function HomeScreen({ navigation }: any) {
         onClose={() => setAttachmentTask(null)}
         onDownload={handleDownloadFile}
       />
+
+      {/* In-app download overlay and PDF viewer. */}
+      {pdf.modals}
     </View>
   );
 }

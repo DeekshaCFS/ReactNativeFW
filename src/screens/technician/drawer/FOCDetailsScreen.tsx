@@ -8,7 +8,8 @@
 // adapter_tech_request_foc_details.xml.
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Linking, TextInput, } from 'react-native';
+  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput,
+} from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { COLORS } from '../../../theme/theme';
 import { ms, sp } from '../../../utils/responsive';
@@ -24,9 +25,10 @@ import type {
 import { getCurrentUserId } from '../../../state/session';
 import DeleteFocDialog from '../../../components/DeleteFocDialog';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
-
+import {usePdfDownload} from '../../../hooks/usePdfDownload';
 import {useTranslation} from 'react-i18next';
 import { tr } from '../../../i18n/tr';
+
 const formatDate = (iso?: string): string => {
   if (!iso) return 'NA';
   const d = new Date(iso);
@@ -102,6 +104,7 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
   const {t} = useTranslation();
   const focRequest = (focRequestProp ?? route?.params?.focRequest) as GetFOCListResultData;
   const goBack = () => (onClose ? onClose() : navigation?.goBack());
+  const pdf = usePdfDownload();
 
   const [items, setItems] = useState<GetFOCListFOC_ItemList[]>(focRequest?.FOC_ItemList ?? []);
   const [localState, setLocalState] = useState<Record<number, ItemLocalState>>(() => {
@@ -154,12 +157,14 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
     }
   };
 
+  // Opens the attachment through the in-app download flow (PDFs in the viewer, others in the
+  // device's apps).
   const openAttachment = (url?: string) => {
     if (!url) {
       showToast(t('rn_no_attachment'));
       return;
     }
-    Linking.openURL(url).catch(() => showFailureMsg(t('rn_could_not_open_the_attachment')));
+    pdf.openFile(url, 'FOC_Attachment');
   };
 
   // Java: "Update All" posts every locally-touched item in one
@@ -378,10 +383,19 @@ export default function FOCDetailsScreen({ navigation, route, focRequest: focReq
     </ScrollView>
   );
 
-  if (!admin) return body;
+  if (!admin) {
+    return (
+      <>
+        {body}
+        {/* In-app download overlay and PDF viewer for FOC attachments. */}
+        {pdf.modals}
+      </>
+    );
+  }
   return (
     <View style={styles.adminRoot}>
       <View style={styles.adminSheet}>{body}</View>
+      {pdf.modals}
     </View>
   );
 }

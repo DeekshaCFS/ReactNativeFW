@@ -3,7 +3,7 @@ import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useState, useEffect, } from 'react';
 import {
   View, Text, StyleSheet, Pressable, TextInput,
-  FlatList, ActivityIndicator, Image, Linking,
+  FlatList, ActivityIndicator, Image,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -28,11 +28,13 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTaskStatus } from '../../../hooks/useTaskStatus';
 import { useOpenTask } from '../../../hooks/useOpenTask';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
-
+import {usePdfDownload} from '../../../hooks/usePdfDownload';
 import {useTranslation} from 'react-i18next';
+
 export default function TaskScreen({ navigation, route }: any) {
   const {t} = useTranslation();
   const headerHeight = useAppHeaderHeight();
+  const pdf = usePdfDownload();
   const [uid, setUid] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
@@ -245,12 +247,14 @@ export default function TaskScreen({ navigation, route }: any) {
     loadSession();
   }, []);
 
+  // Fetches the task report link, then downloads it with the loading overlay and opens it in the
+  // in-app viewer (or the device's apps for non-PDF files).
   const handleDownloadReport = async (task: Task) => {
     if (!uid) return;
     try {
       const res = await downloadReport({ UserId: Number(uid), TaskID: task.Id });
       if (res.Code === '200' && res.Message) {
-        await Linking.openURL(res.Message);
+        await pdf.openFile(res.Message, `Task_Report_${task.Id}`);
       } else {
         showFailureMsg(res.Message || 'Could not generate the report.');
       }
@@ -285,11 +289,7 @@ export default function TaskScreen({ navigation, route }: any) {
   };
 
   const handleDownloadFile = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch (err: any) {
-      showFailureMsg(err?.message || 'Could not open the file.');
-    }
+    await pdf.openFile(url, 'Attachment');
   };
 
   // Java: the red FAB opens the Sync screen, or says there is nothing to sync.
@@ -621,6 +621,9 @@ export default function TaskScreen({ navigation, route }: any) {
           )}
         </View>
       </Modal>
+
+      {/* In-app download overlay and PDF viewer. */}
+      {pdf.modals}
     </View>
   );
 }

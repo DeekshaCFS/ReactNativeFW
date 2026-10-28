@@ -353,14 +353,17 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
     );
   };
 
-  // Java InvoiceListAdapter: 0.6 column (title, "Cust. Name :", amount row) + 0.4 column ("Pending Amt :", Partial Paid only).
+  // Layout follows the approved design. Left column: Paid Amount for paid invoices, otherwise
+  // Total Amount, both in green. Right column: "Pending Amt" with the remaining due in red,
+  // shown whenever money is still due (label orange for Partial Paid, dark otherwise).
   const renderInvoiceCard = ({item}: {item: InvoiceListDTOResultData}) => {
     const statusLabel = getInvoiceStatusName(item);
     const norm = statusLabel.trim().toLowerCase().replace(/[\s-]/g, '');
     const isPartial = norm === 'partialpaid';
     const isPaid = norm === 'paid';
-    const isUnpaid = norm === 'unpaid';
-    const amountLabel = isPaid ? 'Paid Amount :' : isPartial ? 'Total Amount :' : 'Pending Amount :';
+    const remaining = Number((item as any).RemainingAmount ?? 0);
+    const showPending = !isPaid && remaining > 0;
+    const amountLabel = isPaid ? 'Paid Amount :' : 'Total Amount :';
     return (
       <TouchableOpacity
         style={styles.card}
@@ -385,20 +388,22 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
               </Text>
             </View>
             <View style={styles.detailLine}>
-              <Text style={[styles.detailLabel, isUnpaid && {color: '#ff4a4a'}]} numberOfLines={1}>
+              <Text style={styles.detailLabel} numberOfLines={1}>
                 {amountLabel}
               </Text>
-              <Text style={[styles.detailValue, styles.detailBold, {color: isUnpaid ? THEME_PRIMARY : GREEN_500}]} numberOfLines={1}>
+              <Text style={[styles.detailValue, styles.detailBold, {color: GREEN_500}]} numberOfLines={1}>
                 ₹ {formatAmount(getInvoiceAmount(item))}
               </Text>
             </View>
           </View>
           <View style={[styles.cardRight, {flex: 0.4, alignItems: 'flex-start'}]}>
-            {isPartial ? (
-              <Text style={[styles.pendingText, {color: '#ff9b00'}]} numberOfLines={1}>
+            {showPending ? (
+              <Text
+                style={[styles.pendingText, {color: isPartial ? '#ff9b00' : '#374151'}]}
+                numberOfLines={1}>
                 {t('rn_pending_amt')}{' '}
                 <Text style={[styles.detailBold, {color: THEME_PRIMARY, fontSize: sp(12)}]}>
-                  ₹ {formatAmount(Number((item as any).RemainingAmount ?? 0))}
+                  ₹ {formatAmount(remaining)}
                 </Text>
               </Text>
             ) : null}
