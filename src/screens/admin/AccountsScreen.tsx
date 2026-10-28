@@ -396,7 +396,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
               </Text>
             </View>
           </View>
-          <View style={[styles.cardRight, {flex: 0.4, alignItems: 'flex-start'}]}>
+          <View style={[styles.cardRight, {flex: 0.5, alignItems: 'flex-start'}]}>
             {showPending ? (
               <Text
                 style={[styles.pendingText, {color: isPartial ? '#ff9b00' : '#374151'}]}

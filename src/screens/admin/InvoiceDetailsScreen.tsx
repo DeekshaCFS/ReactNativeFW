@@ -44,14 +44,6 @@ const RED = '#c3002f';
 // (dialog_update_payment_status / InvoiceDetailsFragment.java).
 const PAYMENT_TYPES = ['Cash', 'UPI', 'NEFT', 'Cheque', 'Credit', 'Other'] as const;
 
-// Extra item fields returned on the invoice details response.
-type ExtraFields = {
-  ExtraItem?: string | null;
-  ExtraAmount?: number | null;
-  // Assumed field name for the extra item's quantity. Confirm against the API response.
-  ExtraQuantity?: number | null;
-};
-
 // Java String.valueOf(double): 0 -> "0.0", 12.5 -> "12.5".
 const javaDouble = (value: unknown) => {
   const num = Number(value ?? 0);
@@ -84,6 +76,9 @@ const getStatusColor = (statusLabel: string) => {
   }
   if (normalized === 'partialpaid') {
     return '#ff9b00';
+  }
+  if (normalized === 'followup') {
+    return '#7b1fa2';
   }
   return THEME_PRIMARY;
 };
@@ -319,25 +314,23 @@ const InvoiceDetailsScreen = ({
   // Partial Paid / UnPaid — see setInvoiceStatusUI() in the Java source.
   const normalizedStatus = statusLabel.trim().toLowerCase().replace(/[\s-]/g, '');
   const isPaid = normalizedStatus === 'paid';
+  const isFollowUp = normalizedStatus === 'followup';
+  const shownDownload = isPaid || isFollowUp;
 
   const rawTaxName = details?.TaxName;
   const taxLabel =
-    rawTaxName === null || rawTaxName === undefined || String(rawTaxName).toLowerCase() === 'null'
+    rawTaxName === null ||
+    rawTaxName === undefined ||
+    String(rawTaxName).trim() === '' ||
+    String(rawTaxName).toLowerCase() === 'null'
       ? 'Tax'
       : String(rawTaxName);
-  const taskDiscountAmount = Number((details as any)?.TaskDiscountedAmount ?? 0);
   const itemList = details?.ItemList ?? [];
   const serviceList = details?.ServiceList ?? [];
   const paymentList = details?.PaymentList ?? [];
 
-  // Paid / Pending come from the payment-status API, falling back to the invoice details.
-  const paidAmount = Number(summaryStatus?.received ?? details?.ReceivedAmount ?? 0);
+  // Pending comes from the payment-status API, falling back to the invoice details.
   const pendingAmount = Number(summaryStatus?.remaining ?? details?.RemainingAmount ?? 0);
-
-  const extra = details as unknown as ExtraFields | null;
-  const extraItemName = String(extra?.ExtraItem ?? '').trim();
-  const extraAmount = Number(extra?.ExtraAmount ?? 0);
-  const extraQuantity = Number(extra?.ExtraQuantity ?? 0);
 
   return (
     <View style={styles.screen}>
@@ -359,13 +352,14 @@ const InvoiceDetailsScreen = ({
                 <ActionCell hidden={isPaid} onPress={openFollowUpModal}>
                   <Image source={require('../../../assets/images/ic_calendar.png')} style={styles.pngIcon} />
                 </ActionCell>
-                <ActionCell hidden={!isPaid} onPress={handleDownload} disabled={pdf.isDownloading}>
+                <ActionCell hidden={!shownDownload} onPress={handleDownload} disabled={pdf.isDownloading}>
                   <Image source={require('../../../assets/images/ic_download.png')} style={styles.pngIcon} />
                 </ActionCell>
               </StatusIconRow>
 
               <SectionTitle first>{t('invoice_details')}</SectionTitle>
-              <DetailRow first label={t('task_name')} value={details?.QuotationCode ?? initialTaskName ?? ''} />
+              {/* Java shows the task name passed from the list (getQuoteTaskName). */}
+              <DetailRow first label={t('task_name')} value={initialTaskName ?? details?.QuotationCode ?? ''} />
               <DetailRow label={t('rn_invoice_date')} value={formatDateOnly(details?.InvoiceDateTime)} />
               <DetailRow label={t('rn_invoice_id')} value={details?.InvoiceCode ?? ''} />
 
@@ -388,7 +382,8 @@ const InvoiceDetailsScreen = ({
               {itemList.map((line, index) => (
                 <View key={`item-${index}`} style={styles.listRow}>
                   <Text style={[styles.rowCell, styles.eq, {textAlign: 'left'}]}>{line.ItemName ?? ''}</Text>
-                  <Text style={[styles.rowCell, styles.eq]}>{line.Quantity ?? 0}</Text>
+                  {/* Java InvoiceItemDetailsListAdapter: quantity 0 is shown as 1. */}
+                  <Text style={[styles.rowCell, styles.eq]}>{line.Quantity ? line.Quantity : 1}</Text>
                   <Text style={[styles.rowCell, styles.eq]}>₹ {formatAmount(line.UnitPrice)}</Text>
                   <Text style={[styles.rowCell, styles.eq]}>₹ {formatAmount(line.TotalPrice)}</Text>
                 </View>
@@ -403,28 +398,10 @@ const InvoiceDetailsScreen = ({
                 <View key={`service-${index}`} style={styles.listRow}>
                   <Text style={[styles.rowCell, {flex: 0.42, textAlign: 'left'}]}>{line.ServiceName ?? ''}</Text>
                   <Text style={[styles.rowCell, {flex: 0.3, textAlign: 'left'}]}>{line.Quantity ?? 0}</Text>
-                  <Text style={[styles.rowCell, {flex: 0.28}]}>₹ {formatAmount(line.Price)}</Text>
+                  {/* Java InvoiceServiceDetailsListAdapter shows TotalPrice, not Price. */}
+                  <Text style={[styles.rowCell, {flex: 0.28}]}>₹ {formatAmount(line.TotalPrice)}</Text>
                 </View>
               ))}
-
-              {extraItemName || extraAmount !== 0 ? (
-                <>
-                  <View style={[styles.tableHeaderRow, {marginTop: ms(10)}]}>
-                    <Text style={[styles.tableHeaderCell, {flex: 0.4}]}>
-                      {t('rn_extra_name', {defaultValue: 'Extra Name'})}
-                    </Text>
-                    <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>{t('rn_qty')}</Text>
-                    <Text style={[styles.tableHeaderCell, {flex: 0.3}]}>
-                      {t('rn_extra_price', {defaultValue: 'Extra Price'})}
-                    </Text>
-                  </View>
-                  <View style={styles.listRow}>
-                    <Text style={[styles.rowCell, {flex: 0.42, textAlign: 'left'}]}>{extraItemName}</Text>
-                    <Text style={[styles.rowCell, {flex: 0.3, textAlign: 'left'}]}>{extraQuantity}</Text>
-                    <Text style={[styles.rowCell, {flex: 0.28}]}>₹ {formatAmount(extraAmount)}</Text>
-                  </View>
-                </>
-              ) : null}
 
               <SectionTitle>{t('rn_tax_discounts_quote_amount')}</SectionTitle>
               <DetailRow first label={t('rn_total_amount')} value={`₹ ${formatAmount(details?.InvoiceAmount ?? details?.SubTotalAmount)}`} />
@@ -436,12 +413,6 @@ const InvoiceDetailsScreen = ({
                 label={taxLabel}
                 value={`₹ ${javaDouble(details?.TaxAmount)}(${javaDouble(details?.Tax)}%)`}
               />
-              {taskDiscountAmount !== 0 ? (
-                <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
-                  <Text style={styles.summaryLabelGreen}>{t('rn_task_discount_amount')}</Text>
-                  <Text style={styles.summaryValueGreen}>₹ {formatAmount(taskDiscountAmount)}</Text>
-                </View>
-              ) : null}
               <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
                 <Text style={styles.summaryLabelGreen}>{t('rn_grand_total_amount')}</Text>
                 <Text style={styles.summaryValueGreen}>₹ {formatAmount(details?.GrandTotalAmount)}</Text>
@@ -461,15 +432,13 @@ const InvoiceDetailsScreen = ({
                 </View>
               ))}
 
-              {/* Paid and Pending are always shown, in red, from the payment-status API. */}
-              <View style={[styles.rowPlain, {marginTop: ms(10)}]}>
-                <Text style={styles.summaryLabel}>{t('rn_paid_amount', {defaultValue: 'Paid Amount'})}</Text>
-                <Text style={styles.summaryValue}>₹ {formatAmount(paidAmount)}</Text>
-              </View>
-              <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
-                <Text style={styles.summaryLabel}>{t('rn_pending_amount')}</Text>
-                <Text style={styles.summaryValue}>₹ {formatAmount(pendingAmount)}</Text>
-              </View>
+              {/* Java hides pending when Paid; also hidden when the amount is 0. */}
+              {!isPaid && pendingAmount !== 0 ? (
+                <View style={[styles.rowPlain, {marginTop: ms(10), marginBottom: ms(12)}]}>
+                  <Text style={styles.summaryLabel}>{t('rn_pending_amount')}</Text>
+                  <Text style={styles.summaryValue}>₹ {formatAmount(pendingAmount)}</Text>
+                </View>
+              ) : null}
             </>
           )}
         </View>
