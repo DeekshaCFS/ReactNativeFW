@@ -12,7 +12,6 @@ import {useTour, type TourStep} from '../../tour/TourContext';
 import {useNavigation} from '@react-navigation/native';
 import {useTranslation} from 'react-i18next';
 import {AppTourIcon, RateUsIcon, ShareFeedbackIcon, LanguageIcon2, InviteFriendIcon, TermsIcon, PrivacyIcon, RefundIcon, AboutUsIcon, AccountsRowIcon} from '../../components/SettingsIcons';
-import {DeleteAccIcon} from '../../components/JavaIcons';
 import SettingsScreenBase, {type SettingsRow} from '../../components/SettingsScreenBase';
 import LanguagePickerModal from '../../components/LanguagePickerModal';
 import RateUsModal from '../../components/RateUsModal';
@@ -102,7 +101,6 @@ export default function AdminSettingScreen() {
     // Java: cardViewDeleteAccount has a click listener but its onClick case
     // body is empty (commented out) -- the row is a silent dead tap there
     // too, so no onPress here either.
-    {icon: DeleteAccIcon, iconSize: 30, title: t('deleteAccount')},
     {icon: TermsIcon, iconSize: 30, title: t('termsCondition'), route: 'TermsAndConditions'},
     {icon: PrivacyIcon, iconSize: 30, title: t('privacyPolicy'), route: 'PrivacyPolicy'},
     {icon: RefundIcon, iconSize: 30, title: t('refundPolicy'), route: 'RefundPolicy'},

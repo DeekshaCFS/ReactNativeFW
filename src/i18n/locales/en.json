@@ -1276,7 +1276,7 @@
   "rn_select_payment_type": "Select Payment Type",
   "rn_invoice_follow_up_date": "Invoice Follow up Date",
   "rn_follow_up_notes": "Follow up notes",
-  "rn_this_item_is_assigned_to_fieldworkers_retu": "This item is assigned to fieldworkers. Return it before deleting.",
+  "rn_this_item_is_assigned_to_fieldworkers_retu": "Item is already issued to one or more fieldworker. Please collect the item and delete.",
   "rn_quantity_cannot_exceed_the_issued_quantity": "Quantity cannot exceed the issued quantity.",
   "rn_available": "Available:",
   "rn_issued": "Issued:",
