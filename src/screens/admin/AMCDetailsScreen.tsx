@@ -1,5 +1,6 @@
 // src/screens/admin/AMCDetailsScreen.tsx
 
+import ConfirmDeleteDialog from '../../components/ConfirmDeleteDialog';
 import React, { useEffect, useState, useMemo } from 'react';
 import {ms, sp, vs} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
@@ -565,6 +566,8 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   // (Java: AMCDialog with fromWhere="Renewal", posts AddAMCRenewal).
   const [historyVisible, setHistoryVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
+  // Server refusal of the delete (Java shows it as a toast; here it stays in the sheet).
+  const [deleteRefusal, setDeleteRefusal] = useState<string | null>(null);
   const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
   const [historyRows, setHistoryRows] = useState<Record<string, unknown>[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -1231,11 +1234,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
         showSuccessMsg(response.Message || 'AMC deleted successfully.');
         navigation.goBack();
       } else {
-        showFailureMsg(response.Message || 'Could not delete this AMC.');
+        setDeleteRefusal(response.Message || 'Could not delete this AMC.');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not delete this AMC.';
-      showFailureMsg(message || 'Error');
+      setDeleteRefusal(message || 'Error');
     } finally {
       setIsDeletingAmc(false);
     }
@@ -1717,27 +1720,24 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
       </Modal>
 
       {/* Java delete_amc_dialog.xml */}
-      <BottomSheetDialog visible={deleteVisible} onRequestClose={() => setDeleteVisible(false)}>
-        <View style={styles.delOuter}>
-          <Text style={styles.delMessage}>
-            {t('rn_do_you_want_to_delete_this_amc_it_will_del')}
-          </Text>
-          <View style={styles.delButtons}>
-            <Pressable style={styles.delNo} onPress={() => setDeleteVisible(false)}>
-              <Text style={styles.delNoText}>{t('no')}</Text>
-            </Pressable>
-            <Pressable
-              style={styles.delYes}
-              onPress={() => {
-                setDeleteVisible(false);
-                confirmDeleteAmc();
-              }}
-            >
-              <Text style={styles.delYesText}>{t('yes').toUpperCase()}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </BottomSheetDialog>
+      <ConfirmDeleteDialog
+        visible={deleteVisible}
+        message={t('rn_do_you_want_to_delete_this_amc_it_will_del')}
+        onCancel={() => setDeleteVisible(false)}
+        onConfirm={() => {
+          setDeleteVisible(false);
+          confirmDeleteAmc();
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        visible={deleteRefusal !== null}
+        message={deleteRefusal ?? ''}
+        cancelLabel={tr('Cancel')}
+        confirmLabel={tr('Proceed').toUpperCase()}
+        onCancel={() => setDeleteRefusal(null)}
+        onConfirm={() => setDeleteRefusal(null)}
+      />
 
       <AddTaskModal
         visible={isAddTaskModalOpen}

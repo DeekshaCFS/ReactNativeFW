@@ -1,8 +1,8 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useConfirmDelete} from '../../components/ConfirmDeleteDialog';
 import {ms, sp} from '../../utils/responsive';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   ScrollView,
   FlatList,
@@ -528,6 +528,7 @@ const ItemInventoryTabHostScreen = ({
   isFieldWorker = false,
 }: ItemInventoryTabHostScreenProps) => {
   const {t} = useTranslation();
+  const {askDelete, deleteDialog} = useConfirmDelete();
   const [activeTab, setActiveTab] = useState<InventoryTabKey>('primary');
   // Row actions (Java ItemListAdapterNew): edit, assign, delete; plus return
   // on an assigned row (ItemInventoryAdapter -> ItemDialog.updateReturnItem).
@@ -773,24 +774,21 @@ const ItemInventoryTabHostScreen = ({
     // otherwise asks for confirmation (SureTodeleteItemDialog) first.
     const assigned = getItemNumber(item, ['assignedQuantity', 'AssignedQuantity']);
     if (assigned > 0) {
-      showFailureMsg(t('rn_this_item_is_assigned_to_fieldworkers_retu'));
+      // Java dialog_delete_item: Cancel / PROCEED; PROCEED reloads the inventory (no delete).
+      askDelete(t('rn_this_item_is_assigned_to_fieldworkers_retu'), () => loadFirstItemPage(true), {
+        confirmLabel: tr('Proceed').toUpperCase(),
+        cancelLabel: tr('Cancel'),
+      });
       return;
     }
-    Alert.alert(tr('Delete item'), tr('Are you sure do you want to delete the item ?'), [
-      {text: tr('No'), style: 'cancel'},
-      {
-        text: tr('Yes'),
-        style: 'destructive',
-        onPress: async () => {
+    askDelete(tr('Are you sure do you want to delete the item ?'), async () => {
           try {
             ensureSuccess(await getDeleteItemPortal({Id: getItemId(item)}));
             loadFirstItemPage(true);
           } catch (error) {
             showFailureMsg(error instanceof Error ? error.message : tr('Unable to delete item.'));
           }
-        },
-      },
-    ]);
+    });
   };
 
   const openReturnDialog = (row: AssignedItemListItem) => {
@@ -1055,7 +1053,7 @@ const ItemInventoryTabHostScreen = ({
           </Pressable>
         </View>
         <Pressable style={styles.addItemButton} onPress={() => setIsAddingItem(true)}>
-          <Text style={styles.addItemButtonText}>{t('item')}</Text>
+          <Text style={styles.addItemButtonText}>+ {t('item')}</Text>
         </Pressable>
       </View>
 
@@ -1473,6 +1471,8 @@ const ItemInventoryTabHostScreen = ({
   );
 
   return (
+    <>
+      {deleteDialog}
     <View
       style={[
         styles.shell,
@@ -1596,6 +1596,7 @@ const ItemInventoryTabHostScreen = ({
         }}
       />
     </View>
+    </>
   );
 };
 

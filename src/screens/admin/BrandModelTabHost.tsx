@@ -10,10 +10,10 @@
 // models when drilling into a brand, and of serial numbers when drilling
 // into a model. Mutations refetch only the current level.
 
+import {useConfirmDelete} from '../../components/ConfirmDeleteDialog';
 import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   FlatList,
   Image,
@@ -58,6 +58,7 @@ type ViewState =
 
 const BrandModelInner: React.FC<Props> = ({ownerId}) => {
   const { t } = useTranslation();
+  const {askDelete, deleteDialog} = useConfirmDelete();
   const [view, setView] = useState<ViewState>({level: 'brand'});
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -164,57 +165,36 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
   };
 
   const handleDeleteBrand = (brand: BrandItem) => {
-    Alert.alert(tr('Delete Brand'), trf('Delete "{{name}}"? This also removes its models and serial numbers.', {name: brand.BrandName}), [
-      {text: tr('Cancel'), style: 'cancel'},
-      {
-        text: tr('Delete'),
-        style: 'destructive',
-        onPress: async () => {
+    askDelete(tr('Are you sure you want to delete this brand? This will also delete all associated models and their serial numbers.'), async () => {
           try {
             await ensureSuccess(await deleteBrand({BrandId: brand.BrandId ?? 0, ownerId}));
             fetchBrands();
           } catch (e) {
             showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete brand.'));
           }
-        },
-      },
-    ]);
+    }, {subject: brand.BrandName, cancelLabel: tr('Cancel'), confirmLabel: tr('Proceed').toUpperCase()});
   };
 
   const handleDeleteModel = (model: ModelItem) => {
-    Alert.alert(tr('Delete Model'), trf('Delete "{{name}}"? This also removes its serial numbers.', {name: model.ModelName}), [
-      {text: tr('Cancel'), style: 'cancel'},
-      {
-        text: tr('Delete'),
-        style: 'destructive',
-        onPress: async () => {
+    askDelete(tr('Are you sure you want to delete this Model ? This will also delete all associated serial numbers.'), async () => {
           try {
             await ensureSuccess(await deleteModel({ModelId: model.ModelId ?? 0, ownerId}));
             if (view.level === 'model') fetchModels(view.brand.BrandId ?? 0);
           } catch (e) {
             showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete model.'));
           }
-        },
-      },
-    ]);
+    }, {subject: model.ModelName, cancelLabel: tr('Cancel'), confirmLabel: tr('Proceed').toUpperCase()});
   };
 
   const handleDeleteSerial = (serial: SerialNoItem) => {
-    Alert.alert(tr('Delete Serial Number'), trf('Delete "{{name}}"?', {name: serial.SerialNo}), [
-      {text: tr('Cancel'), style: 'cancel'},
-      {
-        text: tr('Delete'),
-        style: 'destructive',
-        onPress: async () => {
+    askDelete(tr('Are you sure you want to delete this Serial Number ?'), async () => {
           try {
             await ensureSuccess(await deleteSerialNo({SerialNoId: serial.SerialNoId ?? 0, ownerId}));
             if (view.level === 'serial') fetchSerials(view.brand.BrandId ?? 0, view.model.ModelId ?? 0);
           } catch (e) {
             showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete serial number.'));
           }
-        },
-      },
-    ]);
+    }, {subject: serial.SerialNo, cancelLabel: tr('Cancel'), confirmLabel: tr('Proceed').toUpperCase()});
   };
 
   // ---- Java brand_management_fragment / model_management_fragment / brand_list / model_list ----
@@ -395,6 +375,8 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
   const filteredSerials = serials.filter(s => String(s.SerialNo ?? '').toLowerCase().includes(q));
 
   return (
+    <>
+      {deleteDialog}
     <View style={styles.root}>
       <View style={styles.searchRow}>
         <UnderlineSearch value={search} onChangeText={setSearch} placeholder={t('search_serial_number')} style={styles.searchFlex} />
@@ -443,6 +425,7 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
         }}
       />
     </View>
+    </>
   );
 };
 

@@ -1,10 +1,10 @@
 // src/screens/admin/LeadListScreen.tsx
 
+import {useConfirmDelete} from '../../components/ConfirmDeleteDialog';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ms, sp, useAppHeaderHeight} from '../../utils/responsive';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Linking,
@@ -379,6 +379,7 @@ const uniqueStatuses = (statuses: LeadStatusOption[]) => {
 
 const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
   const {t} = useTranslation();
+  const {askDelete, deleteDialog} = useConfirmDelete();
   const [leads, setLeads] = useState<LeadListItem[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
 
@@ -654,15 +655,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
         onBack={() => setSelectedLeadId(null)}
         onDelete={() => {
           // LeadDetailsFragment.deleteLeadDetailsDialog (delete_leaddetails_dialog).
-          Alert.alert(
-            '',
-            t('delete_leaddetails'),
-            [
-              { text: tr('NO'), style: 'cancel' },
-              {
-                text: tr('Yes'),
-                style: 'destructive',
-                onPress: async () => {
+          askDelete(t('delete_leaddetails'), async () => {
                   try {
                     const response = await deleteLeadDetails({ UserId: userId, Id: selectedLeadId });
                     showSuccessMsg(response?.Message ?? 'Lead deleted.');
@@ -673,16 +666,15 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
                   } catch (error) {
                     showFailureMsg(error instanceof Error ? error.message : tr('Unable to delete lead.'));
                   }
-                },
-              },
-            ],
-          );
+          });
         }}
       />
     );
   }
 
   return (
+    <>
+      {deleteDialog}
     <View style={styles.screen}>
       {/* The menu/title/notification row used to be drawn here; it's now
           the shared AppHeader rendered once by AdminTabs, above
@@ -828,6 +820,7 @@ const LeadListScreen = ({userId, technician = false}: LeadListScreenProps) => {
         onSuccess={() => fetchLeadPage({nextPage: PAGE_START, replace: true})}
       />
     </View>
+    </>
   );
 };
 

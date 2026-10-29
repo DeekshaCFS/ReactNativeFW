@@ -3,6 +3,7 @@
 // Java's Accounts dialogs (FWDialog + DialogSlideAnim, bottom gravity):
 //   delete_quotedetails_dialog / delete_invoicedetails_dialog  -> AccountsDeleteSheet
 //   update_quote_status / dialog_update_payment_status / dialog_invoice_follow_up -> AccountsFormSheet
+import ConfirmDeleteDialog from './ConfirmDeleteDialog';
 import React from 'react';
 import {ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -21,20 +22,9 @@ type DeleteProps = {
 };
 
 /** 30dp-radius card, centred bold 16sp message, "No" (light gray) / "YES" (red pill). */
+/** Delete confirmation for quotes and invoices; rendered by the shared ConfirmDeleteDialog. */
 export const AccountsDeleteSheet = ({visible, message, onNo, onYes}: DeleteProps) => (
-  <BottomSheetDialog visible={visible} onRequestClose={onNo}>
-    <View style={styles.delOuter}>
-      <Text style={styles.delMessage}>{message}</Text>
-      <View style={styles.delButtons}>
-        <Pressable style={styles.delNo} onPress={onNo}>
-          <Text style={styles.delNoText}>{i18n.t('no')}</Text>
-        </Pressable>
-        <Pressable style={styles.delYes} onPress={onYes}>
-          <Text style={styles.delYesText}>{i18n.t('yes').toUpperCase()}</Text>
-        </Pressable>
-      </View>
-    </View>
-  </BottomSheetDialog>
+  <ConfirmDeleteDialog visible={visible} message={message} onCancel={onNo} onConfirm={onYes} />
 );
 
 type FormProps = {

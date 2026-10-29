@@ -1,8 +1,8 @@
 // src/screens/technician/main/LeaveScreen.tsx
+import {useConfirmDelete} from '../../../components/ConfirmDeleteDialog';
 import {
   View, Text, StyleSheet, FlatList, Pressable, Image, ScrollView,
-  Platform, StatusBar, TextInput, ActivityIndicator, RefreshControl, Alert,
-} from 'react-native';
+  Platform, StatusBar, TextInput, ActivityIndicator, RefreshControl, } from 'react-native';
 import Modal from '../../../components/AppModal';
 import MonthYearPickerDialog from '../../../components/MonthYearPickerDialog';
 import SearchPickerModal from '../../../components/SearchPickerModal';
@@ -103,6 +103,7 @@ const formatRequestedAt = (iso?: string) => {
 
 export default function LeaveScreen() {
   const {t} = useTranslation();
+  const {askDelete, deleteDialog} = useConfirmDelete();
   const navigation = useNavigation<NavigationProp>();
   const headerHeight = useAppHeaderHeight();
 
@@ -357,12 +358,7 @@ export default function LeaveScreen() {
 
   const handleDelete = () => {
     if (!userId || !activeLeave) return;
-    Alert.alert(tr('Delete Leave'), tr('Are you sure you want to delete this leave request?'), [
-      { text: tr('Cancel'), style: 'cancel' },
-      {
-        text: tr('Delete'),
-        style: 'destructive',
-        onPress: async () => {
+    askDelete(tr('Are you sure you want to delete this leave request?'), async () => {
           setSubmitting(true);
           try {
             const res = await deleteLeave({ UserId: userId, LeaveId: activeLeave.LeaveID });
@@ -378,9 +374,7 @@ export default function LeaveScreen() {
           } finally {
             setSubmitting(false);
           }
-        },
-      },
-    ]);
+    });
   };
 
   // ── Render ──
@@ -459,6 +453,8 @@ export default function LeaveScreen() {
   );
 
   return (
+    <>
+      {deleteDialog}
     <View style={styles.root}>
       <FlatList
         data={leaves}
@@ -661,6 +657,7 @@ export default function LeaveScreen() {
         onClose={() => setShowLeaveTypeDropdown(false)}
       />
     </View>
+    </>
   );
 }
 

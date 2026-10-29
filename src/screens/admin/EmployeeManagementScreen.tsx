@@ -1,11 +1,11 @@
 // src/screens/admin/EmployeeManagementScreen.tsx
 
+import {useConfirmDelete} from '../../components/ConfirmDeleteDialog';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {ms, sp} from '../../utils/responsive';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Linking,
@@ -214,6 +214,7 @@ const EmployeeManagementScreen = ({
   onActiveTabChange,
 }: EmployeeManagementScreenProps) => {
   const {t} = useTranslation();
+  const {askDelete, deleteDialog} = useConfirmDelete();
   const pdf = usePdfDownload();
   const [activeTab, setActiveTab] = useState<EmployeeTab>('employee');
 
@@ -707,15 +708,7 @@ const EmployeeManagementScreen = ({
 
   const handleDeleteEmployee = (item: EmployeeListItem) => {
     // delete_tech_account.xml wording.
-    Alert.alert(
-      `${t('delete_tech_acc_desc')} ${getEmployeeName(item)}`,
-      t('delete_tech_acc_desc_one'),
-      [
-        {text: tr('Nope. Not Now'), style: 'cancel'},
-        {
-          text: tr('Yes. Delete'),
-          style: 'destructive',
-          onPress: async () => {
+    askDelete(t('delete_tech_acc_desc_one'), async () => {
             try {
               // Java (EmployeeListFragment.DeleteEmpAccount): a list of
               // { UserId: <logged-in owner>, Id: <employee to delete> }.
@@ -729,10 +722,15 @@ const EmployeeManagementScreen = ({
             } catch (error) {
               showFailureMsg(error instanceof Error ? error.message : tr('Unable to delete employee.'));
             }
-          },
-        },
-      ],
-    );
+    }, {
+      layout: 'stacked',
+      icon: require('../../../assets/images/tech_profile.png'),
+      title: t('delete_tech_acc_desc'),
+      subject: getEmployeeName(item),
+      cancelLabel: t('delete_tech_no'),
+      cancelTone: 'neutral',
+      confirmLabel: t('delete_tech_yes'),
+    });
   };
 
   const renderEmployee = ({item}: {item: EmployeeListItem}) => {
@@ -1164,6 +1162,8 @@ const EmployeeManagementScreen = ({
   );
 
   return (
+    <>
+      {deleteDialog}
     <View style={styles.shell}>
       <View style={{ marginTop: contentTopOffset }}>
         <TabStrip
@@ -1404,6 +1404,7 @@ const EmployeeManagementScreen = ({
       {/* In-app download overlay and PDF viewer for the employee list. */}
       {pdf.modals}
     </View>
+    </>
   );
 };
 

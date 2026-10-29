@@ -5,23 +5,7 @@
 import {ms, sp} from '../../utils/responsive';
 import {COLORS} from '../../theme/theme';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Share,
   StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
 } from 'react-native';
 import type {EnquiryListResultData} from '../../api/customerInquiry/customerInquiry.types';
 import type {CustomerListResultData, StateDTOResultData, CityDTOResultData} from '../../api/customerList/customerList.types';
@@ -823,8 +807,18 @@ export const buildServiceTree = (
     .map((item, index) => {
       const record = item as Record<string, unknown>;
       const label = getStringField(record, SERVICE_LABEL_KEYS);
+      const ownIdKeys =
+        record.ServiceName != null
+          ? ['Id']
+          : record.ServiceTypeSubCategoryName != null
+            ? ['ServiceTypeSubCategoryId']
+            : record.ServiceTypeCategoryName != null
+              ? ['ServiceTypeCategoryId']
+              : [];
       const id =
-        getNumberField(record, SERVICE_ID_KEYS) || (depth + 1) * 10000 + index;
+        (ownIdKeys.length ? getNumberField(record, ownIdKeys) : 0) ||
+        getNumberField(record, SERVICE_ID_KEYS) ||
+        (depth + 1) * 10000 + index;
       const key = `${parentKey}${depth}-${index}-${id}`;
       const children = buildServiceTree(
         getServiceChildArray(record) as AdvanceServiceItem[],

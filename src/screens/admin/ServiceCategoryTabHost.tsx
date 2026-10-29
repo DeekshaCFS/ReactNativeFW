@@ -9,10 +9,10 @@
 // -> services) in one call, so browsing is pure local state; only
 // add/edit/delete hit the network, followed by a refetch of the tree.
 
+import {useConfirmDelete} from '../../components/ConfirmDeleteDialog';
 import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   FlatList,
   Image,
@@ -24,7 +24,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import {COLORS} from '../../theme/theme';
 import {ms, sp, vs} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
@@ -55,7 +54,7 @@ import {DeleteAccIcon, EditProfileIcon, RightArrowIcon} from '../../components/J
 import { showFailureMsg } from '../../utils/toast';
 
 import { useTranslation } from 'react-i18next';
-import {tr, trf} from '../../i18n/tr';
+import {tr} from '../../i18n/tr';
 type Props = {
   ownerId: number;
 };
@@ -89,6 +88,7 @@ const ServiceThumb = ({uri, style, fallback}: {uri?: string | null; style: Style
 
 const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
   const { t } = useTranslation();
+  const {askDelete, deleteDialog} = useConfirmDelete();
   const [tree, setTree] = useState<ServiceCategoryListDTOResultData[]>([]);
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation<any>();
@@ -228,12 +228,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
   };
 
   const handleDeleteCategory = (category: ServiceCategoryListDTOResultData) => {
-    Alert.alert(tr('Delete Category'), trf('Delete "{{name}}"? This also removes its sub-categories and services.', {name: category.ServiceTypeCategoryName}), [
-      {text: tr('Cancel'), style: 'cancel'},
-      {
-        text: tr('Delete'),
-        style: 'destructive',
-        onPress: async () => {
+    askDelete(tr('Do you want to delete this Category ?'), async () => {
           try {
             await ensureSuccess(
               await deleteServiceCategoryList(
@@ -246,24 +241,14 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
           } catch (e) {
             showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete category.'));
           }
-        },
-      },
-    ]);
+    });
   };
 
   const handleDeleteSubCategory = (
     category: ServiceCategoryListDTOResultData,
     subcategory: ServiceCategoryListDTOLstServiceTypeSubcategories,
   ) => {
-    Alert.alert(
-      tr('Delete Sub-Category'),
-      trf('Delete "{{name}}"? This also removes its services.', {name: subcategory.ServiceTypeSubCategoryName}),
-      [
-        {text: tr('Cancel'), style: 'cancel'},
-        {
-          text: tr('Delete'),
-          style: 'destructive',
-          onPress: async () => {
+    askDelete(tr('Do you want to delete this Sub-Category ?'), async () => {
             try {
               await ensureSuccess(
                 await deleteServiceSubCategoryList(
@@ -276,28 +261,18 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
             } catch (e) {
               showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete sub-category.'));
             }
-          },
-        },
-      ],
-    );
+    });
   };
 
   const handleDeleteService = (service: ServiceCategoryListDTOLstServiceType) => {
-    Alert.alert(tr('Delete Service'), trf('Delete "{{name}}"?', {name: service.ServiceName}), [
-      {text: tr('Cancel'), style: 'cancel'},
-      {
-        text: tr('Delete'),
-        style: 'destructive',
-        onPress: async () => {
+    askDelete(tr('Do you want to delete the Service ?'), async () => {
           try {
             await ensureSuccess(await getDeleteService({OwnerId: ownerId, SId: service.Id}));
             refresh();
           } catch (e) {
             showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete service.'));
           }
-        },
-      },
-    ]);
+    });
   };
 
   const q = search.trim().toLowerCase();
@@ -607,6 +582,8 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
   const filteredServices = services.filter(s => String(s.ServiceName ?? '').toLowerCase().includes(q));
 
   return (
+    <>
+      {deleteDialog}
     <View style={styles.root}>
       <View style={styles.sheet}>
         {renderBreadcrumb('Sub Category', view.subcategory.ServiceTypeSubCategoryName ?? '', view.subcategory.ServiceTypeSubCategoryImage)}
@@ -654,6 +631,7 @@ renderRow({
         }}
       />
     </View>
+    </>
   );
 };
 

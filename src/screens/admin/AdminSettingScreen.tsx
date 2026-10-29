@@ -63,8 +63,8 @@ export default function AdminSettingScreen() {
 
   // Java: cardView_AppTour -> dashboard, then the TapTargetSequence above.
   const handleAppTour = () => {
-    navigation.navigate('Home');
-    startTour(ADMIN_APP_TOUR_STEPS);
+    navigation.navigate('Home', {drawerSection: 'Dashboard'});
+    setTimeout(() => startTour(ADMIN_APP_TOUR_STEPS), 300);
   };
 
   const handleSelectLanguage = (code: LanguageCode) => {

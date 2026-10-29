@@ -1,5 +1,6 @@
 // src/screens/admin/CRMScreen.tsx
 
+import {useConfirmDelete} from '../../components/ConfirmDeleteDialog';
 import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
@@ -15,7 +16,6 @@ import ContactBookButton from '../../components/ContactBookButton';
 import {useContactPicker} from '../../hooks/useContactPicker';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -458,6 +458,7 @@ const CRMScreen = ({
   openAddEnquiryTrigger,
 }: CRMScreenProps) => {
   const {t} = useTranslation();
+  const {askDelete, deleteDialog} = useConfirmDelete();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<CRMTabKey>('enquiries');
 
@@ -1371,9 +1372,13 @@ const CRMScreen = ({
           UpdatedBy: ownerId,
           IsActive: true,
         };
-        ensureSuccess(await addEnquiry(payload as unknown as Parameters<typeof addEnquiry>[0]));
+        const addResponse = ensureSuccess(
+          await addEnquiry(payload as unknown as Parameters<typeof addEnquiry>[0]),
+        );
         closeAddEnquiryModal();
-        showSuccessMsg(t('rn_enquiry_added_successfully'));
+        const apiMessage =
+          typeof addResponse?.Message === 'string' ? addResponse.Message.trim() : '';
+        showSuccessMsg(apiMessage || t('rn_enquiry_added_successfully'));
       }
       fetchEnquiries();
     } catch (error) {
@@ -1762,15 +1767,7 @@ const CRMScreen = ({
             }}
             onDelete={record => {
               // CRMTaskAmcTabHostFragment.deleteCustomer (delete_customer_dialog).
-              Alert.alert(
-                '',
-                tr('Do you want to delete this Customer ? It will delete all customer history.'),
-                [
-                  {text: tr('NO'), style: 'cancel'},
-                  {
-                    text: tr('Yes'),
-                    style: 'destructive',
-                    onPress: async () => {
+              askDelete(tr('Do you want to delete this Customer ? It will delete all customer history.'), async () => {
                       try {
                         const response = await deleteCustomerDetails({
                           UserId: ownerId,
@@ -1784,10 +1781,7 @@ const CRMScreen = ({
                       } catch (error) {
                         showFailureMsg(error instanceof Error ? error.message : tr('Unable to delete customer.'));
                       }
-                    },
-                  },
-                ],
-              );
+              });
             }}
           />
     </View>
@@ -1795,6 +1789,8 @@ const CRMScreen = ({
 
 
   return (
+    <>
+      {deleteDialog}
     <View style={styles.screen}>
       {/* The hamburger/title/notification row used to be drawn here; it's
           now the shared AppHeader rendered once by AdminTabs above the tab
@@ -2645,6 +2641,7 @@ const CRMScreen = ({
       />
       {customerDetailsOverlay}
     </View>
+    </>
   );
 };
 
