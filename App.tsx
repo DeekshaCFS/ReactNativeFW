@@ -8,10 +8,12 @@ import ImageSourceHost from './src/components/ImageSourceHost';
 import { loadStoredLanguage } from './src/i18n';
 import { TourProvider } from './src/tour/TourContext';
 import SpotlightOverlay from './src/tour/SpotlightOverlay';
+import SplashScreen from './src/screens/SplashScreen';
 import 'react-native-gesture-handler';
 
 export default function App() {
   const [languageReady, setLanguageReady] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
     const handler = (error: any) => {
@@ -36,6 +38,11 @@ export default function App() {
 
   if (!languageReady) {
     return null;
+  }
+
+  // Java SplashActivity runs first, then routes; RootNavigator does the routing here.
+  if (!splashDone) {
+    return <SplashScreen onFinish={() => setSplashDone(true)} />;
   }
 
   return (
