@@ -43,7 +43,7 @@ const ADMIN_APP_TOUR_STEPS: TourStep[] = [
   {key: 'employeeTab', titleKey: 'manage_amc', descriptionKey: 'manage_amc_desc'},
   {key: 'headerMenu', titleKey: 'manage_expense_assigned_items', descriptionKey: 'manage_expense_assigned_items_desc'},
   {key: 'headerHelp', titleKey: 'help_and_support_tour', descriptionKey: 'help_and_support_tour', radius: 30},
-  {key: 'profileCompletion', titleKey: 'profile', descriptionKey: 'complete_ur_profile', fixed: {x: 0.2, y: 0.158}, textPosition: 'below'},
+  {key: 'profileCompletion', titleKey: 'profile', descriptionKey: 'complete_ur_profile', textPosition: 'below'},
 ];
 
 export default function AdminSettingScreen() {

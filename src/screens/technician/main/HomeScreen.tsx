@@ -28,6 +28,7 @@ import { useOpenTask } from '../../../hooks/useOpenTask';
 import { checkedInTodayKey } from '../../../utils/attendanceKey';
 import DisclaimerModal from '../../../components/DisclaimerModal';
 import TourTarget from '../../../tour/TourTarget';
+import {useTour} from '../../../tour/TourContext';
 import {
   getUserDisclaimer,
   acceptDisclaimer,
@@ -66,6 +67,9 @@ export default function HomeScreen({ navigation }: any) {
   const [refreshing,   setRefreshing]   = useState(false);
 
   const [profilePercent, setProfilePercent] = useState(0);
+  // Java hides the profile details at 100%, but the app tour spotlights this card, so keep them until it ends.
+  const {tourActive} = useTour();
+  const showProfileDetail = profilePercent !== 100 || tourActive;
 
   // Disclaimer the technician must accept before using the app (Java: checkDisclaimer /
   // acceptDisclaimer in HomeActivityNew, run once attendance is confirmed for the day).
@@ -517,23 +521,25 @@ export default function HomeScreen({ navigation }: any) {
         onRefresh={handleRefresh}
         ListHeaderComponent={
           <>
-            {/* Profile completion (Java hides the bar and % once the profile is 100%) */}
-            <TourTarget tourKey="profileCompletion">
-              <View style={styles.profileRow}>
-                <Pressable onPress={() => navigation.navigate('Profile')} style={styles.profileLeft}>
-                  <Text style={styles.profileTitle}>{t('profile_completion')}</Text>
-                  {profilePercent !== 100 && <Text style={styles.profileUpdate}>{t('update')}</Text>}
-                </Pressable>
-                {profilePercent !== 100 && (
+            {/* Profile completion (Java hides the whole row once the profile is 100%).
+                Only the app tour brings it back, so it can be spotlighted. */}
+            {showProfileDetail && (
+              <>
+                <View style={styles.profileRow}>
+                  <Pressable onPress={() => navigation.navigate('Profile')} style={styles.profileLeft}>
+                    {/* Left-side label is the tour target, so the spotlight sits over it. */}
+                    <TourTarget tourKey="profileCompletion">
+                      <Text style={styles.profileTitle}>{t('profile_completion')}</Text>
+                    </TourTarget>
+                    <Text style={styles.profileUpdate}>{t('update')}</Text>
+                  </Pressable>
                   <Text style={styles.profilePercentText}>{profilePercent.toFixed(1)}%</Text>
-                )}
-              </View>
-              {profilePercent !== 100 && (
+                </View>
                 <View style={styles.progressBar}>
                   <View style={[styles.progressFill, { width: `${profilePercent}%` }]} />
                 </View>
-              )}
-            </TourTarget>
+              </>
+            )}
 
             {/* Date label */}
             <View style={styles.dateRow}>

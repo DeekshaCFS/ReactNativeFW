@@ -20,6 +20,7 @@ import {useFocusEffect, useNavigation, useRoute, type RouteProp} from '@react-na
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import { HEADER_CONTENT_HEIGHT } from '../../components/AppHeader';
 import { useDoubleBackExit } from '../../hooks/useDoubleBackExit';
+import { useTour } from '../../tour/TourContext';
 import { ms, sp } from '../../utils/responsive';
 import {
   getCurrentUserProfile,
@@ -68,6 +69,9 @@ const OwnerDashboard = OwnerDashboardScreen as React.ComponentType<{
   onEarningsPress?: () => void;
   onAmcStatusPress?: () => void;
   onAttendancePress?: () => void;
+  profileCompletionPercent?: number;
+  showProfileCompletion?: boolean;
+  onProfilePress?: () => void;
 }>;
 
 const DASHBOARD_FILTERS: DayFilter[] = ['Today', 'Week', 'Month', 'Year'];
@@ -258,6 +262,10 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
     return Number.isFinite(parsed) ? parsed : 0;
   }, [userDetails]);
 
+  // Java hides the profile bar at 100%, but the app tour spotlights it, so keep it visible until the tour ends.
+  const {tourActive} = useTour();
+  const showProfileCompletion = (profileCompletionPercent > 0 && profileCompletionPercent < 100) || tourActive;
+
   const greetingText = useMemo(() => {
     return `${i18n.t('rn_hello')}, ${firstName}`;
   }, [firstName, i18n.language]);
@@ -414,6 +422,9 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
         ownerId={ownerId}
         filter={dashboardFilter}
         onCreateTask={onCreateTask}
+        profileCompletionPercent={profileCompletionPercent}
+        showProfileCompletion={showProfileCompletion}
+        onProfilePress={() => (navigation as any).navigate('Profile')}
         // Matches Java's Earnings tap -> HomePassbookFragmentNew: jump to
         // the Passbook section of this same screen.
         onEarningsPress={() => setSelectedDrawerLabel('Passbook')}
@@ -469,28 +480,6 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
               <Text style={styles.headerLoaderText}>
                 {t('rn_refreshing_profile')}
               </Text>
-            </View>
-          ) : null}
-          {/* Java's owner_home_fragment_new: profileCompletion bar, hidden
-              once the profile reaches 100% (OwnerDashboardFragment). */}
-          {profileCompletionPercent > 0 && profileCompletionPercent < 100 ? (
-            <View style={styles.profileCompletionRow}>
-              <View style={styles.profileCompletionBarTrack}>
-                <View
-                  style={[
-                    styles.profileCompletionBarFill,
-                    {width: `${Math.min(100, profileCompletionPercent)}%`},
-                  ]}
-                />
-              </View>
-              <Text style={styles.profileCompletionText}>
-                {t('title_profile')} {Math.round(profileCompletionPercent)}%
-              </Text>
-              <Pressable
-                onPress={() => (navigation as any).navigate('Profile')}
-              >
-                <Text style={styles.profileCompletionUpdate}>{t('update')}</Text>
-              </Pressable>
             </View>
           ) : null}
         </View>
@@ -685,35 +674,6 @@ const styles = StyleSheet.create({
     marginLeft: ms(8),
     color: '#FFFFFF',
     fontSize: sp(12),
-  },
-  profileCompletionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: ms(10),
-  },
-  profileCompletionBarTrack: {
-    flex: 1,
-    height: ms(6),
-    borderRadius: ms(3),
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    overflow: 'hidden',
-    marginRight: ms(8),
-  },
-  profileCompletionBarFill: {
-    height: '100%',
-    borderRadius: ms(3),
-    backgroundColor: '#FFFFFF',
-  },
-  profileCompletionText: {
-    color: '#FFFFFF',
-    fontSize: sp(11),
-    marginRight: ms(10),
-  },
-  profileCompletionUpdate: {
-    color: '#FFFFFF',
-    fontSize: sp(11),
-    fontWeight: '700',
-    textDecorationLine: 'underline',
   },
   homeScrollView: {
     flex: 1,

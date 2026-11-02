@@ -22,6 +22,7 @@ import { showFailureMsg } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import { tr } from '../../i18n/tr';
+import TourTarget from '../../tour/TourTarget';
 export type DayFilter = 'Today' | 'Week' | 'Month' | 'Year';
 
 const RING_SIZE = ms(170);
@@ -66,6 +67,10 @@ type OwnerDashboardScreenProps = {
   // Leave management (LeaveTabHost / PersonalLeaveTabHost for Manager and
   // Zone Head roles), not a dedicated attendance screen.
   onAttendancePress?: () => void;
+  // Profile completion row shown at the top of the white card (Java owner_home_fragment_new).
+  profileCompletionPercent?: number;
+  showProfileCompletion?: boolean;
+  onProfilePress?: () => void;
 };
 
 const OwnerDashboardScreen = ({
@@ -75,6 +80,9 @@ const OwnerDashboardScreen = ({
   onEarningsPress,
   onAmcStatusPress,
   onAttendancePress,
+  profileCompletionPercent = 0,
+  showProfileCompletion = false,
+  onProfilePress,
 }: OwnerDashboardScreenProps) => {
   const {t} = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
@@ -332,6 +340,22 @@ const OwnerDashboardScreen = ({
       {/* Java home_gradient: red hero showing behind the top of the first card */}
       <View style={styles.hero} />
       <View style={styles.card}>
+        {showProfileCompletion ? (
+          <View style={styles.profileRow}>
+            {/* Left-side label is the tour target, so the spotlight sits over it. */}
+            <TourTarget tourKey="profileCompletion">
+              <Text style={styles.profileLabel}>
+                {t('title_profile')} {Math.round(profileCompletionPercent)}%
+              </Text>
+            </TourTarget>
+            <View style={styles.profileTrack}>
+              <View style={[styles.profileFill, {width: `${Math.min(100, profileCompletionPercent)}%`}]} />
+            </View>
+            <Pressable onPress={onProfilePress}>
+              <Text style={styles.profileUpdate}>{t('update')}</Text>
+            </Pressable>
+          </View>
+        ) : null}
         <View style={styles.showingRow}>
           <Text style={styles.muted}>{t('showing_data_for') + ' :'}</Text>
           <Text style={styles.valueStrong}> {filter}</Text>
@@ -480,6 +504,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: ms(10),
     paddingTop: ms(10),
     paddingBottom: ms(10),
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: ms(20),
+    marginBottom: ms(14),
+  },
+  profileLabel: {
+    color: COLORS.textBlack,
+    fontSize: sp(13),
+    fontWeight: '600',
+    marginRight: ms(10),
+  },
+  profileTrack: {
+    flex: 1,
+    height: ms(6),
+    borderRadius: ms(3),
+    backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
+    marginRight: ms(8),
+  },
+  profileFill: {
+    height: '100%',
+    borderRadius: ms(3),
+    backgroundColor: COLORS.primary,
+  },
+  profileUpdate: {
+    color: COLORS.primary,
+    fontSize: sp(12),
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   hero: {
     position: 'absolute',

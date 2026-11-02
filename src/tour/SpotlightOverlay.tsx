@@ -9,6 +9,7 @@
 //
 // Mounted once at the app root (see App.tsx) so it floats above navigation, headers and tab bar.
 
+import {useState} from 'react';
 import {useWindowDimensions, View, Text, Pressable, StyleSheet} from 'react-native';
 import {useTranslation} from 'react-i18next';
 import Svg, {Mask, Rect, Circle} from 'react-native-svg';
@@ -22,8 +23,13 @@ export default function SpotlightOverlay() {
   const {activeStep, activeMeasurement, advance} = useTour();
   const {width: screenW, height: screenH} = useWindowDimensions();
   const {t} = useTranslation();
+  // Real rendered height of the text block for the current step (see onLayout below).
+  // Character-count estimates drift with font scale and device width, which moved the text.
+  const [textLayout, setTextLayout] = useState<{key: string; h: number} | null>(null);
 
   if (!activeStep || !activeMeasurement) return null;
+
+  const measuredTextH = textLayout && textLayout.key === activeStep.key ? textLayout.h : null;
 
   const cx = activeMeasurement.x + activeMeasurement.width / 2;
   const cy = activeMeasurement.y + activeMeasurement.height / 2;
@@ -38,7 +44,8 @@ export default function SpotlightOverlay() {
   // Estimate the wrapped text block height (title 20sp / description 16sp) to place it and size the circle.
   const titleLines = Math.ceil((t(activeStep.titleKey).length * sp(22) * 0.58) / textW);
   const descLines = Math.ceil((t(activeStep.descriptionKey).length * sp(17) * 0.5) / textW);
-  const textH = titleLines * sp(27) + ms(8) + descLines * sp(24);
+  const estimatedTextH = titleLines * sp(27) + ms(8) + descLines * sp(24);
+  const textH = measuredTextH ?? estimatedTextH;
   const gap = ms(24);
   const rawTop = above ? cy - hole - gap - textH : cy + hole + gap;
   const textTop = Math.max(rawTop, ms(60));
@@ -79,7 +86,13 @@ export default function SpotlightOverlay() {
 
       <View
         pointerEvents="none"
-        style={[styles.text, {left, right, top: textTop}, above && {justifyContent: 'flex-end', height: textH}]}
+        onLayout={e => {
+          const h = e.nativeEvent.layout.height;
+          if (!textLayout || textLayout.key !== activeStep.key || Math.abs(textLayout.h - h) > 0.5) {
+            setTextLayout({key: activeStep.key, h});
+          }
+        }}
+        style={[styles.text, {left, right, top: textTop}, measuredTextH === null && {opacity: 0}]}
       >
         <Text style={styles.title}>{t(activeStep.titleKey)}</Text>
         <Text style={styles.description}>{t(activeStep.descriptionKey)}</Text>

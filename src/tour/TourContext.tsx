@@ -38,6 +38,8 @@ type TourContextValue = {
   unregisterMeasurer: (key: string) => void;
   activeStep: TourStep | null;
   activeMeasurement: TourMeasurement | null;
+  /** True from startTour until the tour finishes or is abandoned. */
+  tourActive: boolean;
   startTour: (steps: TourStep[], onFinish?: () => void) => void;
   advance: () => void;
 };
@@ -58,6 +60,7 @@ export function TourProvider({children}: {children: React.ReactNode}) {
 
   const [activeStep, setActiveStep] = useState<TourStep | null>(null);
   const [activeMeasurement, setActiveMeasurement] = useState<TourMeasurement | null>(null);
+  const [tourActive, setTourActive] = useState(false);
 
   const registerMeasurer = useCallback((key: string, measurer: TourMeasurer) => {
     measurers.current.set(key, measurer);
@@ -87,6 +90,7 @@ export function TourProvider({children}: {children: React.ReactNode}) {
         // Target never appeared; abandon rather than show a broken spotlight.
         setActiveStep(null);
         setActiveMeasurement(null);
+        setTourActive(false);
       }
     });
   }, []);
@@ -94,6 +98,7 @@ export function TourProvider({children}: {children: React.ReactNode}) {
   const startTour = useCallback((newSteps: TourStep[], onFinish?: () => void) => {
     onFinishRef.current = onFinish;
     tourToken.current += 1;
+    setTourActive(true);
     steps.current = newSteps;
     setTimeout(() => resolveStep(tourToken.current, 0, MAX_RETRIES), newSteps[0]?.delayMs ?? 0);
   }, [resolveStep]);
@@ -104,6 +109,7 @@ export function TourProvider({children}: {children: React.ReactNode}) {
     if (next >= steps.current.length) {
       setActiveStep(null);
       setActiveMeasurement(null);
+      setTourActive(false);
       const done = onFinishRef.current;
       onFinishRef.current = undefined;
       done?.();
@@ -115,7 +121,7 @@ export function TourProvider({children}: {children: React.ReactNode}) {
 
   return (
     <TourContext.Provider
-      value={{registerMeasurer, unregisterMeasurer, activeStep, activeMeasurement, startTour, advance}}
+      value={{registerMeasurer, unregisterMeasurer, activeStep, activeMeasurement, tourActive, startTour, advance}}
     >
       {children}
     </TourContext.Provider>
