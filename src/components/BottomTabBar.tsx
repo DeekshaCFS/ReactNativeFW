@@ -12,6 +12,7 @@ import { setPassbookTabOrder } from '../state/passbookTabOrder';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { ms, sp, scale } from '../utils/responsive';
 import TourTarget from '../tour/TourTarget';
+import RippleTouchable from './RippleTouchable';
 
 const TAB_ICONS: Record<string, string> = {
   Home: 'home-outline',
@@ -79,8 +80,11 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
     const active = current === name;
     const icon = TAB_ICONS[name] ?? 'ellipse-outline';
     const button = (
-      <Pressable
+      <RippleTouchable
         key={name}
+        rippleShape="circle"
+        rippleCenterY={ms(4) + scale(12)}
+        rippleIntensity={0.45}
         onPress={() => {
           setFabOpen(false);
           // Mirror React Navigation's default tab button: emit tabPress so a
@@ -111,13 +115,13 @@ const BottomTabBar = ({ state, navigation, quickActions = [], visibleTabs, activ
         >
           {tr(name)}
         </Text>
-      </Pressable>
+      </RippleTouchable>
     );
     // On-demand App Tours (Java TapTargetSequence) spotlight these tabs; wrapping is inert
     // without an active tour.
     const tourKey = name === 'Task' ? 'taskTab' : name === 'CRM' ? 'crmTab' : name === 'Employee' ? 'employeeTab' : null;
     return tourKey ? (
-      <TourTarget key={name} tourKey={tourKey} style={styles.item}>
+      <TourTarget key={name} tourKey={tourKey} style={styles.tourSlot}>
         {button}
       </TourTarget>
     ) : (
@@ -236,6 +240,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: ms(4),
     minHeight: ms(44), 
+  },
+  // The App Tour wrapper is a plain View; it must stretch to take an equal share of the row
+  // (styles.item centres its child, which left the wrapped tabs at their content width).
+  tourSlot: {
+    flex: 1,
+    alignSelf: 'stretch',
   },
   label: {
     fontSize: sp(11),

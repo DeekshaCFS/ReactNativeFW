@@ -4,9 +4,10 @@
 // screens (CRM, Accounts, ...) so they all look like the Java app.
 
 import React from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, Text, View} from 'react-native';
 import {COLORS} from '../theme/theme';
 import {ms, sp} from '../utils/responsive';
+import RippleTouchable from './RippleTouchable';
 
 export type TabStripItem<K extends string> = {key: K; label: string};
 
@@ -22,14 +23,14 @@ function TabStrip<K extends string>({tabs, active, onChange}: Props<K>) {
       {tabs.map(tab => {
         const selected = tab.key === active;
         return (
-          <Pressable
+          <RippleTouchable
             key={tab.key}
             style={[styles.tab, selected ? styles.tabActive : null]}
             onPress={() => onChange(tab.key)}>
             <Text style={[styles.text, selected ? styles.textActive : null]}>
               {tab.label}
             </Text>
-          </Pressable>
+          </RippleTouchable>
         );
       })}
     </View>

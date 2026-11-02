@@ -2,6 +2,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image, PermissionsAndroid, Platform } from 'react-native';
 import Modal from '../components/AppModal';
+import RippleTouchable from '../components/RippleTouchable';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ItemInventoryDrawerIcon,
@@ -328,14 +329,14 @@ const DRAWER_PNG_ICONS: Record<string, any> = {
 function DrawerItem({ icon, label, onPress }: DrawerItemProps) {
   const SvgIcon = DRAWER_SVG_ICONS[icon];
   return (
-    <Pressable style={styles.item} onPress={onPress}>
+    <RippleTouchable style={styles.item} onPress={onPress}>
       {SvgIcon ? (
         <SvgIcon size={ms(24)} color={COLORS.textBlack} />
       ) : (
         <Image source={DRAWER_PNG_ICONS[icon]} style={styles.itemIcon} resizeMode="contain" />
       )}
       <Text style={styles.label}>{label}</Text>
-    </Pressable>
+    </RippleTouchable>
   );
 }
 
