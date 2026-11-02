@@ -9,7 +9,7 @@
 //
 // Mounted once at the app root (see App.tsx) so it floats above navigation, headers and tab bar.
 
-import {useState} from 'react';
+import {useRef, useState} from 'react';
 import {useWindowDimensions, View, Text, Pressable, StyleSheet} from 'react-native';
 import {useTranslation} from 'react-i18next';
 import Svg, {Mask, Rect, Circle} from 'react-native-svg';
@@ -26,13 +26,20 @@ export default function SpotlightOverlay() {
   // Real rendered height of the text block for the current step (see onLayout below).
   // Character-count estimates drift with font scale and device width, which moved the text.
   const [textLayout, setTextLayout] = useState<{key: string; h: number} | null>(null);
+  // Target positions come from measureInWindow, which is relative to the window. The overlay's own
+  // origin can differ from the window origin (edge-to-edge / status bar insets, e.g. Samsung + Android 15),
+  // which shifted the rings. Measure the overlay's origin the same way and subtract it.
+  const rootRef = useRef<View>(null);
+  const [origin, setOrigin] = useState<{x: number; y: number} | null>(null);
 
   if (!activeStep || !activeMeasurement) return null;
 
   const measuredTextH = textLayout && textLayout.key === activeStep.key ? textLayout.h : null;
 
-  const cx = activeMeasurement.x + activeMeasurement.width / 2;
-  const cy = activeMeasurement.y + activeMeasurement.height / 2;
+  const ox = origin?.x ?? 0;
+  const oy = origin?.y ?? 0;
+  const cx = activeMeasurement.x - ox + activeMeasurement.width / 2;
+  const cy = activeMeasurement.y - oy + activeMeasurement.height / 2;
   const hole = ms(activeStep.radius ?? 50);
 
   // Text sits above the target when the target is in the lower half (Java's rule), else below.
@@ -61,7 +68,16 @@ export default function SpotlightOverlay() {
   const outer = Math.max(far, hole * 3) + ms(50);
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="auto">
+    <View
+      ref={rootRef}
+      style={[StyleSheet.absoluteFill, origin === null && {opacity: 0}]}
+      pointerEvents="auto"
+      onLayout={() => {
+        rootRef.current?.measureInWindow((x, y) => {
+          setOrigin(prev => (prev && prev.x === x && prev.y === y ? prev : {x, y}));
+        });
+      }}
+    >
       <Svg style={StyleSheet.absoluteFill}>
         <Mask id="spotlight-mask">
           <Rect x={0} y={0} width={screenW} height={screenH} fill="#fff" />
