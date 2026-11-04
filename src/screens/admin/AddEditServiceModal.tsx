@@ -32,7 +32,7 @@ import {ensureSuccess} from '../../utils/apiResponse';
 import {sanitizeDecimalInput} from '../../utils/decimal';
 import {postServiceTypeList, updateServiceTypeList} from '../../api/services/servicesService';
 import type {ServiceTypeListDTOResultData} from '../../api/services/services.types';
-import { showToast } from '../../utils/toast';
+import { showSuccessMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 
 import {useTranslation} from 'react-i18next';
@@ -44,6 +44,37 @@ type Props = {
   editing?: ServiceTypeListDTOResultData | null;
   onClose: () => void;
   onSaved: () => void;
+};
+
+// Same placeholder the service list card shows when a service has no photo.
+const DEFAULT_IMAGE = require('../../../assets/images/ic_camera.png');
+
+// Shows the same image as the list card: the photo's uri, or the default if it's missing or fails to load.
+const SlotImage = ({uri, style}: {uri?: string | null; style: any}) => {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [uri]);
+  return (
+    <Image
+      source={uri && !failed ? {uri} : DEFAULT_IMAGE}
+      style={style}
+      resizeMode="contain"
+      onError={() => setFailed(true)}
+    />
+  );
+};
+
+// Downloads an image and returns its base64 (no data: prefix).
+const urlToBase64 = async (uri: string): Promise<string> => {
+  const blob = await (await fetch(uri)).blob();
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = String(reader.result ?? '');
+      resolve(result.includes(',') ? result.split(',')[1] : '');
+    };
+    reader.onerror = () => reject(new Error('Unable to read image'));
+    reader.readAsDataURL(blob);
+  });
 };
 
 type PickedImage = {
@@ -76,6 +107,10 @@ const AddEditServiceModal: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
 
   const isEditing = !!editing;
+  // Existing server photo for a slot, or null when the slot is empty ('' / 'NA').
+  const existingPhotoUri = (p?: string | null) =>
+    p && String(p).trim().toUpperCase() !== 'NA' ? String(p) : null;
+  const existingPhotos = [editing?.PhotoPath, editing?.PhotoPath1, editing?.PhotoPath2];
 
   useEffect(() => {
     if (!visible) return;
@@ -135,13 +170,33 @@ const AddEditServiceModal: React.FC<Props> = ({
     !Number.isNaN(Number(price)) &&
     description.trim().length > 0;
 
-  const imageFields = {
-    ImageFileBase64Str: images[0]?.base64,
-    ImageFileName: images[0]?.fileName,
-    ImageFileBase64Str1: images[1]?.base64,
-    ImageFileName1: images[1]?.fileName,
-    ImageFileBase64Str2: images[2]?.base64,
-    ImageFileName2: images[2]?.fileName,
+  // Every slot must carry an image: the server decodes each one and throws on null. An empty slot
+  // uploads the same image the list card shows: the service's existing photo, or the default.
+  const buildImageFields = async () => {
+    const defaultUri = Image.resolveAssetSource(DEFAULT_IMAGE).uri;
+    const keys = [
+      ['ImageFileBase64Str', 'ImageFileName'],
+      ['ImageFileBase64Str1', 'ImageFileName1'],
+      ['ImageFileBase64Str2', 'ImageFileName2'],
+    ] as const;
+    const fields: Record<string, string> = {};
+    for (let slot = 0; slot < 3; slot++) {
+      const picked = images[slot];
+      let base64 = picked?.base64 ?? '';
+      let fileName = picked?.fileName ?? '';
+      if (!base64) {
+        const existing = existingPhotoUri(existingPhotos[slot]);
+        try {
+          base64 = await urlToBase64(existing ?? defaultUri);
+        } catch {
+          base64 = await urlToBase64(defaultUri);
+        }
+        fileName = `service_${Date.now()}_${slot}.jpg`;
+      }
+      fields[keys[slot][0]] = base64;
+      fields[keys[slot][1]] = fileName;
+    }
+    return fields;
   };
 
   const handleSubmit = async () => {
@@ -149,8 +204,9 @@ const AddEditServiceModal: React.FC<Props> = ({
     setError(null);
     setSubmitting(true);
     try {
+      let response: {Message?: unknown} | undefined;
       if (isEditing) {
-        await ensureSuccess(
+        response = await ensureSuccess(
           await updateServiceTypeList({
             Id: editing!.Id,
             ServiceTypeSubCategoryId: subCategoryId,
@@ -159,12 +215,13 @@ const AddEditServiceModal: React.FC<Props> = ({
             Description: description.trim(),
             ContactNo: contactNo.trim() ? Number(contactNo.trim()) : undefined,
             SACCode: sacCode.trim(),
+            IsActive: true,
             CreatedBy: ownerId,
             UpdatedBy: ownerId,
           }),
         );
       } else {
-        await ensureSuccess(
+        response = await ensureSuccess(
           await postServiceTypeList({
             ServiceTypeSubCategoryId: subCategoryId,
             ServiceName: name.trim(),
@@ -172,13 +229,17 @@ const AddEditServiceModal: React.FC<Props> = ({
             Description: description.trim(),
             ContactNo: contactNo.trim() ? Number(contactNo.trim()) : undefined,
             SACCode: sacCode.trim(),
-            ...imageFields,
+            ...(await buildImageFields()),
             UserId: ownerId,
             CreatedBy: ownerId,
             UpdatedBy: ownerId,
           }),
         );
       }
+      showSuccessMsg(
+        String(response?.Message ?? '').trim() ||
+          `Service ${isEditing ? 'updated' : 'added'} successfully.`,
+      );
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
@@ -229,19 +290,20 @@ const AddEditServiceModal: React.FC<Props> = ({
         maxLength={10}
       />
 
-      {isEditing ? null : (
-        <View style={styles.photoRow}>
-          {images.map((img, slot) => (
+      <View style={styles.photoRow}>
+        {images.map((img, slot) => {
+          const uri = img ? img.uri : existingPhotoUri(existingPhotos[slot]);
+          return (
             <Pressable key={slot} style={styles.photoSlot} onPress={() => showImagePickerOptions(slot)}>
-              {img ? (
-                <Image source={{uri: img.uri}} style={styles.imagePreview} />
+              {uri ? (
+                <SlotImage key={uri} uri={uri} style={styles.imagePreview} />
               ) : (
-                <Ionicons name="camera-outline" size={ms(32)} color={COLORS.lightGray} />
+                <Image source={DEFAULT_IMAGE} style={styles.imagePreview} resizeMode="contain" />
               )}
             </Pressable>
-          ))}
-        </View>
-      )}
+          );
+        })}
+      </View>
 
       <OutlinedInput
         style={[styles.pill, styles.descPill]}
@@ -357,9 +419,9 @@ const styles = StyleSheet.create({
   photoSlot: {
     flex: 1,
     height: ms(100),
-    borderRadius: ms(20),
+    borderRadius: ms(15),
     borderWidth: 1,
-    borderColor: '#d0d0d0',
+    borderColor: '#9a9faa',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',

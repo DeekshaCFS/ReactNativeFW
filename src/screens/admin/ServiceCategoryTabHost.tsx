@@ -51,7 +51,7 @@ import {useNavigation} from '@react-navigation/native';
 import {useWindowDimensions} from 'react-native';
 import {getCurrentCountryCode} from '../../state/session';
 import {DeleteAccIcon, EditProfileIcon, RightArrowIcon} from '../../components/JavaIcons';
-import { showFailureMsg } from '../../utils/toast';
+import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 import { useTranslation } from 'react-i18next';
 import {tr} from '../../i18n/tr';
@@ -237,6 +237,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
                 >[0],
               ),
             );
+            showSuccessMsg('Category Deleted successfully');
             refresh();
           } catch (e) {
             showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete category.'));
@@ -257,6 +258,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
                   >[0],
                 ),
               );
+              showSuccessMsg('Sub Category Deleted successfully');
               refresh();
             } catch (e) {
               showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete sub-category.'));
@@ -267,7 +269,8 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
   const handleDeleteService = (service: ServiceCategoryListDTOLstServiceType) => {
     askDelete(tr('Do you want to delete the Service ?'), async () => {
           try {
-            await ensureSuccess(await getDeleteService({OwnerId: ownerId, SId: service.Id}));
+            const res = await ensureSuccess(await getDeleteService({OwnerId: ownerId, SId: service.Id}));
+            showSuccessMsg(String((res as {Message?: unknown})?.Message ?? '').trim() || 'Service Deleted successfully');
             refresh();
           } catch (e) {
             showFailureMsg(e instanceof Error ? e.message : tr('Unable to delete service.'));
@@ -383,6 +386,8 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
   if (view.level === 'category') {
     const filtered = tree.filter(c => String(c.ServiceTypeCategoryName ?? '').toLowerCase().includes(q));
     return (
+      <>
+      {deleteDialog}
       <View style={styles.root}>
         <View style={styles.sheet}>
           {renderTitleBar('Service Category', '+ Category', () => setGroupModal({kind: 'category', editing: null}), true)}
@@ -430,6 +435,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
           }}
         />
       </View>
+      </>
     );
   }
 
@@ -441,6 +447,8 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
       String(s.ServiceTypeSubCategoryName ?? '').toLowerCase().includes(q),
     );
     return (
+      <>
+      {deleteDialog}
       <View style={styles.root}>
         <View style={styles.sheet}>
           {renderBreadcrumb('Category', view.category.ServiceTypeCategoryName ?? '', view.category.ServiceTypeCategoryImage)}
@@ -497,6 +505,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
           }}
         />
       </View>
+      </>
     );
   }
 
@@ -505,6 +514,8 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
     const photos = [svc.PhotoPath, svc.PhotoPath1, svc.PhotoPath2];
     const slideW = screenWidth - ms(40) - ms(40);
     return (
+      <>
+      {deleteDialog}
       <View style={styles.root}>
         <ScrollView style={styles.detailSheet} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
           <Pressable hitSlop={10} onPress={goBack}>
@@ -575,6 +586,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
           }}
         />
       </View>
+      </>
     );
   }
 

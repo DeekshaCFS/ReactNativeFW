@@ -32,7 +32,7 @@ import {
   postServiceCategoryList,
   postServiceSubCategoryList,
 } from '../../api/services/servicesService';
-import { showToast } from '../../utils/toast';
+import { showSuccessMsg, showToast } from '../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import { showImageSourceDialog } from '../../components/ImageSourceHost';
@@ -54,6 +54,20 @@ type Props = {
   editing?: EditingServiceGroup | null;
   onClose: () => void;
   onSaved: () => void;
+};
+
+// Same image the list card shows; falls back to the card's default if the photo fails to load.
+const DEFAULT_CARD_IMAGE = require('../../../assets/images/servicelist_default.jpg');
+const CardImage = ({uri, style}: {uri: string; style: any}) => {
+  const [failed, setFailed] = useState(false);
+  return (
+    <Image
+      source={failed ? DEFAULT_CARD_IMAGE : {uri}}
+      style={style}
+      resizeMode="cover"
+      onError={() => setFailed(true)}
+    />
+  );
 };
 
 type PickedImage = {
@@ -135,34 +149,40 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
     setError(null);
     setSubmitting(true);
     try {
+      let response: {Message?: unknown} | undefined;
       if (kind === 'category') {
-        await ensureSuccess(
+        response = await ensureSuccess(
           await postServiceCategoryList({
             ServiceTypeCategoryId: editing?.id,
             ServiceTypeCategoryName: name.trim(),
             ServiceTypeCategoryDescription: description.trim(),
-            CategoryImageFileBase64Str: image?.base64,
-            CategoryImageFileName: image?.fileName,
+            CategoryImageFileBase64Str: image?.base64 ?? '',
+            CategoryImageFileName: image?.fileName ?? '',
             UserId: ownerId,
             CreatedBy: ownerId,
             UpdatedBy: ownerId,
           }),
         );
       } else {
-        await ensureSuccess(
+        response = await ensureSuccess(
           await postServiceSubCategoryList({
             ServiceTypeSubCategoryId: editing?.id,
             ServiceTypeCategoryId: categoryId,
             ServiceTypeSubCategoryName: name.trim(),
             ServiceTypeSubCategoryDescription: description.trim(),
-            SubCategoryImageFileBase64Str: image?.base64,
-            SubCategoryImageName: image?.fileName,
+            SubCategoryImageFileBase64Str: image?.base64 ?? '',
+            SubCategoryImageName: image?.fileName ?? '',
             UserId: ownerId,
             CreatedBy: ownerId,
             UpdatedBy: ownerId,
           } as unknown as Parameters<typeof postServiceSubCategoryList>[0]),
         );
       }
+      const label = kind === 'category' ? 'Category' : 'Sub-category';
+      showSuccessMsg(
+        String(response?.Message ?? '').trim() ||
+          `${label} ${isEditing ? 'updated' : 'added'} successfully.`,
+      );
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
@@ -198,9 +218,9 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
 
               <Pressable style={styles.imageBox} onPress={showImagePickerOptions}>
                 {image ? (
-                  <Image source={{uri: image.uri}} style={styles.imagePreview} resizeMode="cover" />
-                ) : editing?.image ? (
-                  <Image source={{uri: editing.image}} style={styles.imagePreview} resizeMode="cover" />
+                  <CardImage key={image.uri} uri={image.uri} style={styles.imagePreview} />
+                ) : editing?.image && String(editing.image).trim().toUpperCase() !== 'NA' ? (
+                  <CardImage key={editing.image} uri={editing.image} style={styles.imagePreview} />
                 ) : (
                   <>
                     <Ionicons name="image-outline" size={ms(34)} color={COLORS.lightGray} />
