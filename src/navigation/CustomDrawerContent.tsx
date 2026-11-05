@@ -27,14 +27,11 @@ import { attendanceCheckOut, getUserDetails } from '../api';
 import type { UserDetailsResultData } from '../api/users/users.types';
 import { authEvents, AUTH_CHANGED } from '../utils/authEvents';
 import { ms, sp, scale } from '../utils/responsive';
-import { checkedInTodayKey } from '../utils/attendanceKey';
 import { setPassbookTabOrder } from '../state/passbookTabOrder';
 import { showFailureMsg, showSuccessMsg } from '../utils/toast';
 
 import {useTranslation} from 'react-i18next';
 import { tr } from '../i18n/tr';
-// Same local-date key Home writes on check-in (see utils/attendanceKey.ts).
-const todayKey = checkedInTodayKey;
 
 const requestLocationPermission = async (): Promise<boolean> => {
   if (Platform.OS !== 'android') return true;
@@ -132,7 +129,6 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
         CheckOutPlace: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
       });
       if (response?.Code === '200') {
-        await AsyncStorage.removeItem(todayKey());
         setShowCheckOutModal(false);
         // Java: showSuccessMsg(checkOut.getMessage()) -- the server text ("Check out successfully.").
         showSuccessMsg(response?.Message || 'Check out successfully.');

@@ -25,7 +25,6 @@ import type { GetPostedTaskDocFile } from '../../../api/taskList/taskList.types'
 import type { TasksListResultData as Task } from '../../../api/task/task.types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useOpenTask } from '../../../hooks/useOpenTask';
-import { checkedInTodayKey } from '../../../utils/attendanceKey';
 import DisclaimerModal from '../../../components/DisclaimerModal';
 import TourTarget from '../../../tour/TourTarget';
 import {useTour} from '../../../tour/TourContext';
@@ -169,17 +168,9 @@ export default function HomeScreen({ navigation }: any) {
   const checkAttendance = async () => {
     try {
       if (!userId) return;
-      const todayKey = checkedInTodayKey();
-      const local = await AsyncStorage.getItem(todayKey);
-      if (local === 'true') {
-        // Java runs the disclaimer check on every launch once attendance exists.
-        checkDisclaimer();
-        return;
-      }
-
+      // Java HomeActivityNew.checkAttendance(): asks the server on every launch, no local flag.
       const response = await attendanceCheck({ UserId: userId });
       if (response?.Code === '200' && response?.Message?.toLowerCase() === 'attendance already added.') {
-        await AsyncStorage.setItem(todayKey, 'true');
         checkDisclaimer();
       } else {
         setShowCheckInModal(true);
@@ -193,6 +184,7 @@ export default function HomeScreen({ navigation }: any) {
   // as yyyy-M-d, the device's coordinates and reverse-geocoded address.
   const handleCheckIn = async () => {
     try {
+      if (!userId) return;
       const { coords, address } = await getCurrentLocationAndAddress();
       const now = new Date();
       const attendanceDate = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
@@ -214,8 +206,6 @@ export default function HomeScreen({ navigation }: any) {
       const alreadyAdded = response?.Message?.toLowerCase() === 'attendance already added.';
 
       if (response?.Code === '200') {
-        const todayKey = checkedInTodayKey();
-        await AsyncStorage.setItem(todayKey, 'true');
         setShowCheckInModal(false);
         if (!alreadyAdded) showSuccessMsg(t('check_in_successfully')); // Java: R.string.check_in_successfully
         // Java: disclaimer is checked right after a successful (or already-added) check-in.
