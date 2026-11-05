@@ -660,10 +660,7 @@ const MainTaskFragmentNewScreen = ({
       item.TaskClosureStatus === true;
 
     return (
-      <TouchableOpacity
-        activeOpacity={0.78}
-        style={styles.taskCard}
-        onPress={() => handleTaskPress(item)}>
+      <View style={styles.taskCard}>
         <View style={[styles.statusRibbon, {backgroundColor: statusColor}]}>
           <Text numberOfLines={1} style={styles.ribbonText}>
             {status.toUpperCase()}
@@ -688,30 +685,6 @@ const MainTaskFragmentNewScreen = ({
               </Text>
             ) : null}
           </View>
-          {showDownload ? (
-            <TouchableOpacity
-              style={styles.rowDownloadButton}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Download report"
-              onPress={() => handleDownloadReport(item)}>
-              <Ionicons name="download-outline" style={styles.rowDownloadIcon} />
-            </TouchableOpacity>
-          ) : null}
-          {rowAction ? (
-            <TouchableOpacity
-              style={[
-                styles.rowActionButton,
-                showDownload ? styles.rowActionButtonWithDownload : null,
-              ]}
-              hitSlop={10}
-              onPress={() => setTaskFormValues(buildTaskFormValues(item, rowAction))}>
-              <Ionicons
-                name={rowAction === 'edit' ? 'create-outline' : 'refresh'}
-                style={styles.rowActionIcon}
-              />
-            </TouchableOpacity>
-          ) : null}
           {taskDateTime ? (
             <Text numberOfLines={1} style={styles.taskDateText}>
               {taskDateTime}
@@ -731,7 +704,45 @@ const MainTaskFragmentNewScreen = ({
             </Text>
           ) : null}
         </View>
-      </TouchableOpacity>
+
+        {/* Card tap target. Sits above the card content but below the action
+            buttons, so the edit / re-assign / download buttons are not nested
+            inside another touchable and always receive their own presses. */}
+        <TouchableOpacity
+          activeOpacity={0.78}
+          style={styles.taskCardPressArea}
+          onPress={() => handleTaskPress(item)}
+        />
+
+        {showDownload ? (
+          <TouchableOpacity
+            style={styles.rowDownloadButton}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Download report"
+            onPress={() => handleDownloadReport(item)}>
+            <Ionicons name="download-outline" style={styles.rowDownloadIcon} />
+          </TouchableOpacity>
+        ) : null}
+        {rowAction ? (
+          <TouchableOpacity
+            style={[
+              styles.rowActionButton,
+              showDownload ? styles.rowActionButtonWithDownload : null,
+            ]}
+            hitSlop={10}
+            onPress={() => setTaskFormValues(buildTaskFormValues(item, rowAction))}>
+            <Ionicons
+              name={rowAction === 'edit' ? 'create-outline' : 'refresh'}
+              style={
+                rowAction === 'edit'
+                  ? [styles.rowActionIcon, styles.rowEditIcon]
+                  : styles.rowActionIcon
+              }
+            />
+          </TouchableOpacity>
+        ) : null}
+      </View>
     );
   };
 
@@ -1269,11 +1280,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: ms(12),
     paddingBottom: ms(10),
   },
+  taskCardPressArea: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 3,
+  },
   rowActionButton: {
     position: 'absolute',
     right: ms(100),
     bottom: ms(8),
     padding: ms(4),
+    zIndex: 4,
   },
   rowActionButtonWithDownload: {
     right: ms(128),
@@ -1283,14 +1299,18 @@ const styles = StyleSheet.create({
     right: ms(100),
     bottom: ms(8),
     padding: ms(4),
+    zIndex: 4,
   },
   rowDownloadIcon: {
-    fontSize: sp(20),
+    fontSize: sp(23),
     color: COLORS.primary,
   },
   rowActionIcon: {
-    fontSize: sp(20),
+    fontSize: sp(23),
     color: THEME_PRIMARY,
+  },
+  rowEditIcon: {
+    fontSize: sp(23),
   },
   taskTitleRow: {
     flexDirection: 'row',

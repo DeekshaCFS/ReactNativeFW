@@ -61,6 +61,8 @@ export type AdminStackParamList = {
     customerAddress?: string;
     /** See TaskDetailsScreen.source. */
     source?: 'crm' | 'taskList';
+    /** Where the back button goes; when absent it pops the tab history. */
+    returnTo?: {name: string; params?: Record<string, unknown>};
   };
 
   AMCDetails: {

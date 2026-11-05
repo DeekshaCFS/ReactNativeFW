@@ -163,6 +163,8 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
           customerPhone: getRecordString(task, 'contactNo', 'ContactNo'),
           customerAddress: getRecordString(task, 'fullAddress', 'FullAddress'),
           source: 'taskList',
+          // Back from details returns to the task list, not Home.
+          returnTo: {name: 'Task'},
         },
       });
     },
@@ -255,7 +257,11 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
             customerAddress={route.params.customerAddress}
             source={route.params.source}
             sheetStyle={!!route.params.sheet}
-            onBack={() => navigation.goBack()}
+            onBack={() =>
+              route.params.returnTo
+                ? navigation.navigate(route.params.returnTo.name, route.params.returnTo.params)
+                : navigation.goBack()
+            }
             hideBackBar
             underAppHeader
           />
@@ -371,7 +377,16 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
                   useRegisteredBack={currentRoute.name === 'Home'}
                   onBack={
                     currentRoute.name === 'TaskDetails'
-                      ? () => props.navigation.goBack()
+                      ? () => {
+                          const returnTo = (currentRoute.params as any)?.returnTo as
+                            | {name: string; params?: any}
+                            | undefined;
+                          if (returnTo) {
+                            props.navigation.navigate(returnTo.name as any, returnTo.params);
+                          } else {
+                            props.navigation.goBack();
+                          }
+                        }
                       : undefined
                   }
                 />

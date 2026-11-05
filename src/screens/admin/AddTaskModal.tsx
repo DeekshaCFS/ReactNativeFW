@@ -456,6 +456,12 @@ export type TaskFormMode = 'add' | 'edit' | 'reassign' | 'reassignCompleted';
 
 const toDateOnly = (value: string) => value.split('T')[0];
 
+// The API returns the literal "NA" for missing emails. Treat it as empty so it is never shown in the field.
+const normalizeEmail = (value: unknown): string => {
+  const text = String(value ?? '').trim();
+  return text.toUpperCase() === 'NA' ? '' : text;
+};
+
 /** Prefill for edit / re-assign, from a task-list row (TasksList.ResultData). */
 export const buildTaskFormValues = (
   task: TasksListResultData,
@@ -482,7 +488,7 @@ export const buildTaskFormValues = (
     customerId: Number(task.CustomerDetailsid) || 0,
     customerName: String(task.CustomerName ?? ''),
     customerNumber: String(task.ContactNo ?? ''),
-    email: String(task.CustomerEmailId ?? ''),
+    email: normalizeEmail(task.CustomerEmailId),
     taskTagId: Number(task.Task_TagId) || 0,
     taskTagName: String(task.Task_TagName ?? ''),
     assignedFieldworkerId: Number(task.UserId) || undefined,
@@ -896,7 +902,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setTaskLandmark(initialValues?.landmark ?? '');
     setTaskProductBrand(initialValues?.productBrand ?? '');
     setTaskModelNumber(initialValues?.modelNumber ?? '');
-    setTaskEmail(initialValues?.email ?? '');
+    setTaskEmail(normalizeEmail(initialValues?.email));
     setTaskSerialNo(initialValues?.serialNo ?? '');
     const w = initialValues?.warranty;
     setSelectedBrand(w?.brandId ? {id: w.brandId, label: w.brandName} : null);
@@ -1471,7 +1477,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     if (customer.productBrand) {
       setTaskProductBrand(customer.productBrand);
     }
-    setTaskEmail(customer.emailId || '');
+    setTaskEmail(normalizeEmail(customer.emailId));
     setTaskLatitude(customer.latitude || '');
     setTaskLongitude(customer.longitude || '');
     setTaskCustomerSuggestions([]);
