@@ -74,7 +74,10 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [showUploadSheet, setShowUploadSheet] = useState(false);
+  // Before-task row on the main screen (shows photos already on the task).
   const [photos, setPhotos] = useState<{ uri: string; base64?: string }[]>([]);
+  // Start-task upload sheet. Always opens empty, as Java's dialog_before_task_photo does.
+  const [uploadPhotos, setUploadPhotos] = useState<{ uri: string; base64?: string }[]>([]);
   const [note, setNote] = useState('');
   const [uploading, setUploading] = useState(false);
 
@@ -321,7 +324,9 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       return;
     }
 
-    // Java: START always opens the before-task photo dialog (captureBeforeTaskPhotoDialog).
+    // Java: START always opens the before-task photo dialog (captureBeforeTaskPhotoDialog),
+    // which starts with empty slots.
+    setUploadPhotos([]);
     setShowUploadSheet(true);
   };
 
@@ -358,7 +363,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
   };
 
   const handleUploadAndStart = async () => {
-    const presentPhotos = photos.filter(p => p?.base64);
+    const presentPhotos = uploadPhotos.filter(p => p?.base64);
     if (presentPhotos.length === 0) {
       showFailureMsg(t('rn_please_add_capture_image'));
       return;
@@ -402,6 +407,8 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             }],
           },
         );
+        // Show the photos taken in the start sheet in the before-task row.
+        setPhotos(presentPhotos);
         setShowUploadSheet(false);
         setShowContinue(false);
         setIsRunning(true);
@@ -416,6 +423,8 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
         return;
       }
 
+      // Show the photos taken in the start sheet in the before-task row.
+      setPhotos(presentPhotos);
       setShowUploadSheet(false);
       await startTask();
     } catch (err: any) {
@@ -790,7 +799,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
             <Text style={styles.dlgSub}>{t('please_take_the_picture_before_starting_the_task')}</Text>
           </View>
         </View>
-        {renderPhotoSlots(photos, setPhotos)}
+        {renderPhotoSlots(uploadPhotos, setUploadPhotos)}
         <View style={styles.noteField}>
           <TextInput
             value={note}
