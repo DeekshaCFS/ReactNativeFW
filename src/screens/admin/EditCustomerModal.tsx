@@ -1,3 +1,5 @@
+// src/screens/admin/EditCustomerModal.tsx
+
 import React, {useEffect, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -936,7 +938,7 @@ const LabeledField = ({
   onFocus,
   onPress,
 }: LabeledFieldProps) => {
-  const labelText = `${label}${required ? ' *' : ''}`;
+  const labelText = required && !label.trim().endsWith('*') ? `${label} *` : label;
   return (
     <View style={half ? undefined : styles.fieldFull}>
       <OutlinedInput
