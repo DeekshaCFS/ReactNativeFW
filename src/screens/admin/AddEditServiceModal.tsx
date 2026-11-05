@@ -46,8 +46,11 @@ type Props = {
   onSaved: () => void;
 };
 
+// Java's empty-slot placeholder (drawable/ic_camera.png).
+const CAMERA_ICON = require('../../../assets/images/ic_camera.png');
+
 // Same placeholder the service list card shows when a service has no photo.
-const DEFAULT_IMAGE = require('../../../assets/images/ic_camera.png');
+const DEFAULT_SERVICE_IMAGE = require('../../../assets/images/servicelist_default.jpg');
 
 // Shows the same image as the list card: the photo's uri, or the default if it's missing or fails to load.
 const SlotImage = ({uri, style}: {uri?: string | null; style: any}) => {
@@ -55,7 +58,7 @@ const SlotImage = ({uri, style}: {uri?: string | null; style: any}) => {
   useEffect(() => setFailed(false), [uri]);
   return (
     <Image
-      source={uri && !failed ? {uri} : DEFAULT_IMAGE}
+      source={uri && !failed ? {uri} : DEFAULT_SERVICE_IMAGE}
       style={style}
       resizeMode="contain"
       onError={() => setFailed(true)}
@@ -173,7 +176,7 @@ const AddEditServiceModal: React.FC<Props> = ({
   // Every slot must carry an image: the server decodes each one and throws on null. An empty slot
   // uploads the same image the list card shows: the service's existing photo, or the default.
   const buildImageFields = async () => {
-    const defaultUri = Image.resolveAssetSource(DEFAULT_IMAGE).uri;
+    const defaultUri = Image.resolveAssetSource(DEFAULT_SERVICE_IMAGE).uri;
     const keys = [
       ['ImageFileBase64Str', 'ImageFileName'],
       ['ImageFileBase64Str1', 'ImageFileName1'],
@@ -230,7 +233,6 @@ const AddEditServiceModal: React.FC<Props> = ({
             ContactNo: contactNo.trim() ? Number(contactNo.trim()) : undefined,
             SACCode: sacCode.trim(),
             ...(await buildImageFields()),
-            UserId: ownerId,
             CreatedBy: ownerId,
             UpdatedBy: ownerId,
           }),
@@ -298,7 +300,7 @@ const AddEditServiceModal: React.FC<Props> = ({
               {uri ? (
                 <SlotImage key={uri} uri={uri} style={styles.imagePreview} />
               ) : (
-                <Image source={DEFAULT_IMAGE} style={styles.imagePreview} resizeMode="contain" />
+                <Image source={CAMERA_ICON} style={styles.imagePreview} resizeMode="contain" />
               )}
             </Pressable>
           );

@@ -75,6 +75,14 @@ type ViewState =
     };
 
 // Java: Picasso placeholder + error both use R.drawable.servicelist_default.
+// Java: the header illustration on the sub-category and service screens is the fixed
+// slider_fieldwebfixit drawable at 130dp tall, at its natural width (not the item's photo).
+const SLIDER_IMAGE = require('../../../assets/images/servicelist_default.jpg');
+const SLIDER_RATIO = (() => {
+  const src = Image.resolveAssetSource(SLIDER_IMAGE);
+  return src.width / src.height;
+})();
+
 const ServiceThumb = ({uri, style, fallback}: {uri?: string | null; style: StyleProp<ImageStyle>; fallback?: any}) => {
   const [failed, setFailed] = useState(false);
   return (
@@ -353,14 +361,14 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
     </View>
   );
 
-  const renderBreadcrumb = (label: string, name: string, imageUri?: string | null) => (
+  const renderBreadcrumb = (label: string, name: string) => (
     <>
       <Pressable hitSlop={10} onPress={goBack}>
         <Text style={styles.breadcrumb} numberOfLines={1}>
           {label} / {name}
         </Text>
       </Pressable>
-      <ServiceThumb uri={imageUri} style={styles.banner} />
+      <Image source={SLIDER_IMAGE} style={[styles.banner, {width: ms(130) * SLIDER_RATIO}]} />
     </>
   );
 
@@ -451,7 +459,7 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
       {deleteDialog}
       <View style={styles.root}>
         <View style={styles.sheet}>
-          {renderBreadcrumb('Category', view.category.ServiceTypeCategoryName ?? '', view.category.ServiceTypeCategoryImage)}
+          {renderBreadcrumb('Category', view.category.ServiceTypeCategoryName ?? '')}
           {isFirstCategory ? (
             <View style={styles.titleBar}>
               <Text style={styles.titleText}>{t('rn_service_sub_category')}</Text>
@@ -598,9 +606,9 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
       {deleteDialog}
     <View style={styles.root}>
       <View style={styles.sheet}>
-        {renderBreadcrumb('Sub Category', view.subcategory.ServiceTypeSubCategoryName ?? '', view.subcategory.ServiceTypeSubCategoryImage)}
+        {renderBreadcrumb('Sub Category', view.subcategory.ServiceTypeSubCategoryName ?? '')}
         <View style={styles.searchRow}>
-          <UnderlineSearch value={search} onChangeText={setSearch} placeholder={t('rn_search')} style={styles.searchFlex} />
+          <UnderlineSearch value={search} onChangeText={setSearch} placeholder={t('service_name')} style={styles.searchFlex} />
           {tree[0]?.ServiceTypeCategoryId === view.category.ServiceTypeCategoryId ? null : (
             <Pressable style={styles.addPill} onPress={() => setServiceModal({editing: null})}>
               <Text style={styles.addPillText}>{t('rn_service')}</Text>
@@ -618,12 +626,10 @@ renderRow({
               title: item.ServiceName ?? '',
               id: item.Id,
               subtitle: item.Description ? String(item.Description) : undefined,
-              prices: item.Price
-                ? {
-                    strike: `${currencySymbol} ${formatAmount((item.Price ?? 0) + 200)}`,
-                    price: `${currencySymbol} ${formatAmount(item.Price)}`,
-                  }
-                : undefined,
+              prices: {
+                strike: item.Price ? `${currencySymbol} ${formatAmount(item.Price + 200)}` : '',
+                price: `${currencySymbol} ${formatAmount(item.Price ?? 0)}`,
+              },
               large: true,
               onPress: () => setView({level: 'servicedetail', category: view.category, subcategory: view.subcategory, service: item}),
             })
@@ -682,12 +688,12 @@ const styles = StyleSheet.create({
   },
   priceRow: {flexDirection: 'row', alignItems: 'center', marginTop: ms(14)},
   strikePrice: {
-    fontSize: sp(15),
+    flex: 1,
+    fontSize: sp(16),
     color: COLORS.primary,
     textDecorationLine: 'line-through',
-    marginRight: ms(30),
   },
-  priceText: {fontSize: sp(15), color: '#4CAF50'},
+  priceText: {flex: 1, fontSize: sp(16), color: '#4CAF50'},
   detailSheet: {
     flex: 1,
     marginTop: ms(25),
@@ -737,8 +743,6 @@ const styles = StyleSheet.create({
   banner: {
     alignSelf: 'center',
     height: ms(130),
-    width: '100%',
-    resizeMode: 'contain',
     marginBottom: ms(10),
   },
   categoryNameRow: {

@@ -29,7 +29,7 @@ export const getAdvanceServiceList = async (params: {UserId: number; SearchParam
  * Source: URLConstant.Services.GET_DELETE_SERVICE
  * Endpoint: GET Services/DeleteServiceType
  */
-export const getDeleteService = async (params?: Record<string, any>): Promise<DeleteServiceCategoryListDTO> => {
+export const getDeleteService = async (params?: Record<string, any>): Promise<ServiceTypeListDTO> => {
   const response = await apiClient.get('Services/DeleteServiceType', { params });
   return response.data;
 };

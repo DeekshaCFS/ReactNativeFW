@@ -10,7 +10,6 @@ import { launchCameraWithPermission } from '../../utils/cameraPermission';
 import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -18,7 +17,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import Modal from '../../components/AppModal';
@@ -26,7 +24,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {OutlinedInput} from '../../components/OutlinedInput';
 import {launchImageLibrary, type Asset} from 'react-native-image-picker';
 import {COLORS} from '../../theme/theme';
-import {ms, scale, sp, vs} from '../../utils/responsive';
+import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import {
   postServiceCategoryList,
@@ -57,12 +55,13 @@ type Props = {
 };
 
 // Same image the list card shows; falls back to the card's default if the photo fails to load.
-const DEFAULT_CARD_IMAGE = require('../../../assets/images/servicelist_default.jpg');
+// Java's empty-image placeholder (drawable/ic_camera.png), also used if the saved photo fails to load.
+const CAMERA_ICON = require('../../../assets/images/ic_camera.png');
 const CardImage = ({uri, style}: {uri: string; style: any}) => {
   const [failed, setFailed] = useState(false);
   return (
     <Image
-      source={failed ? DEFAULT_CARD_IMAGE : {uri}}
+      source={failed ? CAMERA_ICON : {uri}}
       style={style}
       resizeMode="cover"
       onError={() => setFailed(true)}
@@ -93,7 +92,6 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
 
   const isEditing = !!editing;
-  const title = kind === 'category' ? 'Service Category' : 'Service Sub-Category';
 
   useEffect(() => {
     if (!visible) return;
@@ -150,28 +148,34 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
     setSubmitting(true);
     try {
       let response: {Message?: unknown} | undefined;
+      // Java (addCategory/addSubCategory): send the image name+base64 only when a photo was picked,
+      // otherwise send an empty ServiceTypeCategoryImage / ServiceTypeSubCategoryImage.
       if (kind === 'category') {
+        const categoryImage = image
+          ? {CategoryImageFileBase64Str: image.base64, CategoryImageFileName: image.fileName}
+          : {ServiceTypeCategoryImage: ''};
         response = await ensureSuccess(
           await postServiceCategoryList({
             ServiceTypeCategoryId: editing?.id,
             ServiceTypeCategoryName: name.trim(),
             ServiceTypeCategoryDescription: description.trim(),
-            CategoryImageFileBase64Str: image?.base64 ?? '',
-            CategoryImageFileName: image?.fileName ?? '',
+            ...categoryImage,
             UserId: ownerId,
             CreatedBy: ownerId,
             UpdatedBy: ownerId,
           }),
         );
       } else {
+        const subImage = image
+          ? {SubCategoryImageFileBase64Str: image.base64, SubCategoryImageName: image.fileName}
+          : {ServiceTypeSubCategoryImage: ''};
         response = await ensureSuccess(
           await postServiceSubCategoryList({
             ServiceTypeSubCategoryId: editing?.id,
             ServiceTypeCategoryId: categoryId,
             ServiceTypeSubCategoryName: name.trim(),
             ServiceTypeSubCategoryDescription: description.trim(),
-            SubCategoryImageFileBase64Str: image?.base64 ?? '',
-            SubCategoryImageName: image?.fileName ?? '',
+            ...subImage,
             UserId: ownerId,
             CreatedBy: ownerId,
             UpdatedBy: ownerId,
@@ -222,10 +226,7 @@ const AddEditServiceGroupModal: React.FC<Props> = ({
                 ) : editing?.image && String(editing.image).trim().toUpperCase() !== 'NA' ? (
                   <CardImage key={editing.image} uri={editing.image} style={styles.imagePreview} />
                 ) : (
-                  <>
-                    <Ionicons name="image-outline" size={ms(34)} color={COLORS.lightGray} />
-                    <Text style={styles.imageHint}>{t('add_capture_image')}</Text>
-                  </>
+                  <Image source={CAMERA_ICON} style={styles.imagePreview} resizeMode="contain" />
                 )}
               </Pressable>
 
@@ -322,7 +323,6 @@ const styles = StyleSheet.create({
     marginBottom: ms(20),
   },
   imagePreview: {width: '100%', height: '100%'},
-  imageHint: {color: COLORS.lightGray, fontSize: sp(16), marginTop: ms(2)},
   errorText: {color: '#DC2626', fontSize: sp(13), marginBottom: ms(10), textAlign: 'center'},
   submitButton: {
     height: ms(52),
