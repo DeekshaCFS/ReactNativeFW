@@ -34,6 +34,7 @@ import {getProfileDetails, updateUser} from '../../api/users/usersService';
 import type {
   UserDetailsLstOwnerTaxDetailsDtos,
   UserDetailsOwnerAccountDetailsDto,
+  UserDetailsResultData,
 } from '../../api/users/users.types';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
@@ -80,6 +81,30 @@ const emptyBankFields: BankFields = {
   PaymentLink: '',
 };
 
+// Core profile fields Java's BankDetailsFragment sends with every bank update
+// (updateProfileUser). Without them the server rejects the save with
+// "Validation failed for one or more entities".
+const buildProfileUserPayload = (profile: UserDetailsResultData) => ({
+  FirstName: profile.FirstName ?? '',
+  LastName: profile.LastName ?? '',
+  ContactNo: profile.ContactNo ?? '',
+  Email: profile.Email ?? '',
+  Address: profile.Address ?? '',
+  DOB: profile.DOB ?? '',
+  CompanyId: profile.CompanyId,
+  CompanyName: profile.CompanyName ?? '',
+  CompanyAddress: profile.CompanyAddress ?? '',
+  CompanyCity: profile.CompanyCity ?? '',
+  CompanyGSTorPanNo: profile.CompanyGSTorPanNo ?? '',
+  CompanyWebsite: profile.CompanyWebsite ?? '',
+  CompanyContactNo: profile.CompanyContactNo,
+  CompanyServiceTypeId: profile.CompanyServiceTypeId,
+  AadharCardNo: profile.AadharCardNo ?? '',
+  NoOfUsers: profile.NoOfUsers ?? '',
+  IsModelError: true,
+  IsSuccessful: true,
+});
+
 const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
   const {t} = useTranslation();
   const [activeTab, setActiveTab] = useState<'bank' | 'tax'>('bank');
@@ -93,6 +118,9 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
   const [pickedQrImage, setPickedQrImage] = useState<PickedImage | null>(null);
 
   const [taxRows, setTaxRows] = useState<TaxRow[]>([{TaxName: '', TaxPercentage: ''}]);
+  // The owner's profile record. UpdateUser validates the whole user, so bank and
+  // tax saves must carry these fields too (Java's updateProfileUser sends them).
+  const [profileUser, setProfileUser] = useState<UserDetailsResultData | null>(null);
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -100,6 +128,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
       const response = await getProfileDetails({UserId: ownerId});
       const bank: UserDetailsOwnerAccountDetailsDto | undefined = response?.ResultData?.ownerAccountDetailsDto;
       const taxes: UserDetailsLstOwnerTaxDetailsDtos[] | undefined = response?.ResultData?.lstOwnerTaxDetailsDtos;
+      setProfileUser(response?.ResultData ?? null);
 
       setBankFields({
         BankName: bank?.BankName ?? '',
@@ -174,9 +203,14 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
   };
 
   const handleSaveBank = async () => {
+    if (!profileUser) {
+      showFailureMsg('Profile is still loading. Please try again.');
+      return;
+    }
     setSavingBank(true);
     try {
       const response = await updateUser({
+        ...buildProfileUserPayload(profileUser),
         UserId: ownerId,
         UpdatedBy: ownerId,
         ownerAccountDetailsDto: {
@@ -226,9 +260,14 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
       showFailureMsg(t('rn_please_fill_in_both_fields_for_every_tax_r'));
       return;
     }
+    if (!profileUser) {
+      showFailureMsg('Profile is still loading. Please try again.');
+      return;
+    }
     setSavingTax(true);
     try {
       const response = await updateUser({
+        ...buildProfileUserPayload(profileUser),
         UserId: ownerId,
         UpdatedBy: ownerId,
         lstOwnerTaxDetailsDtos: taxRows.map(row => ({
