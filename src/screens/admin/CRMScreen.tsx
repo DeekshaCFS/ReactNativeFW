@@ -221,6 +221,7 @@ import {
   normalizeTaskTag,
   styles,
 } from './crmShared';
+import {formatTimeHHMMSS} from '../../utils/timeFormat';
 import TabStrip from '../../components/TabStrip';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 
@@ -1138,7 +1139,7 @@ const CRMScreen = ({
     setCustomerName(getEnquiryCustomerName(item));
     setPhone(getEnquiryPhone(item));
     setEnquiryDate(getEnquiryDate(item) || getTodayDateString());
-    setEnquiryTime(getEnquiryTime(item) || getTaskStartTimeString());
+    setEnquiryTime(formatTimeHHMMSS(getEnquiryTime(item)) || getTaskStartTimeString());
     setAddress(getEnquiryAddress(item));
     setPlaceCoords(null);
     setStateValue(getEnquiryState(item));
@@ -2112,6 +2113,7 @@ const CRMScreen = ({
                       placeholderTextColor={COLORS.lightGray}
                       value={enquiryTime}
                       onChangeText={setEnquiryTime}
+                      onBlur={() => setEnquiryTime(current => formatTimeHHMMSS(current))}
                     />
                   </View>
                 </View>

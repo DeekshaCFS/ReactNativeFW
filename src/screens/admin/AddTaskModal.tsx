@@ -2,6 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ensureSuccess} from '../../utils/apiResponse';
+import {formatTimeHHMMSS} from '../../utils/timeFormat';
 import {sanitizeDecimalInput} from '../../utils/decimal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
@@ -479,7 +480,7 @@ export const buildTaskFormValues = (
     newTaskId: String(task.NewTaskId ?? ''),
     title: String(task.Name ?? ''),
     taskDate: toDateOnly(String(task.TaskDate ?? '')),
-    taskTime: String(task.TaskTime ?? ''),
+    taskTime: formatTimeHHMMSS(task.TaskTime),
     address: String(task.FullAddress ?? ''),
     state: String(task.State ?? ''),
     city: String(task.CityName ?? ''),
@@ -874,7 +875,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     }
     setTaskTitle(initialValues?.title ?? '');
     setTaskDate(initialValues?.taskDate || getTodayDateString());
-    setTaskTime(initialValues?.taskTime || getTaskStartTimeString());
+    setTaskTime(formatTimeHHMMSS(initialValues?.taskTime) || getTaskStartTimeString());
     setSelectedFieldworker(
       initialValues?.assignedFieldworkerId
         ? {id: initialValues.assignedFieldworkerId, name: initialValues.assignedFieldworkerName ?? 'Me'}

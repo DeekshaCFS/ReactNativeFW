@@ -215,6 +215,7 @@ const formatFormTime = (date: Date) =>
     .toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
+      second: '2-digit',
       hour12: false,
     })
     .replace(/\s+/g, '')
@@ -769,6 +770,7 @@ const AMCDashboardScreen = ({
     null,
   );
   const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [timePickerMode, setTimePickerMode] = useState<'hour' | 'minute'>('hour');
   const [activationDate, setActivationDate] = useState<Date | null>(null);
   const [contractDate, setContractDate] = useState<Date | null>(null);
   const [expiryDate, setExpiryDate] = useState<Date | null>(null);
@@ -1727,11 +1729,15 @@ const AMCDashboardScreen = ({
   const openTimePicker = () => {
     const nextTime = serviceTime ?? new Date();
     setSelectedClockTime(nextTime);
+    setTimePickerMode('hour');
     setTimePickerVisible(true);
   };
 
   const confirmTimePicker = () => {
-    setServiceTime(selectedClockTime);
+    // Java DateUtils.timePicker stores the picked time with ":00" seconds.
+    const picked = new Date(selectedClockTime);
+    picked.setSeconds(0, 0);
+    setServiceTime(picked);
     setTimePickerVisible(false);
   };
 
@@ -1740,6 +1746,18 @@ const AMCDashboardScreen = ({
     const isPM = nextTime.getHours() >= 12;
     nextTime.setHours((hour % 12) + (isPM ? 12 : 0));
     setSelectedClockTime(nextTime);
+  };
+
+  const setClockMinute = (minute: number) => {
+    const nextTime = new Date(selectedClockTime);
+    nextTime.setMinutes(minute);
+    setSelectedClockTime(nextTime);
+  };
+
+  // Like the Android clock: picking an hour moves on to picking minutes.
+  const selectClockHour = (hour: number) => {
+    setClockHour(hour);
+    setTimePickerMode('minute');
   };
 
   const toggleClockPeriod = (period: 'AM' | 'PM') => {
@@ -1855,11 +1873,36 @@ const AMCDashboardScreen = ({
   };
 
   const renderTimeDialog = () => {
-    const hours = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-    const selectedHour = selectedClockTime.getHours() % 12 || 12;
-    const selectedMinute = selectedClockTime.getMinutes();
+    const clockSize = ms(256);
+    const clockRadius = ms(104);
+    const center = clockSize / 2;
+    const bubbleSize = ms(40);
+    const isHourMode = timePickerMode === 'hour';
+    const hour12 = selectedClockTime.getHours() % 12 || 12;
+    const minute = selectedClockTime.getMinutes();
+    const minuteStep = (Math.round(minute / 5) * 5) % 60;
     const period = selectedClockTime.getHours() >= 12 ? 'PM' : 'AM';
-    const clockHandRotation = `${selectedHour * 30}deg`;
+    const faceValues = isHourMode
+      ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      : [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+    const selectedValue = isHourMode ? hour12 : minuteStep;
+
+    // Hour 12 and minute 0 both sit at the top of the face.
+    const angleFor = (value: number) => {
+      const fraction = isHourMode ? (value % 12) / 12 : value / 60;
+      return fraction * Math.PI * 2 - Math.PI / 2;
+    };
+    const pointFor = (angle: number, radius: number) => ({
+      x: center + Math.cos(angle) * radius,
+      y: center + Math.sin(angle) * radius,
+    });
+    const selectedAngle = angleFor(selectedValue);
+    // Solid hand from the centre to the selected number. A bar is rotated
+    // about its own middle, so it is placed with its middle on the hand's
+    // midpoint and turned to the selected angle.
+    const handLength = clockRadius;
+    const handMid = pointFor(selectedAngle, handLength / 2);
+    const handAngleDeg = (selectedAngle * 180) / Math.PI;
 
     return (
       <Modal
@@ -1871,11 +1914,31 @@ const AMCDashboardScreen = ({
         <View style={styles.pickerOverlay}>
           <View style={styles.timeDialog}>
             <View style={styles.timeDialogHeader}>
-              <Text style={styles.timeDisplay}>
-                {selectedHour}:{String(selectedMinute).padStart(2, '0')}
-              </Text>
-              <View>
-                <Pressable onPress={() => toggleClockPeriod('AM')}>
+              <View style={styles.timeDisplayRow}>
+                <Pressable hitSlop={8} onPress={() => setTimePickerMode('hour')}>
+                  <Text
+                    style={[
+                      styles.timeDisplay,
+                      !isHourMode ? styles.timeDisplayInactive : null,
+                    ]}
+                  >
+                    {hour12}
+                  </Text>
+                </Pressable>
+                <Text style={[styles.timeDisplay, styles.timeDisplayColon]}>:</Text>
+                <Pressable hitSlop={8} onPress={() => setTimePickerMode('minute')}>
+                  <Text
+                    style={[
+                      styles.timeDisplay,
+                      isHourMode ? styles.timeDisplayInactive : null,
+                    ]}
+                  >
+                    {String(minute).padStart(2, '0')}
+                  </Text>
+                </Pressable>
+              </View>
+              <View style={styles.periodColumn}>
+                <Pressable hitSlop={6} onPress={() => toggleClockPeriod('AM')}>
                   <Text
                     style={[
                       styles.periodText,
@@ -1885,7 +1948,7 @@ const AMCDashboardScreen = ({
                     {t('am')}
                   </Text>
                 </Pressable>
-                <Pressable onPress={() => toggleClockPeriod('PM')}>
+                <Pressable hitSlop={6} onPress={() => toggleClockPeriod('PM')}>
                   <Text
                     style={[
                       styles.periodText,
@@ -1899,27 +1962,47 @@ const AMCDashboardScreen = ({
             </View>
 
             <View style={styles.clockBody}>
-              <View style={styles.clockFace}>
+              <View
+                style={[
+                  styles.clockFace,
+                  {width: clockSize, height: clockSize, borderRadius: clockSize / 2},
+                ]}
+              >
                 <View
                   style={[
                     styles.clockHand,
-                    { transform: [{ rotate: clockHandRotation }] },
+                    {
+                      width: handLength,
+                      left: handMid.x - handLength / 2,
+                      top: handMid.y - ms(1),
+                      transform: [{rotate: `${handAngleDeg}deg`}],
+                    },
                   ]}
                 />
-                <View style={styles.clockCenterDot} />
-                {hours.map((hour, index) => {
-                  const angle = (index / 12) * Math.PI * 2 - Math.PI / 2;
-                  const radius = 92;
-                  const left = 112 + Math.cos(angle) * radius;
-                  const top = 112 + Math.sin(angle) * radius;
-                  const selected = hour === selectedHour;
+                <View
+                  style={[
+                    styles.clockCenterDot,
+                    {left: center - ms(4), top: center - ms(4)},
+                  ]}
+                />
+                {faceValues.map(value => {
+                  const point = pointFor(angleFor(value), clockRadius);
+                  const selected = value === selectedValue;
                   return (
                     <Pressable
-                      key={hour}
-                      onPress={() => setClockHour(hour)}
+                      key={`${timePickerMode}-${value}`}
+                      onPress={() =>
+                        isHourMode ? selectClockHour(value) : setClockMinute(value)
+                      }
                       style={[
                         styles.clockNumber,
-                        { left: left - 18, top: top - 18 },
+                        {
+                          left: point.x - bubbleSize / 2,
+                          top: point.y - bubbleSize / 2,
+                          width: bubbleSize,
+                          height: bubbleSize,
+                          borderRadius: bubbleSize / 2,
+                        },
                         selected ? styles.clockNumberSelected : null,
                       ]}
                     >
@@ -1929,19 +2012,23 @@ const AMCDashboardScreen = ({
                           selected ? styles.clockNumberTextSelected : null,
                         ]}
                       >
-                        {hour}
+                        {isHourMode ? value : String(value).padStart(2, '0')}
                       </Text>
                     </Pressable>
                   );
                 })}
               </View>
+
               <View style={styles.timeActionRow}>
-                <Text style={styles.keyboardIcon}>⌨</Text>
                 <View style={styles.timeActionButtons}>
                   <Pressable onPress={() => setTimePickerVisible(false)}>
                     <Text style={styles.dialogActionText}>{t('cancel').toUpperCase()}</Text>
                   </Pressable>
-                  <Pressable onPress={confirmTimePicker}>
+                  <Pressable
+                    onPress={() => {
+                      confirmTimePicker();
+                    }}
+                  >
                     <Text style={styles.dialogActionText}>{t('qr_code_positive_button_know')}</Text>
                   </Pressable>
                 </View>
@@ -2111,10 +2198,7 @@ const AMCDashboardScreen = ({
                 'Time *',
                 serviceTime ? formatFormTime(serviceTime) : '',
                 openTimePicker,
-                {
-                  half: true,
-                  trailing: <Text style={styles.clockIcon}>◷</Text>,
-                },
+                { half: true },
               )}
             </View>
             <View style={styles.formPairRow}>
@@ -2882,11 +2966,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginLeft: ms(8),
   },
-  clockIcon: {
-    color: '#6B7280',
-    fontSize: sp(18),
-    fontWeight: '700',
-  },
   submitAMCButton: {
     alignItems: 'center',
     backgroundColor: THEME_PRIMARY,
@@ -3042,67 +3121,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     minHeight: ms(118),
+    paddingHorizontal: ms(20),
+  },
+  timeDisplayRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
   },
   timeDisplay: {
     color: '#FFFFFF',
     fontSize: sp(54),
     fontWeight: '300',
-    marginRight: ms(18),
+  },
+  timeDisplayInactive: {
+    color: 'rgba(255, 255, 255, 0.55)',
+  },
+  timeDisplayColon: {
+    marginHorizontal: ms(4),
+  },
+  periodColumn: {
+    marginLeft: ms(18),
   },
   periodText: {
-    color: '#F5B3BC',
-    fontSize: sp(19),
+    color: 'rgba(255, 255, 255, 0.55)',
+    fontSize: sp(18),
     fontWeight: '800',
-    lineHeight: sp(30),
+    lineHeight: sp(28),
   },
   periodTextActive: {
     color: '#FFFFFF',
   },
   clockBody: {
-    paddingBottom: ms(22),
+    paddingBottom: ms(18),
     paddingHorizontal: ms(24),
     paddingTop: ms(22),
   },
   clockFace: {
     alignSelf: 'center',
     backgroundColor: '#EEEEEE',
-    borderRadius: ms(112),
-    height: ms(224),
-    marginBottom: ms(14),
-    width: ms(224),
+    marginBottom: ms(10),
+    position: 'relative',
   },
   clockHand: {
     backgroundColor: '#C8142E',
-    height: ms(78),
-    left: ms(111),
+    height: ms(2),
     position: 'absolute',
-    top: ms(44),
-    transform: [{ rotate: '30deg' }],
-    width: ms(2),
   },
   clockCenterDot: {
     backgroundColor: '#C8142E',
-    borderRadius: ms(5),
-    height: ms(10),
-    left: ms(107),
+    borderRadius: ms(4),
+    height: ms(8),
     position: 'absolute',
-    top: ms(107),
-    width: ms(10),
+    width: ms(8),
   },
   clockNumber: {
     alignItems: 'center',
-    borderRadius: ms(18),
-    height: ms(36),
     justifyContent: 'center',
     position: 'absolute',
-    width: ms(36),
   },
   clockNumberSelected: {
     backgroundColor: '#C8142E',
   },
   clockNumberText: {
     color: '#333333',
-    fontSize: sp(18),
+    fontSize: sp(16),
   },
   clockNumberTextSelected: {
     color: '#FFFFFF',
@@ -3111,11 +3192,7 @@ const styles = StyleSheet.create({
   timeActionRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  keyboardIcon: {
-    color: '#777777',
-    fontSize: sp(22),
+    justifyContent: 'flex-end',
   },
   timeActionButtons: {
     flexDirection: 'row',
