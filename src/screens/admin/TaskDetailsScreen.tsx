@@ -527,7 +527,21 @@ const TaskDetailsScreen = ({
   // Every other status from the owner task list opens OwnerTaskTrackingFragmentNew.
   const showTrackingLayout = source === 'taskList' && !!task && !showCompletedLayout;
   const serviceName = getStringField(record, ['serviceName', 'ServiceName']);
-  const hasWarranty = Boolean(warrantyTypeName || warrantyBrandName || warrantyModelName || warrantySerialNo);
+  // Warranty Details is shown for every task status, after Customer Details (Java
+  // always shows the section; missing values read -NA-).
+  const renderWarrantySection = () => (
+    <>
+      <Text style={[styles.sectionHeading, styles.sectionSpacing]}>{t('warranty_details')}</Text>
+      {renderRows([
+        ['Warranty Type', warrantyTypeName || '-NA-'],
+        ['Start Date', warrantyStartDate || '-NA-'],
+        ['End Date', warrantyEndDate || '-NA-'],
+        ['Brand Name', warrantyBrandName || '-NA-'],
+        ['Model Name', warrantyModelName || '-NA-'],
+        ['Serial No', warrantySerialNo || '-NA-'],
+      ])}
+    </>
+  );
 
   const renderRows = (rows: [string, string][]) =>
     rows.map(([label, value]) => (
@@ -653,19 +667,7 @@ const TaskDetailsScreen = ({
             ['Satisfaction Code:', valueOrNA(satisfactionCode)],
           ])}
 
-          {hasWarranty ? (
-            <>
-              <Text style={[styles.sectionHeading, styles.sectionSpacing]}>{t('warranty_details')}</Text>
-              {renderRows([
-                ['Warranty Type', warrantyTypeName || '-NA-'],
-                ['Start Date', warrantyStartDate || '-NA-'],
-                ['End Date', warrantyEndDate || '-NA-'],
-                ['Brand Name', warrantyBrandName || '-NA-'],
-                ['Model Name', warrantyModelName || '-NA-'],
-                ['Serial No', warrantySerialNo || '-NA-'],
-              ])}
-            </>
-          ) : null}
+          {renderWarrantySection()}
 
           {isOnHold && onHoldPhotos.length > 0 ? (
             <>
@@ -776,6 +778,8 @@ const TaskDetailsScreen = ({
               <Text style={styles.fieldValue}>{value}</Text>
             </View>
           ))}
+
+          {renderWarrantySection()}
 
           <TaskClosureSection
             ref={closureRef}

@@ -40,6 +40,11 @@ type Props = Omit<React.ComponentProps<typeof TextInput>, 'keyboardType' | 'maxL
   /** Digits allowed before the point (default 9). */
   maxIntDigits?: number;
   decimals?: number;
+  /**
+   * Caps the digits in total, whole part and decimals together (e.g. 10 for an
+   * amount that may hold at most 10 digits). The decimals shrink to fit the whole part.
+   */
+  maxTotalDigits?: number;
   /** Whole numbers only (quantities): number keyboard, digits only, no "0.000" padding. */
   integer?: boolean;
 };
@@ -49,6 +54,7 @@ export default function DecimalInput({
   labelBackground = COLORS.white,
   maxIntDigits = 9,
   decimals: decimalsProp = AMOUNT_DECIMALS,
+  maxTotalDigits,
   integer = false,
   value,
   onChangeText,
@@ -61,7 +67,12 @@ export default function DecimalInput({
   const decimals = integer ? 0 : decimalsProp;
   const [focused, setFocused] = useState(false);
   const raw = value ?? '';
-  const shown = integer ? raw : focused ? raw : padDecimal(raw, decimals);
+  // Decimals allowed for a given whole part, once maxTotalDigits is applied.
+  const decimalsFor = (text: string) =>
+    maxTotalDigits
+      ? Math.max(0, Math.min(decimals, maxTotalDigits - (text.split('.')[0] ?? '').length))
+      : decimals;
+  const shown = integer ? raw : focused ? raw : padDecimal(raw, decimalsFor(raw));
 
   const input = (
     <TextInput
@@ -83,11 +94,18 @@ export default function DecimalInput({
         const clean = sanitizeDecimalInput(t, decimals);
         const [whole, frac] = clean.split('.');
         const capped = whole.length > maxIntDigits ? whole.slice(0, maxIntDigits) : whole;
-        onChangeText?.(frac === undefined ? capped : `${capped}.${frac}`);
+        if (frac === undefined) {
+          onChangeText?.(capped);
+          return;
+        }
+        const fracAllowed = maxTotalDigits
+          ? Math.max(0, Math.min(decimals, maxTotalDigits - capped.length))
+          : decimals;
+        onChangeText?.(`${capped}.${frac.slice(0, fracAllowed)}`);
       }}
       onBlur={e => {
         setFocused(false);
-        const padded = integer ? raw : padDecimal(raw, decimals);
+        const padded = integer ? raw : padDecimal(raw, decimalsFor(raw));
         if (padded && padded !== raw) onChangeText?.(padded);
         onBlur?.(e);
       }}

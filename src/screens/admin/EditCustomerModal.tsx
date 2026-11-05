@@ -1,5 +1,3 @@
-// src/screens/admin/EditCustomerModal.tsx
-
 import React, {useEffect, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -667,7 +665,7 @@ const EditCustomerModal = ({
               <View style={styles.fieldRow}>
                 <View style={styles.halfWrap}>
                   <LabeledField
-                    label={t('pin_code')}
+                    label={t('Pin/Post Code *')}
                     required
                     half
                     value={form.pinCode}
@@ -707,7 +705,10 @@ const EditCustomerModal = ({
                       half
                       value={form.telephoneNumber}
                       keyboardType="phone-pad"
-                      onChangeText={text => setField('telephoneNumber', text)}
+                      maxLength={15}
+                      onChangeText={text =>
+                        setField('telephoneNumber', text.replace(/\D/g, '').slice(0, 15))
+                      }
                     />
                   </View>
                 ) : null}

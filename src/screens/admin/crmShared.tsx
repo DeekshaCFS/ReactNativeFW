@@ -29,6 +29,8 @@ export type ServiceNode = {
   key: string;
   label: string;
   children: ServiceNode[];
+  /** Service price from the service list (leaf services only). */
+  price?: number;
 };
 
 export type TaskTagOption = {
@@ -825,7 +827,8 @@ export const buildServiceTree = (
         depth + 1,
         `${key}-`,
       );
-      return {id, key, label, children};
+      const price = record.ServiceName != null ? Number(record.Price) : NaN;
+      return {id, key, label, children, price: Number.isFinite(price) ? price : undefined};
     })
     .filter(node => node.label);
 

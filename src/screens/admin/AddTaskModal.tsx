@@ -92,7 +92,7 @@ const ERROR_BORDER = '#D32F2F';
 type TaskFieldKey =
   | 'title' | 'date' | 'time' | 'fieldworker' | 'tag' | 'address' | 'landmark'
   | 'state' | 'city' | 'pinCode' | 'customerName' | 'customerNumber' | 'email' | 'rate'
-  | 'specialInstructions';
+  | 'specialInstructions' | 'warrantyEnd';
 const SEGMENT_DARK = COLORS.ink; // SegmentedGroup sc_tint_color @color/background_gray
 
 // dialog_add_task_new.xml: 20dp margins, Material outlined (34dp-radius) fields with the 20dp
@@ -951,7 +951,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
   const openTaskPicker = (kind: 'date' | 'time' | 'start' | 'end') => {
     const current =
-      kind === 'date' ? taskDate : kind === 'time' ? taskTime : kind === 'start' ? warrantyStartDate : warrantyEndDate;
+      kind === 'date' ? taskDate : kind === 'time' ? taskTime : kind === 'start' ? warrantyStartDate : warrantyEndDate || warrantyStartDate;
     const base = new Date();
     if (kind === 'time') {
       const [h, m] = current.split(':').map(part => parseInt(part, 10));
@@ -979,7 +979,16 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       setTaskDate(formatted);
     } else if (kind === 'start') {
       setWarrantyStartDate(formatted);
+      // A start date after the chosen end date would leave the end before the start, so clear it.
+      if (warrantyEndDate && warrantyEndDate < formatted) {
+        setWarrantyEndDate('');
+        showFailureMsg('End date cleared because it was before the new start date.');
+      }
     } else {
+      if (warrantyStartDate && formatted < warrantyStartDate) {
+        showFailureMsg('End date cannot be before start date.');
+        return;
+      }
       setWarrantyEndDate(formatted);
     }
   };
@@ -1437,6 +1446,23 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       setSelectedWarrantyType(option);
     }
     setProductPicker(null);
+  };
+
+  // Brand / model / serial can also be typed in (Java's brand, model and serial
+  // fields are free-text). A typed value that matches a listed entry uses that
+  // entry; otherwise it is sent as a new name with id 0.
+  const handleProductPickerTyped = (text: string) => {
+    if (productPicker !== 'brand' && productPicker !== 'model' && productPicker !== 'serial') {
+      return;
+    }
+    const typed = text.trim();
+    if (!typed) {
+      return;
+    }
+    const match = productPickerOptions.find(
+      option => option.label.trim().toLowerCase() === typed.toLowerCase(),
+    );
+    handleProductPickerSelect(match ?? {id: 0, label: typed});
   };
 
   // Typing a customer number suggests saved customers whose number contains the digits typed.
@@ -1900,6 +1926,11 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 setSelectedTaskService(node);
                 setIsTaskServiceModalOpen(false);
                 setTaskServiceTypeSearch('');
+                // Service price fills the Rate (out of warranty) amount, like the quote fill does.
+                if (node.price !== undefined && node.price > 0) {
+                  setAmcAmount(node.price.toFixed(3));
+                  setWarrantyMode('out');
+                }
               }}
             >
               <Text style={styles.serviceLeafBullet}>•</Text>
@@ -1981,6 +2012,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     if (isTaskTagEnable && !selectedAddTaskTag) fail('tag', 'Please Select Valid Tag');
     if (taskEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(taskEmail.trim())) {
       fail('email', 'Please enter a valid email ID');
+    }
+    // Warranty end date is the same as the start date or later (YYYY-MM-DD compares correctly).
+    if (warrantyStartDate && warrantyEndDate && warrantyEndDate < warrantyStartDate) {
+      fail('warrantyEnd', 'End date cannot be before start date');
     }
     if (customerNumber) {
       if (Number(customerNumber) === 0) fail('customerNumber', 'Please Enter a Valid Number');
@@ -2340,6 +2375,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   </View>
                   <View style={styles.amcDisabledField}>
                     <DecimalInput
+                      maxTotalDigits={10}
+                      maxIntDigits={10}
                       style={[
                         styles.amcDisabledInput,
                           warrantyMode === 'out' ? styles.amcEnabledInput : null,
@@ -2549,14 +2586,15 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   <View style={styles.halfField}>
                     <OutlinedInput
                       style={[styles.pillInput, errBorder('pinCode')]}
-                      placeholder={t('pincode')}
+                      placeholder="Pin/Post Code *"
                       placeholderTextColor={COLORS.lightGray}
                       value={taskPinCode}
                       onChangeText={text =>
-                        setTaskPinCode(text.replace(/[^0-9]/g, '').slice(0, 6))
+                        setTaskPinCode(text.replace(/[^A-Za-z0-9]/g, '').slice(0, 12))
                       }
-                      keyboardType="number-pad"
-                      maxLength={6}
+                      keyboardType="default"
+                      autoCapitalize="characters"
+                      maxLength={12}
                     />
                   </View>
                   <View style={styles.halfField} />
@@ -2759,7 +2797,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                             ensureCustomerList();
                           }}
                           keyboardType="number-pad"
-                          maxLength={15}
+                          maxLength={12}
                           editable={!initialValues?.leadId}
                         />
                         <ContactBookButton onPress={openContacts} style={styles.phonebookButton} />
@@ -3044,7 +3082,13 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
           mode={taskPicker === 'time' ? 'time' : 'date'}
           is24Hour={false}
           display="default"
-          minimumDate={taskPicker === 'time' ? undefined : new Date(Date.now() - 1000)}
+          minimumDate={
+            taskPicker === 'time'
+              ? undefined
+              : taskPicker === 'end' && warrantyStartDate
+                ? new Date(`${warrantyStartDate}T00:00:00`)
+                : new Date(Date.now() - 1000)
+          }
           onValueChange={(_: DateTimePickerChangeEvent, picked: Date) => {
             applyTaskPicker(taskPicker, picked);
             setTaskPicker(null);
@@ -3090,6 +3134,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         emptyText="No results found."
         onSelect={handleProductPickerSelect}
         onClose={() => setProductPicker(null)}
+        showOk={productPicker === 'brand' || productPicker === 'model' || productPicker === 'serial'}
+        onDismissText={handleProductPickerTyped}
         onSearch={
           productPicker && productPicker !== 'warranty'
             ? text => loadProductPickerOptions(productPicker, text)
