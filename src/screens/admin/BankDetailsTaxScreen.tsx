@@ -30,7 +30,6 @@ import {launchImageLibrary, type Asset} from 'react-native-image-picker';
 import {COLORS} from '../../theme/theme';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
 import {ms, scale, sp, vs} from '../../utils/responsive';
-import {sanitizeDecimalInput} from '../../utils/decimal';
 import {getProfileDetails, updateUser} from '../../api/users/usersService';
 import type {
   UserDetailsLstOwnerTaxDetailsDtos,
@@ -373,12 +372,16 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
                   value={row.TaxName}
                   onChangeText={v => updateTaxRow(index, 'TaxName', v)}
                 />
+                {/* Java add_bulk_dynamic_tax: whole-number percent, max 2 digits (maxLength=2),
+                    stored as an int (TaxPercentage). No decimal or 0.000 formatting. */}
                 <DecimalInput
+                  integer
+                  maxIntDigits={2}
                   style={[styles.pill, styles.taxPercentInput]}
                   label={t('rn_percent')}
                   placeholderTextColor={COLORS.lightGray}
                   value={row.TaxPercentage}
-                  onChangeText={v => updateTaxRow(index, 'TaxPercentage', sanitizeDecimalInput(v))}
+                  onChangeText={v => updateTaxRow(index, 'TaxPercentage', v)}
                 />
               </View>
             </View>
