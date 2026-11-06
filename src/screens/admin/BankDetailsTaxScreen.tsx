@@ -72,6 +72,12 @@ type TaxRow = {
 
 const MAX_TAX_ROWS = 10;
 
+// QA: IFSC/Swift is at most 20 characters, account number at most 35.
+const BANK_FIELD_MAX_LENGTH: Partial<Record<keyof BankFields, number>> = {
+  IFSC_Code: 20,
+  AccountNumber: 35,
+};
+
 const emptyBankFields: BankFields = {
   BankName: '',
   IFSC_Code: '',
@@ -99,6 +105,7 @@ const buildProfileUserPayload = (profile: UserDetailsResultData) => ({
   CompanyWebsite: profile.CompanyWebsite ?? '',
   CompanyContactNo: profile.CompanyContactNo,
   CompanyServiceTypeId: profile.CompanyServiceTypeId,
+  CompanyLogoName: profile.CompanyLogo ?? '',
   AadharCardNo: profile.AadharCardNo ?? '',
   NoOfUsers: profile.NoOfUsers ?? '',
   IsModelError: true,
@@ -329,9 +336,12 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
                   placeholder={label}
                   placeholderTextColor={COLORS.lightGray}
                   value={bankFields[field]}
-                  onChangeText={v => setBankFields(f => ({...f, [field]: v}))}
+                  onChangeText={v =>
+                    setBankFields(f => ({...f, [field]: field === 'AccountNumber' ? v.replace(/\D/g, '') : v}))
+                  }
                   autoCapitalize={field === 'IFSC_Code' ? 'characters' : 'sentences'}
                   keyboardType={field === 'AccountNumber' ? 'number-pad' : 'default'}
+                  maxLength={BANK_FIELD_MAX_LENGTH[field]}
                 />
               ))}
             </View>
