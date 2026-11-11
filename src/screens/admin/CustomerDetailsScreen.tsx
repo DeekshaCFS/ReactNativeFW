@@ -1,8 +1,8 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
-import BackBar from '../../components/BackBar';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HEADER_CONTENT_HEIGHT} from '../../components/AppHeader';
+import {setHeaderBack} from '../../state/headerBack';
 import {DeleteIcon} from '../../components/FabIcons';
 import {COLORS} from '../../theme/theme';
 import {getCurrentCurrencySymbol} from '../../state/session';
@@ -665,8 +665,7 @@ const CustomerDetailsScreen = ({
   };
 
   const insets = useSafeAreaInsets();
-  // Java has no on-screen back control here (hardware back returns to the list). Android does
-  // the same; iOS has no hardware back so it keeps a back bar.
+  // Android: the hardware back button returns to the list (no on-screen back control, as in Java).
   useEffect(() => {
     if (Platform.OS !== 'android' || selectedQuotation || selectedInvoice || selectedTask) {
       return undefined;
@@ -677,6 +676,21 @@ const CustomerDetailsScreen = ({
     });
     return () => subscription.remove();
   }, [onBack, selectedQuotation, selectedInvoice, selectedTask]);
+
+  // iPhone: the shared header's hamburger becomes a back arrow. It goes back one level:
+  // from a quotation / invoice / task to Customer Details, and from Customer Details to the list.
+  const headerBack = useCallback(() => {
+    if (selectedQuotation) setSelectedQuotation(null);
+    else if (selectedInvoice) setSelectedInvoice(null);
+    else if (selectedTask) setSelectedTask(null);
+    else onBack();
+  }, [onBack, selectedQuotation, selectedInvoice, selectedTask]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return undefined;
+    setHeaderBack(headerBack);
+    return () => setHeaderBack(null);
+  }, [headerBack]);
 
   // Java's empty lists show the "NO RESULT FOUND !" illustration; real errors stay as text.
   const renderEmpty = (message: string) => (
@@ -734,6 +748,7 @@ const CustomerDetailsScreen = ({
         customerPhone={customerPhone}
         customerAddress={customerAddress}
         onBack={() => setSelectedTask(null)}
+        hideBackBar={Platform.OS === 'ios'}
         underAppHeader
       />
     );
@@ -741,11 +756,7 @@ const CustomerDetailsScreen = ({
 
   return (
     <View style={styles.screen}>
-      {Platform.OS === 'ios' ? (
-        <BackBar onBack={onBack} underAppHeader />
-      ) : (
-        <View style={{height: insets.top + HEADER_CONTENT_HEIGHT}} />
-      )}
+      <View style={{height: insets.top + HEADER_CONTENT_HEIGHT}} />
 
       {/* fragment_crm_task_amc_tabhost: three weighted rows (label .4 / value .6 / action .4) */}
       <View style={styles.infoRow}>
