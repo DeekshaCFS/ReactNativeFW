@@ -1,8 +1,5 @@
 // src/screens/technician/main/AttendanceScreen.tsx
-import {
-  View, Text, StyleSheet, ScrollView, Pressable,
-  Platform, StatusBar,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useState, useCallback, useEffect } from 'react';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, ms, useAppHeaderHeight } from '../../../utils/responsive';
@@ -119,7 +116,16 @@ export default function AttendanceScreen() {
         </View>
       );
     }
-    return cells;
+    // Build explicit rows of exactly 7 days, so a row can never wrap early.
+    const rows = [];
+    for (let r = 0; r < cells.length; r += 7) {
+      rows.push(
+        <View key={`row${r}`} style={styles.weekLine}>
+          {cells.slice(r, r + 7)}
+        </View>
+      );
+    }
+    return rows;
   };
 
   const fmt = (k: string) => `${year}-${String(month + 1).padStart(2, '0')}-${String(k).padStart(2, '0')}`;
@@ -255,9 +261,9 @@ const styles = StyleSheet.create({
     marginVertical: vs(12),
   },
 
-  weekRow: { flexDirection: 'row', justifyContent: 'space-evenly', paddingBottom: vs(14) },
+  weekRow: { flexDirection: 'row', paddingBottom: vs(14) },
   weekText: {
-    width: '14%',
+    flex: 1,
     textAlign: 'center',
     color: COLORS.midGray,
     fontWeight: '500',
@@ -265,13 +271,14 @@ const styles = StyleSheet.create({
   },
 
   calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
+  weekLine: {
+    flexDirection: 'row',
+  },
   dayCell: {
-    width: `${100 / 7}%`,
+    flex: 1,
     height: vs(58),
     alignItems: 'center',
     justifyContent: 'flex-start',

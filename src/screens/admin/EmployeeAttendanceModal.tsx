@@ -184,7 +184,16 @@ const EmployeeAttendanceModal: React.FC<Props> = ({visible, employee, onClose}) 
         </Pressable>,
       );
     }
-    return cells;
+    // Build explicit rows of exactly 7 days, so a row can never wrap early.
+    const rows = [];
+    for (let r = 0; r < cells.length; r += 7) {
+      rows.push(
+        <View key={`row${r}`} style={styles.weekLine}>
+          {cells.slice(r, r + 7)}
+        </View>,
+      );
+    }
+    return rows;
   };
 
   return (
@@ -361,21 +370,22 @@ const styles = StyleSheet.create({
   },
   weekRow: {
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
   },
   weekText: {
-    width: '14%',
+    flex: 1,
     textAlign: 'center',
     color: '#84868a',
     fontWeight: '500',
     fontSize: sp(13),
   },
   calendarGrid: {
+    // Rows are stacked vertically; each row holds 7 equal columns (see weekLine).
+  },
+  weekLine: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
   },
   dayCell: {
-    width: '14%',
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: vs(3),
