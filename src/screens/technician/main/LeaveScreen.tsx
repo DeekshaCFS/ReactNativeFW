@@ -522,7 +522,12 @@ export default function LeaveScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.sheetBody}>
+            <ScrollView
+              style={[styles.sheetBody, { flexShrink: 1 }]}
+              contentContainerStyle={{ paddingBottom: vs(20) }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+            >
             {sheetMode === 'request' && (
               <View style={styles.balanceCard}>
                 {([
@@ -600,6 +605,9 @@ export default function LeaveScreen() {
                 }
                 mode="date"
                 display={Platform.OS === 'android' ? 'calendar' : 'inline'}
+                themeVariant="light"
+                accentColor={COLORS.primary}
+                textColor={COLORS.ink}
                 minimumDate={new Date(Date.now() - 7 * 86400000)}
                 onValueChange={onDateChange}
                 onDismiss={() => setActiveDateField(null)}
@@ -641,7 +649,7 @@ export default function LeaveScreen() {
             <Pressable style={styles.cancelLink} onPress={closeSheet}>
               <Text style={styles.cancelLinkText}>{t('cancel')}</Text>
             </Pressable>
-            </View>
+            </ScrollView>
           </View>
         </Modal>
 
