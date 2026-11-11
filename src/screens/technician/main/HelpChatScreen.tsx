@@ -21,13 +21,22 @@ export default function HelpChatScreen({ underAppHeader = false }: { underAppHea
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const headerHeight = useAppHeaderHeight();
+  // Changing this key remounts the web view, which reloads the page.
+  const [webKey, setWebKey] = useState(0);
 
   return (
     <View style={[styles.container, underAppHeader ? { paddingTop: headerHeight } : null]}>
       <WebView
+        key={webKey}
         source={{ uri: HELP_CHAT_URL }}
         style={styles.web}
         javaScriptEnabled
+        domStorageEnabled
+        // iPhone: the chat widget's cookies are blocked unless they are shared with the web view.
+        sharedCookiesEnabled
+        // iPhone can shut down the web view's process (background, low memory). When that
+        // happens the page goes blank without an error, so reload it.
+        onContentProcessDidTerminate={() => setWebKey(k => k + 1)}
         onLoadEnd={() => setLoading(false)}
         onError={e => {
           setLoading(false);
