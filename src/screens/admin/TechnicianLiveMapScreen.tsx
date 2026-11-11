@@ -11,6 +11,7 @@ import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, View} from 're
 import Modal from '../../components/AppModal';
 import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {COLORS} from '../../theme/theme';
 import {ms, sp} from '../../utils/responsive';
 import {getLiveLocation, type LiveLocation} from '../../utils/firebaseLiveLocation';
@@ -34,6 +35,8 @@ const TechnicianLiveMapScreen: React.FC<Props> = ({visible, employee, onClose}) 
   const [location, setLocation] = useState<LiveLocation | null>(null);
   const [loading, setLoading] = useState(true);
   const mapRef = useRef<MapView | null>(null);
+  // Full-screen modal: keep the header below the iPhone status bar / Dynamic Island.
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!visible || !employee?.EmployeeNumber) {
@@ -74,11 +77,11 @@ const TechnicianLiveMapScreen: React.FC<Props> = ({visible, employee, onClose}) 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
-        <View style={styles.header}>
+        <View style={[styles.header, {paddingTop: insets.top + ms(14)}]}>
           <Text numberOfLines={1} style={styles.headerTitle}>
             {employee ? getEmployeeName(employee) : tr('Track')}
           </Text>
-          <Pressable hitSlop={10} onPress={onClose} style={styles.closeButton}>
+          <Pressable hitSlop={16} onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={sp(20)} color={COLORS.white} />
           </Pressable>
         </View>
@@ -134,8 +137,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   closeButton: {
-    width: ms(28),
-    height: ms(28),
+    width: ms(36),
+    height: ms(36),
     alignItems: 'center',
     justifyContent: 'center',
   },
