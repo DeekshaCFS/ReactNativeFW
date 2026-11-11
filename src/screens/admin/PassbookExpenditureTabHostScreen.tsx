@@ -10,20 +10,15 @@ import {ms, sp} from '../../utils/responsive';
 import {formatAmount} from '../../utils/decimal';
 import {
   ActivityIndicator,
-
   FlatList,
   Image,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import Modal from '../../components/AppModal';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   type ExpenseTechnicianItem,
   type ExpenseTechnicianListResponse,
@@ -153,12 +148,6 @@ const PassbookExpenditureTabHostScreen = ({
   const [balanceModalMode, setBalanceModalMode] = useState<'add' | 'deduct'>('add');
   const [balanceModalTechnicianId, setBalanceModalTechnicianId] = useState<number | null>(null);
   const latestExpenseRequestId = useRef(0);
-
-  const yearOptions = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    // Show exactly 2 years: current year and the previous year
-    return [currentYear, currentYear - 1];
-  }, []);
 
   const openBalanceModal = (
     mode: 'add' | 'deduct',

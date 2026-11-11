@@ -171,10 +171,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   earningTitle: {marginTop: vs(8), fontSize: sp(22), textAlign: 'center', color: COLORS.textBlack},
-  // Java: three equal cells, top-aligned; a long amount wraps onto a second line while the
-  // pink sheet stays at a fixed offset from the top of the white card.
+  // The arrow buttons take a fixed width so the amount cell gets all the remaining width.
+  // The amount always stays on one line: it is not wrapped, truncated or shrunk.
   earnRow: {flexDirection: 'row', alignItems: 'flex-start', marginTop: -vs(2), minHeight: vs(32)},
-  caretCell: {flex: 1, alignItems: 'center', justifyContent: 'flex-start', paddingTop: vs(4)},
+  caretCell: {width: scale(44), alignItems: 'center', justifyContent: 'flex-start', paddingTop: vs(4)},
   caretImg: {width: scale(16), height: scale(16), resizeMode: 'contain'},
   earnCell: {flex: 1, alignItems: 'center', justifyContent: 'flex-start'},
   earningAmount: {fontSize: sp(25), fontWeight: '700', textAlign: 'center', color: COLORS.textBlack},
