@@ -16,6 +16,7 @@ type Props = {
   onCamera: () => void;
   onGallery: () => void;
   onClose: () => void;
+  onDismiss?: () => void;
   title?: string;
 };
 
@@ -24,11 +25,12 @@ export default function ImageSourceDialog({
   onCamera,
   onGallery,
   onClose,
+  onDismiss,
   title = 'Select Image Source',
 }: Props) {
   const { t } = useTranslation();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         {/* The inner Pressable swallows taps so only the backdrop dismisses. */}
         <Pressable style={styles.dialog}>

@@ -132,8 +132,18 @@ export default function TaskTrackingSheet({
     setShowPhotoSourceModal(true);
   };
 
-  const handlePhotoSource = async (source: 'camera' | 'gallery') => {
-    setShowPhotoSourceModal(false);
+  const pendingSourceRef = useRef<'camera' | 'gallery' | null>(null);
+
+  const chooseSource = (source: 'camera' | 'gallery') => {
+    pendingSourceRef.current = source;
+    setShowPhotoSourceModal(false); // the picker is launched from onDismiss below
+  };
+
+  // Runs only after the source dialog has fully closed (see ImageSourceHost for why).
+  const handlePhotoSource = async () => {
+    const source = pendingSourceRef.current;
+    pendingSourceRef.current = null;
+    if (!source) return;
     const index = pendingPhotoIndexRef.current;
     if (index === null) return;
     pendingPhotoIndexRef.current = null;
@@ -308,9 +318,10 @@ export default function TaskTrackingSheet({
 
       <ImageSourceDialog
         visible={showPhotoSourceModal}
-        onCamera={() => handlePhotoSource('camera')}
-        onGallery={() => handlePhotoSource('gallery')}
+        onCamera={() => chooseSource('camera')}
+        onGallery={() => chooseSource('gallery')}
         onClose={() => setShowPhotoSourceModal(false)}
+        onDismiss={handlePhotoSource}
       />
     </>
   );

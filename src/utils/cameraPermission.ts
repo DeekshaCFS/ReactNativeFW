@@ -1,4 +1,4 @@
-import { Keyboard, PermissionsAndroid, Platform } from 'react-native';
+import { Alert, Keyboard, Linking, PermissionsAndroid, Platform } from 'react-native';
 import {
   launchCamera,
   type CameraOptions,
@@ -20,5 +20,17 @@ export async function launchCameraWithPermission(
       return { errorCode: 'permission', errorMessage: 'Camera permission denied' };
     }
   }
-  return launchCamera(options);
+  const result = await launchCamera(options);
+  // iOS asks only once; after a denial the user must enable the camera in Settings.
+  if (Platform.OS === 'ios' && result.errorCode === 'permission') {
+    Alert.alert(
+      'Camera access needed',
+      'Enable camera access for FieldWeb in Settings to take photos.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ],
+    );
+  }
+  return result;
 }

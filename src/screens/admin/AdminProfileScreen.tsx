@@ -22,6 +22,8 @@ import {
 import PlaceSearchModal from '../../components/PlaceSearchModal';
 import SearchPickerModal,{ type PickerOption } from '../../components/SearchPickerModal';
 import type { UserDetailsResultData, UpdateUserResultData } from '../../api/users/users.types';
+import { changeCompanyDetails, getCompanyDetails } from '../../api/companyDetails/companyDetailsService';
+import type { CompanyDetailsResultData } from '../../api/companyDetails/companyDetails.types';
 import { ms, sp, scale, vs, useAppHeaderHeight } from '../../utils/responsive';
 import { useNavigation } from '@react-navigation/native';
 import { PencilEditIcon, EditFieldIcon } from '../../components/DialogIcons';
@@ -172,6 +174,12 @@ export default function AdminProfileScreen() {
   // Which address field the Google Places search is currently filling.
   const [placeSearchFor, setPlaceSearchFor] = useState<'address' | 'companyAddress' | null>(null);
   const [gstOrPan, setGstOrPan] = useState('');
+  // CompanyDetails DTO: RegistrationNo is the company registration number. The full record is
+  // kept so the update sends the stored company details back with the new number.
+  const [companyRegistrationNo, setCompanyRegistrationNo] = useState('');
+  // VAT registration number. UI only for now: the field name and fetch/save mapping are not wired yet.
+  const [vatRegistrationNo, setVatRegistrationNo] = useState('');
+  const [companyDetailsRecord, setCompanyDetailsRecord] = useState<CompanyDetailsResultData | null>(null);
   const [companyWebsite, setCompanyWebsite] = useState('');
   const [companyContactNo, setCompanyContactNo] = useState('');
   const [noOfEmployees, setNoOfEmployees] = useState('');
@@ -282,6 +290,17 @@ export default function AdminProfileScreen() {
       setCompanyName(user?.CompanyName ?? '');
       setCompanyAddress(user?.CompanyAddress ?? '');
       setGstOrPan(user?.CompanyGSTorPanNo ?? '');
+      // GET CompanyDetails/GetComapnyDetails -> CompanyDetails.ResultData (RegistrationNo)
+      getCompanyDetails({ UserId: Number(userId) })
+        .then(res => {
+          const details = res?.ResultData ?? null;
+          setCompanyDetailsRecord(details);
+          setCompanyRegistrationNo(details?.RegistrationNo ?? '');
+        })
+        .catch(() => {
+          setCompanyDetailsRecord(null);
+          setCompanyRegistrationNo('');
+        });
       setCompanyWebsite(user?.CompanyWebsite ?? '');
       setCompanyContactNo(user?.CompanyContactNo != null ? String(user.CompanyContactNo) : '');
       setNoOfEmployees(user?.NoOfUsers != null ? String(user.NoOfUsers) : '');
@@ -431,6 +450,9 @@ export default function AdminProfileScreen() {
     if (!companyName.trim()) {
       return 'Company name is required';
     }
+    if (!companyRegistrationNo.trim()) {
+      return 'Company registration number is required';
+    }
     if (gstOrPan.trim() && !isValidGstOrPan(gstOrPan)) {
       return 'Please enter a valid GST / PAN number';
     }
@@ -513,6 +535,16 @@ export default function AdminProfileScreen() {
       const isSuccess = code === '200' || code === 'success';
 
       if (isSuccess) {
+        // Company registration number is stored in CompanyDetails (UpdateComapnyDetails).
+        const companyRes = await changeCompanyDetails({
+          ...(companyDetailsRecord ?? {}),
+          UserId: Number(userId),
+          RegistrationNo: companyRegistrationNo.trim(),
+        });
+        const companyCode = String(companyRes?.Code ?? '').toLowerCase();
+        if (companyCode !== '200' && companyCode !== 'success') {
+          showFailureMsg(companyRes?.Message || 'Company registration number was not saved.');
+        }
         showSuccessMsg(message || 'Success');
         setIsMobileNoUpdate(false);
         setIsEmailIdUpdate(false);
@@ -701,6 +733,10 @@ export default function AdminProfileScreen() {
         <Field label={t('city')} value={companyCity} maxLength={200} onChange={setCompanyCity} />
         <Field label={t('rn_gst_pan_no')} value={gstOrPan} maxLength={15}
           onChange={(v) => setGstOrPan(v.replace(/[^0-9A-Za-z]/g, '').toUpperCase())} />
+        <Field label="Company Registration Number" value={companyRegistrationNo}
+          onChange={setCompanyRegistrationNo} />
+        <Field label="VAT Registration No." value={vatRegistrationNo}
+          onChange={setVatRegistrationNo} />
         <Field label={t('company_cont_no_hint')} keyboard="number-pad" maxLength={12} prefix={profile?.CountryCode ?? CONTACT_COUNTRY_CODE}
           value={companyContactNo} onChange={setCompanyContactNo} />
         <Field label={t('company_website_hint')} keyboard="url" maxLength={50}

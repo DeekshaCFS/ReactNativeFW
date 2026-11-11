@@ -1,11 +1,5 @@
 // src/components/ImageSourceHost.tsx
-//
-// One place for the "Select Image Source" (Camera / Gallery) chooser. Screens call
-// showImageSourceDialog(onCamera, onGallery) instead of building their own Alert or sheet, so the
-// dialog looks and behaves the same everywhere (the Java AlertDialog list, see ImageSourceDialog).
-// <ImageSourceHost /> is mounted once at the app root.
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ImageSourceDialog from './ImageSourceDialog';
 
 type Request = { onCamera: () => void; onGallery: () => void; title?: string };
@@ -18,6 +12,7 @@ export const showImageSourceDialog = (onCamera: () => void, onGallery: () => voi
 
 export default function ImageSourceHost() {
   const [request, setRequest] = useState<Request | null>(null);
+  const pendingRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     open = setRequest;
@@ -27,10 +22,16 @@ export default function ImageSourceHost() {
   }, []);
 
   const choose = (pick: 'onCamera' | 'onGallery') => {
-    const current = request;
-    setRequest(null);
-    // Let the dialog close before the camera / gallery opens.
-    if (current) setTimeout(() => current[pick](), 0);
+    if (!request) return;
+    pendingRef.current = request[pick];
+    setRequest(null); // closes the dialog; the action runs in handleDismiss
+  };
+
+  // Fires only after the modal is fully gone, so the native picker / permission alert can present.
+  const handleDismiss = () => {
+    const action = pendingRef.current;
+    pendingRef.current = null;
+    action?.();
   };
 
   return (
@@ -39,7 +40,11 @@ export default function ImageSourceHost() {
       title={request?.title}
       onCamera={() => choose('onCamera')}
       onGallery={() => choose('onGallery')}
-      onClose={() => setRequest(null)}
+      onClose={() => {
+        pendingRef.current = null;
+        setRequest(null);
+      }}
+      onDismiss={handleDismiss}
     />
   );
 }
