@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from './NumpadDoneBar';
 // src/components/TaskTrackingSheet.tsx
 //
 // Java TaskDialogNew.acceptTaskDialog (dialog_accept_task.xml): a bottom-gravity dialog shown
@@ -378,6 +379,7 @@ function ResponseCodeInput({ value, onChange }: { value: string; onChange: (v: s
           value={value}
           onChangeText={t => onChange(t.replace(/[^0-9]/g, '').slice(0, 4))}
           keyboardType="number-pad"
+          inputAccessoryViewID={numpadAccessoryId("number-pad")}
           maxLength={4}
           style={styles.codeHiddenInput}
           caretHidden

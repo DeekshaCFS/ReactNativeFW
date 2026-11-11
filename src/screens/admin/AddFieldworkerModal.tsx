@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/AddFieldworkerModal.tsx
 
 import React, {useMemo, useState} from 'react';
@@ -370,6 +371,7 @@ const AddFieldworkerModal: React.FC<AddFieldworkerModalProps> = ({
                     placeholder={isIndia ? tr('Phone Number') : tr('Email Id')}
                     placeholderTextColor={COLORS.lightGray}
                     keyboardType={isIndia ? 'phone-pad' : 'email-address'}
+                    inputAccessoryViewID={numpadAccessoryId(isIndia ? 'phone-pad' : 'email-address')}
                     autoCapitalize="none"
                     maxLength={isIndia ? 10 : undefined}
                   />

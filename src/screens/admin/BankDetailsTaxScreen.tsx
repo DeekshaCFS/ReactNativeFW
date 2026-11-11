@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/BankDetailsTaxScreen.tsx
 //
 // Owner-only "Bank Details & Tax" screen (Android's
@@ -317,7 +318,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
       />
 
       {activeTab === 'bank' ? (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* fragment_bankdetails.xml: centred 20sp heading, first three fields in the left half
               with the QR image on the right, then full-width fields. */}
           <Text style={styles.heading}>{t('rn_bank_account_details')}</Text>
@@ -341,6 +342,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
                   }
                   autoCapitalize={field === 'IFSC_Code' ? 'characters' : 'sentences'}
                   keyboardType={field === 'AccountNumber' ? 'number-pad' : 'default'}
+                  inputAccessoryViewID={numpadAccessoryId(field === 'AccountNumber' ? 'number-pad' : 'default')}
                   maxLength={BANK_FIELD_MAX_LENGTH[field]}
                 />
               ))}
@@ -401,7 +403,7 @@ const BankDetailsTaxScreen: React.FC<Props> = ({ownerId}) => {
           </View>
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.heading}>{t('rn_tax_details')}</Text>
           {/* add_bulk_dynamic_tax.xml: one rounded card per tax -- red "Tax #N", red cross, name +
               percent pills; "Add More" lives in the last card. */}

@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/InvoiceDetailsScreen.tsx
 
 import React, {useCallback, useEffect, useState} from 'react';
@@ -484,6 +485,7 @@ const InvoiceDetailsScreen = ({
           placeholder={t('enter_amount')}
           placeholderTextColor={COLORS.lightGray}
           keyboardType="decimal-pad"
+          inputAccessoryViewID={numpadAccessoryId("decimal-pad")}
           maxLength={10}
           value={paymentAmount}
           onChangeText={v => setPaymentAmount(sanitizeDecimalInput(v))}

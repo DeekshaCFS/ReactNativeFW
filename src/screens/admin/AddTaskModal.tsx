@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/AddTaskModal.tsx
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
@@ -2797,6 +2798,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                             ensureCustomerList();
                           }}
                           keyboardType="number-pad"
+                          inputAccessoryViewID={numpadAccessoryId("number-pad")}
                           maxLength={12}
                           editable={!initialValues?.leadId}
                         />
@@ -3204,7 +3206,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 style={styles.suggestionLoader}
               />
             ) : (
-              <ScrollView style={styles.serviceModalScroll}>
+              <ScrollView keyboardShouldPersistTaps="handled" style={styles.serviceModalScroll}>
                 {displayedTaskServiceTree.map(node =>
                   renderTaskServiceNode(node, 0),
                 )}

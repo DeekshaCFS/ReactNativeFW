@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/AddEditServiceModal.tsx
 //
 // Add/edit form for the leaf "Service" level of the Services hierarchy
@@ -289,6 +290,7 @@ const AddEditServiceModal: React.FC<Props> = ({
         value={contactNo}
         onChangeText={v => setContactNo(v.replace(/[^0-9]/g, ''))}
         keyboardType="number-pad"
+        inputAccessoryViewID={numpadAccessoryId("number-pad")}
         maxLength={10}
       />
 

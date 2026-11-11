@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/AMCDashboardScreen.tsx
 import React, {
   useCallback,
@@ -1488,6 +1489,7 @@ const AMCDashboardScreen = ({
           onFocus={options.onFocus}
           editable={options.editable}
           keyboardType={options.keyboardType ?? 'default'}
+          inputAccessoryViewID={numpadAccessoryId(options.keyboardType ?? 'default')}
           maxLength={options.maxLength}
           autoCapitalize={options.autoCapitalize ?? 'sentences'}
         />

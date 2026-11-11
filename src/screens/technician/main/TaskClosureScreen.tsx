@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../../components/NumpadDoneBar';
 // src/screens/technician/main/TaskClosureScreen.tsx
 import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useState, useEffect, useRef } from 'react';
@@ -1511,6 +1512,7 @@ export default function TaskClosure({ navigation, route }: any) {
               placeholder={t('rn_enter_satisfaction_code')}
               placeholderTextColor="#ABABAB"
               keyboardType="numeric"
+              inputAccessoryViewID={numpadAccessoryId("numeric")}
               style={styles.deviceInput}
             />
           </View>
@@ -1607,6 +1609,7 @@ export default function TaskClosure({ navigation, route }: any) {
                         placeholder={t('customer_number')}
                         placeholderTextColor="#a6a6a6"
                         keyboardType="phone-pad"
+                        inputAccessoryViewID={numpadAccessoryId("phone-pad")}
                         style={[sigModalStyles.roundedInput, { marginTop: vs(20) }]}
                       />
                     </View>

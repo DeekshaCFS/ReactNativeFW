@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/AMCDetailsScreen.tsx
 
 import ConfirmDeleteDialog from '../../components/ConfirmDeleteDialog';
@@ -1312,6 +1313,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
           placeholder={label}
           placeholderTextColor={COLORS.lightGray}
           keyboardType={options?.keyboardType || 'default'}
+          inputAccessoryViewID={numpadAccessoryId(options?.keyboardType || 'default')}
           multiline={options?.multiline}
           editable={options?.editable}
         />

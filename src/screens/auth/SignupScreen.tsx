@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/auth/SignupScreen.tsx
 // Java: TouchLessSignupActivity / touchless_signup_activity.xml
 import {
@@ -274,6 +275,7 @@ export default function SignupScreen() {
                 placeholder={t('enter_your_mobile_number')}
                 placeholderTextColor={COLORS.authText}
                 keyboardType="number-pad"
+                inputAccessoryViewID={numpadAccessoryId("number-pad")}
                 maxLength={15}
                 style={[GlobalStyles.input, !!error && GlobalStyles.inputError]}
                 onChangeText={t => { setMobile(t); if (error) setError(''); }}

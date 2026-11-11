@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/AddLeadModal.tsx
 //
 // Port of Java's LeadManagement/AddEditLeadDialog.addLead -- a single shared
@@ -361,6 +362,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
             setShowSuggestions(false);
           }}
           keyboardType="number-pad"
+          inputAccessoryViewID={numpadAccessoryId("number-pad")}
           maxLength={15}
           placeholder={t('star_phone_number')}
           placeholderTextColor={COLORS.lightGray}
@@ -414,6 +416,7 @@ export default function AddLeadModal({ visible, onClose, onSuccess, technician =
             value={pincode}
             onChangeText={t => setPincode(t.replace(/[^0-9]/g, ''))}
             keyboardType="number-pad"
+            inputAccessoryViewID={numpadAccessoryId("number-pad")}
             maxLength={10}
             placeholder={`Pin Code${isPincodeEnable ? ' *' : ''}`}
             placeholderTextColor={COLORS.lightGray}

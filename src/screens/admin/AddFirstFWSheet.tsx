@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/AddFirstFWSheet.tsx
 
 import {
@@ -103,6 +104,7 @@ export default function AddFirstFieldworkerSheet({ visible, onClose, onSubmit }:
               value={phoneNumber}
               onChangeText={(t) => setPhoneNumber(t.replace(/[^0-9]/g, ''))}
               keyboardType="number-pad"
+              inputAccessoryViewID={numpadAccessoryId("number-pad")}
               maxLength={10}
             />
           </View>

@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from './NumpadDoneBar';
 // src/components/AddQuotePreview.tsx
 //
 // Java dialog_view_saveadd_quote.xml / dialog_view_saveadd_invoice.xml ("View & Save Quote/Invoice"):
@@ -158,6 +159,7 @@ export default function AddQuotePreview({
                         placeholder={t('rn_amount_received')}
                         placeholderTextColor={COLORS.lightGray}
                         keyboardType="decimal-pad"
+                        inputAccessoryViewID={numpadAccessoryId("decimal-pad")}
                         maxLength={10}
                       />
                       {!!receivedAmount && (

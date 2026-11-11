@@ -1,5 +1,8 @@
 // src/screens/technician/main/AttendanceScreen.tsx
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, Pressable,
+  Platform, StatusBar,
+} from 'react-native';
 import { useState, useCallback, useEffect } from 'react';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, ms, useAppHeaderHeight } from '../../../utils/responsive';
@@ -150,7 +153,7 @@ export default function AttendanceScreen() {
 
   return (
     <View style={styles.root}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }}>
         {/* Tab Row */}
         <View style={[styles.tabRow, { paddingTop: headerHeight + vs(4) }]}>
           <Pressable style={styles.activeTab}>

@@ -4,12 +4,21 @@ import { NavigationContainer } from '@react-navigation/native';
 import RootNavigator from './src/navigation/RootNavigator';
 import AppContainer from './src/components/AppContainer';
 import ToastHost from './src/components/ToastHost';
+import NumpadDoneBar from './src/components/NumpadDoneBar';
 import ImageSourceHost from './src/components/ImageSourceHost';
 import { loadStoredLanguage } from './src/i18n';
 import { TourProvider } from './src/tour/TourContext';
 import SpotlightOverlay from './src/tour/SpotlightOverlay';
 import SplashScreen from './src/screens/SplashScreen';
 import 'react-native-gesture-handler';
+
+// Any tap anywhere in the app dismisses the keyboard, including on iPhone where
+// number keypads have no Done key. Returning false lets the tap still reach
+// buttons, links and inputs underneath, so nothing else changes.
+const dismissKeyboardOnTap = () => {
+  Keyboard.dismiss();
+  return false;
+};
 
 export default function App() {
   const [languageReady, setLanguageReady] = useState(false);
@@ -51,7 +60,7 @@ export default function App() {
     // TourTarget's measureInWindow reports (AppContainer's tablet column is
     // narrower than the window and would otherwise offset the math).
     <TourProvider>
-      <View style={styles.root}>
+      <View style={styles.root} onStartShouldSetResponderCapture={dismissKeyboardOnTap}>
         <AppContainer>
           <NavigationContainer>
             <RootNavigator />
@@ -60,6 +69,7 @@ export default function App() {
         <SpotlightOverlay />
         {/* Java-style success / failure banner (CommonFunction.showSuccessMsg / showFailureMsg). */}
         <ImageSourceHost />
+        <NumpadDoneBar />
         <ToastHost />
       </View>
     </TourProvider>

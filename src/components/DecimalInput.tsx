@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from './NumpadDoneBar';
 // src/components/DecimalInput.tsx
 //
 // Shared input for every numeric (amount / price / quantity / percentage / reading) field:
@@ -80,6 +81,7 @@ export default function DecimalInput({
       style={label ? [omitWrapperKeys(style), { marginBottom: 0 }] : style}
       value={shown}
       keyboardType={integer ? 'number-pad' : 'decimal-pad'}
+      inputAccessoryViewID={numpadAccessoryId(integer ? 'number-pad' : 'decimal-pad')}
       placeholder={placeholder ?? (integer ? '0' : padDecimal('0', decimals))}
       placeholderTextColor={rest.placeholderTextColor ?? COLORS.lightGray}
       onFocus={e => {

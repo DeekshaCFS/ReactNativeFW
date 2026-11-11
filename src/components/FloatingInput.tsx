@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from './NumpadDoneBar';
 // src/components/FloatingInput.tsx
 import { View, TextInput, Animated, StyleSheet } from 'react-native';
 import { useEffect, useRef } from 'react';
@@ -63,6 +64,7 @@ export default function FloatingInput({
         onChangeText={onChangeText}
         style={styles.input}
         keyboardType={keyboardType}
+        inputAccessoryViewID={numpadAccessoryId(keyboardType)}
         secureTextEntry={secureTextEntry}
         onFocus={() => animate(1)}
         onBlur={() => { if (!value) animate(0); }}

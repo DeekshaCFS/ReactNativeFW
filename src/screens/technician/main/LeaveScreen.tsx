@@ -456,7 +456,7 @@ export default function LeaveScreen() {
     <>
       {deleteDialog}
     <View style={styles.root}>
-      <FlatList
+      <FlatList keyboardShouldPersistTaps="handled"
         data={leaves}
         keyExtractor={(item, idx) => `${item.LeaveID}-${idx}`}
         renderItem={renderItem}

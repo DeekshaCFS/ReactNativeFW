@@ -1,6 +1,7 @@
 // src/screens/admin/AdminProfileScreen.tsx
 
 import { launchCameraWithPermission } from '../../utils/cameraPermission';
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Image, ScrollView,
@@ -79,6 +80,7 @@ const Field: React.FC<FieldProps> = ({
             style={[fieldStyles.input, { flex: 1 }]}
             value={value ?? ''}
             keyboardType={keyboard}
+            inputAccessoryViewID={numpadAccessoryId(keyboard)}
             onChangeText={onChange}
             editable={editable}
             maxLength={maxLength}
@@ -848,6 +850,7 @@ export default function AdminProfileScreen() {
                     style={styles.otpInput}
                     placeholder={otpModal.from === 'MOBILE' ? tr('Enter new mobile number') : tr('Enter new email id')}
                     keyboardType={otpModal.from === 'MOBILE' ? 'phone-pad' : 'email-address'}
+                    inputAccessoryViewID={numpadAccessoryId(otpModal.from === 'MOBILE' ? 'phone-pad' : 'email-address')}
                     value={otpModal.newValue}
                     onChangeText={(v) => setOtpModal(prev => ({ ...prev, newValue: v }))}
                   />
@@ -864,6 +867,7 @@ export default function AdminProfileScreen() {
                     style={styles.otpInput}
                     placeholder={t('rn_enter_otp')}
                     keyboardType="number-pad"
+                    inputAccessoryViewID={numpadAccessoryId("number-pad")}
                     maxLength={6}
                     value={otpModal.otpValue}
                     onChangeText={(v) => setOtpModal(prev => ({ ...prev, otpValue: v }))}

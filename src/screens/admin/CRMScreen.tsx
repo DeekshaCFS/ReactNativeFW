@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/CRMScreen.tsx
 
 import {useConfirmDelete} from '../../components/ConfirmDeleteDialog';
@@ -2070,6 +2071,7 @@ const CRMScreen = ({
                         setShowCustomerSuggestions(false);
                       }}
                       keyboardType="phone-pad"
+                      inputAccessoryViewID={numpadAccessoryId("phone-pad")}
                     />
                     <ContactBookButton onPress={openContacts} style={eq.phonebookButton} />
                     {contactPickerModal}
@@ -2253,6 +2255,7 @@ const CRMScreen = ({
                         setPinCode(text.replace(/[^0-9]/g, '').slice(0, 6))
                       }
                       keyboardType="number-pad"
+                      inputAccessoryViewID={numpadAccessoryId("number-pad")}
                       maxLength={6}
                     />
                   </View>

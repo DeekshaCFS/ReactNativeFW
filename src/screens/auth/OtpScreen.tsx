@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/auth/OtpScreen.tsx
 import {
   View, TextInput, Text, Image, ImageBackground,
@@ -226,6 +227,7 @@ export default function OtpScreen() {
                 ref={(ref) => { inputRefs.current[index] = ref; }}
                 value={digit}
                 keyboardType="number-pad"
+                inputAccessoryViewID={numpadAccessoryId("number-pad")}
                 maxLength={1}
                 onChangeText={(val) => handleOtpChange(val, index)}
                 onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key ?? '', index)}

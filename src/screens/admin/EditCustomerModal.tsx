@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 import React, {useEffect, useState} from 'react';
 import {ms, sp} from '../../utils/responsive';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -949,6 +950,7 @@ const LabeledField = ({
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType}
+        inputAccessoryViewID={numpadAccessoryId(keyboardType)}
         maxLength={maxLength}
         onFocus={onFocus}
         editable={onPress ? false : undefined}

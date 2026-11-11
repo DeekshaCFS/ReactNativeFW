@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/AddQuoteModal.tsx
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
@@ -1308,6 +1309,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                     placeholder={t('star_phone_number')}
                     placeholderTextColor={COLORS.lightGray}
                     keyboardType="phone-pad"
+                    inputAccessoryViewID={numpadAccessoryId("phone-pad")}
                     maxLength={12}
                     value={phoneNumber}
                     onChangeText={text => {
@@ -1361,6 +1363,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                           style={styles.qtyInput}
                           value={row.quantity}
                           keyboardType="number-pad"
+                          inputAccessoryViewID={numpadAccessoryId("number-pad")}
                           maxLength={3}
                           onChangeText={v => onServiceQtyChange(row.id, v)}
                         />
@@ -1369,6 +1372,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                           placeholder={t('price')}
                           placeholderTextColor={COLORS.lightGray}
                           keyboardType="decimal-pad"
+                          inputAccessoryViewID={numpadAccessoryId("decimal-pad")}
                           maxLength={9}
                           value={row.price}
                           onChangeText={v => onServicePriceChange(row.id, v)}
@@ -1404,6 +1408,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                               placeholderTextColor={COLORS.lightGray}
                               value={row.quantity}
                               keyboardType="number-pad"
+                              inputAccessoryViewID={numpadAccessoryId("number-pad")}
                               maxLength={3}
                               onChangeText={v => onItemQtyChange(row.id, v)}
                             />
@@ -1456,6 +1461,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                     placeholder={t('discount') + ' %'}
                     placeholderTextColor={COLORS.lightGray}
                     keyboardType="number-pad"
+                    inputAccessoryViewID={numpadAccessoryId("number-pad")}
                     maxLength={2}
                     value={discountPercent}
                     onChangeText={v => setDiscountPercent(v.replace(/[^0-9]/g, ''))}
@@ -1503,6 +1509,7 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                     placeholder={t('price')}
                     placeholderTextColor={COLORS.lightGray}
                     keyboardType="decimal-pad"
+                    inputAccessoryViewID={numpadAccessoryId("decimal-pad")}
                     maxLength={10}
                     value={extraPrice}
                     onChangeText={v => {

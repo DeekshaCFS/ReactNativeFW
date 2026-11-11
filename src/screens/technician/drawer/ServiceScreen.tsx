@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../../components/NumpadDoneBar';
 // src/screens/technician/drawer/ServiceScreen.tsx
 //
 // Android's RoutineServiceFragment: a lookup form (Asset ID or Customer No.)
@@ -186,6 +187,7 @@ export default function ServiceScreen({ navigation }: any) {
           maxLength={10}
           autoCapitalize={filter === 'Asset' ? 'characters' : 'none'}
           keyboardType={filter === 'Customer No.' ? 'number-pad' : 'default'}
+          inputAccessoryViewID={numpadAccessoryId(filter === 'Customer No.' ? 'number-pad' : 'default')}
           returnKeyType="done"
         />
 

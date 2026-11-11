@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../../components/NumpadDoneBar';
 // src/screens/technician/drawer/TechProfileScreen.tsx
 //
 // Java: ProfileFragmentNew (fragment_edit_profile_new.xml). Reuses HomeActivityNew's own
@@ -89,6 +90,7 @@ const Field: React.FC<FieldProps> = ({
             style={[fieldStyles.input, { flex: 1 }]}
             value={value ?? ''}
             keyboardType={keyboard}
+            inputAccessoryViewID={numpadAccessoryId(keyboard)}
             onChangeText={onChange}
             editable={editable}
             maxLength={maxLength}
@@ -757,6 +759,7 @@ export default function TechProfileScreen() {
                   <TextInput
                     style={fieldStyles.input}
                     keyboardType={otpModal.from === 'MOBILE' ? 'phone-pad' : 'email-address'}
+                    inputAccessoryViewID={numpadAccessoryId(otpModal.from === 'MOBILE' ? 'phone-pad' : 'email-address')}
                     maxLength={otpModal.from === 'MOBILE' ? 12 : 40}
                     value={otpModal.newValue}
                     onChangeText={(v) => setOtpModal(prev => ({ ...prev, newValue: v, fieldError: null }))}
@@ -772,6 +775,7 @@ export default function TechProfileScreen() {
                     <TextInput
                       style={[fieldStyles.input, styles.otpBoxesInput]}
                       keyboardType="number-pad"
+                      inputAccessoryViewID={numpadAccessoryId("number-pad")}
                       maxLength={4}
                       value={otpModal.otpValue}
                       onChangeText={(v) => setOtpModal(prev => ({ ...prev, otpValue: v.replace(/[^0-9]/g, '') }))}

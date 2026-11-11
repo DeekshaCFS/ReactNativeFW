@@ -1,3 +1,4 @@
+import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/auth/CompanyDetailsScreen.tsx
 import {
   View, TextInput, Text, Image, ImageBackground, KeyboardAvoidingView, ScrollView, Platform, StatusBar, StyleSheet,
@@ -226,6 +227,7 @@ export default function CompanyDetailsScreen() {
               <TextInput
                 placeholder="1"
                 keyboardType="number-pad"
+                inputAccessoryViewID={numpadAccessoryId("number-pad")}
                 style={styles.workersValueInput}
                 value={noOfFieldWorkers}
                 onChangeText={handleWorkersTextChange}
