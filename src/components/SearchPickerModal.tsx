@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Modal from './AppModal';
+import { getOpenModals, setPortalEntry } from './modalPortal';
 import { COLORS } from '../theme/theme';
 import { ms, scale, sp, vs } from '../utils/responsive';
 
@@ -46,6 +47,8 @@ type Props = {
   /** Java dialog_searchable_spinner: window pinned to the top, box only as tall as its rows. */
   wrapContent?: boolean;
 };
+
+let pickerCount = 0;
 
 const SearchPickerModal: React.FC<Props> = ({
   visible,
@@ -115,8 +118,16 @@ const SearchPickerModal: React.FC<Props> = ({
     }
   };
 
-  return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={dismiss}>
+  // Opened while another modal is already open (e.g. a form sheet): draw inside that modal,
+  // because iPhone cannot present this as a second modal on top of it.
+  const [pickerKey] = useState(() => `picker-${++pickerCount}`);
+  const wasVisible = useRef(false);
+  const openedInsideModal = useRef(false);
+  if (visible && !wasVisible.current) openedInsideModal.current = getOpenModals().length > 0;
+  wasVisible.current = visible;
+  const portalMode = visible && openedInsideModal.current;
+
+  const panel = (
       <Pressable style={styles.overlay} onPress={dismiss}>
         <View style={minChars > 0 || wrapContent ? styles.window : styles.windowAuto}>
         <Pressable
@@ -173,6 +184,16 @@ const SearchPickerModal: React.FC<Props> = ({
         </Pressable>
         </View>
       </Pressable>
+  );
+
+  useEffect(() => {
+    setPortalEntry(pickerKey, portalMode ? panel : null);
+  });
+  useEffect(() => () => setPortalEntry(pickerKey, null), [pickerKey]);
+
+  return (
+    <Modal visible={visible && !portalMode} animationType="fade" transparent onRequestClose={dismiss}>
+      {panel}
     </Modal>
   );
 };
