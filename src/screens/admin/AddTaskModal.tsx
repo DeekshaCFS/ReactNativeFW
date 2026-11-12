@@ -100,6 +100,64 @@ const SEGMENT_DARK = COLORS.ink; // SegmentedGroup sc_tint_color @color/backgrou
 // error row reserved under each, 40dp spinners, 40dp SegmentedGroups. Overrides the CRM-wide
 // styles (shared with the other CRM modals) for this form only.
 export const taskStyles = StyleSheet.create({
+  dateBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: ms(16),
+  },
+  dateSheet: {
+    backgroundColor: '#fff',
+    borderRadius: ms(20),
+    width: '100%',
+    maxWidth: ms(400),
+    paddingTop: ms(16),
+    paddingBottom: ms(12),
+    paddingHorizontal: ms(12),
+    elevation: 10,
+  },
+  dateSheetTitle: {
+    fontSize: sp(18),
+    fontWeight: '600',
+    color: '#1C1C1E',
+    textAlign: 'center',
+    marginBottom: ms(8),
+  },
+  dateSheetActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: ms(12),
+    paddingHorizontal: ms(8),
+    gap: ms(12),
+  },
+  dateCancelBtn: {
+    flex: 1,
+    height: ms(44),
+    borderRadius: ms(30),
+    borderWidth: 1,
+    borderColor: '#a6a6a6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateCancelText: {
+    fontSize: sp(16),
+    color: '#555',
+    fontWeight: '500',
+  },
+  dateConfirmBtn: {
+    flex: 1,
+    height: ms(44),
+    borderRadius: ms(30),
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateConfirmText: {
+    fontSize: sp(16),
+    color: '#fff',
+    fontWeight: '600',
+  },
   modalSheet: {
     backgroundColor: '#FFFFFF',
     width: '100%',
@@ -3078,12 +3136,59 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         }}
       />
 
-      {taskPicker ? (
+      {/* iOS: the inline picker is shown in its own sheet, drawn inside the open task modal
+          (AppModal stacks it there), so it is not hidden behind the modal. Confirm / Cancel
+          apply the value, because the inline wheel fires onValueChange on every scroll. */}
+      {Platform.OS === 'ios' ? (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={taskPicker !== null}
+          onRequestClose={() => setTaskPicker(null)}>
+          <Pressable style={taskStyles.dateBackdrop} onPress={() => setTaskPicker(null)}>
+            <Pressable style={taskStyles.dateSheet} onPress={e => e.stopPropagation()}>
+              <Text style={taskStyles.dateSheetTitle}>
+                {taskPicker === 'time' ? tr('Select Time') : t('rn_select_date')}
+              </Text>
+              {taskPicker ? (
+                <DateTimePicker
+                  value={taskPickerValue}
+                  mode={taskPicker === 'time' ? 'time' : 'date'}
+                  display="inline"
+                  themeVariant="light"
+                  accentColor={COLORS.primary}
+                  minimumDate={
+                    taskPicker === 'time'
+                      ? undefined
+                      : taskPicker === 'end' && warrantyStartDate
+                        ? new Date(`${warrantyStartDate}T00:00:00`)
+                        : new Date(Date.now() - 1000)
+                  }
+                  onValueChange={(_: DateTimePickerChangeEvent, picked: Date) => setTaskPickerValue(picked)}
+                />
+              ) : null}
+              <View style={taskStyles.dateSheetActions}>
+                <TouchableOpacity style={taskStyles.dateCancelBtn} onPress={() => setTaskPicker(null)}>
+                  <Text style={taskStyles.dateCancelText}>{tr('CANCEL')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={taskStyles.dateConfirmBtn}
+                  onPress={() => {
+                    if (taskPicker) applyTaskPicker(taskPicker, taskPickerValue);
+                    setTaskPicker(null);
+                  }}>
+                  <Text style={taskStyles.dateConfirmText}>{t('qr_code_positive_button_confirm')}</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : taskPicker ? (
         <DateTimePicker
           value={taskPickerValue}
           mode={taskPicker === 'time' ? 'time' : 'date'}
           is24Hour={false}
-          display={Platform.OS === 'ios' ? 'inline' : 'default'}
+          display="default"
           minimumDate={
             taskPicker === 'time'
               ? undefined
