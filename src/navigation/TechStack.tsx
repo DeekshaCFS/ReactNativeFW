@@ -1,10 +1,10 @@
 // src/navigation/TechnicianStack.tsx
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigatorScreenParams } from '@react-navigation/native';
+import { withToastHost } from './withToastHost';
 
 import TechnicianTabs, { TechnicianTabParamList } from './TechnicianTabs';
 
-import PrivacyPolicyScreen from '../screens/technician/drawer/PrivacyPolicyScreen';
 import DocumentUploadScreen from '../screens/technician/main/DocumentUploadScreen';
 import OnlinePaymentDetailsScreen from '../screens/technician/main/OnlinePaymentDetailsScreen';
 import { COLORS } from '../theme/theme';
@@ -56,6 +56,10 @@ export type TechnicianStackParamList = {
 
 const Stack = createNativeStackNavigator<TechnicianStackParamList>();
 
+const TechnicianTabsWithToast = withToastHost(TechnicianTabs);
+const DocumentUploadWithToast = withToastHost(DocumentUploadScreen);
+const OnlinePaymentDetailsWithToast = withToastHost(OnlinePaymentDetailsScreen);
+
 const headerOptions = {
   headerStyle: { backgroundColor: COLORS.primary },
   headerTintColor: '#fff',
@@ -69,13 +73,13 @@ export default function TechnicianStack() {
           BottomTabBar, so no native header here to avoid a double header. */}
       <Stack.Screen
         name="TechnicianTabsRoot"
-        component={TechnicianTabs}
+        component={TechnicianTabsWithToast}
         options={{ headerShown: false }}
       />
 
       <Stack.Screen
         name="DocumentUpload"
-        component={DocumentUploadScreen}
+        component={DocumentUploadWithToast}
         options={{
           title: tr('Upload Documents'),
           headerShown: false,
@@ -85,7 +89,7 @@ export default function TechnicianStack() {
       />
       <Stack.Screen
         name="OnlinePaymentDetails"
-        component={OnlinePaymentDetailsScreen}
+        component={OnlinePaymentDetailsWithToast}
         options={{
           title: tr('Online Payment Details'),
           headerShown: false,

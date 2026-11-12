@@ -7,6 +7,7 @@ import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack';
 import { NavigatorScreenParams } from '@react-navigation/native';
+import ToastHost from '../components/ToastHost';
 
 import AdminTabs, { AdminTabParamList } from './AdminTabs';
 
@@ -111,7 +112,13 @@ export default function AdminStack() {
   // AdminTabs needs the same id; passed down as a prop instead of letting it
   // do its own AsyncStorage read, so the two don't race/duplicate the lookup.
   const renderAdminTabs = useCallback(
-    () => <AdminTabs ownerId={ownerId} />,
+    () => (
+      <>
+        <AdminTabs ownerId={ownerId} />
+        {/* Native-stack screen: needs its own toast host above it (see withToastHost.tsx). */}
+        <ToastHost />
+      </>
+    ),
     [ownerId],
   );
 
