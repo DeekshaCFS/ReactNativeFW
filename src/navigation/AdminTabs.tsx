@@ -374,7 +374,7 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
                   title={title}
                   navigation={props.navigation as any}
                   isAdmin
-                  useRegisteredBack={currentRoute.name === 'Home'}
+                  useRegisteredBack={currentRoute.name === 'Home' || currentRoute.name === 'CRM'}
                   onBack={
                     currentRoute.name === 'TaskDetails'
                       ? () => {

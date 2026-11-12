@@ -4,9 +4,10 @@
 // the plain Android list dialog used wherever a photo is picked (task closure, document
 // upload, expenses ...). White box, left-aligned title and 48dp text rows, no icons.
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Modal from './AppModal';
+import { getOpenModals, setPortalEntry } from './modalPortal';
 import { COLORS } from '../theme/theme';
 import { ms, sp } from '../utils/responsive';
 
@@ -20,6 +21,8 @@ type Props = {
   title?: string;
 };
 
+let dialogCount = 0;
+
 export default function ImageSourceDialog({
   visible,
   onCamera,
@@ -29,8 +32,17 @@ export default function ImageSourceDialog({
   title = 'Select Image Source',
 }: Props) {
   const { t } = useTranslation();
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
+  const [dialogKey] = useState(() => `image-source-${++dialogCount}`);
+  // Opened while a form sheet is open: draw inside that sheet, since iPhone cannot show a second
+  // modal on top of it. The caller still learns when the dialog closes (onDismiss).
+  const wasVisible = useRef(false);
+  const openedInsideModal = useRef(false);
+  if (visible && !wasVisible.current) openedInsideModal.current = getOpenModals().length > 0;
+  wasVisible.current = visible;
+  const portalMode = visible && openedInsideModal.current;
+  const shownInPortal = useRef(false);
+
+  const panel = (
       <Pressable style={styles.backdrop} onPress={onClose}>
         {/* The inner Pressable swallows taps so only the backdrop dismisses. */}
         <Pressable style={styles.dialog}>
@@ -51,6 +63,21 @@ export default function ImageSourceDialog({
           </Pressable>
         </Pressable>
       </Pressable>
+  );
+
+  useEffect(() => {
+    setPortalEntry(dialogKey, portalMode ? panel : null);
+    if (portalMode) shownInPortal.current = true;
+    if (!visible && shownInPortal.current) {
+      shownInPortal.current = false;
+      onDismiss?.();
+    }
+  });
+  useEffect(() => () => setPortalEntry(dialogKey, null), [dialogKey]);
+
+  return (
+    <Modal visible={visible && !portalMode} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
+      {panel}
     </Modal>
   );
 }

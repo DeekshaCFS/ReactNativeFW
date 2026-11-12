@@ -4,7 +4,7 @@
 // Home task list and the Task tab so both look identical.
 
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../theme/theme';
 import { ms, sp } from '../utils/responsive';
 import { getCurrentCurrencySymbol } from '../state/session';
@@ -101,6 +101,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     elevation: 2,
     overflow: 'hidden',
+    // iPhone ignores elevation (and a shadow is clipped by overflow:hidden), so a white card on a
+    // white page had no edge at all. A light border gives it the same outline as the admin cards.
+    ...(Platform.OS === 'ios' ? { borderWidth: 1, borderColor: '#E5E7EB' } : null),
   },
   ribbonRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   ribbon: {

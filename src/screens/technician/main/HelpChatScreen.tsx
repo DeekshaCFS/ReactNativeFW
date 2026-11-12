@@ -34,6 +34,11 @@ export default function HelpChatScreen({ underAppHeader = false }: { underAppHea
         domStorageEnabled
         // iPhone: the chat widget's cookies are blocked unless they are shared with the web view.
         sharedCookiesEnabled
+        originWhitelist={['*']}
+        // tawk.to opens its chat in a pop-up window on some pages; keep it in this web view.
+        setSupportMultipleWindows={false}
+        allowsInlineMediaPlayback
+        startInLoadingState
         // iPhone can shut down the web view's process (background, low memory). When that
         // happens the page goes blank without an error, so reload it.
         onContentProcessDidTerminate={() => setWebKey(k => k + 1)}

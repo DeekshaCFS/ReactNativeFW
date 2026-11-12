@@ -3083,7 +3083,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
           value={taskPickerValue}
           mode={taskPicker === 'time' ? 'time' : 'date'}
           is24Hour={false}
-          display="default"
+          display={Platform.OS === 'ios' ? 'inline' : 'default'}
           minimumDate={
             taskPicker === 'time'
               ? undefined

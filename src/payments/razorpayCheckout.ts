@@ -72,6 +72,9 @@ export const runRazorpayCheckout = async (params: {
       description: params.description,
       order_id: orderId,
       prefill: { contact: params.contact },
+      // Do not ask the bank to save/tokenize the card for this one-off payment. The token request
+      // is what the bank declined ("payment-credential request for the token was declined").
+      remember_customer: false,
     });
 
     return {
