@@ -785,6 +785,7 @@ const MainTaskFragmentNewScreen = ({
       variant="holo"
       minYear={Math.min(...yearOptions, year)}
       maxYear={Math.max(...yearOptions, year)}
+      allowedMonths={monthOptions.map(option => ({month: option.month - 1, year: option.year}))}
       activatedMonth={month - 1}
       activatedYear={year}
       onCancel={() => setIsMonthPickerOpen(false)}

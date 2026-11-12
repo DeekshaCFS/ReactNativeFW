@@ -78,6 +78,12 @@ type Props = {
   maxYear: number;
   activatedMonth: number; // 0-11
   activatedYear: number;
+  /**
+   * Optional: restrict the wheels to these month/year pairs (month 0-11). When set, the year
+   * wheel lists only these years and the month wheel only the months allowed for the chosen year.
+   * Omit it for the full 12-month, min..max year behaviour.
+   */
+  allowedMonths?: {month: number; year: number}[];
   title?: string;
   /** 'holo': Android's stock grey month/year dialog (Task tab) instead of the rounded white one. */
   variant?: 'default' | 'holo';
@@ -86,25 +92,64 @@ type Props = {
 };
 
 export default function MonthYearPickerDialog({
-  visible, yearOnly = false, minYear, maxYear, activatedMonth, activatedYear,
+  visible, yearOnly = false, minYear, maxYear, activatedMonth, activatedYear, allowedMonths,
   title = 'Select Month & Year', variant = 'default', onConfirm, onCancel,
 }: Props) {
   const {t} = useTranslation();
   const holo = variant === 'holo';
-  const years: string[] = [];
-  for (let y = minYear; y <= maxYear; y++) years.push(String(y));
+  const years: string[] = allowedMonths
+    ? [...new Set(allowedMonths.map(a => a.year))].sort((a, b) => a - b).map(String)
+    : (() => {
+        const list: string[] = [];
+        for (let y = minYear; y <= maxYear; y++) list.push(String(y));
+        return list;
+      })();
 
-  const [monthIdx, setMonthIdx] = useState(activatedMonth);
-  const [yearIdx, setYearIdx] = useState(Math.max(0, activatedYear - minYear));
+  // Months selectable for a given year: all 12, or only the allowed ones.
+  const monthsFor = (year: number): number[] =>
+    allowedMonths
+      ? allowedMonths.filter(a => a.year === year).map(a => a.month).sort((a, b) => a - b)
+      : MONTHS.map((_, i) => i);
+
+  // Keep the month valid for the year: if it isn't allowed there, use that year's latest month.
+  const validMonthFor = (month: number, year: number): number => {
+    const list = monthsFor(year);
+    if (list.length === 0 || list.includes(month)) return month;
+    return list[list.length - 1];
+  };
+
+  const yearIndexOf = (year: number): number => {
+    const i = years.indexOf(String(year));
+    return i >= 0 ? i : Math.max(0, Math.min(years.length - 1, year - minYear));
+  };
+
+  const [monthIdx, setMonthIdx] = useState(activatedMonth); // month number 0-11
+  const [yearIdx, setYearIdx] = useState(yearIndexOf(activatedYear));
 
   // Re-seed whenever the dialog opens (Java builds a fresh dialog each time).
   useEffect(() => {
     if (visible) {
-      setMonthIdx(activatedMonth);
-      setYearIdx(Math.min(years.length - 1, Math.max(0, activatedYear - minYear)));
+      const idx = yearIndexOf(activatedYear);
+      setYearIdx(idx);
+      setMonthIdx(validMonthFor(activatedMonth, Number(years[idx])));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  const selectedYear = Number(years[yearIdx]);
+  const monthNumbers = monthsFor(selectedYear);
+  const monthLabels = monthNumbers.map(i => MONTHS[i]);
+  const monthPos = Math.max(0, monthNumbers.indexOf(monthIdx));
+
+  const onMonthWheel = (pos: number) => {
+    const m = monthNumbers[pos];
+    if (m !== undefined) setMonthIdx(m);
+  };
+
+  const onYearWheel = (i: number) => {
+    setYearIdx(i);
+    setMonthIdx(prev => validMonthFor(prev, Number(years[i])));
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -116,10 +161,10 @@ export default function MonthYearPickerDialog({
           <View style={styles.wheels}>
             {!yearOnly && (
               <View style={{ marginRight: scale(16) }}>
-                <Wheel key={`m${visible}`} labels={MONTHS} index={monthIdx} onChange={setMonthIdx} />
+                <Wheel key={`m${visible}`} labels={monthLabels} index={monthPos} onChange={onMonthWheel} />
               </View>
             )}
-            <Wheel key={`y${visible}`} labels={years} index={yearIdx} onChange={setYearIdx} />
+            <Wheel key={`y${visible}`} labels={years} index={yearIdx} onChange={onYearWheel} />
           </View>
           {holo ? (
             <View style={styles.holoButtons}>
@@ -129,7 +174,7 @@ export default function MonthYearPickerDialog({
               <View style={styles.holoDivider} />
               <Pressable
                 style={styles.holoBtn}
-                onPress={() => onConfirm(yearOnly ? 0 : monthIdx, Number(years[yearIdx]))}>
+                onPress={() => onConfirm(yearOnly ? 0 : monthIdx, selectedYear)}>
                 <Text style={styles.holoBtnText}>{t('qr_code_positive_button_know')}</Text>
               </Pressable>
             </View>
@@ -140,7 +185,7 @@ export default function MonthYearPickerDialog({
             </Pressable>
             <Pressable
               style={[styles.btn, { backgroundColor: COLORS.primary }]}
-              onPress={() => onConfirm(yearOnly ? 0 : monthIdx, Number(years[yearIdx]))}
+              onPress={() => onConfirm(yearOnly ? 0 : monthIdx, selectedYear)}
             >
               <Text style={[styles.btnText, { color: COLORS.white }]}>{t('qr_code_positive_button_know')}</Text>
             </Pressable>

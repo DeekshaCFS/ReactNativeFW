@@ -22,7 +22,7 @@ import { userPermissions } from '../../../api/userPermission/userPermissionServi
 import { downloadReport } from '../../../api/report/reportService';
 import type { TasksListResultData as Task, TagListResultData as TaskTag } from '../../../api/task/task.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import DrumPicker from '../../../components/DrumPicker';
+import MonthYearPickerDialog from '../../../components/MonthYearPickerDialog';
 import SearchPickerModal from '../../../components/SearchPickerModal';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTaskStatus } from '../../../hooks/useTaskStatus';
@@ -76,8 +76,6 @@ export default function TaskScreen({ navigation, route }: any) {
   const formatMonthYear = (date: Date) =>
     date.toLocaleString('en-IN', { month: 'short', year: 'numeric' });
 
-  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
   const getLast6Months = () => {
     const result: { month: number; year: number }[] = [];
     const now = new Date();
@@ -88,16 +86,8 @@ export default function TaskScreen({ navigation, route }: any) {
     return result.reverse();
   };
 
-  const last6        = getLast6Months();
-  const monthOptions = last6.map(d => MONTH_NAMES[d.month]);
-  const yearOptions  = [...new Set(last6.map(d => String(d.year)))];
-
-  const [tempMonthIdx, setTempMonthIdx] = useState(
-    last6.findIndex(d => d.month === new Date().getMonth() && d.year === new Date().getFullYear())
-  );
-  const [tempYearIdx, setTempYearIdx] = useState(
-    yearOptions.indexOf(String(new Date().getFullYear()))
-  );
+  const last6 = getLast6Months();
+  const last6Years = last6.map(d => d.year);
 
   const takePhoto = async (
     list: { uri: string; base64?: string }[],
@@ -548,31 +538,23 @@ export default function TaskScreen({ navigation, route }: any) {
         onClose={() => setActiveDropdown(null)}
       />
 
-      {/* MONTH PICKER MODAL */}
-      <Modal visible={showMonthPicker} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setShowMonthPicker(false)} />
-        <View style={styles.centerModal}>
-          <View style={{ flexDirection: 'row', paddingHorizontal: scale(16) }}>
-            <DrumPicker data={monthOptions} selectedIndex={tempMonthIdx} onSelect={setTempMonthIdx} />
-            <DrumPicker data={yearOptions} selectedIndex={tempYearIdx} onSelect={setTempYearIdx} />
-          </View>
-          <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: '#eee', marginTop: vs(12) }}>
-            <Pressable style={{ flex: 1, paddingVertical: vs(14), alignItems: 'center' }} onPress={() => setShowMonthPicker(false)}>
-              <Text style={{ fontSize: sp(15), color: '#888' }}>{t('cancel')}</Text>
-            </Pressable>
-            <Pressable
-              style={{ flex: 1, paddingVertical: vs(14), alignItems: 'center' }}
-              onPress={() => {
-                const selected = last6[tempMonthIdx];
-                if (selected) setSelectedDate(new Date(selected.year, selected.month, 1));
-                setShowMonthPicker(false);
-              }}
-            >
-              <Text style={{ fontSize: sp(15), color: COLORS.primary, fontWeight: '600' }}>{t('qr_code_positive_button_know')}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      {/* MONTH PICKER — same shared dialog and holo variant as the admin Task screen */}
+      <MonthYearPickerDialog
+        visible={showMonthPicker}
+        variant="holo"
+        minYear={Math.min(...last6Years)}
+        maxYear={Math.max(...last6Years)}
+        allowedMonths={last6.map(d => ({month: d.month, year: d.year}))}
+        activatedMonth={selectedDate.getMonth()}
+        activatedYear={selectedDate.getFullYear()}
+        onCancel={() => setShowMonthPicker(false)}
+        onConfirm={(m, y) => {
+          setShowMonthPicker(false);
+          if (last6.some(d => d.month === m && d.year === y)) {
+            setSelectedDate(new Date(y, m, 1));
+          }
+        }}
+      />
 
       {/* LATE REJECT SHEET */}
       <Modal visible={showLateRejectSheet} transparent animationType="slide">
