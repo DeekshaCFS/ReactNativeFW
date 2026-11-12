@@ -16,6 +16,16 @@ end
 
 target 'FieldWebApp' do
   config = use_native_modules!
+
+  # react-native-permissions: compile only the iOS permissions this app requests.
+  require_relative '../node_modules/react-native-permissions/scripts/setup'
+  setup_permissions([
+    'LocationWhenInUse',
+    'Camera',
+    'Contacts',
+    'Microphone',
+    'PhotoLibrary',
+  ])
   pod 'FWBiometric', :path => './FWBiometric'
 
   use_react_native!(
