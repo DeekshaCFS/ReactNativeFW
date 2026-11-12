@@ -53,7 +53,10 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Java wraps these in a ConstraintLayout that centres the content vertically.
 // Java requestEmail() only: no ID token / server client id needed.
-GoogleSignin.configure({});
+GoogleSignin.configure({
+  iosClientId:
+    '589569957120-t7punj6qrsqerhih7j4ppvgdu2p09i20.apps.googleusercontent.com',
+});
 
 const CENTER_CONTENT = { justifyContent: 'center' as const };
 
