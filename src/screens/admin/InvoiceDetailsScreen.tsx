@@ -2,6 +2,7 @@ import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/admin/InvoiceDetailsScreen.tsx
 
 import React, {useCallback, useEffect, useState} from 'react';
+import {setHeaderBack} from '../../state/headerBack';
 import {
   ActivityIndicator,
   Image,
@@ -104,6 +105,13 @@ const InvoiceDetailsScreen = ({
   onDeleted,
   onUpdated,
 }: InvoiceDetailsScreenProps) => {
+
+  // The shared header's hamburger becomes a back arrow while this detail is open (iPhone has no
+  // hardware back; Android has none here either). Going back closes this detail.
+  useEffect(() => {
+    setHeaderBack(onBack);
+    return () => setHeaderBack(null);
+  }, [onBack]);
   const {t} = useTranslation();
   const pdf = usePdfDownload();
   const [details, setDetails] = useState<InvoiceDetailsDTOResultData | null>(null);

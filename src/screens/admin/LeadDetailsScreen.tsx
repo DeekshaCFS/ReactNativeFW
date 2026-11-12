@@ -1,4 +1,6 @@
 import React, {useCallback, useEffect, useState} from 'react';
+import {setHeaderBack} from '../../state/headerBack';
+import BackBar from '../../components/BackBar';
 import {ms, sp} from '../../utils/responsive';
 import {ensureSuccess} from '../../utils/apiResponse';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -98,6 +100,13 @@ const LeadDetailsScreen = ({
   onEdit,
   onDelete,
 }: LeadDetailsScreenProps) => {
+
+  // The shared header's hamburger becomes a back arrow while this detail is open (iPhone has no
+  // hardware back; Android has none here either). Going back closes this detail.
+  useEffect(() => {
+    setHeaderBack(onBack);
+    return () => setHeaderBack(null);
+  }, [onBack]);
   const {t} = useTranslation();
   const [lead, setLead] = useState<LeadListItem | null>(null);
   // Java: the terms icon opens Add Task prefilled from the lead (TaskDialogNew.addTaskFromLeadDetailsTech).
@@ -666,6 +675,8 @@ const LeadDetailsScreen = ({
 
   return (
     <View style={styles.container}>
+      {/* Technician Leads screen has a plain pushed header, so give the detail its own way back. */}
+      {technician ? <BackBar onBack={onBack} /> : null}
       <View style={styles.content}>
         {/* Java: 200dp map inside the card, 30dp rounded top corners */}
         <View style={styles.mapMock}>

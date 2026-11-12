@@ -1,6 +1,7 @@
 // src/screens/admin/QuotationDetailsScreen.tsx
 
 import React, {useCallback, useEffect, useState} from 'react';
+import {setHeaderBack} from '../../state/headerBack';
 import {
   ActivityIndicator,
   Image,
@@ -110,6 +111,13 @@ const QuotationDetailsScreen = ({
   onDeleted,
   onUpdated,
 }: QuotationDetailsScreenProps) => {
+
+  // The shared header's hamburger becomes a back arrow while this detail is open (iPhone has no
+  // hardware back; Android has none here either). Going back closes this detail.
+  useEffect(() => {
+    setHeaderBack(onBack);
+    return () => setHeaderBack(null);
+  }, [onBack]);
   const {t} = useTranslation();
   const pdf = usePdfDownload();
   const [details, setDetails] = useState<QuotationDetailsDTOResultData | null>(null);
