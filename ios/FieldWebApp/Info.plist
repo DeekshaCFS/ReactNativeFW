@@ -89,5 +89,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+		<string>google.navigation</string>
+		<string>waze</string>
+	</array>
 </dict>
 </plist>

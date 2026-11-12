@@ -125,17 +125,33 @@ export default function TaskRouteMapScreen({ navigation, route }: Props) {
       return;
     }
 
-    const nativeNavUrl = `google.navigation:q=${lat},${lng}`;
-    const webFallbackUrl = `https://maps.google.com/maps?daddr=${lat},${lng}`;
+    // iOS: try Google Maps app, then Apple Maps (built in, always available), then the web link.
+    // Android: keep the Google navigation intent, then the web link.
+    const candidates = Platform.OS === 'ios'
+      ? [
+          `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
+          `maps://?daddr=${lat},${lng}`,
+          `https://maps.google.com/maps?daddr=${lat},${lng}`,
+        ]
+      : [
+          `google.navigation:q=${lat},${lng}`,
+          `https://maps.google.com/maps?daddr=${lat},${lng}`,
+        ];
 
-    try {
-      const canOpenNative = await Linking.canOpenURL(nativeNavUrl);
-      if (canOpenNative) {
-        await Linking.openURL(nativeNavUrl);
-      } else {
-        await Linking.openURL(webFallbackUrl);
+    let opened = false;
+    for (const url of candidates) {
+      try {
+        if (await Linking.canOpenURL(url)) {
+          await Linking.openURL(url);
+          opened = true;
+          break;
+        }
+      } catch (error) {
+        console.log('[startNavigation] could not open', url, error);
       }
-    } catch {
+    }
+
+    if (!opened) {
       showToast(t('rn_please_install_a_maps_application_to_conti'));
       return;
     }
