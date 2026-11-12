@@ -70,8 +70,6 @@
 	<string>This app uses your location in the background to track field visits.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app uses your location for field tracking.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Allow access to the microphone to record task instructions.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIAppFonts</key>
@@ -80,8 +78,6 @@
 		<string>MaterialIcons.ttf</string>
 		<string>FontAwesome.ttf</string>
 	</array>
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
