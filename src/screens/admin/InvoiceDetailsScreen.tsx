@@ -6,6 +6,8 @@ import {setHeaderBack} from '../../state/headerBack';
 import {
   ActivityIndicator,
   Image,
+  Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -143,6 +145,8 @@ const InvoiceDetailsScreen = ({
   const [followUpNote, setFollowUpNote] = useState('');
   const [isSavingFollowUp, setIsSavingFollowUp] = useState(false);
   const [isFollowUpDatePickerOpen, setIsFollowUpDatePickerOpen] = useState(false);
+  // iOS inline picker inside the follow-up sheet: the choice is applied only on OK.
+  const [pendingFollowUpDate, setPendingFollowUpDate] = useState<Date>(new Date());
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const loadDetails = useCallback(async () => {
@@ -528,7 +532,12 @@ const InvoiceDetailsScreen = ({
         loading={isSavingFollowUp}
         onAction={handleSaveFollowUp}
         cancelLabel={t('cancel')}>
-        <TouchableOpacity activeOpacity={0.7} onPress={() => setIsFollowUpDatePickerOpen(true)}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => {
+            setPendingFollowUpDate(followUpDate ? new Date(followUpDate) : new Date());
+            setIsFollowUpDatePickerOpen(true);
+          }}>
           <View pointerEvents="none">
             <OutlinedInput
               style={[sheetPill, {marginTop: ms(6), marginBottom: ms(21), height: ms(42)}]}
@@ -551,9 +560,40 @@ const InvoiceDetailsScreen = ({
           value={followUpNote}
           onChangeText={v => setFollowUpNote(v.replace(/[^A-Za-z0-9 .,]/g, ''))}
         />
+        {/* iOS: the picker is drawn inside the sheet so it is not hidden behind it. */}
+        {Platform.OS === 'ios' && isFollowUpDatePickerOpen ? (
+          <View style={styles.inlinePicker}>
+            <View style={styles.inlinePickerHeader}>
+              <Pressable onPress={() => setIsFollowUpDatePickerOpen(false)} hitSlop={10}>
+                <Text style={styles.inlinePickerCancel}>{tr('CANCEL')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  const y = pendingFollowUpDate.getFullYear();
+                  const m = String(pendingFollowUpDate.getMonth() + 1).padStart(2, '0');
+                  const d = String(pendingFollowUpDate.getDate()).padStart(2, '0');
+                  setFollowUpDate(`${y}-${m}-${d}`);
+                  setIsFollowUpDatePickerOpen(false);
+                }}
+                hitSlop={10}>
+                <Text style={styles.inlinePickerOk}>OK</Text>
+              </Pressable>
+            </View>
+            <DateTimePicker
+              value={pendingFollowUpDate}
+              mode="date"
+              display="spinner"
+              themeVariant="light"
+              onChange={(_: DateTimePickerChangeEvent, date?: Date) => {
+                if (date) setPendingFollowUpDate(date);
+              }}
+            />
+          </View>
+        ) : null}
       </AccountsFormSheet>
 
-      {isFollowUpDatePickerOpen ? (
+      {/* Android: native dialog, which already draws above the sheet. */}
+      {Platform.OS !== 'ios' && isFollowUpDatePickerOpen ? (
         <DateTimePicker
           value={followUpDate ? new Date(followUpDate) : new Date()}
           mode="date"
@@ -665,6 +705,18 @@ const styles = StyleSheet.create({
   amountLabel: {flex: 0.5, fontSize: sp(14), color: '#808080'},
   amountValue: {flex: 0.5, fontSize: sp(14), color: '#808080'},
   dateIcon: {position: 'absolute', right: ms(14), top: ms(15)},
+  inlinePicker: {backgroundColor: '#FFFFFF', marginBottom: ms(12), borderRadius: ms(8)},
+  inlinePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: ms(12),
+    paddingVertical: ms(8),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#D9D9D9',
+  },
+  inlinePickerCancel: {color: '#666666', fontSize: sp(15)},
+  inlinePickerOk: {color: COLORS.primary, fontSize: sp(15), fontWeight: '700'},
   notesPill: {
     height: ms(100),
     borderWidth: 1,

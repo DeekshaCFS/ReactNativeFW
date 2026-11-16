@@ -1816,9 +1816,9 @@ const styles = StyleSheet.create({
   },
   phoneContactButton: {
     position: 'absolute',
-    right: ms(40),
+    right: ms(15),
     top: 0,
-    bottom: 0,
+    bottom: 25,
     justifyContent: 'center',
   },
   termInput: {
@@ -1996,7 +1996,7 @@ const styles = StyleSheet.create({
     marginRight: ms(5),
   },
   dropdownPlaceholderText: {
-    fontSize: sp(14),
+    fontSize: sp(12),
     color: COLORS.ink,
     flex: 1,
   },
