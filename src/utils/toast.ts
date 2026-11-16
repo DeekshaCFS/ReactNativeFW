@@ -1,8 +1,8 @@
 // src/utils/toast.ts
 //
-// RN counterpart of Java's CommonFunction.showSuccessMsg / showFailureMsg: the custom card
-// banner (custom_toast_success.xml / custom_toast_failure.xml) that slides in from the top and
-// removes itself after 4 seconds. The banner itself is drawn by <ToastHost/>.
+// RN counterpart of Java's CommonFunction.showSuccessMsg / showFailureMsg. Every alert, whatever
+// its kind, is drawn as the dark bottom pill by <ToastHost/> and removes itself after 4 seconds.
+// (The old top banner was not visible on iOS, so it is no longer used.)
 //
 // Java's plain Toast.makeText() is the platform toast -- use `showToast` for those.
 //
@@ -13,8 +13,7 @@ import {sanitizeForUser} from './safeMessage';
 
 export const TOAST_DURATION_MS = 4000;
 
-// 'info' is the plain platform-toast look (dark pill, no icon): used for showToast on iOS, which has
-// no native toast.
+// All kinds currently render as the same dark bottom pill (see ToastHost).
 export type ToastKind = 'success' | 'failure' | 'info';
 
 export type ToastMessage = {id: number; kind: ToastKind; message: string};
