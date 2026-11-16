@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.primary,
-    height: ms(75),
+    height: ms(80),
     paddingHorizontal: scale(8),
     elevation: 4,
   },
