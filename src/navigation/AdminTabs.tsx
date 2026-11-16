@@ -192,35 +192,34 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
     [ownerId, handleTaskSelect, openAddTaskModal],
   );
 
-  const renderCRMScreen = useCallback(
-    ({ route }: { route: { params?: AdminTabParamList['CRM'] } }) => (
-      <CRMScreen
-        ownerId={ownerId as number}
-        openAddEnquiryTrigger={route.params?.addEnquiryTrigger}
-      />
-    ),
+  // CRM and Employee are unmounted when their tab loses focus (like the other tab screens),
+  // so every visit starts on the list: an open customer detail or the leave sub-tab from the
+  // last visit is not kept.
+  const CRMTab = useMemo(
+    () =>
+      unmountOnBlur(({ route }: any) => (
+        <CRMScreen
+          ownerId={ownerId as number}
+          openAddEnquiryTrigger={route.params?.addEnquiryTrigger}
+        />
+      )),
     [ownerId],
   );
 
-  const renderEmployeeScreen = useCallback(
-    ({
-      route,
-      navigation,
-    }: {
-      route: { params?: AdminTabParamList['Employee'] };
-      navigation: { setParams: (params: Partial<NonNullable<AdminTabParamList['Employee']>>) => void };
-    }) => (
-      <EmployeeManagementScreen
-        ownerId={ownerId as number}
-        contentTopOffset={headerOffset}
-        onAddEmployee={openAddFieldworkerModal}
-        onActiveTabChange={activeTab => {
-          if (route.params?.activeEmployeeTab !== activeTab) {
-            navigation.setParams({ activeEmployeeTab: activeTab });
-          }
-        }}
-      />
-    ),
+  const EmployeeTab = useMemo(
+    () =>
+      unmountOnBlur(({ route, navigation }: any) => (
+        <EmployeeManagementScreen
+          ownerId={ownerId as number}
+          contentTopOffset={headerOffset}
+          onAddEmployee={openAddFieldworkerModal}
+          onActiveTabChange={activeTab => {
+            if (route.params?.activeEmployeeTab !== activeTab) {
+              navigation.setParams({ activeEmployeeTab: activeTab });
+            }
+          }}
+        />
+      )),
     [ownerId, headerOffset, openAddFieldworkerModal],
   );
 
@@ -376,7 +375,11 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
                   isAdmin
                   useRegisteredBack={currentRoute.name === 'Home' || currentRoute.name === 'CRM'}
                   onBack={
-                    currentRoute.name === 'TaskDetails'
+                    currentRoute.name === 'notification' ||
+                    currentRoute.name === 'help' ||
+                    currentRoute.name === 'FieldWeb AI'
+                      ? () => props.navigation.navigate('Home')
+                      : currentRoute.name === 'TaskDetails'
                       ? () => {
                           const returnTo = (currentRoute.params as any)?.returnTo as
                             | {name: string; params?: any}
@@ -409,7 +412,7 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
             month picker when uncontrolled. See MainTaskFragmentNewScreen. */}
         <Tab.Screen name="Task">{renderTaskScreen}</Tab.Screen>
 
-        <Tab.Screen name="CRM">{renderCRMScreen}</Tab.Screen>
+        <Tab.Screen name="CRM" component={CRMTab} />
 
         <Tab.Screen
           name="Employee"
@@ -419,9 +422,8 @@ export default function AdminTabs({ ownerId }: { ownerId: number | null }) {
           listeners={({ navigation }) => ({
             blur: () => navigation.setParams({ attendanceEntry: false }),
           })}
-        >
-          {renderEmployeeScreen}
-        </Tab.Screen>
+          component={EmployeeTab}
+        />
 
         {pushedScreens.map(({ name, component, title, initialParams }) => (
           <PushedTabScreen

@@ -48,10 +48,13 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
   const {t} = useTranslation();
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState<'approve' | 'decline' | null>(null);
+  // Set when the remote profile photo fails, so the local placeholder is shown instead.
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   useEffect(() => {
     setNotes(String(leave?.CommentsByApprover ?? ''));
     setSubmitting(null);
+    setAvatarFailed(false);
   }, [leave]);
 
   if (!leave) {
@@ -117,11 +120,12 @@ const LeaveApprovalModal: React.FC<Props> = ({leave, ownerId, onClose, onActione
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.cardContent}>
             <Image
               source={
-                leave.ProfileImageUrl
+                leave.ProfileImageUrl && !avatarFailed
                   ? {uri: leave.ProfileImageUrl}
                   : require('../../../assets/images/profile_icon.png')
               }
               defaultSource={require('../../../assets/images/profile_icon.png')}
+              onError={() => setAvatarFailed(true)}
               style={styles.avatar}
             />
 

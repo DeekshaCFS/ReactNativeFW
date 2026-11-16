@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
   metricValueGreen: {
     color: COLORS.success,
     fontWeight: '700',
-    fontSize: sp(22),
+    fontSize: sp(20),
     margin: ms(2),
   },
   amcRow: {
