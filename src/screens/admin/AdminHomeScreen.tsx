@@ -146,12 +146,17 @@ const AdminHomeScreen = ({ onCreateTask }: AdminHomeScreenProps) => {
   useEffect(() => {
     const section = route.params?.drawerSection;
     if (section) {
+      // Only the FAB's "Add AMC" sends addAmcTrigger. Any other way into a section (the drawer)
+      // must not carry a leftover trigger, or the AMC dashboard opens the Add AMC sheet on mount.
+      if (!route.params?.addAmcTrigger) {
+        setAddAmcTrigger(0);
+      }
       setSelectedDrawerLabel(section);
       setDrawerVisit(prev => prev + 1);
       // Clear it so re-selecting the same drawer item still fires next time.
       navigation.setParams({ drawerSection: undefined });
     }
-  }, [route.params?.drawerSection, navigation]);
+  }, [route.params?.drawerSection, route.params?.addAmcTrigger, navigation]);
 
   // This tab stays mounted and remembers the drawer section it was showing (AMC, Item Inventory,
   // Leads...). Tapping the Home tab -- from a section, from another tab or from a pushed screen like
