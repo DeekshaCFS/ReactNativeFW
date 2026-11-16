@@ -55,6 +55,7 @@ import { showFailureMsg, showSuccessMsg } from '../../utils/toast';
 
 import { useTranslation } from 'react-i18next';
 import {tr} from '../../i18n/tr';
+import {setHeaderBack} from '../../state/headerBack';
 type Props = {
   ownerId: number;
 };
@@ -234,6 +235,14 @@ const ServiceCategoryTabHost: React.FC<Props> = ({ownerId}) => {
       setView({level: 'category'});
     }
   };
+
+  // The shared header's arrow steps back one level (service detail -> service -> sub-category ->
+  // category list). On the category list there is nothing to go back to, so the menu icon stays.
+  useEffect(() => {
+    setHeaderBack(view.level === 'category' ? null : goBack);
+    return () => setHeaderBack(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   const handleDeleteCategory = (category: ServiceCategoryListDTOResultData) => {
     askDelete(tr('Do you want to delete this Category ?'), async () => {

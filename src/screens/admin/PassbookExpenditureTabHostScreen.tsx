@@ -36,7 +36,6 @@ type PassbookExpenditureTabHostScreenProps = {
 type MainTab = 'passbook' | 'expenditure';
 
 const THEME_PRIMARY = '#c3002f';
-const LIGHT_PRIMARY = '#ffc3cf';
 const DEFAULT_PROFILE_ICON = require('../../../assets/images/profile_icon.png');
 
 // Java: Picasso placeholder + error both use R.drawable.profile_icon.
@@ -387,105 +386,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  topTabBar: {
-    height: ms(86),
-    backgroundColor: '#F7F7F7',
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    paddingBottom: 0,
-    marginTop: ms(-30),
-  },
-  topTabButton: {
-    minWidth: ms(200),
-    height: ms(50),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: ms(4),
-    borderBottomColor: 'transparent',
-  },
-  topTabActive: {
-    backgroundColor: '#FFF3F5',
-    borderBottomColor: THEME_PRIMARY,
-  },
-  topTabText: {
-    color: '#777777',
-    fontSize: sp(15),
-    fontWeight: '800',
-  },
-  topTabTextActive: {
-    color: THEME_PRIMARY,
-  },
-  passbookScroll: {
-    flexGrow: 1,
-    paddingBottom: ms(112),
-  },
-  periodRow: {
-    height: ms(72),
-    paddingHorizontal: ms(8),
-    paddingTop: ms(22),
-    flexDirection: 'row',
-    gap: ms(14),
-  },
-  periodButton: {
-    flex: 1,
-    height: ms(42),
-    borderRadius: ms(8),
-    borderWidth: ms(1),
-    borderColor: '#E2E2E2',
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  periodButtonActive: {
-    backgroundColor: THEME_PRIMARY,
-    borderColor: THEME_PRIMARY,
-  },
-  periodText: {
-    color: '#111111',
-    fontSize: sp(19),
-    fontWeight: '900',
-  },
-  periodTextActive: {
-    color: '#FFFFFF',
-  },
-  earningsPanel: {
-    flex: 1,
-    minHeight: ms(620),
-    borderTopLeftRadius: ms(56),
-    borderTopRightRadius: ms(56),
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  earningHeaderRow: {
-    minHeight: ms(138),
-    paddingHorizontal: ms(46),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  periodArrow: {
-    color: '#111111',
-    fontSize: sp(34),
-    lineHeight: sp(36),
-    fontWeight: '900',
-  },
-  earningTitleBlock: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: ms(18),
-  },
-  earningTitle: {
-    color: '#222222',
-    fontSize: sp(24),
-    textAlign: 'center',
-  },
-  earningAmount: {
-    marginTop: ms(8),
-    color: '#111111',
-    fontSize: sp(28),
-    fontWeight: '900',
-  },
   loadingRow: {
     paddingVertical: ms(16),
     alignItems: 'center',
@@ -502,80 +402,6 @@ const styles = StyleSheet.create({
     fontSize: sp(13),
     fontWeight: '700',
   },
-  summaryCard: {
-    minHeight: ms(440),
-    marginTop: 0,
-    paddingHorizontal: ms(44),
-    paddingTop: ms(30),
-    borderTopLeftRadius: ms(54),
-    borderTopRightRadius: ms(54),
-    backgroundColor: LIGHT_PRIMARY,
-  },
-  progressTrack: {
-    height: ms(6),
-    borderRadius: ms(3),
-    backgroundColor: 'rgba(255,255,255,0.72)',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: ms(6),
-    borderRadius: ms(3),
-    backgroundColor: THEME_PRIMARY,
-  },
-  estimatedRow: {
-    marginTop: ms(32),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  estimatedText: {
-    color: '#111111',
-    fontSize: sp(16),
-  },
-  estimatedAmount: {
-    fontWeight: '900',
-  },
-  progressText: {
-    color: THEME_PRIMARY,
-    fontSize: sp(16),
-    fontWeight: '900',
-  },
-  summaryPrimaryRow: {
-    marginTop: ms(44),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  summaryPrimaryLabel: {
-    color: '#111111',
-    fontSize: sp(22),
-    fontWeight: '900',
-  },
-  summaryPrimaryValue: {
-    color: '#111111',
-    fontSize: sp(21),
-    fontWeight: '900',
-  },
-  summaryDivider: {
-    height: ms(1),
-    marginTop: ms(17),
-    backgroundColor: 'rgba(255,255,255,0.72)',
-  },
-  summaryRow: {
-    minHeight: ms(44),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  summaryLabel: {
-    color: '#111111',
-    fontSize: sp(18),
-  },
-  summaryValue: {
-    color: '#111111',
-    fontSize: sp(18),
-    fontWeight: '900',
-  },
   expenditurePane: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -590,24 +416,6 @@ const styles = StyleSheet.create({
   expenseSearchBox: {
     flex: 1,
     marginRight: ms(10),
-  },
-  searchIcon: {
-    color: '#B9B9B9',
-    fontSize: sp(13),
-    fontWeight: '800',
-    marginRight: ms(12),
-  },
-  expenseSearchInput: {
-    flex: 1,
-    minHeight: ms(42),
-    paddingVertical: 0,
-    color: '#111111',
-    fontSize: sp(18),
-  },
-  searchClear: {
-    color: '#555555',
-    fontSize: sp(32),
-    lineHeight: sp(34),
   },
   balanceButton: {
     height: ms(30),
