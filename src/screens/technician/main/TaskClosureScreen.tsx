@@ -832,26 +832,15 @@ export default function TaskClosure({ navigation, route }: any) {
 
   // ─── Validation ───────────────────────────────────────────────────────────
 
-  const validateClosure = (): string | null => {
-    if (customerSignPaths.length === 0) {
-      return 'Please add the customer signature.';
-    }
+  // Checks follow the order the sections appear on screen (top to bottom), so the message shown
+  // always points at the highest missing field. The mandatory Task Input check sits between the
+  // device list and the signature, so it runs between the two halves below.
+  const validateBeforeTaskInput = (): string | null => {
     if (!fieldPhotos.some(p => !!p?.base64)) {
       return 'Please add at least one field photo.';
     }
-    if (rating === 0) {
-      return 'Please rate the service.';
-    }
     if (!selectedWorkMode) {
       return 'Please select a Work Mode before continuing.';
-    }
-    if (hasHappyCode) {
-      if (!satisfactionCode.trim()) {
-        return 'Please Enter Satisfaction Code!!';
-      }
-      if (Number(satisfactionCode) !== routeTask.HappyCode) {
-        return 'Please Enter Valid Satisfaction Code!!';
-      }
     }
     // Matches Java's addDeviceListToTaskClosure(): every device row the
     // technician added must have a name, a model number, and at least one
@@ -867,12 +856,30 @@ export default function TaskClosure({ navigation, route }: any) {
     return null;
   };
 
+  const validateAfterTaskInput = (): string | null => {
+    if (customerSignPaths.length === 0) {
+      return 'Please add the customer signature.';
+    }
+    if (rating === 0) {
+      return 'Please rate the service.';
+    }
+    if (hasHappyCode) {
+      if (!satisfactionCode.trim()) {
+        return 'Please Enter Satisfaction Code!!';
+      }
+      if (Number(satisfactionCode) !== routeTask.HappyCode) {
+        return 'Please Enter Valid Satisfaction Code!!';
+      }
+    }
+    return null;
+  };
+
   // ─── Submit ───────────────────────────────────────────────────────────────
 
   const handleContinue = async () => {
-    const validationError = validateClosure();
+    const validationError = validateBeforeTaskInput();
     if (validationError) {
-      showFailureMsg(validationError || 'Required');
+      showFailureMsg(validationError);
       return;
     }
     try {
@@ -910,6 +917,12 @@ export default function TaskClosure({ navigation, route }: any) {
           showFailureMsg(t('rn_could_not_verify_the_required_task_inputs_'));
           return;
         }
+      }
+
+      const afterTaskInputError = validateAfterTaskInput();
+      if (afterTaskInputError) {
+        showFailureMsg(afterTaskInputError);
+        return;
       }
 
       const now = new Date().toISOString();
