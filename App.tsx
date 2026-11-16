@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import RootNavigator from './src/navigation/RootNavigator';
 import AppContainer from './src/components/AppContainer';
 import ToastHost from './src/components/ToastHost';
+import { HOST_PRIORITY } from './src/utils/toast';
 import NumpadDoneBar from './src/components/NumpadDoneBar';
 import ImageSourceHost from './src/components/ImageSourceHost';
 import { loadStoredLanguage } from './src/i18n';
@@ -45,8 +46,10 @@ export default function App() {
     loadStoredLanguage().finally(() => setLanguageReady(true));
   }, []);
 
+  // Keep the launch-screen colour while the stored language loads (a bare null shows the
+  // window background, which read as a black screen on iOS before the splash).
   if (!languageReady) {
-    return null;
+    return <View style={styles.boot} />;
   }
 
   // Java SplashActivity runs first, then routes; RootNavigator does the routing here.
@@ -70,7 +73,7 @@ export default function App() {
         {/* Java-style success / failure banner (CommonFunction.showSuccessMsg / showFailureMsg). */}
         <ImageSourceHost />
         <NumpadDoneBar />
-        <ToastHost />
+        <ToastHost priority={HOST_PRIORITY.root} />
       </View>
     </TourProvider>
   );
@@ -78,4 +81,5 @@ export default function App() {
 
 const styles = {
   root: {flex: 1} as const,
+  boot: {flex: 1, backgroundColor: '#FDFDFD'} as const,
 };

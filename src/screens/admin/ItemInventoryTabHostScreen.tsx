@@ -1481,7 +1481,7 @@ const ItemInventoryTabHostScreen = ({
           : null,
       ]}>
       {focDetail ? (
-        <FOCDetailsScreen admin focRequest={focDetail} onClose={() => setFocDetail(null)} />
+        <FOCDetailsScreen admin={!isFieldWorker} focRequest={focDetail} onClose={() => setFocDetail(null)} />
       ) : selectedItem && inventoryView === 'issued' ? (
         renderIssuedDetails()
       ) : selectedItem && inventoryView === 'used' ? (

@@ -6,10 +6,11 @@
 // locally, then posts everything in one "Update All" call -- no per-toggle
 // network request. Matches update_foc_request_details_fragment.xml /
 // adapter_tech_request_foc_details.xml.
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput,
+  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import { COLORS } from '../../../theme/theme';
 import { ms, sp } from '../../../utils/responsive';
@@ -103,7 +104,22 @@ function YesNoSegment({ value, onChange, disabled, width }: {
 export default function FOCDetailsScreen({ navigation, route, focRequest: focRequestProp, admin = false, onClose }: any) {
   const {t} = useTranslation();
   const focRequest = (focRequestProp ?? route?.params?.focRequest) as GetFOCListResultData;
-  const goBack = () => (onClose ? onClose() : navigation?.goBack());
+  // The tab navigator's own goBack() returns to Home, but this screen belongs to Item Inventory:
+  // leaving it (after Update All, the header arrow or the Android back button) lands on the
+  // Requested Items tab.
+  const goBack = () => (onClose ? onClose() : navigation?.navigate('Requested Items'));
+
+  useFocusEffect(
+    useCallback(() => {
+      if (onClose) return undefined;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        navigation?.navigate('Requested Items');
+        return true;
+      });
+      return () => sub.remove();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [onClose, navigation]),
+  );
   const pdf = usePdfDownload();
 
   const [items, setItems] = useState<GetFOCListFOC_ItemList[]>(focRequest?.FOC_ItemList ?? []);

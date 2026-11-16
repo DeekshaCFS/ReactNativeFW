@@ -35,17 +35,23 @@ export const getActiveToast = () => {
   return {toast: active.toast, remainingMs: active.until - Date.now()};
 };
 
-// <ToastHost/> is mounted once at the app root and again inside every AppModal (a Modal is a
-// separate window drawn above the app, so a root-level banner would be hidden behind it). Only
-// the most recently mounted host -- the topmost window -- draws the banner.
-const hostStack: number[] = [];
+// <ToastHost/> is mounted once at the app root, once per native-stack screen (withToastHost) and
+// again inside every AppModal (a Modal is a separate window drawn above the app, so a lower host
+// would be hidden behind it). Only ONE host draws the banner: the one with the highest priority
+// (modal > screen > app root), and among equals the most recently mounted. Ranking by priority
+// instead of plain mount order matters on iOS, where the app-root host sits behind the native
+// stack screens and must never win over a screen's own host.
+export const HOST_PRIORITY = {root: 0, screen: 1, modal: 2} as const;
+
+type HostEntry = {id: number; priority: number};
+const hostStack: HostEntry[] = [];
 const hostListeners = new Set<() => void>();
 
-export const registerToastHost = (id: number) => {
-  hostStack.push(id);
+export const registerToastHost = (id: number, priority: number = HOST_PRIORITY.screen) => {
+  hostStack.push({id, priority});
   hostListeners.forEach(l => l());
   return () => {
-    const index = hostStack.lastIndexOf(id);
+    const index = hostStack.findIndex(h => h.id === id);
     if (index >= 0) {
       hostStack.splice(index, 1);
     }
@@ -53,7 +59,15 @@ export const registerToastHost = (id: number) => {
   };
 };
 
-export const isTopToastHost = (id: number) => hostStack[hostStack.length - 1] === id;
+export const isTopToastHost = (id: number) => {
+  let top: HostEntry | null = null;
+  for (const h of hostStack) {
+    if (!top || h.priority >= top.priority) {
+      top = h;
+    }
+  }
+  return top?.id === id;
+};
 
 export const subscribeToastHosts = (listener: () => void) => {
   hostListeners.add(listener);

@@ -1,5 +1,5 @@
 // src/screens/technician/main/TaskScreen.tsx
-import { launchCameraWithPermission } from '../../../utils/cameraPermission';
+import { pickPhoto } from '../../../utils/photoPicker';
 import React, { useState, useEffect, } from 'react';
 import {
   View, Text, StyleSheet, Pressable, TextInput,
@@ -94,12 +94,13 @@ export default function TaskScreen({ navigation, route }: any) {
     setList: React.Dispatch<React.SetStateAction<{ uri: string; base64?: string }[]>>,
     index: number,
   ) => {
-    const result = await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
-    if (result.assets?.[0]) {
-      const asset = result.assets[0];
-      const updated = [...list];
-      updated[index] = { uri: asset.uri!, base64: asset.base64 };
-      setList(updated);
+    const asset = await pickPhoto('camera');
+    if (asset) {
+      setList(prev => {
+        const updated = [...prev];
+        updated[index] = { uri: asset.uri!, base64: asset.base64 };
+        return updated;
+      });
     }
   };
 

@@ -22,6 +22,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     reactNativeFactory = factory
 
     window = UIWindow(frame: UIScreen.main.bounds)
+    // Same off-white as the launch screen / splash video, so there is no black flash while JS loads.
+    window?.backgroundColor = UIColor(white: 253.0 / 255.0, alpha: 1.0)
 
     factory.startReactNative(
       withModuleName: "FieldWebApp",

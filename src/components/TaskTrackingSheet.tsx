@@ -5,7 +5,7 @@ import { numpadAccessoryId } from './NumpadDoneBar';
 // over whichever screen the technician tapped the task on (Home / Task tab), so it is hosted
 // in place by those screens; TaskTrackingScreen only hosts it for the remaining entry points
 // (notification, late reject, resume deep links).
-import { launchCameraWithPermission } from '../utils/cameraPermission';
+import { pickPhoto } from '../utils/photoPicker';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, Image, TouchableOpacity,
@@ -18,7 +18,6 @@ import { COLORS } from '../theme/theme';
 import type { TasksListResultData as Task } from '../api/task/task.types';
 import { useTaskStatus } from '../hooks/useTaskStatus';
 import { scale, vs, sp, ms } from '../utils/responsive';
-import { launchImageLibrary } from 'react-native-image-picker';
 import { showFailureMsg, showToast } from '../utils/toast';
 
 import {useTranslation} from 'react-i18next';
@@ -149,12 +148,8 @@ export default function TaskTrackingSheet({
     if (index === null) return;
     pendingPhotoIndexRef.current = null;
 
-    const result = source === 'camera'
-      ? await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.7 })
-      : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
-
-    const asset = result.assets?.[0];
-    if (!asset?.uri) return;
+    const asset = await pickPhoto(source);
+    if (!asset) return;
 
     setRejectPhotos(prev => {
       const updated = [...prev];

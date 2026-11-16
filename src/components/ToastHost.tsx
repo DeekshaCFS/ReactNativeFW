@@ -7,9 +7,11 @@
 //   - added 200px from the top and 100px from each side (device pixels, as in Java)
 //   - slides down from -100 to 0 over 500ms (accelerate-decelerate), removed after 4s
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, PixelRatio, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, PixelRatio, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { FullWindowOverlay } from 'react-native-screens';
 import Svg, { Path } from 'react-native-svg';
 import {
+  HOST_PRIORITY,
   TOAST_DURATION_MS,
   getActiveToast,
   isTopToastHost,
@@ -47,12 +49,15 @@ const FailureIcon = ({ size }: { size: number }) => (
 
 let hostCounter = 0;
 
-const ToastHost: React.FC = () => {
+type Props = { priority?: number };
+
+const ToastHost: React.FC<Props> = ({ priority = HOST_PRIORITY.screen }) => {
   const [hostId] = useState(() => ++hostCounter);
   const [isTop, setIsTop] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const slide = useRef(new Animated.Value(-100)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { width, height } = useWindowDimensions();
 
   // Shows a toast on this host for `remainingMs`. The toast itself stays in toast.ts until it
   // expires, so a different host can take it over if this one stops being topmost.
@@ -61,18 +66,27 @@ const ToastHost: React.FC = () => {
       clearTimeout(hideTimer.current);
     }
     setToast(next);
+    hideTimer.current = setTimeout(() => setToast(null), remainingMs);
+  };
+
+  // Slide in once the card is actually mounted. Starting the animation before the view exists
+  // (as show() used to) can leave the card stuck off-screen on iOS.
+  useEffect(() => {
+    if (!toast || !isTop) {
+      return;
+    }
     slide.setValue(-100);
     Animated.timing(slide, {
       toValue: 0,
       duration: SLIDE_MS,
       easing: Easing.inOut(Easing.quad),
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
-    hideTimer.current = setTimeout(() => setToast(null), remainingMs);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast?.id, isTop]);
 
   useEffect(() => {
-    const unregister = registerToastHost(hostId);
+    const unregister = registerToastHost(hostId, priority);
     const sync = () => setIsTop(isTopToastHost(hostId));
     const unsubscribe = subscribeToastHosts(sync);
     sync();
@@ -80,7 +94,7 @@ const ToastHost: React.FC = () => {
       unsubscribe();
       unregister();
     };
-  }, [hostId]);
+  }, [hostId, priority]);
 
   // When this host becomes topmost, show any toast that is still active. This covers a toast
   // sent just before the modal hosting it closed.
@@ -120,9 +134,22 @@ const ToastHost: React.FC = () => {
     return null;
   }
 
+  // On iOS the banner is drawn in its own overlay window, above native-stack screens and any open
+  // Modal, so it can never end up hidden behind them.
+  const overlay = (node: React.ReactElement) =>
+    Platform.OS === 'ios' ? (
+      <FullWindowOverlay>
+        <View pointerEvents="none" style={{ width, height }}>
+          {node}
+        </View>
+      </FullWindowOverlay>
+    ) : (
+      node
+    );
+
   if (toast.kind === 'info') {
     // Plain platform-toast look for iOS: dark pill, white text, near the bottom.
-    return (
+    return overlay(
       <View pointerEvents="none" style={styles.infoLayer}>
         <Animated.View style={[styles.infoPill, { opacity: slide.interpolate({ inputRange: [-100, 0], outputRange: [0, 1] }) }]}>
           <Text style={styles.infoText}>{toast.message}</Text>
@@ -132,7 +159,7 @@ const ToastHost: React.FC = () => {
   }
 
   const isSuccess = toast.kind === 'success';
-  return (
+  return overlay(
     <View pointerEvents="none" style={styles.layer}>
       <Animated.View
         style={[

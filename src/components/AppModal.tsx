@@ -4,6 +4,7 @@ import { Modal as RNModal, ModalProps, Platform, View, StyleSheet } from 'react-
 import { isTablet } from '../utils/responsive';
 import { APP_MAX_WIDTH } from './AppContainer';
 import ToastHost from './ToastHost';
+import { HOST_PRIORITY } from '../utils/toast';
 import { newModalId, setModalOpen, setPortalEntry, useOpenModals, usePortalEntries } from './modalPortal';
 
 // Drop-in replacement for react-native's Modal. A Modal is drawn above the app,
@@ -90,7 +91,7 @@ const AppModal: React.FC<ModalProps> = ({ children, visible, ...props }) => {
         </View>
       ) : null}
       {/* A Modal is its own window above the app: draw the success / failure banner in it too. */}
-      <ToastHost />
+      <ToastHost priority={HOST_PRIORITY.modal} />
     </RNModal>
   );
 };

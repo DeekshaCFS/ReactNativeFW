@@ -1,10 +1,8 @@
 // src/screens/technician/drawer/RequestedItems.tsx
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, Pressable, Image, TextInput, Dimensions,
-  Platform, StatusBar, ActivityIndicator, RefreshControl, } from 'react-native';
-import Modal from '../../../components/AppModal';
-import Svg, { Path } from 'react-native-svg';
+  View, Text, StyleSheet, FlatList, Pressable, Image,
+  ActivityIndicator, RefreshControl, } from 'react-native';
 import { COLORS } from '../../../theme/theme';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ms, sp, scale, hp } from '../../../utils/responsive';
@@ -150,7 +148,7 @@ export default function RequestedItems() {
       <View style={styles.requestRow}>
         <Pressable
           style={styles.requestButton}
-          onPress={() => navigation.navigate('ItemRequest')}
+          onPress={() => navigation.navigate('ItemRequest', { returnTo: { name: 'Requested Items' } })}
         >
           <Text style={styles.requestText}>{t('rn_request')}</Text>
         </Pressable>

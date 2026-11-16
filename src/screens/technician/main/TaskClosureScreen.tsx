@@ -1,6 +1,5 @@
 import { numpadAccessoryId } from '../../../components/NumpadDoneBar';
 // src/screens/technician/main/TaskClosureScreen.tsx
-import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -34,7 +33,7 @@ import {
   TaskClosureDeviceInfoList,
   TaskClosureUsedItemDetailsDto,
 } from '../../../api/task/task.types';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { usePhotoSource } from '../../../hooks/usePhotoSource';
 import { getAllchkpointCategory, postChkpointData } from '../../../api/fsrManagement/fsrManagementService';
 import { requestLocationPermission, getCurrentPosition, getAddressFromCoordinates, Coordinates } from '../../../utils/locationPermision';
 import { buildImagesPayload } from '../../../utils/imagePayload';
@@ -202,22 +201,46 @@ interface SignaturePadProps {
   onPathsChange: (paths: SignaturePath[]) => void;
   height?: number;
   onSizeChange?: (size: { width: number; height: number }) => void;
+  /** True while a finger is down on the pad, so the parent can lock its scrolling. */
+  onDrawingChange?: (drawing: boolean) => void;
 }
 
-function SignaturePad({ paths, onPathsChange, height = 160, onSizeChange }: SignaturePadProps) {
+function SignaturePad({ paths, onPathsChange, height = 160, onSizeChange, onDrawingChange }: SignaturePadProps) {
   const currentPathRef = useRef<{ x: number; y: number }[]>([]);
   const pathsRef = useRef(paths);
   const [, forceUpdate] = useState(0);
 
-  useEffect(() => {
-    pathsRef.current = paths;
-  }, [paths]);
+  // Always the latest props, so the PanResponder (created once) never calls a stale callback.
+  const onPathsChangeRef = useRef(onPathsChange);
+  const onDrawingChangeRef = useRef(onDrawingChange);
+  onPathsChangeRef.current = onPathsChange;
+  onDrawingChangeRef.current = onDrawingChange;
+  pathsRef.current = paths;
+
+  const finishStroke = () => {
+    const points = currentPathRef.current;
+    currentPathRef.current = [];
+    if (points.length > 0) {
+      // A single tap becomes a dot (round line cap on a zero-length segment).
+      const stroke = points.length === 1 ? [points[0], points[0]] : points;
+      const next = [...pathsRef.current, { points: stroke }];
+      pathsRef.current = next;
+      onPathsChangeRef.current(next);
+    }
+    onDrawingChangeRef.current?.(false);
+    forceUpdate(n => n + 1);
+  };
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      // On iOS the enclosing ScrollView / sheet gesture would otherwise take the touch over
+      // mid-stroke and cut the signature short.
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
       onPanResponderGrant: (evt: GestureResponderEvent) => {
+        onDrawingChangeRef.current?.(true);
         const { locationX, locationY } = evt.nativeEvent;
         currentPathRef.current = [{ x: locationX, y: locationY }];
         forceUpdate(n => n + 1);
@@ -227,15 +250,19 @@ function SignaturePad({ paths, onPathsChange, height = 160, onSizeChange }: Sign
         currentPathRef.current = [...currentPathRef.current, { x: locationX, y: locationY }];
         forceUpdate(n => n + 1);
       },
-      onPanResponderRelease: () => {
-        if (currentPathRef.current.length > 1) {
-          onPathsChange([...pathsRef.current, { points: currentPathRef.current }]);
-        }
-        currentPathRef.current = [];
-        forceUpdate(n => n + 1);
-      },
+      onPanResponderRelease: finishStroke,
+      onPanResponderTerminate: finishStroke,
     })
   ).current;
+
+  // The parent cleared the signature: drop any half-drawn stroke too.
+  useEffect(() => {
+    if (paths.length === 0 && currentPathRef.current.length > 0) {
+      currentPathRef.current = [];
+      onDrawingChangeRef.current?.(false);
+      forceUpdate(n => n + 1);
+    }
+  }, [paths]);
 
   return (
     <View
@@ -243,7 +270,9 @@ function SignaturePad({ paths, onPathsChange, height = 160, onSizeChange }: Sign
       onLayout={e => onSizeChange?.(e.nativeEvent.layout)}
       {...panResponder.panHandlers}
     >
-      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+      {/* pointerEvents none: touches must land on the container View, otherwise iOS reports
+          locationX/Y relative to the Svg's child nodes and the stroke jumps around. */}
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
         {paths.map((path, idx) => (
           <Path
             key={idx}
@@ -276,6 +305,9 @@ const sigStyles = StyleSheet.create({
     overflow: 'hidden',
     marginTop: vs(6),
     position: 'relative',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    borderRadius: ms(4),
   },
 });
 
@@ -448,11 +480,11 @@ export default function TaskClosure({ navigation, route }: any) {
   };
 
   // ── Photo source modal ──
-  const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
-  const pendingPhotoRef = useRef<PendingPhoto | null>(null);
 
   // ── Signature sheet ──
   const [showSignatureSheet, setShowSignatureSheet] = useState(false);
+  // True while a finger is drawing on a signature pad: the sheet's ScrollView must not scroll then.
+  const [signing, setSigning] = useState(false);
   const [openAccordion, setOpenAccordion] = useState<'customer' | 'tech' | null>(null);
   const customerExpanded = openAccordion === 'customer';
   const techExpanded = openAccordion === 'tech';
@@ -758,27 +790,10 @@ export default function TaskClosure({ navigation, route }: any) {
 
   // ─── Photo helpers ────────────────────────────────────────────────────────
 
-  const openPhotoPicker = (pending: PendingPhoto) => {
-    pendingPhotoRef.current = pending;
-    Keyboard.dismiss();
-    setShowPhotoSourceModal(true);
-  };
-
-  const handlePhotoSource = async (source: 'camera' | 'gallery') => {
-    setShowPhotoSourceModal(false);
-    const pending = pendingPhotoRef.current;
-    if (!pending) return;
-    pendingPhotoRef.current = null;
-
-    const result =
-      source === 'camera'
-        ? await launchCameraWithPermission({ mediaType: 'photo', includeBase64: true, quality: 0.7 })
-        : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
-
-    const asset = result.assets?.[0];
-    if (!asset?.uri) return;
-
-    const photo: PhotoAsset = { uri: asset.uri, base64: asset.base64 ?? undefined };
+  // The camera / gallery is launched only after the source dialog has fully closed
+  // (usePhotoSource); launching it straight from the tap froze the app on iOS.
+  const photoSource = usePhotoSource<PendingPhoto>((asset, pending) => {
+    const photo: PhotoAsset = { uri: asset.uri!, base64: asset.base64 ?? undefined };
 
     if (pending.type === 'field') {
       setFieldPhotos(prev => {
@@ -801,7 +816,9 @@ export default function TaskClosure({ navigation, route }: any) {
         )
       );
     }
-  };
+  });
+
+  const openPhotoPicker = (pending: PendingPhoto) => photoSource.open(pending);
 
   // ─── Payload builder ──────────────────────────────────────────────────────
 
@@ -1576,6 +1593,7 @@ export default function TaskClosure({ navigation, route }: any) {
             <Text style={styles.signatureSheetTitle}>{t('signature_and_rating')}</Text>
 
             <ScrollView
+              scrollEnabled={!signing}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ paddingBottom: vs(16) }}
@@ -1636,7 +1654,14 @@ export default function TaskClosure({ navigation, route }: any) {
 
                   <View style={sigModalStyles.signatureRow}>
                     <Text style={sigModalStyles.signatureLabel}>{t('customer_signature')}</Text>
-                    <Pressable onPress={() => setCustomerSignPaths([])}>
+                    <Pressable
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setCustomerSignPaths([]);
+                      }}
+                      hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+                      style={sigModalStyles.clearBtn}
+                    >
                       <Text style={sigModalStyles.clearText}>{t('clear').toUpperCase()}</Text>
                     </Pressable>
                   </View>
@@ -1644,6 +1669,7 @@ export default function TaskClosure({ navigation, route }: any) {
                     paths={customerSignPaths}
                     onPathsChange={setCustomerSignPaths}
                     onSizeChange={setCustomerPadSize}
+                    onDrawingChange={setSigning}
                     height={100}
                   />
 
@@ -1710,7 +1736,14 @@ export default function TaskClosure({ navigation, route }: any) {
 
                   <View style={sigModalStyles.signatureRow}>
                     <Text style={sigModalStyles.signatureLabel}>{t('customer_signature')}</Text>
-                    <Pressable onPress={() => setTechSignPaths([])}>
+                    <Pressable
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setTechSignPaths([]);
+                      }}
+                      hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+                      style={sigModalStyles.clearBtn}
+                    >
                       <Text style={sigModalStyles.clearText}>{t('clear').toUpperCase()}</Text>
                     </Pressable>
                   </View>
@@ -1718,6 +1751,7 @@ export default function TaskClosure({ navigation, route }: any) {
                     paths={techSignPaths}
                     onPathsChange={setTechSignPaths}
                     onSizeChange={setTechPadSize}
+                    onDrawingChange={setSigning}
                     height={100}
                   />
                 </View>
@@ -1740,12 +1774,7 @@ export default function TaskClosure({ navigation, route }: any) {
       {/* ══════════════════════════════════════════════════════════════════
           PHOTO SOURCE MODAL
       ══════════════════════════════════════════════════════════════════ */}
-      <ImageSourceDialog
-        visible={showPhotoSourceModal}
-        onCamera={() => handlePhotoSource('camera')}
-        onGallery={() => handlePhotoSource('gallery')}
-        onClose={() => setShowPhotoSourceModal(false)}
-      />
+      <ImageSourceDialog {...photoSource.dialogProps} />
 
       {/* ══════════════════════════════════════════════════════════════════
           UPDATE USED ITEM SHEET
@@ -2409,6 +2438,10 @@ const sigModalStyles = StyleSheet.create({
   signatureLabel: {
     fontSize: sp(16),
     color: COLORS.ink,
+  },
+  clearBtn: {
+    paddingVertical: ms(6),
+    paddingHorizontal: ms(10),
   },
   clearText: {
     fontSize: sp(14),

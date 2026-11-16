@@ -40,7 +40,7 @@ export function useOpenTask(navigation: any, { onLateInactive, onOpenTracking }:
     (task: Task) => {
       // ── Terminal states ──
       if (task.TaskStatus === 'Completed') {
-        showFailureMsg('This task has already been completed.');
+        showFailureMsg('This task is completed and payment has been received.');
         return;
       }
       if (task.TaskStatus === 'Rejected') {
@@ -72,7 +72,7 @@ export function useOpenTask(navigation: any, { onLateInactive, onOpenTracking }:
             if (task.TaskClosureStatus !== true) {
               navigation.navigate('TaskClosure', { task });
             } else {
-              showFailureMsg('This task is completed and payment is received.');
+              showFailureMsg('This task is completed and payment has been received.');
             }
             break;
           case 4: // TASK_CLOSURE
@@ -123,7 +123,7 @@ export function useOpenTask(navigation: any, { onLateInactive, onOpenTracking }:
         if (!task.TaskClosureStatus) {
           navigation.navigate('TaskClosure', { task });
         } else {
-          showFailureMsg('This task is completed and payment is received.');
+          showFailureMsg('This task is completed and payment has been received.');
         }
       }
     },

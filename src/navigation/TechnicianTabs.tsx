@@ -263,7 +263,13 @@ export default function TechnicianTabs() {
               name === 'Leave' || name === 'Expenditure' || name === 'Leads' || name === 'Profile' || name === 'FieldWeb AI' || SHEET_SCREENS.includes(name)
                 ? { headerShown: false }
                 // Task Details: the header arrow goes back to the task list, not Home.
-                : pushedScreenOptions(title, navigation, route, name === 'TaskClosure' ? 'Task' : undefined, insets.top)}
+                : pushedScreenOptions(
+                    title,
+                    navigation,
+                    route,
+                    name === 'TaskClosure' ? 'Task' : name === 'FOCDetails' ? 'Requested Items' : undefined,
+                    insets.top,
+                  )}
           />
         ))}
       </Tab.Navigator>

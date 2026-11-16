@@ -12,7 +12,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  PermissionsAndroid,
+
   Linking,
   } from 'react-native';
 import Modal from '../../../components/AppModal';
@@ -40,7 +40,7 @@ import type {
   GetBeforeAfterOnHoldTaskImgDTOFileLists,
 } from '../../../api/task/task.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { usePhotoSource } from '../../../hooks/usePhotoSource';
 import Video, { VideoRef } from 'react-native-video';
 import { TASK_STATUS_ID } from '../../../constants/taskStatus';
 import { buildImagesPayload } from '../../../utils/imagePayload';
@@ -112,18 +112,25 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
     }
   }, [route.params?.reopenOnHold, navigation]);
 
-  const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
 
   const [audioSource, setAudioSource] = useState<string | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
   const videoRef = useRef<VideoRef>(null);
 
-  const pendingPhotoRef = useRef<{
-    list: { uri: string; base64?: string }[];
-    setList: React.Dispatch<React.SetStateAction<{ uri: string; base64?: string }[]>>;
+  // Camera / gallery for the photo slots. The picker is launched only after the source dialog has
+  // closed (usePhotoSource), which is what stops iOS from freezing on capture.
+  type PhotoSlot = { uri: string; base64?: string };
+  const photoSource = usePhotoSource<{
+    setList: React.Dispatch<React.SetStateAction<PhotoSlot[]>>;
     index: number;
-  } | null>(null);
+  }>((asset, { setList, index }) => {
+    setList(prev => {
+      const updated = [...prev];
+      updated[index] = { uri: asset.uri!, base64: asset.base64 };
+      return updated;
+    });
+  });
 
   useEffect(() => {
     if (isRunning) {
@@ -256,57 +263,11 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
   };
 
   const openPhotoPicker = (
-    list: { uri: string; base64?: string }[],
+    _list: { uri: string; base64?: string }[],
     setList: React.Dispatch<React.SetStateAction<{ uri: string; base64?: string }[]>>,
     index: number,
   ) => {
-    pendingPhotoRef.current = { list, setList, index };
-    setShowPhotoSourceModal(true);
-  };
-
-  const handlePhotoSource = async (source: 'camera' | 'gallery') => {
-    setShowPhotoSourceModal(false);
-    if (!pendingPhotoRef.current) return;
-    const { list, setList, index } = pendingPhotoRef.current;
-    pendingPhotoRef.current = null;
-
-    // The camera intent silently fails on Android if launched while the source Modal is
-    // still dismissing; give it time to close first.
-    if (source === 'camera') await new Promise<void>(r => setTimeout(r, 400));
-
-    // CAMERA is declared in the manifest, so image-picker expects the app to obtain the
-    // runtime permission itself.
-    if (source === 'camera' && Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
-      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-        showToast(t('rn_camera_permission_is_required_to_take_a_ph'));
-        return;
-      }
-    }
-
-    let result;
-    try {
-      result = source === 'camera'
-        ? await launchCamera({ mediaType: 'photo', includeBase64: true, quality: 0.7, saveToPhotos: false })
-        : await launchImageLibrary({ mediaType: 'photo', includeBase64: true, quality: 0.7 });
-    } catch (e: any) {
-      showToast(e?.message || 'Unable to open the camera');
-      return;
-    }
-
-    if (result.errorCode) {
-      showToast(result.errorCode === 'permission'
-          ? tr('Camera permission is required to take a photo.')
-          : result.errorMessage || 'Unable to open the camera');
-      return;
-    }
-
-    if (result.assets?.[0]) {
-      const asset = result.assets[0];
-      const updated = [...list];
-      updated[index] = { uri: asset.uri!, base64: asset.base64 };
-      setList(updated);
-    }
+    photoSource.open({ setList, index });
   };
 
   const handleStart = () => {
@@ -782,12 +743,7 @@ export default function TaskExecutionScreen({ navigation, route }: any) {
       </View>
 
       {/* PHOTO SOURCE PICKER MODAL */}
-      <ImageSourceDialog
-        visible={showPhotoSourceModal}
-        onCamera={() => handlePhotoSource('camera')}
-        onGallery={() => handlePhotoSource('gallery')}
-        onClose={() => setShowPhotoSourceModal(false)}
-      />
+      <ImageSourceDialog {...photoSource.dialogProps} />
 
       {/* dialog_before_task_photo.xml */}
       {/* Java: setCancelable(false) -- only a successful upload dismisses it. */}
