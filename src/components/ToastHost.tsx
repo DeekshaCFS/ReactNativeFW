@@ -129,7 +129,7 @@ const ToastHost: React.FC<Props> = ({ priority = HOST_PRIORITY.screen }) => {
       </Animated.View>
     </View>
   );
-};
+}
 
 export default ToastHost;
 

@@ -5,7 +5,7 @@
 // snippet = "<customer> - <km> KM - Time : <h>Hrs <m>min") and a line from the technician to
 // each one, then the list of today's tasks (tech_task_route_map_row) underneath.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
@@ -132,7 +132,7 @@ export default function TodayTasksMapScreen({ navigation }: any) {
         <MapView
           ref={mapRef}
           style={styles.map}
-          provider={PROVIDER_GOOGLE}
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
           customMapStyle={FIELDWEB_MAP_STYLE}
           showsUserLocation
           showsMyLocationButton={false}

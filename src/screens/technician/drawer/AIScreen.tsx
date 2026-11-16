@@ -2,7 +2,7 @@
 //
 // Java OpenAIFragment (open_ai_fragment.xml / open_ai_response_item.xml). Shared by admin and
 // technician; both draw the main toolbar (menu + help + bell) above it and hide the bottom bar.
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   TextInput, KeyboardAvoidingView, Platform, Image, ActivityIndicator,
@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/theme';
 import { ms, sp, useAppHeaderHeight } from '../../../utils/responsive';
 import { getAIAnswer } from '../../../api';
+import { setHeaderBack } from '../../../state/headerBack';
 
 import {useTranslation} from 'react-i18next';
 const SAMPLE_QUESTION_KEYS = ['ask1', 'ask2', 'ask3', 'ask4'];
@@ -31,7 +32,7 @@ const SendIcon = ({ color }: { color: string }) => (
 
 const AiLogo = () => <Image source={require('../../../../assets/images/ai_fw_logo.png')} style={styles.aiIcon} />;
 
-export default function AIScreen() {
+export default function AIScreen({ navigation }: any) {
   const {t} = useTranslation();
   const insets = useSafeAreaInsets();
   const headerHeight = useAppHeaderHeight();
@@ -40,6 +41,12 @@ export default function AIScreen() {
   const [sending, setSending] = useState(false);
   const [errored, setErrored] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  // The shared header shows a back arrow while this screen is open; it returns to Home.
+  useEffect(() => {
+    setHeaderBack(() => navigation?.navigate('Home'));
+    return () => setHeaderBack(null);
+  }, [navigation]);
 
   const handleSend = async (question?: string) => {
     const text = (question ?? inputText).trim();

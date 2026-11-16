@@ -15,6 +15,7 @@ import {
   Platform,
   Keyboard,
   ActivityIndicator,
+  Modal as RNModal,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -63,6 +64,8 @@ export default function TaskInputScreen({ navigation, route }: any) {
   const [values, setValues] = useState<Record<number, string>>({});
 
   const [activeDatePicker, setActiveDatePicker] = useState<number | null>(null);
+  // iOS date sheet: the spinner's pending choice, applied only on OK.
+  const [pendingDate, setPendingDate] = useState<Date>(new Date());
   const [dropdown, setDropdown] = useState<{
     field: CustomFieldDTOResultData;
     top: number;
@@ -124,6 +127,15 @@ export default function TaskInputScreen({ navigation, route }: any) {
   const handleDateChange = (fieldId: number) => (_event: DateTimePickerChangeEvent, date: Date) => {
     setActiveDatePicker(null);
     setFieldValue(fieldId, formatDate(date));
+  };
+
+  // Opens the picker on the field's current date (dd-mm-yyyy) or today.
+  const openDatePicker = (fieldId: number) => {
+    const parts = (values[fieldId] ?? '').split('-').map(Number);
+    const [dd, mm, yyyy] = parts;
+    const existing = dd && mm && yyyy ? new Date(yyyy, mm - 1, dd) : null;
+    setPendingDate(existing ?? new Date());
+    setActiveDatePicker(fieldId);
   };
 
   const handleDropdownSelect = (fieldId: number, value: string) => {
@@ -237,7 +249,7 @@ export default function TaskInputScreen({ navigation, route }: any) {
       case FIELD_TYPE.DATE:
         return (
           <>
-            <Pressable style={styles.dateWrap} onPress={() => setActiveDatePicker(id)}>
+            <Pressable style={styles.dateWrap} onPress={() => openDatePicker(id)}>
               <View style={[styles.box, styles.dateBox]}>
                 <Text style={[styles.dateText, !values[id] && { color: COLORS.lightGray }]}>
                   {values[id] || 'Date'}
@@ -246,14 +258,51 @@ export default function TaskInputScreen({ navigation, route }: any) {
               </View>
               {!!values[id] && <Text style={styles.floatLabel}>{t('date')}</Text>}
             </Pressable>
-            {activeDatePicker === id && (
-              <DateTimePicker
-                value={new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onValueChange={handleDateChange(id)}
-                onDismiss={() => setActiveDatePicker(null)}
-              />
+            {Platform.OS === 'ios' ? (
+              // Light sheet regardless of system dark mode, with Cancel / OK.
+              <RNModal
+                transparent
+                animationType="slide"
+                visible={activeDatePicker === id}
+                onRequestClose={() => setActiveDatePicker(null)}
+              >
+                <Pressable style={styles.dateBackdrop} onPress={() => setActiveDatePicker(null)} />
+                <View style={styles.dateSheet}>
+                  <View style={styles.dateSheetHeader}>
+                    <Pressable onPress={() => setActiveDatePicker(null)} hitSlop={10}>
+                      <Text style={styles.dateSheetCancel}>{t('cancel')}</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        setFieldValue(id, formatDate(pendingDate));
+                        setActiveDatePicker(null);
+                      }}
+                      hitSlop={10}
+                    >
+                      <Text style={styles.dateSheetOk}>OK</Text>
+                    </Pressable>
+                  </View>
+                  <DateTimePicker
+                    value={pendingDate}
+                    mode="date"
+                    display="spinner"
+                    themeVariant="light"
+                    onChange={(_event: DateTimePickerChangeEvent, date?: Date) => {
+                      if (date) setPendingDate(date);
+                    }}
+                  />
+                </View>
+              </RNModal>
+            ) : (
+              activeDatePicker === id && (
+                <DateTimePicker
+                  value={new Date()}
+                  mode="date"
+                  display="default"
+                  onValueChange={handleDateChange(id)}
+                  onDismiss={() => setActiveDatePicker(null)}
+                />
+              )
             )}
           </>
         );
@@ -445,6 +494,15 @@ const styles = StyleSheet.create({
     marginBottom: ms(24), // room Material reserves for the error line
   },
   dateWrap: { marginBottom: 0 },
+  dateBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
+  dateSheet: { backgroundColor: '#FFFFFF', paddingBottom: ms(24) },
+  dateSheetHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: ms(16), paddingVertical: ms(12),
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#D9D9D9',
+  },
+  dateSheetCancel: { color: '#666666', fontSize: sp(16) },
+  dateSheetOk: { color: COLORS.primary, fontSize: sp(16), fontWeight: '600' },
   dateBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   dateText: { fontSize: sp(16), color: COLORS.ink },
   floatLabel: {
