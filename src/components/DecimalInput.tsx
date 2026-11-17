@@ -42,8 +42,9 @@ type Props = Omit<React.ComponentProps<typeof TextInput>, 'keyboardType' | 'maxL
   maxIntDigits?: number;
   decimals?: number;
   /**
-   * Caps the digits in total, whole part and decimals together (e.g. 10 for an
-   * amount that may hold at most 10 digits). The decimals shrink to fit the whole part.
+   * Caps the whole value as typed, counting the decimal point too (e.g. 10 means at most
+   * 10 characters such as "1234567.89" or "1234567890"). The decimals shrink to fit the
+   * whole part and the point, and the padding on blur respects the same limit.
    */
   maxTotalDigits?: number;
   /** Whole numbers only (quantities): number keyboard, digits only, no "0.000" padding. */
@@ -68,12 +69,13 @@ export default function DecimalInput({
   const decimals = integer ? 0 : decimalsProp;
   const [focused, setFocused] = useState(false);
   const raw = value ?? '';
-  // Decimals allowed for a given whole part, once maxTotalDigits is applied.
-  const decimalsFor = (text: string) =>
+  // Decimals allowed after a given whole part. With maxTotalDigits the decimal point also
+  // counts toward the limit, so the whole part plus '.' plus decimals fits in maxTotalDigits.
+  const decimalsFor = (whole: string) =>
     maxTotalDigits
-      ? Math.max(0, Math.min(decimals, maxTotalDigits - (text.split('.')[0] ?? '').length))
+      ? Math.max(0, Math.min(decimals, maxTotalDigits - whole.length - 1))
       : decimals;
-  const shown = integer ? raw : focused ? raw : padDecimal(raw, decimalsFor(raw));
+  const shown = integer ? raw : focused ? raw : padDecimal(raw, decimalsFor(raw.split('.')[0] ?? ''));
 
   const input = (
     <TextInput
@@ -96,18 +98,16 @@ export default function DecimalInput({
         const clean = sanitizeDecimalInput(t, decimals);
         const [whole, frac] = clean.split('.');
         const capped = whole.length > maxIntDigits ? whole.slice(0, maxIntDigits) : whole;
-        if (frac === undefined) {
+        const fracAllowed = decimalsFor(capped);
+        if (frac === undefined || fracAllowed === 0) {
           onChangeText?.(capped);
           return;
         }
-        const fracAllowed = maxTotalDigits
-          ? Math.max(0, Math.min(decimals, maxTotalDigits - capped.length))
-          : decimals;
         onChangeText?.(`${capped}.${frac.slice(0, fracAllowed)}`);
       }}
       onBlur={e => {
         setFocused(false);
-        const padded = integer ? raw : padDecimal(raw, decimalsFor(raw));
+        const padded = integer ? raw : padDecimal(raw, decimalsFor(raw.split('.')[0] ?? ''));
         if (padded && padded !== raw) onChangeText?.(padded);
         onBlur?.(e);
       }}
