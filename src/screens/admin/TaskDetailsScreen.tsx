@@ -7,6 +7,7 @@ import {
   Easing,
   Image,
   Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -177,7 +178,7 @@ const CompletedTaskMap = ({latitude, longitude, title, customerName}: {
     <View style={styles.completedMap}>
       <MapView
         style={StyleSheet.absoluteFill}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         customMapStyle={FIELDWEB_MAP_STYLE}
         showsUserLocation
         showsMyLocationButton={false}

@@ -683,7 +683,7 @@ const LeadDetailsScreen = ({
           {lat && lng ? (
             <MapView
               style={styles.mapImage}
-              provider={PROVIDER_GOOGLE}
+              provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
               initialRegion={{latitude: lat, longitude: lng, latitudeDelta: 0.1, longitudeDelta: 0.1}}
               toolbarEnabled={false}
             >

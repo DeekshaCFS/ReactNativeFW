@@ -11,6 +11,7 @@
 // into a model. Mutations refetch only the current level.
 
 import {useConfirmDelete} from '../../components/ConfirmDeleteDialog';
+import {setHeaderBack} from '../../state/headerBack';
 import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
@@ -132,6 +133,13 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
     }
   };
 
+  // Shared header arrow: steps back one level (serial -> model -> brand). None on the brand list.
+  useEffect(() => {
+    setHeaderBack(view.level === 'brand' ? null : goBack);
+    return () => setHeaderBack(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
   // Hardware back walks up one level (serial -> model -> brand), like Java's fragment back stack.
   // An open add/edit dialog handles back itself first (its Modal onRequestClose).
   useEffect(() => {
@@ -243,6 +251,7 @@ const BrandModelInner: React.FC<Props> = ({ownerId}) => {
     const filtered = brands.filter(b => String(b.BrandName ?? '').toLowerCase().includes(q));
     return (
       <View style={styles.root}>
+        {deleteDialog}
         <View style={styles.searchRow}>
           <UnderlineSearch value={search} onChangeText={setSearch} placeholder={t('search_brand_name')} style={styles.searchFlex} />
           <Pressable style={styles.addPill} onPress={() => setBrandModal({editing: null})}>
@@ -475,6 +484,8 @@ const styles = StyleSheet.create({
     padding: ms(10),
     marginVertical: ms(5),
     marginHorizontal: ms(5),
+    borderWidth: 1,
+    borderColor: '#D9D9D9',
     elevation: 3,
     shadowColor: '#000',
     shadowOpacity: 0.15,

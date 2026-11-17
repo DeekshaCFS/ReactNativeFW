@@ -1,6 +1,6 @@
 // src/screens/admin/AccountsScreen.tsx
 
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import TabStrip from '../../components/TabStrip';
 import UnderlineSearch from '../../components/UnderlineSearch';
 import {
@@ -11,6 +11,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -32,7 +33,12 @@ import { tr } from '../../i18n/tr';
 const THEME_PRIMARY = '#c3002f';
 const HEADER_PRIMARY = '#a80030';
 const BLUE_CODE = '#1877F2';
+const CORAL_NAME = '#E4574E';
+const GREEN_AMOUNT = '#1fb327';
 const GREEN_500 = '#4CAF50';
+const BADGE_PURPLE = '#6C4BA5';
+const BADGE_ORANGE = '#F4A62A';
+const BADGE_GREEN = '#2E7D32';
 
 type AccountsTab = 'quotation' | 'invoice';
 
@@ -336,10 +342,13 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
               </Text>
             </View>
           </View>
-          <View style={[styles.cardRight, {flex: 0.40, marginRight: scale(15)}]}>
+          <View style={[styles.cardRight, {flex: 0.35, marginRight: scale(2)}]}>
             <Text style={styles.detailLabel} numberOfLines={1}>
-              {t('amount') + ' :'}{' '}
-              <Text style={[styles.detailBold, {color: GREEN_500}]}>₹ {formatAmount(getQuoteAmount(item))}</Text>
+              {t('amount') + ' :'}
+            </Text>
+            {/* No line limit: the full amount wraps instead of being cut with an ellipsis on iOS. */}
+            <Text style={[styles.detailBold, styles.amountText, {color: GREEN_500}]}>
+              ₹ {formatAmount(getQuoteAmount(item))}
             </Text>
           </View>
         </View>
@@ -390,7 +399,7 @@ const AccountsScreen = ({ownerId}: AccountsScreenProps) => {
               </Text>
             </View>
           </View>
-          <View style={[styles.cardRight, {flex: 0.65, alignItems: 'flex-start'}]}>
+          <View style={[styles.cardRight, {flex: 0.5, alignItems: 'flex-start'}]}>
             {showPending ? (
               <Text
                 style={[styles.pendingText, {color: isPartial ? '#ff9b00' : '#374151'}]}
@@ -793,8 +802,12 @@ const styles = StyleSheet.create({
   detailBold: {
     fontWeight: '700',
   },
+  amountText: {
+    fontSize: sp(12),
+    paddingLeft: scale(5),
+    textAlign: 'right',
+  },
   pendingText: {
-    marginRight: scale(10),
     fontSize: sp(12),
   },
   emptyBox: {
