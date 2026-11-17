@@ -293,7 +293,7 @@ const EditCustomerModal = ({
     if (contactTarget === 'secondary') {
       setField('secondaryMobileNumber', contact.phone);
     } else {
-      setField('mobileNumber', contact.phone);
+      setField('mobileNumber', contact.phone.replace(/\D/g, '').slice(0, 12));
       if (!form.customerName.trim()) {
         setField('customerName', contact.name);
       }
@@ -683,8 +683,9 @@ const EditCustomerModal = ({
                     value={form.mobileNumber}
                     keyboardType="phone-pad"
                     icon="👤"
+                    maxLength={12}
                     onIconPress={() => openContactsFor('mobile')}
-                    onChangeText={text => setField('mobileNumber', text)}
+                    onChangeText={text => setField('mobileNumber', text.replace(/\D/g, '').slice(0, 12))}
                   />
                 </View>
               </View>
