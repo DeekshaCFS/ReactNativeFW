@@ -1305,11 +1305,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     label: string,
     value: string,
     onChangeText: (value: string) => void,
-    options?: { keyboardType?: 'default' | 'numeric' | 'decimal-pad' | 'phone-pad' | 'email-address'; multiline?: boolean; half?: boolean; editable?: boolean },
+    options?: { keyboardType?: 'default' | 'numeric' | 'decimal-pad' | 'phone-pad' | 'email-address'; multiline?: boolean; half?: boolean; editable?: boolean; maxTotalDigits?: number },
   ) => (
     <View style={options?.half ? styles.editFieldHalf : styles.editField}>
       {options?.keyboardType === 'decimal-pad' ? (
-        <DecimalInput style={[styles.editInput]} value={value} onChangeText={onChangeText} />
+        <DecimalInput style={[styles.editInput]} value={value} onChangeText={onChangeText} maxTotalDigits={options?.maxTotalDigits} />
       ) : (
         <TextInput
           style={[styles.editInput]}
@@ -1700,7 +1700,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                   )}
                   {editFormData.underWarranty
                     ? null
-                    : renderEditInput('Service Amount *', editFormData.amcAmount, value => updateEditField('amcAmount', sanitizeDecimalInput(value)), { keyboardType: 'decimal-pad', half: true })}
+                    : renderEditInput('Service Amount *', editFormData.amcAmount, value => updateEditField('amcAmount', sanitizeDecimalInput(value)), { keyboardType: 'decimal-pad', half: true, maxTotalDigits: 10 })}
                 </View>
                 <View style={styles.editRow}>
                   {renderEditSelect('Expiry Date', editFormData.expiryDate, () => setEditDateTimeField('expiryDate'), true)}

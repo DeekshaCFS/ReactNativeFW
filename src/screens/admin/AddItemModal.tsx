@@ -575,6 +575,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   <DecimalInput
                     style={[styles.pillInput, itemStyles.halfInput]}
                     label={t('purchaseprice')}
+                    maxTotalDigits={10}
                     placeholderTextColor={COLORS.lightGray}
                     value={purchasePrice}
                     onChangeText={t => setPurchasePrice(sanitizeDecimalInput(t))}
@@ -582,6 +583,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   <DecimalInput
                     style={[styles.pillInput, itemStyles.halfInput]}
                     label={t('salesprice')}
+                    maxTotalDigits={10}
                     placeholderTextColor={COLORS.lightGray}
                     value={salesPrice}
                     onChangeText={t => setSalesPrice(sanitizeDecimalInput(t))}

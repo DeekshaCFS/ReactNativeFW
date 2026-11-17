@@ -39,7 +39,7 @@ import {ensureSuccess} from '../../utils/apiResponse';
 import {getCurrentUserId, isIndiaCountryDetailsId} from '../../state/session';
 import {getCustomerList} from '../../api/customerList/customerListService';
 import type {CustomerListResultData} from '../../api/customerList/customerList.types';
-import {sanitizeDecimalInput} from '../../utils/decimal';
+import {sanitizeDecimalInput, decimalsAfterWhole, limitDecimalInput} from '../../utils/decimal';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../utils/toast';
 import DecimalInput from '../../components/DecimalInput';
 import ContactBookButton from '../../components/ContactBookButton';
@@ -1435,10 +1435,11 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                             <DecimalInput
                               style={[styles.pillInput, styles.thirdInput, {flex: 2}]}
                               label={t('price')}
+                              maxTotalDigits={10}
                               placeholderTextColor={COLORS.lightGray}
                               value={row.price}
                               onChangeText={value =>
-                                setItemRows(prev => prev.map(r => (r.id === row.id ? {...r, price: sanitizeDecimalInput(value)} : r)))
+                                setItemRows(prev => prev.map(r => (r.id === row.id ? {...r, price: limitDecimalInput(value, {maxTotalDigits: 10})} : r)))
                               }
                             />
                           </>
@@ -1514,11 +1515,12 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
                     value={extraPrice}
                     onChangeText={v => {
                       clearError('extraPrice');
-                      setExtraPrice(sanitizeDecimalInput(v));
+                      setExtraPrice(limitDecimalInput(v, {maxTotalDigits: 10}));
                     }}
                     onBlur={() => {
                       const d = Number(extraPrice);
-                      setExtraPrice(extraPrice.trim() && Number.isFinite(d) ? d.toFixed(3) : '');
+                      const fa = decimalsAfterWhole(extraPrice.split('.')[0] ?? '', 10);
+                      setExtraPrice(extraPrice.trim() && Number.isFinite(d) ? d.toFixed(fa) : '');
                     }}
                   />
                   {isErr('extraPrice') && <ErrorMark />}

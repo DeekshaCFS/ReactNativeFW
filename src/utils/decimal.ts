@@ -20,6 +20,34 @@ export const sanitizeDecimalInput = (
   return `${whole}.${fraction}`;
 };
 
+// Decimals allowed after a whole part. With maxTotalDigits the decimal point counts too, so
+// whole + '.' + decimals never exceeds maxTotalDigits characters (10 -> "1234567.89").
+export const decimalsAfterWhole = (
+  whole: string,
+  maxTotalDigits?: number,
+  decimals: number = AMOUNT_DECIMALS,
+): number =>
+  maxTotalDigits
+    ? Math.max(0, Math.min(decimals, maxTotalDigits - whole.length - 1))
+    : decimals;
+
+// Filters amount typing: digits and one '.', whole part capped at maxIntDigits, and the
+// total (point included) capped at maxTotalDigits. Use as the onChangeText filter.
+export const limitDecimalInput = (
+  text: string,
+  opts: {maxTotalDigits?: number; maxIntDigits?: number; decimals?: number} = {},
+): string => {
+  const {maxTotalDigits, decimals = AMOUNT_DECIMALS} = opts;
+  // Whole digits default to the total limit (10 digits with no point), else 9.
+  const maxIntDigits = opts.maxIntDigits ?? maxTotalDigits ?? 9;
+  const clean = sanitizeDecimalInput(text, decimals);
+  const [whole, frac] = clean.split('.');
+  const capped = whole.length > maxIntDigits ? whole.slice(0, maxIntDigits) : whole;
+  const fracAllowed = decimalsAfterWhole(capped, maxTotalDigits, decimals);
+  if (frac === undefined || fracAllowed === 0) return capped;
+  return `${capped}.${frac.slice(0, fracAllowed)}`;
+};
+
 // Formats a numeric-ish value to a fixed number of decimals (default 3, same
 // as Java's String.format("%.3f")). Non-numeric input renders as zero.
 export const formatAmount = (

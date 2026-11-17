@@ -16,7 +16,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { COLORS } from '../theme/theme';
 import { ms, sp } from '../utils/responsive';
-import { AMOUNT_DECIMALS, sanitizeDecimalInput } from '../utils/decimal';
+import { AMOUNT_DECIMALS, decimalsAfterWhole, limitDecimalInput } from '../utils/decimal';
 
 export const DECIMAL_PLACEHOLDER = (0).toFixed(AMOUNT_DECIMALS); // "0.000"
 
@@ -38,7 +38,7 @@ type Props = Omit<React.ComponentProps<typeof TextInput>, 'keyboardType' | 'maxL
   label?: string;
   /** Background behind the floating caption; match the surface the field sits on. */
   labelBackground?: string;
-  /** Digits allowed before the point (default 9). */
+  /** Digits allowed before the point (default: maxTotalDigits when set, else 9). */
   maxIntDigits?: number;
   decimals?: number;
   /**
@@ -54,7 +54,7 @@ type Props = Omit<React.ComponentProps<typeof TextInput>, 'keyboardType' | 'maxL
 export default function DecimalInput({
   label,
   labelBackground = COLORS.white,
-  maxIntDigits = 9,
+  maxIntDigits: maxIntDigitsProp,
   decimals: decimalsProp = AMOUNT_DECIMALS,
   maxTotalDigits,
   integer = false,
@@ -67,14 +67,12 @@ export default function DecimalInput({
   ...rest
 }: Props) {
   const decimals = integer ? 0 : decimalsProp;
+  const integerMaxDigits = maxIntDigitsProp ?? 9;
   const [focused, setFocused] = useState(false);
   const raw = value ?? '';
   // Decimals allowed after a given whole part. With maxTotalDigits the decimal point also
   // counts toward the limit, so the whole part plus '.' plus decimals fits in maxTotalDigits.
-  const decimalsFor = (whole: string) =>
-    maxTotalDigits
-      ? Math.max(0, Math.min(decimals, maxTotalDigits - whole.length - 1))
-      : decimals;
+  const decimalsFor = (whole: string) => decimalsAfterWhole(whole, maxTotalDigits, decimals);
   const shown = integer ? raw : focused ? raw : padDecimal(raw, decimalsFor(raw.split('.')[0] ?? ''));
 
   const input = (
@@ -92,18 +90,10 @@ export default function DecimalInput({
       }}
       onChangeText={t => {
         if (integer) {
-          onChangeText?.(t.replace(/\D/g, '').slice(0, maxIntDigits));
+          onChangeText?.(t.replace(/\D/g, '').slice(0, integerMaxDigits));
           return;
         }
-        const clean = sanitizeDecimalInput(t, decimals);
-        const [whole, frac] = clean.split('.');
-        const capped = whole.length > maxIntDigits ? whole.slice(0, maxIntDigits) : whole;
-        const fracAllowed = decimalsFor(capped);
-        if (frac === undefined || fracAllowed === 0) {
-          onChangeText?.(capped);
-          return;
-        }
-        onChangeText?.(`${capped}.${frac.slice(0, fracAllowed)}`);
+        onChangeText?.(limitDecimalInput(t, {maxTotalDigits, maxIntDigits: maxIntDigitsProp, decimals}));
       }}
       onBlur={e => {
         setFocused(false);

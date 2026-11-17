@@ -268,6 +268,7 @@ const AddEditServiceModal: React.FC<Props> = ({
         <DecimalInput
           style={[styles.pill, styles.half]}
           label={t('rn_service_price')}
+          maxTotalDigits={10}
           placeholderTextColor={COLORS.lightGray}
           value={price}
           onChangeText={v => setPrice(sanitizeDecimalInput(v))}

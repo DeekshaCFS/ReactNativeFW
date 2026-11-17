@@ -1454,6 +1454,7 @@ const AMCDashboardScreen = ({
       onFocus?: () => void;
       editable?: boolean;
       keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'decimal-pad' | 'number-pad';
+      maxTotalDigits?: number;
       maxLength?: number;
       autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
     } = {},
@@ -1465,6 +1466,7 @@ const AMCDashboardScreen = ({
         // amounts: 0.000 placeholder, max 3 decimals, padded on blur (the label floats permanently)
         <DecimalInput
           style={styles.formInput}
+          maxTotalDigits={options.maxTotalDigits}
           value={options.value}
           onChangeText={options.onChangeText}
           onFocus={options.onFocus}
@@ -1919,6 +1921,7 @@ const AMCDashboardScreen = ({
             {underWarranty
               ? null
               : renderFormInput('Service Amount *', {
+                  maxTotalDigits: 10,
                   value: amcAmount,
                   onChangeText: (t: string) => setAmcAmount(sanitizeDecimalInput(t)),
                   keyboardType: 'decimal-pad',
