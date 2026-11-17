@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { ActivityIndicator, View, AppState } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, useNavigationContainerRef } from '@react-navigation/native';
 import AuthStack from './AuthStack';
 import DrawerNavigator from './DrawerNavigator';
 import { authEvents, AUTH_CHANGED } from '../utils/authEvents';
@@ -15,15 +14,17 @@ const Stack = createNativeStackNavigator();
 export default function RootNavigator() {
   const [token, setToken] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadToken = async () => {
     // Read together instead of a separate round-trip here plus another one
     // in DrawerNavigator — halves the AsyncStorage/spinner chain gating
     // first paint after login.
-    const [[, storedToken], [, storedRole]] = await AsyncStorage.multiGet([
+    const [[, storedToken], [, storedRole], [, storedGroupId]] = await AsyncStorage.multiGet([
       'token',
       'role',
+      'group_id',
     ]);
 
     if (storedToken) {
@@ -32,6 +33,7 @@ export default function RootNavigator() {
 
     setToken(storedToken);
     setRole(storedRole);
+    setGroupId(storedGroupId);
     setLoading(false);
   };
 
@@ -58,7 +60,10 @@ export default function RootNavigator() {
   // loadToken and re-renders RootNavigator on every foreground) doesn't
   // remount the whole drawer/tabs tree underneath — only an actual role
   // change should do that.
-  const renderDrawer = useCallback(() => <DrawerNavigator role={role} />, [role]);
+  const renderDrawer = useCallback(
+    () => <DrawerNavigator role={role} groupId={groupId} />,
+    [role, groupId]
+  );
 
   // ── Wait for token check before rendering ──
   if (loading) {

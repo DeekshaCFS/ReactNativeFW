@@ -3,7 +3,6 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image, PermissionsAndroid, Platform } from 'react-native';
 import Modal from '../components/AppModal';
 import RippleTouchable from '../components/RippleTouchable';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import {
   ItemInventoryDrawerIcon,
   PassbookDrawerIcon,
@@ -21,12 +20,13 @@ import { DrawerContentComponentProps } from '@react-navigation/drawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/theme';
 import { useState, useEffect } from 'react';
+import { usesAdminShell, needsCheckIn } from '../utils/userRole';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from 'react-native-geolocation-service';
 import { attendanceCheckOut, getUserDetails } from '../api';
 import type { UserDetailsResultData } from '../api/users/users.types';
 import { authEvents, AUTH_CHANGED } from '../utils/authEvents';
-import { ms, sp, scale } from '../utils/responsive';
+import { ms, sp } from '../utils/responsive';
 import { setPassbookTabOrder } from '../state/passbookTabOrder';
 import { showFailureMsg, showSuccessMsg } from '../utils/toast';
 
@@ -66,9 +66,11 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
   const [phone, setPhone] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
 
-  const isAdmin = role?.toLowerCase() === 'admin' || role?.toLowerCase() === 'owner';
+  const isAdmin = usesAdminShell(role, groupId);
+  const showCheckOut = needsCheckIn(role, groupId);
   // Route name differs per role — see DrawerNavigator (AdminTabs → AdminStack,
   // TechnicianTabs → TechnicianStack).
   const tabsRoute = isAdmin ? 'AdminTabs' : 'TechnicianTabs';
@@ -81,10 +83,12 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
       const storedPhone  = await AsyncStorage.getItem('username');
       const storedUserId = await AsyncStorage.getItem('uid');
       const storedRole   = await AsyncStorage.getItem('role');
+      const storedGroup  = await AsyncStorage.getItem('group_id');
       setName(storedName);
       setPhone(storedPhone);
       setUserId(storedUserId);
       setRole(storedRole);
+      setGroupId(storedGroup);
 
       if (storedUserId) {
         try {
@@ -147,7 +151,7 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
       // clears user group, zone, disclaimer flag, health-safety flags, app-tour flag, permission
       // flag, and country code/symbol — if any of those are tracked in AsyncStorage elsewhere in
       // this app (vs. Redux/context), they should be cleared here too under their real key names.
-      await AsyncStorage.multiRemove(['token', 'uid', 'owner_id', 'name', 'username', 'role']);
+      await AsyncStorage.multiRemove(['token', 'uid', 'owner_id', 'name', 'username', 'role', 'group_id']);
       authEvents.emit(AUTH_CHANGED);
     } catch (err) {
       console.log('Logout error:', err);
@@ -221,6 +225,9 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
             { icon: 'FieldwebAi',       label: t('AI'),      screen: 'FieldWeb AI' },
             { icon: 'DemoPng',         label: 'Book App Demo',    screen: 'Book App Demo' },
             { icon: 'Settings',               label: t('settings'),         screen: 'Settings' },
+            (showCheckOut
+              ? [{ icon: 'CheckOut',   label: t('title_check_out'),       screen: null }]
+              : []),
           ]
         : [
             { icon: 'ItemInventory',                   label: t('item_inventory'),  screen: 'Issued Items' },

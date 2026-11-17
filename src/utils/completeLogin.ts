@@ -14,6 +14,7 @@ export type LoginSession = {
   token: string;
   role: string;
   ownerId: number;
+  groupId?: number;
   mobile: string;
 };
 
@@ -24,8 +25,9 @@ export const completeLogin = async (s: LoginSession) => {
     ['uid',      String(s.userId)],
     ['token',    s.token],
     ['role',     s.role],
+    ['group_id', String(s.groupId ?? 0)],
     ['username', s.mobile],
-    ['owner_id', String(s.ownerId)],
+    // ['owner_id', String(s.ownerId)],
   ]);
   authEvents.emit(AUTH_CHANGED);
   try {
@@ -58,6 +60,7 @@ export const fetchBiometricSession = async (loginId: string): Promise<LoginSessi
   if (response?.Code !== '200' || !r?.Token) return null;
   return {
     userId: r.UserID ?? 0, token: r.Token, role: r.UserGroupName ?? '',
-    ownerId: r.OwnerId ?? 0, mobile: loginId,
+    // ownerId: r.OwnerId ?? 0, mobile: loginId,
+    groupId: r.UserGroupCode ?? 0, ownerId: r.OwnerId ?? 0, mobile: loginId,
   };
 };

@@ -1,8 +1,7 @@
 import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 // src/screens/auth/OtpScreen.tsx
 import {
-  View, TextInput, Text, Image, ImageBackground,
-  TouchableOpacity, StyleSheet, Pressable,
+  View, TextInput, Text, Image, ImageBackground, StyleSheet, Pressable,
   KeyboardAvoidingView, ScrollView, Platform, StatusBar,
 } from 'react-native';
 import { useState, useRef, useEffect } from 'react';
@@ -27,7 +26,7 @@ import { tr } from '../../i18n/tr';
 type AuthStackParamList = {
   Otp: {
     mobile: string; serverOtp: number; token: string;
-    userId: number; role: string; ownerId: number;
+    userId: number; role: string; groupId?: number; ownerId: number;
     flow: 'login' | 'signup';
     countryDetailsId?: number;
     touchlessSignupId?: number;
@@ -48,7 +47,7 @@ export default function OtpScreen() {
   const route = useRoute<RouteProp<AuthStackParamList, 'Otp'>>();
   const navigation = useNavigation<any>();
   const {
-    mobile, serverOtp, token, userId, role, ownerId,
+    mobile, serverOtp, token, userId, role, groupId, ownerId,
     flow, countryDetailsId, touchlessSignupId,
   } = route.params;
 
@@ -123,7 +122,7 @@ export default function OtpScreen() {
       }
 
       // flow === 'login'
-      const session = { userId, token, role, ownerId, mobile };
+      const session = { userId, token, role, groupId, ownerId, mobile };
       // First login on this device: offer Fingerprint / Face / MPIN quick login before entering
       // the app. The session is persisted by the setup screen (or its "Maybe later").
       if ((await isBiometricAvailable()) && !(await isAccountEnabled(session.mobile))) {

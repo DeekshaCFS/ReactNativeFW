@@ -1,7 +1,7 @@
 // src/navigation/AdminStack.tsx
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createNativeStackNavigator,
@@ -26,6 +26,9 @@ import { COLORS } from '../theme/theme';
 
 import DisclaimerModal from '../components/DisclaimerModal';
 import AddFirstFieldworkerSheet from '../screens/admin/AddFirstFWSheet';
+
+import CheckInGate from '../components/CheckInGate';
+import { isSubAdmin } from '../utils/userRole';
 
 import { getAllUsersList } from '../api/users/usersService';
 import { addBulkFieldworkers } from '../api/umEmployeeList/umEmployeeListService';
@@ -101,6 +104,24 @@ export default function AdminStack() {
 
   const [ownerId, setOwnerId] = useState<number | null>(null);
 
+  // Sub-admin: daily check-in, and the disclaimer like Java HomeActivityNew
+  // (SUBADMIN is in its checkDisclaimer guard). The "add first fieldworker"
+  // sheet stays owner/admin-only, so it is skipped for sub-admin.
+  const [roleChecked, setRoleChecked] = useState(false);
+  const [subAdminUser, setSubAdminUser] = useState(false);
+  const subAdminRef = useRef(false);
+
+  useEffect(() => {
+    AsyncStorage.multiGet(['role', 'group_id']).then(
+      ([[, role], [, groupId]]) => {
+        const sub = isSubAdmin(role, groupId);
+        subAdminRef.current = sub;
+        setSubAdminUser(sub);
+        setRoleChecked(true);
+      },
+    );
+  }, []);
+
   useEffect(() => {
     AsyncStorage.getItem('uid').then((uid) => {
       if (uid) {
@@ -126,6 +147,10 @@ export default function AdminStack() {
    * Check whether the current admin has any fieldworkers.
    */
   const checkFieldworkerCount = useCallback(async () => {
+    // Owner/admin only; sub-admin never gets the first-fieldworker sheet.
+    if (subAdminRef.current) {
+      return;
+    }
     try {
       const uid = await AsyncStorage.getItem('uid');
 
@@ -191,9 +216,12 @@ export default function AdminStack() {
     }
   }, [checkFieldworkerCount]);
 
+  // Runs for every role, sub-admin included (Java HomeActivityNew.checkDisclaimer).
   useEffect(() => {
-    checkDisclaimer();
-  }, [checkDisclaimer]);
+    if (roleChecked) {
+      checkDisclaimer();
+    }
+  }, [roleChecked, checkDisclaimer]);
 
   /**
    * Accept disclaimer.
@@ -308,7 +336,10 @@ export default function AdminStack() {
         </Stack.Screen>
       </Stack.Navigator>
 
-      {/* Disclaimer */}
+      {/* Sub-admin daily check-in (Java checkAttendance / showAttendanceMarkDialog) */}
+      {subAdminUser ? <CheckInGate /> : null}
+
+      {/* Disclaimer (owner/admin only) */}
       <DisclaimerModal
         visible={!!disclaimerHtml}
         disclaimerHtml={disclaimerHtml ?? ''}
@@ -316,7 +347,7 @@ export default function AdminStack() {
         onAccept={handleAccept}
       />
 
-      {/* First fieldworker */}
+      {/* First fieldworker (owner/admin only) */}
       <AddFirstFieldworkerSheet
         visible={showAddFieldworkerSheet}
         onClose={() =>
@@ -327,11 +358,3 @@ export default function AdminStack() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});

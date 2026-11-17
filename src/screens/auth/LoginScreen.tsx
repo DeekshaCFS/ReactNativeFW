@@ -39,6 +39,7 @@ type AuthStackParamList = {
     token: string;
     userId: number;
     role: string;
+    groupId?: number;
     ownerId?: number;
     flow: 'login' | 'signup';
     countryDetailsId?: number;
@@ -110,6 +111,7 @@ export default function LoginScreen() {
         token: result.Token ?? '',
         userId: result.UserID ?? 0,
         role: result.UserGroupName ?? '',
+        groupId: result.UserGroupCode ?? 0,
         ownerId: result.OwnerId ?? 0,
         flow: 'login',
       });
