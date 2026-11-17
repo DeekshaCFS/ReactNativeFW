@@ -28,6 +28,7 @@ import {
   View,
 } from 'react-native';
 import Modal from '../../components/AppModal';
+import AppDateTimePicker from '../../components/AppDateTimePicker';
 import SearchPickerModal from '../../components/SearchPickerModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -73,6 +74,8 @@ export type AddAmcPrefill = {
 type AMCDashboardScreenProps = {
   ownerId: number;
   openAddAmcTrigger?: number;
+  /** Called once the Add AMC sheet has been opened by openAddAmcTrigger, so the trigger is consumed. */
+  onAddAmcOpened?: () => void;
   onAddAmcModalClose?: () => void;
   /** Render only the Add AMC form (no list / header), used from Quotation Details. */
   modalOnly?: boolean;
@@ -221,15 +224,6 @@ const formatFormTime = (date: Date) =>
     })
     .replace(/\s+/g, '')
     .trim();
-
-const buildCalendarDays = (month: number, year: number) => {
-  const firstDay = new Date(year, month, 1).getDay();
-  const totalDays = new Date(year, month + 1, 0).getDate();
-  return [
-    ...Array.from({ length: firstDay }, () => 0),
-    ...Array.from({ length: totalDays }, (_, index) => index + 1),
-  ];
-};
 
 const getLastDayOfMonth = (year: number, month: number) =>
   new Date(year, month + 1, 0).getDate();
@@ -741,6 +735,7 @@ const getTotalServiceCount = (item: AMCListItem) => {
 const AMCDashboardScreen = ({
   ownerId,
   openAddAmcTrigger,
+  onAddAmcOpened,
   onAddAmcModalClose,
   modalOnly = false,
   addAmcPrefill,
@@ -771,16 +766,10 @@ const AMCDashboardScreen = ({
     null,
   );
   const [timePickerVisible, setTimePickerVisible] = useState(false);
-  const [timePickerMode, setTimePickerMode] = useState<'hour' | 'minute'>('hour');
   const [activationDate, setActivationDate] = useState<Date | null>(null);
   const [contractDate, setContractDate] = useState<Date | null>(null);
   const [expiryDate, setExpiryDate] = useState<Date | null>(null);
   const [serviceTime, setServiceTime] = useState<Date | null>(null);
-  const [calendarDate, setCalendarDate] = useState(() => new Date());
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState(
-    () => new Date(),
-  );
-  const [selectedClockTime, setSelectedClockTime] = useState(() => new Date());
   const [occurrenceOptions, setOccurrenceOptions] = useState<
     AddAMCDropdownOption[]
   >([]);
@@ -1271,6 +1260,7 @@ const AMCDashboardScreen = ({
   useEffect(() => {
     if (openAddAmcTrigger) {
       setAddModalVisible(true);
+      onAddAmcOpened?.();
       if (addAmcPrefill) {
         // Java addAMCFromQuoteDialog: customer block, AMC name = quote name, amount = grand total
         // (paid AMC, so the amount fields show), activation date / time = the quote's created date.
@@ -1703,344 +1693,48 @@ const AMCDashboardScreen = ({
     );
   };
 
-  const openDatePicker = (field: AMCDateField) => {
-    const existingDate =
-      field === 'activation'
-        ? activationDate
-        : field === 'contract'
-        ? contractDate
-        : expiryDate;
-    const nextDate = existingDate ?? new Date();
-    setActiveDateField(field);
-    setCalendarDate(nextDate);
-    setSelectedCalendarDate(nextDate);
+  const openDatePicker = (field: AMCDateField) => setActiveDateField(field);
+
+  const openTimePicker = () => setTimePickerVisible(true);
+
+  const dateValueFor = (field: AMCDateField | null): Date => {
+    const current =
+      field === 'activation' ? activationDate : field === 'contract' ? contractDate : field === 'expiry' ? expiryDate : null;
+    return current ?? new Date();
   };
 
-  const confirmDatePicker = () => {
-    if (activeDateField === 'activation') {
-      setActivationDate(selectedCalendarDate);
-    } else if (activeDateField === 'contract') {
-      setContractDate(selectedCalendarDate);
-    } else if (activeDateField === 'expiry') {
-      setExpiryDate(selectedCalendarDate);
-    }
+  // Shared app picker (calendar for dates, clock for time), the same in every form.
+  const renderCalendarDialog = () => (
+    <AppDateTimePicker
+      visible={activeDateField !== null}
+      mode="date"
+      value={dateValueFor(activeDateField)}
+      onConfirm={picked => {
+        if (activeDateField === 'activation') {
+          setActivationDate(picked);
+        } else if (activeDateField === 'contract') {
+          setContractDate(picked);
+        } else if (activeDateField === 'expiry') {
+          setExpiryDate(picked);
+        }
+        setActiveDateField(null);
+      }}
+      onCancel={() => setActiveDateField(null)}
+    />
+  );
 
-    setActiveDateField(null);
-  };
-
-  const openTimePicker = () => {
-    const nextTime = serviceTime ?? new Date();
-    setSelectedClockTime(nextTime);
-    setTimePickerMode('hour');
-    setTimePickerVisible(true);
-  };
-
-  const confirmTimePicker = () => {
-    // Java DateUtils.timePicker stores the picked time with ":00" seconds.
-    const picked = new Date(selectedClockTime);
-    picked.setSeconds(0, 0);
-    setServiceTime(picked);
-    setTimePickerVisible(false);
-  };
-
-  const setClockHour = (hour: number) => {
-    const nextTime = new Date(selectedClockTime);
-    const isPM = nextTime.getHours() >= 12;
-    nextTime.setHours((hour % 12) + (isPM ? 12 : 0));
-    setSelectedClockTime(nextTime);
-  };
-
-  const setClockMinute = (minute: number) => {
-    const nextTime = new Date(selectedClockTime);
-    nextTime.setMinutes(minute);
-    setSelectedClockTime(nextTime);
-  };
-
-  // Like the Android clock: picking an hour moves on to picking minutes.
-  const selectClockHour = (hour: number) => {
-    setClockHour(hour);
-    setTimePickerMode('minute');
-  };
-
-  const toggleClockPeriod = (period: 'AM' | 'PM') => {
-    const nextTime = new Date(selectedClockTime);
-    const hour = nextTime.getHours();
-    if (period === 'AM' && hour >= 12) {
-      nextTime.setHours(hour - 12);
-    } else if (period === 'PM' && hour < 12) {
-      nextTime.setHours(hour + 12);
-    }
-    setSelectedClockTime(nextTime);
-  };
-
-  const renderCalendarDialog = () => {
-    const visible = activeDateField !== null;
-    const month = calendarDate.getMonth();
-    const year = calendarDate.getFullYear();
-    const days = buildCalendarDays(month, year);
-    const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-    return (
-      <Modal
-        transparent
-        animationType="fade"
-        visible={visible}
-        onRequestClose={() => setActiveDateField(null)}
-      >
-        <View style={styles.pickerOverlay}>
-          <View style={styles.dateDialog}>
-            <View style={styles.dateDialogHeader}>
-              <Text style={styles.dateDialogYear}>{year}</Text>
-              <Text style={styles.dateDialogTitle}>
-                {selectedCalendarDate.toLocaleDateString('en-GB', {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short',
-                })}
-              </Text>
-            </View>
-            <View style={styles.calendarBody}>
-              <View style={styles.calendarMonthRow}>
-                <Pressable
-                  hitSlop={10}
-                  onPress={() => setCalendarDate(new Date(year, month - 1, 1))}
-                >
-                  <Text style={styles.calendarNav}>‹</Text>
-                </Pressable>
-                <Text style={styles.calendarMonthText}>
-                  {MONTH_LABELS[month]} {year}
-                </Text>
-                <Pressable
-                  hitSlop={10}
-                  onPress={() => setCalendarDate(new Date(year, month + 1, 1))}
-                >
-                  <Text style={styles.calendarNav}>›</Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.calendarGrid}>
-                {dayNames.map((dayName, index) => (
-                  <Text key={`${dayName}-${index}`} style={styles.weekdayText}>
-                    {dayName}
-                  </Text>
-                ))}
-                {days.map((day, index) => {
-                  const selected =
-                    day > 0 &&
-                    selectedCalendarDate.getDate() === day &&
-                    selectedCalendarDate.getMonth() === month &&
-                    selectedCalendarDate.getFullYear() === year;
-                  return (
-                    <Pressable
-                      key={`${day}-${index}`}
-                      disabled={!day}
-                      style={styles.calendarDay}
-                      onPress={() =>
-                        setSelectedCalendarDate(new Date(year, month, day))
-                      }
-                    >
-                      <View
-                        style={[
-                          styles.calendarDayInner,
-                          selected ? styles.calendarDaySelected : null,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.calendarDayText,
-                            selected ? styles.calendarDayTextSelected : null,
-                          ]}
-                        >
-                          {day || ''}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <View style={styles.dialogActionRow}>
-                <Pressable onPress={() => setActiveDateField(null)}>
-                  <Text style={styles.dialogActionText}>{t('cancel').toUpperCase()}</Text>
-                </Pressable>
-                <Pressable onPress={confirmDatePicker}>
-                  <Text style={styles.dialogActionText}>{t('qr_code_positive_button_know')}</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
-
-  const renderTimeDialog = () => {
-    const clockSize = ms(256);
-    const clockRadius = ms(104);
-    const center = clockSize / 2;
-    const bubbleSize = ms(40);
-    const isHourMode = timePickerMode === 'hour';
-    const hour12 = selectedClockTime.getHours() % 12 || 12;
-    const minute = selectedClockTime.getMinutes();
-    const minuteStep = (Math.round(minute / 5) * 5) % 60;
-    const period = selectedClockTime.getHours() >= 12 ? 'PM' : 'AM';
-    const faceValues = isHourMode
-      ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-      : [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
-    const selectedValue = isHourMode ? hour12 : minuteStep;
-
-    // Hour 12 and minute 0 both sit at the top of the face.
-    const angleFor = (value: number) => {
-      const fraction = isHourMode ? (value % 12) / 12 : value / 60;
-      return fraction * Math.PI * 2 - Math.PI / 2;
-    };
-    const pointFor = (angle: number, radius: number) => ({
-      x: center + Math.cos(angle) * radius,
-      y: center + Math.sin(angle) * radius,
-    });
-    const selectedAngle = angleFor(selectedValue);
-    // Solid hand from the centre to the selected number. A bar is rotated
-    // about its own middle, so it is placed with its middle on the hand's
-    // midpoint and turned to the selected angle.
-    const handLength = clockRadius;
-    const handMid = pointFor(selectedAngle, handLength / 2);
-    const handAngleDeg = (selectedAngle * 180) / Math.PI;
-
-    return (
-      <Modal
-        transparent
-        animationType="fade"
-        visible={timePickerVisible}
-        onRequestClose={() => setTimePickerVisible(false)}
-      >
-        <View style={styles.pickerOverlay}>
-          <View style={styles.timeDialog}>
-            <View style={styles.timeDialogHeader}>
-              <View style={styles.timeDisplayRow}>
-                <Pressable hitSlop={8} onPress={() => setTimePickerMode('hour')}>
-                  <Text
-                    style={[
-                      styles.timeDisplay,
-                      !isHourMode ? styles.timeDisplayInactive : null,
-                    ]}
-                  >
-                    {hour12}
-                  </Text>
-                </Pressable>
-                <Text style={[styles.timeDisplay, styles.timeDisplayColon]}>:</Text>
-                <Pressable hitSlop={8} onPress={() => setTimePickerMode('minute')}>
-                  <Text
-                    style={[
-                      styles.timeDisplay,
-                      isHourMode ? styles.timeDisplayInactive : null,
-                    ]}
-                  >
-                    {String(minute).padStart(2, '0')}
-                  </Text>
-                </Pressable>
-              </View>
-              <View style={styles.periodColumn}>
-                <Pressable hitSlop={6} onPress={() => toggleClockPeriod('AM')}>
-                  <Text
-                    style={[
-                      styles.periodText,
-                      period === 'AM' ? styles.periodTextActive : null,
-                    ]}
-                  >
-                    {t('am')}
-                  </Text>
-                </Pressable>
-                <Pressable hitSlop={6} onPress={() => toggleClockPeriod('PM')}>
-                  <Text
-                    style={[
-                      styles.periodText,
-                      period === 'PM' ? styles.periodTextActive : null,
-                    ]}
-                  >
-                    {t('pm')}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={styles.clockBody}>
-              <View
-                style={[
-                  styles.clockFace,
-                  {width: clockSize, height: clockSize, borderRadius: clockSize / 2},
-                ]}
-              >
-                <View
-                  style={[
-                    styles.clockHand,
-                    {
-                      width: handLength,
-                      left: handMid.x - handLength / 2,
-                      top: handMid.y - ms(1),
-                      transform: [{rotate: `${handAngleDeg}deg`}],
-                    },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.clockCenterDot,
-                    {left: center - ms(4), top: center - ms(4)},
-                  ]}
-                />
-                {faceValues.map(value => {
-                  const point = pointFor(angleFor(value), clockRadius);
-                  const selected = value === selectedValue;
-                  return (
-                    <Pressable
-                      key={`${timePickerMode}-${value}`}
-                      onPress={() =>
-                        isHourMode ? selectClockHour(value) : setClockMinute(value)
-                      }
-                      style={[
-                        styles.clockNumber,
-                        {
-                          left: point.x - bubbleSize / 2,
-                          top: point.y - bubbleSize / 2,
-                          width: bubbleSize,
-                          height: bubbleSize,
-                          borderRadius: bubbleSize / 2,
-                        },
-                        selected ? styles.clockNumberSelected : null,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.clockNumberText,
-                          selected ? styles.clockNumberTextSelected : null,
-                        ]}
-                      >
-                        {isHourMode ? value : String(value).padStart(2, '0')}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <View style={styles.timeActionRow}>
-                <View style={styles.timeActionButtons}>
-                  <Pressable onPress={() => setTimePickerVisible(false)}>
-                    <Text style={styles.dialogActionText}>{t('cancel').toUpperCase()}</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      confirmTimePicker();
-                    }}
-                  >
-                    <Text style={styles.dialogActionText}>{t('qr_code_positive_button_know')}</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
+  const renderTimeDialog = () => (
+    <AppDateTimePicker
+      visible={timePickerVisible}
+      mode="time"
+      value={serviceTime ?? new Date()}
+      onConfirm={picked => {
+        setServiceTime(picked);
+        setTimePickerVisible(false);
+      }}
+      onCancel={() => setTimePickerVisible(false)}
+    />
+  );
 
   const renderAddAMCModal = () => (
     <Modal

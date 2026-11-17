@@ -39,6 +39,7 @@ import {
 } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import {getEnquiryList, addEnquiry, updateEnquiry} from '../../api/customerInquiry/customerInquiryService';
+import AppDateTimePicker from '../../components/AppDateTimePicker';
 import type {EnquiryListResultData} from '../../api/customerInquiry/customerInquiry.types';
 import {getCustomerList, getStateList, getCityList, deleteCustomerDetails} from '../../api/customerList/customerListService';
 import type {CustomerListResultData, StateDTOResultData, CityDTOResultData} from '../../api/customerList/customerList.types';
@@ -531,6 +532,19 @@ const CRMScreen = ({
   const [phone, setPhone] = useState('');
   const [enquiryDate, setEnquiryDate] = useState(getTodayDateString);
   const [enquiryTime, setEnquiryTime] = useState(getTaskStartTimeString);
+  // Which enquiry date / time field the shared picker is editing.
+  const [enquiryPicker, setEnquiryPicker] = useState<'date' | 'time' | null>(null);
+  // Picker values from the stored strings (yyyy-mm-dd / HH:mm:ss), today or now when empty.
+  const enquiryDateValue = (() => {
+    const d = new Date(`${enquiryDate.trim()}T00:00:00`);
+    return isNaN(d.getTime()) ? new Date() : d;
+  })();
+  const enquiryTimeValue = (() => {
+    const d = new Date();
+    const match = enquiryTime.trim().match(/^(\d{1,2}):(\d{2})/);
+    if (match) d.setHours(Number(match[1]), Number(match[2]), 0, 0);
+    return d;
+  })();
   const [address, setAddress] = useState('');
   const [isPlaceSearchOpen, setIsPlaceSearchOpen] = useState(false);
   const [placeCoords, setPlaceCoords] = useState<{latitude: string; longitude: string} | null>(null);
@@ -2100,25 +2114,47 @@ const CRMScreen = ({
 
                 <View style={[eq.fieldRow, eq.dateRow]}>
                   <View style={eq.halfField}>
-                    <OutlinedInput
-                      style={eq.pillInput}
-                      placeholder={t('star_date')}
-                      placeholderTextColor={COLORS.lightGray}
-                      value={enquiryDate}
-                      onChangeText={setEnquiryDate}
-                    />
+                    <Pressable onPress={() => setEnquiryPicker('date')}>
+                      <View pointerEvents="none">
+                        <OutlinedInput
+                          style={eq.pillInput}
+                          placeholder={t('star_date')}
+                          placeholderTextColor={COLORS.lightGray}
+                          value={enquiryDate}
+                          editable={false}
+                        />
+                      </View>
+                    </Pressable>
                   </View>
                   <View style={eq.halfField}>
-                    <OutlinedInput
-                      style={eq.pillInput}
-                      placeholder={t('star_time')}
-                      placeholderTextColor={COLORS.lightGray}
-                      value={enquiryTime}
-                      onChangeText={setEnquiryTime}
-                      onBlur={() => setEnquiryTime(current => formatTimeHHMMSS(current))}
-                    />
+                    <Pressable onPress={() => setEnquiryPicker('time')}>
+                      <View pointerEvents="none">
+                        <OutlinedInput
+                          style={eq.pillInput}
+                          placeholder={t('star_time')}
+                          placeholderTextColor={COLORS.lightGray}
+                          value={enquiryTime}
+                          editable={false}
+                        />
+                      </View>
+                    </Pressable>
                   </View>
                 </View>
+                <AppDateTimePicker
+                  visible={enquiryPicker !== null}
+                  mode={enquiryPicker === 'time' ? 'time' : 'date'}
+                  value={enquiryPicker === 'time' ? enquiryTimeValue : enquiryDateValue}
+                  onConfirm={picked => {
+                    const pad = (n: number) => String(n).padStart(2, '0');
+                    if (enquiryPicker === 'time') {
+                      setEnquiryTime(`${pad(picked.getHours())}:${pad(picked.getMinutes())}:${pad(picked.getSeconds())}`);
+                    } else {
+                      setEnquiryDate(`${picked.getFullYear()}-${pad(picked.getMonth() + 1)}-${pad(picked.getDate())}`);
+                    }
+                    setEnquiryPicker(null);
+                  }}
+                  onCancel={() => setEnquiryPicker(null)}
+                />
 
                 <View style={eq.fieldWrap}>
                   {/* Java: tapping the address opens the full-screen Google Places search. */}
