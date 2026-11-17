@@ -11,7 +11,6 @@
 //   Attach  - pick PDF / image files from storage.
 //   Capture - up to 5 photos (camera or gallery), each with its own document type.
 
-import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -27,7 +26,7 @@ import {
 import Modal from '../../../components/AppModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { launchImageLibrary } from 'react-native-image-picker';
+import type { Asset } from 'react-native-image-picker';
 import { pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -43,7 +42,8 @@ import { finishTaskFlowToHome } from '../../../navigation/taskFlowNavigation';
 import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
 
 import {useTranslation} from 'react-i18next';
-import { showImageSourceDialog } from '../../../components/ImageSourceHost';
+import ImageSourceDialog from '../../../components/ImageSourceDialog';
+import { usePhotoSource } from '../../../hooks/usePhotoSource';
 import { trf } from '../../../i18n/tr';
 // Java: DocumentUploadFragment limits.
 const MAX_TOTAL_MB = 5;
@@ -113,13 +113,20 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
 
   const attachFiles = async () => {
     try {
-      const picked = await pick({ type: ALLOWED_MIME_TYPES, allowMultiSelection: true });
+      // copyTo: iOS hands back security-scoped Files / iCloud URIs and Android hands back content://
+      // URIs, which RNFS cannot always read directly. The copy is a plain file path in the cache.
+      const picked = await pick({
+        type: ALLOWED_MIME_TYPES,
+        allowMultiSelection: true,
+        copyTo: 'cachesDirectory',
+      });
       let room = remainingMB;
       let count = files.length;
 
       for (const f of picked) {
         const name = f.name ?? 'document';
-        const base64 = await RNFS.readFile(f.uri, 'base64');
+        const localPath = (f as { localUri?: string | null }).localUri ?? f.uri;
+        const base64 = await RNFS.readFile(localPath, 'base64');
         const sizeBytes = base64Bytes(base64);
 
         // Track running totals locally: state has not updated yet inside this loop.
@@ -142,7 +149,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
           ...prev,
           {
             key: `${Date.now()}_${Math.random()}`,
-            uri: f.uri,
+            uri: localPath,
             name,
             extension: name.includes('.') ? name.split('.').pop()!.toLowerCase() : '',
             base64,
@@ -155,7 +162,7 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
       }
     } catch (err: any) {
       if (!isErrorWithCode(err) || err.code !== errorCodes.OPERATION_CANCELED) {
-        showFailureMsg(t('rn_error_selecting_file'));
+        showFailureMsg(t('rn_could_not_read_the_selected_file'));
       }
     }
   };
@@ -163,15 +170,9 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
   const removeFile = (key: string) => setFiles(prev => prev.filter(f => f.key !== key));
 
   // ── Capture mode ──
-  const captureIntoSlot = async (index: number, source: 'camera' | 'gallery') => {
+  const saveSlotPhoto = (index: number, asset: Asset) => {
     try {
-      const options = { mediaType: 'photo' as const, includeBase64: true, quality: 0.7 as const };
-      const result =
-        source === 'camera'
-          ? await launchCameraWithPermission(options)
-          : await launchImageLibrary(options);
-      const asset = result.assets?.[0];
-      if (!asset?.uri || !asset.base64) return;
+      if (!asset.uri || !asset.base64) return;
 
       const sizeBytes = base64Bytes(asset.base64);
       const others = slots.reduce(
@@ -210,8 +211,10 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
   };
 
   // Java: showImageSourceChooser() -> "Select Image Source" with Camera / Gallery.
-  const pickSlotPhoto = (index: number) =>
-    showImageSourceDialog(() => captureIntoSlot(index, 'camera'), () => captureIntoSlot(index, 'gallery'));
+  // Same pattern as TaskClosureScreen: the dialog lives in this screen, so it is never hidden
+  // under the native stack, and the camera launches from its onDismiss (Android fallback timer).
+  const photoSource = usePhotoSource<number>((asset, index) => saveSlotPhoto(index, asset));
+  const pickSlotPhoto = (index: number) => photoSource.open(index);
 
   const setFileType = (key: string, type: DocAttachmentType) => {
     const apply = (f: SelectedFile): SelectedFile =>
@@ -395,6 +398,8 @@ export default function DocumentUploadScreen({ navigation, route }: any) {
           </Pressable>
         </View>
       </View>
+
+      <ImageSourceDialog {...photoSource.dialogProps} />
 
       <Modal
         visible={typePickerFor !== null}

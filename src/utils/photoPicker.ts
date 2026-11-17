@@ -12,7 +12,7 @@
 //     text), which blocks the JS thread for seconds. Photos are now capped at 1280 px.
 //  3. The default 'pageSheet' presentation can clash with a sheet that is already open. The
 //     picker is presented full screen instead.
-import { InteractionManager, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { launchImageLibrary, type Asset } from 'react-native-image-picker';
 import { launchCameraWithPermission } from './cameraPermission';
 import { showFailureMsg } from './toast';
@@ -22,9 +22,21 @@ export type PhotoSource = 'camera' | 'gallery';
 const IOS_SETTLE_MS = 350;
 const MAX_SIDE = 1280;
 
+// Waits for the source dialog's close animation to finish before the native picker opens.
+// InteractionManager is deprecated, so this uses requestIdleCallback where the runtime provides
+// it (it is not a React Native built-in, so a setTimeout fallback is used otherwise).
+const scheduleIdle = (cb: () => void) => {
+  const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+  if (typeof ric === 'function') {
+    ric(cb);
+  } else {
+    setTimeout(cb, 0);
+  }
+};
+
 const settle = () =>
   new Promise<void>(resolve => {
-    InteractionManager.runAfterInteractions(() => {
+    scheduleIdle(() => {
       setTimeout(resolve, Platform.OS === 'ios' ? IOS_SETTLE_MS : 0);
     });
   });

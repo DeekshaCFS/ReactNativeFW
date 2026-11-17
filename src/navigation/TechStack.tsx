@@ -80,11 +80,11 @@ export default function TechnicianStack() {
       <Stack.Screen
         name="DocumentUpload"
         component={DocumentUploadWithToast}
+        // Plain stack push, like TaskClosure: a transparentModal screen on iOS left the
+        // native modal window in place after closing, so the app stopped responding to touches.
         options={{
           title: tr('Upload Documents'),
           headerShown: false,
-          presentation: 'transparentModal',
-          animation: 'slide_from_bottom',
         }}
       />
       <Stack.Screen
