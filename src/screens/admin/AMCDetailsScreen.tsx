@@ -23,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { getAmcReportDetails, getAmcDetailsForEdit, putAmcDetails, deleteAmc, getAmcRenewalDetails, renewAmcDetails, getServiceOccurrenceList, getReminderModeList, getAmcUpcomingValidation } from '../../api/amc/amcService';
 import SearchPickerModal, { type PickerOption } from '../../components/SearchPickerModal';
+import AppDateTimePicker from '../../components/AppDateTimePicker';
 import { getResultData, normalizeLookupOption } from './AMCDashboardScreen';
 import type { AMCDetailsResultData, EditAMCDTOResultData, DeleteAMCResultData } from '../../api/amc/amc.types';
 import { getCurrentCountryCode, getCurrentCurrencySymbol } from '../../state/session';
@@ -582,6 +583,8 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   const [occurrenceOptions, setOccurrenceOptions] = useState<PickerOption[]>([]);
   const [reminderOptions, setReminderOptions] = useState<PickerOption[]>([]);
   const [editPicker, setEditPicker] = useState<'services' | 'occurrence' | 'reminder' | null>(null);
+  // Which edit-form date / time field the shared picker is editing.
+  const [editDateTimeField, setEditDateTimeField] = useState<'activationDate' | 'activationTime' | 'contractDate' | 'expiryDate' | null>(null);
   const [editSourceData, setEditSourceData] = useState<Record<string, unknown> | null>(null);
 
   // Toolbar action state (Call / WhatsApp / Download / Add task / Delete)
@@ -1322,6 +1325,21 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
     </View>
   );
 
+  // Form values: dates as yyyy-mm-dd, time as HH:mm:ss (same as the Add AMC form sends).
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  const toYmd = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const toHms = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  const dateFromText = (value: string) => {
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? new Date(`${value.trim()}T00:00:00`) : new Date();
+    return isNaN(d.getTime()) ? new Date() : d;
+  };
+  const timeFromText = (value: string) => {
+    const d = new Date();
+    const match = value.trim().match(/^(\d{1,2}):(\d{2})/);
+    if (match) d.setHours(Number(match[1]), Number(match[2]), 0, 0);
+    return d;
+  };
+
   const renderEditSelect = (label: string, value: string, onPress: () => void, half?: boolean) => (
     <View style={half ? styles.editFieldHalf : styles.editField}>
       <Pressable style={[styles.editInput, styles.editSelectInput]} onPress={onPress}>
@@ -1630,11 +1648,11 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 </View>
 
                 <View style={styles.editRow}>
-                  {renderEditInput('Activation Date *', editFormData.activationDate, value => updateEditField('activationDate', value), { half: true })}
-                  {renderEditInput('Time *', editFormData.activationTime, value => updateEditField('activationTime', value), { half: true })}
+                  {renderEditSelect('Activation Date *', editFormData.activationDate, () => setEditDateTimeField('activationDate'), true)}
+                  {renderEditSelect('Time *', editFormData.activationTime, () => setEditDateTimeField('activationTime'), true)}
                 </View>
                 <View style={styles.editRow}>
-                  {renderEditInput('Contract Date *', editFormData.contractDate, value => updateEditField('contractDate', value), { half: true })}
+                  {renderEditSelect('Contract Date *', editFormData.contractDate, () => setEditDateTimeField('contractDate'), true)}
                   {renderEditSelect('No. of Services', editFormData.totalServices, () => setEditPicker('services'), true)}
                 </View>
                 <View style={styles.editRow}>
@@ -1649,7 +1667,7 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                     : renderEditInput('Service Amount *', editFormData.amcAmount, value => updateEditField('amcAmount', sanitizeDecimalInput(value)), { keyboardType: 'decimal-pad', half: true })}
                 </View>
                 <View style={styles.editRow}>
-                  {renderEditInput('Expiry Date', editFormData.expiryDate, value => updateEditField('expiryDate', value), { half: true })}
+                  {renderEditSelect('Expiry Date', editFormData.expiryDate, () => setEditDateTimeField('expiryDate'), true)}
                   {renderEditSelect(
                     'Reminder',
                     reminderOptions.find(o => o.id === editFormData.reminderId)?.label ?? '',
@@ -1698,6 +1716,24 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
                 );
                 setPlaceSearchOpen(false);
               }}
+            />
+            <AppDateTimePicker
+              visible={editDateTimeField !== null}
+              mode={editDateTimeField === 'activationTime' ? 'time' : 'date'}
+              value={
+                editDateTimeField === 'activationTime'
+                  ? timeFromText(editFormData?.activationTime ?? '')
+                  : dateFromText(editFormData && editDateTimeField ? editFormData[editDateTimeField] : '')
+              }
+              onConfirm={picked => {
+                if (editDateTimeField === 'activationTime') {
+                  updateEditField('activationTime', toHms(picked));
+                } else if (editDateTimeField) {
+                  updateEditField(editDateTimeField, toYmd(picked));
+                }
+                setEditDateTimeField(null);
+              }}
+              onCancel={() => setEditDateTimeField(null)}
             />
             {editPickerConfig ? (
               <SearchPickerModal

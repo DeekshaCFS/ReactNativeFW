@@ -1,5 +1,5 @@
-import React, {useCallback, useState} from 'react';
-import {ActivityIndicator, Pressable, StyleSheet, Text, View} from 'react-native';
+import React, {useCallback, useRef, useState} from 'react';
+import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, View} from 'react-native';
 import RNFS from 'react-native-fs';
 import FileViewer from 'react-native-file-viewer';
 import Pdf from 'react-native-pdf';
@@ -37,6 +37,15 @@ export const usePdfDownload = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [percent, setPercent] = useState(0);
   const [viewer, setViewer] = useState<{path: string; title: string} | null>(null);
+  // What to show once the loading overlay has fully closed. Presenting the viewer (or the device
+  // share sheet) while the overlay is still dismissing makes iOS drop it, leaving the screen stuck.
+  const afterLoadingClosed = useRef<(() => void) | null>(null);
+
+  const runAfterLoadingClosed = () => {
+    const next = afterLoadingClosed.current;
+    afterLoadingClosed.current = null;
+    next?.();
+  };
 
   // Downloads the file with a progress overlay. PDFs open in the in-app viewer.
   // Any other file opens in the device's own apps (the "Open with" chooser).
@@ -72,11 +81,12 @@ export const usePdfDownload = () => {
       const finalPath = `${base}.${isPdf ? 'pdf' : getExtension(source)}`;
       await RNFS.moveFile(tempPath, finalPath);
 
-      if (isPdf) {
-        setViewer({path: finalPath, title});
-      } else {
-        await openWithDevice(finalPath, title);
-      }
+      afterLoadingClosed.current = isPdf
+        ? () => setViewer({path: finalPath, title})
+        : () =>
+            openWithDevice(finalPath, title).catch(() =>
+              showFailureMsg('No app on this device can open this file.'),
+            );
     } catch (error: unknown) {
       showFailureMsg(
         toUserMessage(
@@ -86,13 +96,21 @@ export const usePdfDownload = () => {
       );
     } finally {
       setIsDownloading(false);
+      // Android has no modal dismiss callback, so open right away there.
+      if (Platform.OS !== 'ios') {
+        runAfterLoadingClosed();
+      }
     }
   }, []);
 
   const modals = (
     <>
       {/* Loading buffer shown while the document downloads. */}
-      <Modal visible={isDownloading} transparent animationType="fade">
+      <Modal
+        visible={isDownloading}
+        transparent
+        animationType="fade"
+        onDismiss={runAfterLoadingClosed}>
         <View style={styles.overlay}>
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color={COLORS.primary} />
