@@ -577,6 +577,8 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
   const [renewActivationDate, setRenewActivationDate] = useState('');
   const [renewContractDate, setRenewContractDate] = useState('');
   const [renewExpiryDate, setRenewExpiryDate] = useState('');
+  // Which renew date field the shared picker is editing.
+  const [renewDatePicker, setRenewDatePicker] = useState<'activation' | 'contract' | 'expiry' | null>(null);
   const [isRenewing, setIsRenewing] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData | null>(null);
@@ -1561,31 +1563,65 @@ const AMCDetailsScreen: React.FC<AMCDetailsScreenProps> = ({ route, navigation }
               </Pressable>
             </View>
             <Text style={styles.label}>{t('rn_activation_date_yyyy_mm_dd')}</Text>
-            <TextInput
-              style={styles.editInput}
-              value={renewActivationDate}
-              onChangeText={setRenewActivationDate}
-              placeholder={t('rn_yyyy_mm_dd')}
-            />
+            <Pressable onPress={() => setRenewDatePicker('activation')}>
+              <View pointerEvents="none">
+                <TextInput
+                  style={styles.editInput}
+                  value={renewActivationDate}
+                  editable={false}
+                  placeholder={t('rn_yyyy_mm_dd')}
+                />
+              </View>
+            </Pressable>
             <Text style={styles.label}>{t('rn_contract_date_yyyy_mm_dd')}</Text>
-            <TextInput
-              style={styles.editInput}
-              value={renewContractDate}
-              onChangeText={setRenewContractDate}
-              placeholder={t('rn_yyyy_mm_dd')}
-            />
+            <Pressable onPress={() => setRenewDatePicker('contract')}>
+              <View pointerEvents="none">
+                <TextInput
+                  style={styles.editInput}
+                  value={renewContractDate}
+                  editable={false}
+                  placeholder={t('rn_yyyy_mm_dd')}
+                />
+              </View>
+            </Pressable>
             <Text style={styles.label}>{t('rn_expiry_date_yyyy_mm_dd')}</Text>
-            <TextInput
-              style={styles.editInput}
-              value={renewExpiryDate}
-              onChangeText={setRenewExpiryDate}
-              placeholder={t('rn_yyyy_mm_dd')}
-            />
+            <Pressable onPress={() => setRenewDatePicker('expiry')}>
+              <View pointerEvents="none">
+                <TextInput
+                  style={styles.editInput}
+                  value={renewExpiryDate}
+                  editable={false}
+                  placeholder={t('rn_yyyy_mm_dd')}
+                />
+              </View>
+            </Pressable>
             <Pressable style={styles.saveButton} onPress={submitRenewal} disabled={isRenewing}>
               <Text style={styles.saveButtonText}>{isRenewing ? tr('RENEWING...') : tr('RENEW')}</Text>
             </Pressable>
           </View>
         </View>
+        <AppDateTimePicker
+          visible={renewDatePicker !== null}
+          mode="date"
+          value={(() => {
+            const current =
+              renewDatePicker === 'activation' ? renewActivationDate
+              : renewDatePicker === 'contract' ? renewContractDate
+              : renewDatePicker === 'expiry' ? renewExpiryDate
+              : '';
+            const d = new Date(`${current.trim()}T00:00:00`);
+            return isNaN(d.getTime()) ? new Date() : d;
+          })()}
+          onConfirm={picked => {
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const text = `${picked.getFullYear()}-${pad(picked.getMonth() + 1)}-${pad(picked.getDate())}`;
+            if (renewDatePicker === 'activation') setRenewActivationDate(text);
+            else if (renewDatePicker === 'contract') setRenewContractDate(text);
+            else if (renewDatePicker === 'expiry') setRenewExpiryDate(text);
+            setRenewDatePicker(null);
+          }}
+          onCancel={() => setRenewDatePicker(null)}
+        />
       </Modal>
 
       <Modal
