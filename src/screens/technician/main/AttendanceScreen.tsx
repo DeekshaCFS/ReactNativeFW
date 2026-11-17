@@ -24,7 +24,9 @@ type NavigationProp = CompositeNavigationProp<
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-export default function AttendanceScreen() {
+// onSwitchTab: set when hosted inside the admin shell (sub-admin Attendance), where the
+// Leave pill switches the host's tab instead of navigating the technician tab navigator.
+export default function AttendanceScreen({ onSwitchTab }: { onSwitchTab?: () => void } = {}) {
   const { t } = useTranslation();
   const headerHeight = useAppHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
@@ -159,7 +161,7 @@ export default function AttendanceScreen() {
           <Pressable style={styles.activeTab}>
             <Text style={styles.activeTabText}>{t('attendance').toUpperCase()}</Text>
           </Pressable>
-          <Pressable style={styles.inactiveTab} onPress={() => navigation.navigate('Leave')}>
+          <Pressable style={styles.inactiveTab} onPress={() => (onSwitchTab ? onSwitchTab() : navigation.navigate('Leave'))}>
             <Text style={styles.inactiveTabText}>{t('rn_leaves')}</Text>
           </Pressable>
         </View>

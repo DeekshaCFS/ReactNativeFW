@@ -28,6 +28,7 @@ import BankDetailsTaxScreen from '../screens/admin/BankDetailsTaxScreen';
 import AMCDetailsScreen from '../screens/admin/AMCDetailsScreen';
 import BookDemoScreen from '../screens/admin/BookDemoScreen';
 import AdminNotificationScreen from '../screens/admin/AdminNotificationScreen';
+import SubAdminAttendanceScreen from '../screens/admin/SubAdminAttendanceScreen';
 import HelpChatScreen from '../screens/technician/main/HelpChatScreen';
 import AIScreen from '../screens/technician/drawer/AIScreen';
 import PrivacyPolicyScreen, { TERMS_AND_CONDITIONS_URL, FEEDBACK_URL } from '../screens/technician/drawer/PrivacyPolicyScreen';
@@ -93,6 +94,7 @@ type PushedScreen = {
 const STATIC_PUSHED_SCREENS: PushedScreen[] = [
   { name: 'Profile', component: unmountOnBlur(AdminProfileScreen), title: 'Profile' },
   { name: 'Settings', component: unmountOnBlur(AdminSettingScreen), title: 'Settings' },
+  { name: 'Attendance', component: unmountOnBlur(SubAdminAttendanceScreen), title: 'Attendance' },
   { name: 'PrivacyPolicy', component: unmountOnBlur(PrivacyPolicyScreen), title: 'Privacy Policy' },
   {
     name: 'TermsAndConditions',

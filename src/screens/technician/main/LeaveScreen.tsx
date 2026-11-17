@@ -101,7 +101,9 @@ const formatRequestedAt = (iso?: string) => {
   return `${day}-${m}-${y}  ${pad2(h12)}:${minStr} ${suffix}`;
 };
 
-export default function LeaveScreen() {
+// onSwitchTab: set when hosted inside the admin shell (sub-admin Attendance), where the
+// Attendance pill switches the host's tab instead of navigating the technician tab navigator.
+export default function LeaveScreen({ onSwitchTab }: { onSwitchTab?: () => void } = {}) {
   const {t} = useTranslation();
   const {askDelete, deleteDialog} = useConfirmDelete();
   const navigation = useNavigation<NavigationProp>();
@@ -411,7 +413,7 @@ export default function LeaveScreen() {
     <>
       {/* Tabs */}
       <View style={[styles.tabRow, { paddingTop: headerHeight + vs(4) }]}>
-        <Pressable style={styles.inactiveTab} onPress={() => navigation.navigate('Attendance')}>
+        <Pressable style={styles.inactiveTab} onPress={() => (onSwitchTab ? onSwitchTab() : navigation.navigate('Attendance'))}>
           <Text style={styles.inactiveTabText}>{t('attendance').toUpperCase()}</Text>
         </Pressable>
         <Pressable style={styles.activeTab}>

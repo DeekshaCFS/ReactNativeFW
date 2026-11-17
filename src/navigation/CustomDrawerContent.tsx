@@ -14,6 +14,7 @@ import {
   SettingsDrawerIcon,
   RoutineServiceDrawerIcon,
   CheckOutDrawerIcon,
+  AttendanceDrawerIcon,
 } from '../components/DrawerIcons';
 import { PencilEditIcon } from '../components/DialogIcons';
 import { DrawerContentComponentProps } from '@react-navigation/drawer';
@@ -71,6 +72,8 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
 
   const isAdmin = usesAdminShell(role, groupId);
   const showCheckOut = needsCheckIn(role, groupId);
+  // Sub-admin drawer: Attendance (Java HomeActivityNew R.id.attendance). Owner hides it in Java.
+  const showAttendance = needsCheckIn(role, groupId);
   // Route name differs per role — see DrawerNavigator (AdminTabs → AdminStack,
   // TechnicianTabs → TechnicianStack).
   const tabsRoute = isAdmin ? 'AdminTabs' : 'TechnicianTabs';
@@ -222,10 +225,13 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
             { icon: 'Accounts',          label: 'Accounts',         section: 'Accounts' },
             { icon: 'Leads',                 label: 'Leads',            section: 'Leads' },
             { icon: 'BrandPng',              label: 'Brand Management', section: 'Brand Management' },
+            ...(showAttendance
+              ? [{ icon: 'Attendance', label: t('attendance'), screen: 'Attendance' }]
+              : []),
             { icon: 'FieldwebAi',       label: t('AI'),      screen: 'FieldWeb AI' },
             { icon: 'DemoPng',         label: 'Book App Demo',    screen: 'Book App Demo' },
             { icon: 'Settings',               label: t('settings'),         screen: 'Settings' },
-            (showCheckOut
+            ...(showCheckOut
               ? [{ icon: 'CheckOut',   label: t('title_check_out'),       screen: null }]
               : []),
           ]
@@ -323,6 +329,7 @@ const DRAWER_SVG_ICONS: Record<string, React.ComponentType<{ size?: number; colo
   Settings: SettingsDrawerIcon,
   RoutineService: RoutineServiceDrawerIcon,
   CheckOut: CheckOutDrawerIcon,
+  Attendance: AttendanceDrawerIcon,
 };
 const DRAWER_PNG_ICONS: Record<string, any> = {
   BrandPng: require('../../assets/images/drawer_brand.png'),
