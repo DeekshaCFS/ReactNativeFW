@@ -7,11 +7,11 @@
 // with a photo via Expenditure/AddExpense.
 import { launchCameraWithPermission } from '../../../utils/cameraPermission';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image, ActivityIndicator, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image, ActivityIndicator, Alert,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker, { DateTimePickerAndroid, DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
+import AppDateTimePicker from '../../../components/AppDateTimePicker';
 import { COLORS } from '../../../theme/theme';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { TechnicianStackParamList } from '../../../navigation/TechStack';
@@ -51,7 +51,6 @@ export default function ExpenditureScreen() {
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [date, setDate] = useState(() => new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [tempDate, setTempDate] = useState(date);
   const [details, setDetails] = useState<ExpenseDetailsResultData | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -91,33 +90,7 @@ export default function ExpenditureScreen() {
     }
   }, [showAddExpenseModal]);
 
-  // Android's DateTimePicker always shows the OS's own dialog as soon as it's
-  // mounted -- it has no inline/embedded mode like iOS does -- so wrapping it
-  // in our own Modal+Cancel/OK just stacks a second dialog on top of the
-  // native one and reopens it on every re-render. Use the imperative API
-  // there instead (native rollable dialog, its own OK/Cancel, matches Java's
-  // DatePickerDialog exactly); keep the custom Modal only for iOS, which
-  // really does need it to host the inline spinner.
-  const openDatePicker = () => {
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        value: date,
-        mode: 'date',
-        display: 'spinner',
-        maximumDate: new Date(),
-        minimumDate: minSelectableDate(),
-        onValueChange: (_event: DateTimePickerChangeEvent, selected: Date) => setDate(selected),
-      });
-      return;
-    }
-    setTempDate(date);
-    setShowDatePicker(true);
-  };
-
-  const confirmDatePicker = () => {
-    setDate(tempDate);
-    setShowDatePicker(false);
-  };
+  const openDatePicker = () => setShowDatePicker(true);
 
   const applyPickedImage = (asset: Asset) => {
     if (!asset.base64) {
@@ -286,34 +259,19 @@ export default function ExpenditureScreen() {
         </View>
       </Modal>
 
-      {/* Rollable date picker (Java: DatePickerDialog, min = today - 2 months).
-          iOS only -- Android uses the imperative DateTimePickerAndroid API
-          in openDatePicker() instead. */}
-      {Platform.OS === 'ios' && (
-        <Modal visible={showDatePicker} transparent animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
-          <Pressable style={styles.overlay} onPress={() => setShowDatePicker(false)} />
-          <View style={styles.centerModal}>
-            <Text style={styles.datePickerTitle}>{t('rn_select_date')}</Text>
-            <DateTimePicker
-              value={tempDate}
-              mode="date"
-              display="spinner"
-              maximumDate={new Date()}
-              minimumDate={minSelectableDate()}
-              onValueChange={(_event: DateTimePickerChangeEvent, selected: Date) => setTempDate(selected)}
-              onDismiss={() => setShowDatePicker(false)}
-            />
-            <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: '#eee', marginTop: ms(12) }}>
-              <Pressable style={{ flex: 1, paddingVertical: ms(14), alignItems: 'center' }} onPress={() => setShowDatePicker(false)}>
-                <Text style={{ fontSize: sp(15), color: '#888' }}>{t('cancel')}</Text>
-              </Pressable>
-              <Pressable style={{ flex: 1, paddingVertical: ms(14), alignItems: 'center' }} onPress={confirmDatePicker}>
-                <Text style={{ fontSize: sp(15), color: COLORS.primary, fontWeight: '600' }}>{t('qr_code_positive_button_know')}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
-      )}
+      {/* Date picker (Java: DatePickerDialog, min = today - 2 months). Shared app picker. */}
+      <AppDateTimePicker
+        visible={showDatePicker}
+        mode="date"
+        value={date}
+        minimumDate={minSelectableDate()}
+        maximumDate={new Date()}
+        onConfirm={selected => {
+          setDate(selected);
+          setShowDatePicker(false);
+        }}
+        onCancel={() => setShowDatePicker(false)}
+      />
     </View>
   );
 }

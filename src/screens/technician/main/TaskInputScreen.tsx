@@ -15,11 +15,10 @@ import {
   Platform,
   Keyboard,
   ActivityIndicator,
-  Modal as RNModal,
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
+import AppDateTimePicker from '../../../components/AppDateTimePicker';
 import { COLORS } from '../../../theme/theme';
 import { ms, sp, useAppHeaderHeight } from '../../../utils/responsive';
 import OutlinedInput from '../../../components/OutlinedInput';
@@ -64,8 +63,6 @@ export default function TaskInputScreen({ navigation, route }: any) {
   const [values, setValues] = useState<Record<number, string>>({});
 
   const [activeDatePicker, setActiveDatePicker] = useState<number | null>(null);
-  // iOS date sheet: the spinner's pending choice, applied only on OK.
-  const [pendingDate, setPendingDate] = useState<Date>(new Date());
   const [dropdown, setDropdown] = useState<{
     field: CustomFieldDTOResultData;
     top: number;
@@ -124,19 +121,13 @@ export default function TaskInputScreen({ navigation, route }: any) {
     });
   };
 
-  const handleDateChange = (fieldId: number) => (_event: DateTimePickerChangeEvent, date: Date) => {
-    setActiveDatePicker(null);
-    setFieldValue(fieldId, formatDate(date));
+  // The field's current date (dd-mm-yyyy), or today when empty.
+  const dateFromField = (fieldId: number) => {
+    const [dd, mm, yyyy] = (values[fieldId] ?? '').split('-').map(Number);
+    return dd && mm && yyyy ? new Date(yyyy, mm - 1, dd) : new Date();
   };
 
-  // Opens the picker on the field's current date (dd-mm-yyyy) or today.
-  const openDatePicker = (fieldId: number) => {
-    const parts = (values[fieldId] ?? '').split('-').map(Number);
-    const [dd, mm, yyyy] = parts;
-    const existing = dd && mm && yyyy ? new Date(yyyy, mm - 1, dd) : null;
-    setPendingDate(existing ?? new Date());
-    setActiveDatePicker(fieldId);
-  };
+  const openDatePicker = (fieldId: number) => setActiveDatePicker(fieldId);
 
   const handleDropdownSelect = (fieldId: number, value: string) => {
     setDropdown(null);
@@ -258,52 +249,16 @@ export default function TaskInputScreen({ navigation, route }: any) {
               </View>
               {!!values[id] && <Text style={styles.floatLabel}>{t('date')}</Text>}
             </Pressable>
-            {Platform.OS === 'ios' ? (
-              // Light sheet regardless of system dark mode, with Cancel / OK.
-              <RNModal
-                transparent
-                animationType="slide"
-                visible={activeDatePicker === id}
-                onRequestClose={() => setActiveDatePicker(null)}
-              >
-                <Pressable style={styles.dateBackdrop} onPress={() => setActiveDatePicker(null)} />
-                <View style={styles.dateSheet}>
-                  <View style={styles.dateSheetHeader}>
-                    <Pressable onPress={() => setActiveDatePicker(null)} hitSlop={10}>
-                      <Text style={styles.dateSheetCancel}>{t('cancel')}</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => {
-                        setFieldValue(id, formatDate(pendingDate));
-                        setActiveDatePicker(null);
-                      }}
-                      hitSlop={10}
-                    >
-                      <Text style={styles.dateSheetOk}>OK</Text>
-                    </Pressable>
-                  </View>
-                  <DateTimePicker
-                    value={pendingDate}
-                    mode="date"
-                    display="spinner"
-                    themeVariant="light"
-                    onChange={(_event: DateTimePickerChangeEvent, date?: Date) => {
-                      if (date) setPendingDate(date);
-                    }}
-                  />
-                </View>
-              </RNModal>
-            ) : (
-              activeDatePicker === id && (
-                <DateTimePicker
-                  value={new Date()}
-                  mode="date"
-                  display="default"
-                  onValueChange={handleDateChange(id)}
-                  onDismiss={() => setActiveDatePicker(null)}
-                />
-              )
-            )}
+            <AppDateTimePicker
+              visible={activeDatePicker === id}
+              mode="date"
+              value={dateFromField(id)}
+              onConfirm={date => {
+                setFieldValue(id, formatDate(date));
+                setActiveDatePicker(null);
+              }}
+              onCancel={() => setActiveDatePicker(null)}
+            />
           </>
         );
       case FIELD_TYPE.BOOLEAN:

@@ -19,7 +19,7 @@ import {OutlinedInput} from '../../components/OutlinedInput';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
 import {FieldErrorTip} from '../../components/BottomSheetDialog';
 import AddQuotePreview, {type QuotePreviewData} from '../../components/AddQuotePreview';
-import DateTimePicker, {type DateTimePickerChangeEvent} from '@react-native-community/datetimepicker';
+import AppDateTimePicker from '../../components/AppDateTimePicker';
 import {pick} from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import SearchPickerModal, {type PickerOption} from '../../components/SearchPickerModal';
@@ -1643,51 +1643,16 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
         onClose={() => setOpenDropdownKey(null)}
       />
 
-      {datePickerField && (
-        Platform.OS === 'ios' ? (
-          <Modal transparent animationType="fade" onRequestClose={() => setDatePickerField(null)}>
-            <Pressable style={styles.dateBackdrop} onPress={() => setDatePickerField(null)}>
-              <Pressable style={styles.dateSheet} onPress={e => e.stopPropagation()}>
-                <Text style={styles.dateSheetTitle}>{t('rn_select_date')}</Text>
-                <DateTimePicker
-                  value={datePickerValue}
-                  mode="date"
-                  display="inline"
-                  onValueChange={(_: DateTimePickerChangeEvent, date: Date) => setDatePickerValue(date)}
-                  themeVariant="light"
-                  accentColor={COLORS.primary}
-                />
-                <View style={styles.dateSheetActions}>
-                  <TouchableOpacity style={styles.dateCancelBtn} onPress={() => setDatePickerField(null)}>
-                    <Text style={styles.dateCancelText}>{t('cancel')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.dateConfirmBtn}
-                    onPress={() => {
-                      applyPickedDate(datePickerValue);
-                      setDatePickerField(null);
-                    }}>
-                    <Text style={styles.dateConfirmText}>{t('qr_code_positive_button_confirm')}</Text>
-                  </TouchableOpacity>
-                </View>
-              </Pressable>
-            </Pressable>
-          </Modal>
-        ) : (
-          <DateTimePicker
-            value={datePickerValue}
-            mode="date"
-            display="default"
-            onValueChange={(_: DateTimePickerChangeEvent, date: Date) => {
-              applyPickedDate(date);
-              setDatePickerField(null);
-            }}
-            onDismiss={() => setDatePickerField(null)}
-            positiveButton={{label: t('qr_code_positive_button_know'), textColor: COLORS.primary}}
-            negativeButton={{label: tr('CANCEL'), textColor: COLORS.primary}}
-          />
-        )
-      )}
+      <AppDateTimePicker
+        visible={datePickerField !== null}
+        mode="date"
+        value={datePickerValue}
+        onConfirm={date => {
+          applyPickedDate(date);
+          setDatePickerField(null);
+        }}
+        onCancel={() => setDatePickerField(null)}
+      />
 
       <AddQuotePreview
         visible={isPreviewOpen}
@@ -1816,9 +1781,9 @@ const styles = StyleSheet.create({
   },
   phoneContactButton: {
     position: 'absolute',
-    right: ms(15),
+    right: ms(40),
     top: 0,
-    bottom: 25,
+    bottom: 0,
     justifyContent: 'center',
   },
   termInput: {
@@ -1996,7 +1961,7 @@ const styles = StyleSheet.create({
     marginRight: ms(5),
   },
   dropdownPlaceholderText: {
-    fontSize: sp(12),
+    fontSize: sp(14),
     color: COLORS.ink,
     flex: 1,
   },

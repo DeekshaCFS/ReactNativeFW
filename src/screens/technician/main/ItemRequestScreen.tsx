@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import Modal from '../../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
+import AppDateTimePicker from '../../../components/AppDateTimePicker';
 import { COLORS } from '../../../theme/theme';
 import { ms, sp, useAppHeaderHeight } from '../../../utils/responsive';
 import SearchPickerModal, { PickerOption } from '../../../components/SearchPickerModal';
@@ -225,14 +225,6 @@ export default function ItemRequestScreen({ navigation, route }: any) {
     setDatePickerVisible(true);
   };
 
-  const confirmIOSDate = () => {
-    if (pendingDateRef.current) {
-      const { itemId, field } = pendingDateRef.current;
-      updateItem(itemId, { [field]: formatDate(datePickerValue) });
-    }
-    setDatePickerVisible(false);
-    pendingDateRef.current = null;
-  };
 
   // Item Name and Product Id both call Item/AllItemList; the full list loads on open and
   // narrows further as the technician types (server-side SearchParam).
@@ -684,63 +676,24 @@ export default function ItemRequestScreen({ navigation, route }: any) {
         </ScrollView>
       </View>
 
-      {/* ── Date Picker ── */}
-      {datePickerVisible && (
-        Platform.OS === 'ios' ? (
-          <Modal transparent animationType="fade" onRequestClose={() => setDatePickerVisible(false)}>
-            <Pressable
-              style={styles.dateBackdrop}
-              onPress={() => setDatePickerVisible(false)}
-            >
-              <Pressable style={styles.dateSheet} onPress={e => e.stopPropagation()}>
-                <Text style={styles.dateSheetTitle}>{t('rn_select_date')}</Text>
-                <DateTimePicker
-                  value={datePickerValue}
-                  mode="date"
-                  display="inline"
-                  onValueChange={(_: DateTimePickerChangeEvent, date: Date) => setDatePickerValue(date)}
-                  themeVariant="light"
-                  accentColor={COLORS.primary}
-                />
-                <View style={styles.dateSheetActions}>
-                  <Pressable
-                    style={styles.dateCancelBtn}
-                    onPress={() => {
-                      setDatePickerVisible(false);
-                      pendingDateRef.current = null;
-                    }}
-                  >
-                    <Text style={styles.dateCancelText}>{t('cancel')}</Text>
-                  </Pressable>
-                  <Pressable style={styles.dateConfirmBtn} onPress={confirmIOSDate}>
-                    <Text style={styles.dateConfirmText}>{t('qr_code_positive_button_confirm')}</Text>
-                  </Pressable>
-                </View>
-              </Pressable>
-            </Pressable>
-          </Modal>
-        ) : (
-          <DateTimePicker
-            value={datePickerValue}
-            mode="date"
-            display="default"
-            onValueChange={(_: DateTimePickerChangeEvent, date: Date) => {
-              setDatePickerVisible(false);
-              if (pendingDateRef.current) {
-                const { itemId, field } = pendingDateRef.current;
-                updateItem(itemId, { [field]: formatDate(date) });
-              }
-              pendingDateRef.current = null;
-            }}
-            onDismiss={() => {
-              setDatePickerVisible(false);
-              pendingDateRef.current = null;
-            }}
-            positiveButton={{ label: t('qr_code_positive_button_know'), textColor: COLORS.primary }}
-            negativeButton={{ label: tr('CANCEL'), textColor: COLORS.primary }}
-          />
-        )
-      )}
+      {/* ── Date Picker (shared app picker) ── */}
+      <AppDateTimePicker
+        visible={datePickerVisible}
+        mode="date"
+        value={datePickerValue}
+        onConfirm={date => {
+          setDatePickerVisible(false);
+          if (pendingDateRef.current) {
+            const { itemId, field } = pendingDateRef.current;
+            updateItem(itemId, { [field]: formatDate(date) });
+          }
+          pendingDateRef.current = null;
+        }}
+        onCancel={() => {
+          setDatePickerVisible(false);
+          pendingDateRef.current = null;
+        }}
+      />
 
       {/* ── Java-style searchable picker dialogs ── */}
       <SearchPickerModal

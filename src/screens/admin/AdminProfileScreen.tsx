@@ -5,13 +5,13 @@ import { numpadAccessoryId } from '../../components/NumpadDoneBar';
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Image, ScrollView,
-  Pressable, ActivityIndicator, Platform, StatusBar, TouchableOpacity, Share,
+  Pressable, ActivityIndicator, StatusBar, TouchableOpacity, Share,
 } from 'react-native';
 import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../../theme/theme';
 import { launchImageLibrary } from 'react-native-image-picker';
-import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
+import AppDateTimePicker from '../../components/AppDateTimePicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getProfileDetails,
@@ -356,8 +356,8 @@ export default function AdminProfileScreen() {
   };
 
   // ─── DOB picker (mirrors onDateSet in the Java reference) ──────────────────
-  const handleDobChange = (_event: DateTimePickerChangeEvent, date: Date) => {
-    if (Platform.OS === 'android') setShowDobPicker(false);
+  const handleDobChange = (date: Date) => {
+    setShowDobPicker(false);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -672,16 +672,14 @@ export default function AdminProfileScreen() {
           </Pressable>
         </View>
 
-        {showDobPicker && (
-          <DateTimePicker
-            value={profile?.DOB ? new Date(profile.DOB) : new Date()}
-            mode="date"
-            display={Platform.OS === 'android' ? 'calendar' : 'inline'}
-            maximumDate={new Date()}
-            onValueChange={handleDobChange}
-            onDismiss={() => setShowDobPicker(false)}
-          />
-        )}
+        <AppDateTimePicker
+          visible={showDobPicker}
+          mode="date"
+          value={profile?.DOB ? new Date(profile.DOB) : new Date()}
+          maximumDate={new Date()}
+          onConfirm={handleDobChange}
+          onCancel={() => setShowDobPicker(false)}
+        />
 
         {/* Owner-only block of ProfileFragmentNew (company name … number of employees). The
             Reporting Manager row, Aadhar card and KYC section are technician-only in Java. */}

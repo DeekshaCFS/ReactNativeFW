@@ -7,12 +7,9 @@
 // white 30dp sheet with the technician name, then the shared summary card and
 // expense list. The add-expense icon is technician-only in Java.
 import React, {useEffect, useState} from 'react';
-import {BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {BackHandler, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker, {
-  DateTimePickerAndroid,
-  type DateTimePickerChangeEvent,
-} from '@react-native-community/datetimepicker';
+import AppDateTimePicker from '../../components/AppDateTimePicker';
 import {getExpenditureDetails} from '../../api/expenditure/expenditureService';
 import type {ExpenseDetailsResultData} from '../../api/expenditure/expenditure.types';
 import ExpenseDetailsBody, {
@@ -30,7 +27,7 @@ type Props = {
 
 const TechnicianExpenseDetails: React.FC<Props> = ({technician, onClose}) => {
   const [date, setDate] = useState(() => new Date());
-  const [iosPicker, setIosPicker] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [details, setDetails] = useState<ExpenseDetailsResultData | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -71,20 +68,7 @@ const TechnicianExpenseDetails: React.FC<Props> = ({technician, onClose}) => {
   }
 
   // Java: DatePickerDialog, min = today - 2 months, max = today.
-  const openDatePicker = () => {
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        value: date,
-        mode: 'date',
-        display: 'spinner',
-        maximumDate: new Date(),
-        minimumDate: minExpenseDate(),
-        onValueChange: (_e: DateTimePickerChangeEvent, selected: Date) => setDate(selected),
-      });
-      return;
-    }
-    setIosPicker(true);
-  };
+  const openDatePicker = () => setDatePickerOpen(true);
 
   return (
     <View style={styles.root}>
@@ -102,17 +86,18 @@ const TechnicianExpenseDetails: React.FC<Props> = ({technician, onClose}) => {
         </ScrollView>
       </View>
 
-      {Platform.OS === 'ios' && iosPicker ? (
-        <DateTimePicker
-          value={date}
-          mode="date"
-          display="spinner"
-          maximumDate={new Date()}
-          minimumDate={minExpenseDate()}
-          onValueChange={(_e: DateTimePickerChangeEvent, selected: Date) => setDate(selected)}
-          onDismiss={() => setIosPicker(false)}
-        />
-      ) : null}
+      <AppDateTimePicker
+        visible={datePickerOpen}
+        mode="date"
+        value={date}
+        minimumDate={minExpenseDate()}
+        maximumDate={new Date()}
+        onConfirm={selected => {
+          setDate(selected);
+          setDatePickerOpen(false);
+        }}
+        onCancel={() => setDatePickerOpen(false)}
+      />
     </View>
   );
 };

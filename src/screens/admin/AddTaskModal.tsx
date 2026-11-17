@@ -20,7 +20,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import DateTimePicker, {type DateTimePickerChangeEvent} from '@react-native-community/datetimepicker';
+import AppDateTimePicker from '../../components/AppDateTimePicker';
 import Modal from '../../components/AppModal';
 import OutlinedInput from '../../components/OutlinedInput';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
@@ -3136,76 +3136,24 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         }}
       />
 
-      {/* iOS: the inline picker is shown in its own sheet, drawn inside the open task modal
-          (AppModal stacks it there), so it is not hidden behind the modal. Confirm / Cancel
-          apply the value, because the inline wheel fires onValueChange on every scroll. */}
-      {Platform.OS === 'ios' ? (
-        <Modal
-          transparent
-          animationType="fade"
-          visible={taskPicker !== null}
-          onRequestClose={() => setTaskPicker(null)}>
-          <Pressable style={taskStyles.dateBackdrop} onPress={() => setTaskPicker(null)}>
-            <Pressable style={taskStyles.dateSheet} onPress={e => e.stopPropagation()}>
-              <Text style={taskStyles.dateSheetTitle}>
-                {taskPicker === 'time' ? tr('Select Time') : t('rn_select_date')}
-              </Text>
-              {taskPicker ? (
-                <DateTimePicker
-                  value={taskPickerValue}
-                  mode={taskPicker === 'time' ? 'time' : 'date'}
-                  display="inline"
-                  themeVariant="light"
-                  accentColor={COLORS.primary}
-                  minimumDate={
-                    taskPicker === 'time'
-                      ? undefined
-                      : taskPicker === 'end' && warrantyStartDate
-                        ? new Date(`${warrantyStartDate}T00:00:00`)
-                        : new Date(Date.now() - 1000)
-                  }
-                  onValueChange={(_: DateTimePickerChangeEvent, picked: Date) => setTaskPickerValue(picked)}
-                />
-              ) : null}
-              <View style={taskStyles.dateSheetActions}>
-                <TouchableOpacity style={taskStyles.dateCancelBtn} onPress={() => setTaskPicker(null)}>
-                  <Text style={taskStyles.dateCancelText}>{tr('CANCEL')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={taskStyles.dateConfirmBtn}
-                  onPress={() => {
-                    if (taskPicker) applyTaskPicker(taskPicker, taskPickerValue);
-                    setTaskPicker(null);
-                  }}>
-                  <Text style={taskStyles.dateConfirmText}>{t('qr_code_positive_button_confirm')}</Text>
-                </TouchableOpacity>
-              </View>
-            </Pressable>
-          </Pressable>
-        </Modal>
-      ) : taskPicker ? (
-        <DateTimePicker
-          value={taskPickerValue}
-          mode={taskPicker === 'time' ? 'time' : 'date'}
-          is24Hour={false}
-          display="default"
-          minimumDate={
-            taskPicker === 'time'
-              ? undefined
-              : taskPicker === 'end' && warrantyStartDate
-                ? new Date(`${warrantyStartDate}T00:00:00`)
-                : new Date(Date.now() - 1000)
-          }
-          onValueChange={(_: DateTimePickerChangeEvent, picked: Date) => {
-            applyTaskPicker(taskPicker, picked);
-            setTaskPicker(null);
-          }}
-          onDismiss={() => setTaskPicker(null)}
-          positiveButton={{label: t('qr_code_positive_button_know'), textColor: COLORS.primary}}
-          negativeButton={{label: tr('CANCEL'), textColor: COLORS.primary}}
-        />
-      ) : null}
-
+      {/* Date / time picker: shared app picker (calendar for dates, wheel for time). */}
+      <AppDateTimePicker
+        visible={taskPicker !== null}
+        mode={taskPicker === 'time' ? 'time' : 'date'}
+        value={taskPickerValue}
+        minimumDate={
+          taskPicker === 'time' || !taskPicker
+            ? undefined
+            : taskPicker === 'end' && warrantyStartDate
+              ? new Date(`${warrantyStartDate}T00:00:00`)
+              : new Date(Date.now() - 1000)
+        }
+        onConfirm={picked => {
+          if (taskPicker) applyTaskPicker(taskPicker, picked);
+          setTaskPicker(null);
+        }}
+        onCancel={() => setTaskPicker(null)}
+      />
       {/* Java TaskDialogNew: dialog_searchable_spinner_technician -- the shared dialog. */}
       <SearchPickerModal
         visible={isFieldworkerModalOpen}

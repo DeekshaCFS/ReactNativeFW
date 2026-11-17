@@ -2,13 +2,13 @@
 import {useConfirmDelete} from '../../../components/ConfirmDeleteDialog';
 import {
   View, Text, StyleSheet, FlatList, Pressable, Image, ScrollView,
-  Platform, StatusBar, TextInput, ActivityIndicator, RefreshControl, } from 'react-native';
+  StatusBar, TextInput, ActivityIndicator, RefreshControl, } from 'react-native';
 import Modal from '../../../components/AppModal';
 import MonthYearPickerDialog from '../../../components/MonthYearPickerDialog';
 import SearchPickerModal from '../../../components/SearchPickerModal';
 import { useState, useCallback, useMemo } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker, { DateTimePickerChangeEvent } from '@react-native-community/datetimepicker';
+import AppDateTimePicker from '../../../components/AppDateTimePicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
 import { scale, vs, sp, ms, useAppHeaderHeight } from '../../../utils/responsive';
@@ -283,7 +283,7 @@ export default function LeaveScreen() {
     setErrorLabel('');
   };
 
-  const onDateChange = (_event: DateTimePickerChangeEvent, date: Date) => {
+  const onDateChange = (date: Date) => {
     const field = activeDateField;
     setActiveDateField(null);
     if (!field) return;
@@ -596,23 +596,18 @@ export default function LeaveScreen() {
               </View>
             )}
 
-            {activeDateField && (
-              <DateTimePicker
-                value={
-                  form[activeDateField]
-                    ? new Date(form[activeDateField] as string)
-                    : new Date()
-                }
-                mode="date"
-                display={Platform.OS === 'android' ? 'calendar' : 'inline'}
-                themeVariant="light"
-                accentColor={COLORS.primary}
-                textColor={COLORS.ink}
-                minimumDate={new Date(Date.now() - 7 * 86400000)}
-                onValueChange={onDateChange}
-                onDismiss={() => setActiveDateField(null)}
-              />
-            )}
+            <AppDateTimePicker
+              visible={activeDateField !== null}
+              mode="date"
+              value={
+                activeDateField && form[activeDateField]
+                  ? new Date(form[activeDateField] as string)
+                  : new Date()
+              }
+              minimumDate={new Date(Date.now() - 7 * 86400000)}
+              onConfirm={onDateChange}
+              onCancel={() => setActiveDateField(null)}
+            />
 
             {!!errorLabel && <Text style={styles.errorLabel}>{errorLabel}</Text>}
 
