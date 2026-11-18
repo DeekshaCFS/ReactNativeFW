@@ -45,6 +45,7 @@ import { isNetworkAvailable } from '../../../offline/networkQuality';
 import { savePendingTask } from '../../../offline/offlineStore';
 import { cachedFetch, fsrCacheKey, customFieldsCacheKey } from '../../../offline/offlineCache';
 import DecimalInput from '../../../components/DecimalInput';
+import TaskChecklistModal from './TaskChecklistScreen';
 
 import {useTranslation} from 'react-i18next';
 import { tr } from '../../../i18n/tr';
@@ -507,10 +508,12 @@ export default function TaskClosure({ navigation, route }: any) {
   //    cross-verified against TaskClosureFragmentNew.validate()) ──
   const hasHappyCode = !!routeTask.HappyCode && routeTask.HappyCode !== 0;
   const [satisfactionCode, setSatisfactionCode] = useState('');
+  const pinInputRef = useRef<TextInput>(null);
 
   // ─── Used Items Sheet state ───────────────────────────────────────────────
 
   const [showUsedItemSheet, setShowUsedItemSheet] = useState(false);
+  const [showChecklists, setShowChecklists] = useState(false);
 
   const hasFSR = !!routeTask.FSRName;
   const [showFSRSheet, setShowFSRSheet] = useState(false);
@@ -1196,6 +1199,32 @@ export default function TaskClosure({ navigation, route }: any) {
           </View>
         </View>
 
+        {/* ── SATISFACTION CODE (4-digit PIN, only when task has a HappyCode) ── */}
+        {hasHappyCode && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{t('enter_satisfaction_code')}</Text>
+            <Pressable style={styles.pinRow} onPress={() => pinInputRef.current?.focus()}>
+              {[0, 1, 2, 3].map(i => (
+                <View
+                  key={`pin-${i}`}
+                  style={styles.pinBox}
+                >
+                  <Text style={styles.pinDigit}>{satisfactionCode[i] ?? ''}</Text>
+                </View>
+              ))}
+            </Pressable>
+            <TextInput
+              ref={pinInputRef}
+              value={satisfactionCode}
+              onChangeText={val => setSatisfactionCode(val.replace(/\D/g, '').slice(0, 4))}
+              keyboardType="number-pad"
+              maxLength={4}
+              inputAccessoryViewID={numpadAccessoryId("numeric")}
+              style={styles.pinHiddenInput}
+            />
+          </View>
+        )}
+
         {/* ── TECHNICAL NOTES ─────────────────────────────────────────── */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{t('technical_note')}</Text>
@@ -1494,6 +1523,12 @@ export default function TaskClosure({ navigation, route }: any) {
         </View>
 
         {/* ──────────────── CHECKPOINTS (FSR) ──────────────────── */}
+        {/* ──────────────── TASK CHECKLISTS (static UI) ─────────── */}
+        <Pressable style={styles.naCard} onPress={() => setShowChecklists(true)}>
+          <Text style={styles.naTitle}>{tr('Task checklists')}</Text>
+          <Text style={styles.naSub}>{tr('Click here to open checklists')}</Text>
+        </Pressable>
+
         {hasFSR && (
           <Pressable style={styles.naCard} onPress={openFSRSheet}>
             <Text style={styles.naTitle}>{routeTask.FSRName}</Text>
@@ -1531,22 +1566,6 @@ export default function TaskClosure({ navigation, route }: any) {
             )}
           </Pressable>
         </View>
-
-        {/* ── SATISFACTION CODE (only when task has a HappyCode) ─────── */}
-        {hasHappyCode && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>{t('enter_satisfaction_code')}</Text>
-            <TextInput
-              value={satisfactionCode}
-              onChangeText={setSatisfactionCode}
-              placeholder={t('rn_enter_satisfaction_code')}
-              placeholderTextColor="#ABABAB"
-              keyboardType="numeric"
-              inputAccessoryViewID={numpadAccessoryId("numeric")}
-              style={styles.deviceInput}
-            />
-          </View>
-        )}
 
         {/* ── UPLOAD ATTACHMENT ───────────────────────────────────────── */}
         <View style={[styles.card, styles.boxCard, styles.boxGrey]}>
@@ -2031,6 +2050,13 @@ export default function TaskClosure({ navigation, route }: any) {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      {/* Task checklists (static UI) */}
+      <TaskChecklistModal
+        visible={showChecklists}
+        onClose={() => setShowChecklists(false)}
+        taskId={routeTask.Id}
+      />
 
       {/* Checkpoint status picker */}
       <Modal
@@ -2732,6 +2758,31 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: scale(12),
+  },
+  pinRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: ms(12),
+    marginTop: ms(5),
+  },
+  pinBox: {
+    width: ms(40),
+    height: ms(40),
+    borderBottomWidth: 1.5,
+    borderColor: '#7a7a7a',
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinDigit: {
+    fontSize: sp(24),
+    color: COLORS.primary,
+  },
+  pinHiddenInput: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
   tilesRow: {
     flexDirection: 'row',
