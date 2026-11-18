@@ -537,9 +537,9 @@ const TaskDetailsScreen = ({
         ['Warranty Type', warrantyTypeName || '-NA-'],
         ['Start Date', warrantyStartDate || '-NA-'],
         ['End Date', warrantyEndDate || '-NA-'],
-        ['Brand Name', warrantyBrandName || '-NA-'],
-        ['Model Name', warrantyModelName || '-NA-'],
-        ['Serial No', warrantySerialNo || '-NA-'],
+        ['Brand Name', warrantyBrandName || ''],
+        ['Model Name', warrantyModelName || ''],
+        ['Serial No', warrantySerialNo || ''],
       ])}
     </>
   );
@@ -780,8 +780,6 @@ const TaskDetailsScreen = ({
             </View>
           ))}
 
-          {renderWarrantySection()}
-
           <TaskClosureSection
             ref={closureRef}
             ownerId={ownerId}
@@ -982,15 +980,15 @@ const TaskDetailsScreen = ({
               </View>
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>{t('label_brand_name')}</Text>
-                <Text style={styles.fieldValue}>{valueOrNA(warrantyBrandName)}</Text>
+                <Text style={styles.fieldValue}>{warrantyBrandName}</Text>
               </View>
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>{t('label_model_name')}</Text>
-                <Text style={styles.fieldValue}>{valueOrNA(warrantyModelName)}</Text>
+                <Text style={styles.fieldValue}>{warrantyModelName}</Text>
               </View>
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>{t('label_serial_no')}</Text>
-                <Text style={styles.fieldValue}>{valueOrNA(warrantySerialNo)}</Text>
+                <Text style={styles.fieldValue}>{warrantySerialNo}</Text>
               </View>
             </>
           )}

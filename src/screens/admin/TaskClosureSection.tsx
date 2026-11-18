@@ -238,10 +238,11 @@ const TaskClosureSection = forwardRef<TaskClosureSectionHandle, Props>(
                 ['Model Name', str(warranty.ModelName)],
                 ['Serial No', str(warranty.SerialNoName)],
               ] as const
-            ).map(([label, value]) => (
+            ).map(([label, value], index) => (
               <View key={label} style={styles.row}>
                 <Text style={styles.label}>{label}</Text>
-                <Text style={styles.value}>{value || '-NA-'}</Text>
+                {/* Java: -NA- for type and dates only; brand, model and serial stay blank. */}
+                <Text style={styles.value}>{value || (index < 3 ? '-NA-' : '')}</Text>
               </View>
             ))}
           </>

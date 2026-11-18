@@ -32,7 +32,9 @@ export function OutlinedInput(props: React.ComponentProps<typeof TextInput>) {
   return (
     <View style={wrapper}>
       <TextInput {...rest} style={[input, { marginBottom: 0 }]} placeholder={placeholder} value={value} />
-      {!!value && !!placeholder && <Text style={styles.floatLabel}>{placeholder}</Text>}
+      {!!value && !!placeholder && (
+        <Text style={styles.floatLabel} pointerEvents="none">{placeholder}</Text>
+      )}
     </View>
   );
 }
@@ -56,7 +58,7 @@ export function OutlinedSelect({ label, value, onPress, style, chevron = false }
         </Text>
         {chevron && <Ionicons name="chevron-down" size={ms(18)} color={COLORS.ink} />}
       </View>
-      {!!value && !chevron && <Text style={styles.floatLabel}>{label}</Text>}
+      {!!value && !chevron && <Text style={styles.floatLabel} pointerEvents="none">{label}</Text>}
     </Pressable>
   );
 }
