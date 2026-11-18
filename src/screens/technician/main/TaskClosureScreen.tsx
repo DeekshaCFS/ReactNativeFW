@@ -91,6 +91,18 @@ interface SignaturePath {
   points: { x: number; y: number }[];
 }
 
+// Values the signature sheet can change; restored if the sheet is cancelled.
+interface SignatureSheetSnapshot {
+  customerName: string;
+  customerNumber: string;
+  customerPhoto: PhotoAsset | null;
+  customerSignPaths: SignaturePath[];
+  rating: number;
+  ratingRemark: string;
+  techPhoto: PhotoAsset | null;
+  techSignPaths: SignaturePath[];
+}
+
 interface DeviceEntry extends Partial<DeviceInfo> {
   DevicePhoto1Uri?: string;
   DevicePhoto2Uri?: string;
@@ -1116,6 +1128,38 @@ export default function TaskClosure({ navigation, route }: any) {
     }
   };
 
+  // ── Signature sheet: Cancel discards changes made since the sheet opened ──
+  const sigBackupRef = useRef<SignatureSheetSnapshot | null>(null);
+
+  const openSignatureSheet = () => {
+    sigBackupRef.current = {
+      customerName, customerNumber, customerPhoto, customerSignPaths, rating, ratingRemark,
+      techPhoto, techSignPaths,
+    };
+    setShowSignatureSheet(true);
+  };
+
+  const cancelSignatureSheet = () => {
+    const b = sigBackupRef.current;
+    if (b) {
+      setCustomerName(b.customerName);
+      setCustomerNumber(b.customerNumber);
+      setCustomerPhoto(b.customerPhoto);
+      setCustomerSignPaths(b.customerSignPaths);
+      setRating(b.rating);
+      setRatingRemark(b.ratingRemark);
+      setTechPhoto(b.techPhoto);
+      setTechSignPaths(b.techSignPaths);
+    }
+    sigBackupRef.current = null;
+    setShowSignatureSheet(false);
+  };
+
+  const saveSignatureSheet = () => {
+    sigBackupRef.current = null;
+    setShowSignatureSheet(false);
+  };
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -1207,9 +1251,9 @@ export default function TaskClosure({ navigation, route }: any) {
               {[0, 1, 2, 3].map(i => (
                 <View
                   key={`pin-${i}`}
-                  style={styles.pinBox}
+                  style={[styles.pinBox, satisfactionCode.length === i && styles.pinBoxActive]}
                 >
-                  <Text style={styles.pinDigit}>{satisfactionCode[i] ?? ''}</Text>
+                  <Text style={styles.pinDigit}>{satisfactionCode[i] ? '\u2022' : ''}</Text>
                 </View>
               ))}
             </Pressable>
@@ -1545,7 +1589,7 @@ export default function TaskClosure({ navigation, route }: any) {
           <Text style={styles.cardTitle}>{t('signature_and_rating')}</Text>
           <Pressable
             style={styles.signatureArea}
-            onPress={() => setShowSignatureSheet(true)}
+            onPress={openSignatureSheet}
           >
             {customerSignPaths.length > 0 ? (
               <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
@@ -1618,7 +1662,7 @@ export default function TaskClosure({ navigation, route }: any) {
         visible={showSignatureSheet}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowSignatureSheet(false)}
+        onRequestClose={cancelSignatureSheet}
       >
         <View style={styles.bottomSheetOverlay}>
           <View style={styles.signatureSheet}>
@@ -1792,11 +1836,11 @@ export default function TaskClosure({ navigation, route }: any) {
 
             <Pressable
               style={styles.signatureSaveBtn}
-              onPress={() => setShowSignatureSheet(false)}
+              onPress={saveSignatureSheet}
             >
               <Text style={styles.signatureSaveText}>{t('save').toUpperCase()}</Text>
             </Pressable>
-            <Pressable onPress={() => setShowSignatureSheet(false)}>
+            <Pressable onPress={cancelSignatureSheet}>
               <Text style={styles.signatureCancelText}>{t('cancel')}</Text>
             </Pressable>
           </View>
@@ -2763,20 +2807,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: ms(12),
-    marginTop: ms(5),
+    marginTop: ms(10),
   },
   pinBox: {
-    width: ms(40),
-    height: ms(40),
-    borderBottomWidth: 1.5,
-    borderColor: '#7a7a7a',
+    width: ms(56),
+    height: ms(56),
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
+    borderRadius: ms(10),
     backgroundColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  pinBoxActive: {
+    borderColor: COLORS.primary,
+  },
   pinDigit: {
     fontSize: sp(24),
-    color: COLORS.primary,
+    color: COLORS.ink,
   },
   pinHiddenInput: {
     position: 'absolute',
