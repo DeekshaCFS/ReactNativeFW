@@ -301,13 +301,36 @@ export default function HomeScreen({ navigation }: any) {
     if (!userId) return;
     try {
       setLoadingToday(true);
-      const response = await getTodayTaskList({ UserId: userId, pageIndex: 1, AllData: true });
-      const all: Task[] = response?.ResultData || [];
+      // One request for all of today's tasks (AllData: true returns the full list).
+      // The server returns 10 tasks per page and AllData: true returns only a partial list, so
+      // request pages with AllData: false (as the Java app does) until RecordCount rows are loaded.
+      const MAX_PAGES = 30;
+      const all: Task[] = [];
+      const seen = new Set<string>();
+      let total = Infinity;
+      for (let page = 1; page <= MAX_PAGES && all.length < total; page++) {
+        const response = await getTodayTaskList({ UserId: userId, pageIndex: page, AllData: false });
+        if (typeof response?.RecordCount === 'number') total = response.RecordCount;
+        const rows: Task[] = response?.ResultData || [];
+        let added = 0;
+        for (const row of rows) {
+          const key = `${row.TaskStatus}-${row.Id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          all.push(row);
+          added++;
+        }
+        if (rows.length === 0 || added === 0) break;
+      }
 
-      const todayStr = new Date().toDateString();
+      // Same rule as the Java app (TechDashboardFragmentNew.setResults): TaskDate must equal
+      // today's local date at midnight, as a string.
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T00:00:00`;
       const filtered = all.filter(t => {
-        const d = t.TaskDate ? new Date(t.TaskDate).toDateString() : null;
-        return d === todayStr && t.TaskStatus !== 'Completed';
+        const taskDate = String(t.TaskDate ?? '');
+        return taskDate.toLowerCase() === todayKey.toLowerCase() && t.TaskStatus !== 'Completed';
       });
 
       setTodayTasks(filtered);
@@ -503,7 +526,7 @@ export default function HomeScreen({ navigation }: any) {
       {/* White sheet */}
       <FlatList
         data={todayTasks}
-        keyExtractor={(item) => String(item.Id)}
+        keyExtractor={(item, index) => `${item.TaskStatus}-${item.Id}-${index}`}
         renderItem={renderTaskCard}
         contentContainerStyle={styles.whiteSheet}
         showsVerticalScrollIndicator={false}
