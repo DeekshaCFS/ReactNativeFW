@@ -33,3 +33,4 @@ export * from './umServiceZone/umServiceZoneService';
 export * from './userDisclaimer/userDisclaimerService';
 export * from './userPermission/userPermissionService';
 export * from './users/usersService';
+export * from './travelledPath/travelledPathService';

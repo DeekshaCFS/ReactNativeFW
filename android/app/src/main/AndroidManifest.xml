@@ -51,5 +51,12 @@
           android:name="android.support.FILE_PROVIDER_PATHS"
           android:resource="@xml/file_provider_paths" />
       </provider>
+        <service
+            android:name=".TrackingForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+        <service
+            android:name=".TrackingHeadlessService"
+            android:exported="false" />
     </application>
 </manifest>

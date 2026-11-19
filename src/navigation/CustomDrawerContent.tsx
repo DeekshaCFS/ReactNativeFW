@@ -25,6 +25,7 @@ import { usesAdminShell, needsCheckIn } from '../utils/userRole';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from 'react-native-geolocation-service';
 import { attendanceCheckOut, getUserDetails } from '../api';
+import { stopTaskTracking } from '../tracking/trackingController';
 import type { UserDetailsResultData } from '../api/users/users.types';
 import { authEvents, AUTH_CHANGED } from '../utils/authEvents';
 import { ms, sp } from '../utils/responsive';
@@ -136,6 +137,8 @@ export default function CustomDrawerContent({ navigation }: DrawerContentCompone
         CheckOutPlace: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
       });
       if (response?.Code === '200') {
+        // Java AlertDialog: cancelAlarm() stops the location alarm and GPS/battery status on check-out.
+        void stopTaskTracking();
         setShowCheckOutModal(false);
         // Java: showSuccessMsg(checkOut.getMessage()) -- the server text ("Check out successfully.").
         showSuccessMsg(response?.Message || 'Check out successfully.');

@@ -17,6 +17,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { COLORS } from '../theme/theme';
 import type { TasksListResultData as Task } from '../api/task/task.types';
 import { useTaskStatus } from '../hooks/useTaskStatus';
+import { startTaskTracking } from '../tracking/trackingController';
 import { scale, vs, sp, ms } from '../utils/responsive';
 import { showFailureMsg, showToast } from '../utils/toast';
 
@@ -181,6 +182,8 @@ export default function TaskTrackingSheet({
       return;
     }
 
+    // Java setupAlarm(120000): location every 2 min and GPS/battery every 15 min start on accept.
+    void startTaskTracking(userId, Number(task.Id));
     setSheetVisible(false);
     onFinished?.();
     // Java swaps fragments without a back stack, so "back" from the next step must not land
