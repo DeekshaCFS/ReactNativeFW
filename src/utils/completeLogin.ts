@@ -27,7 +27,7 @@ export const completeLogin = async (s: LoginSession) => {
     ['role',     s.role],
     ['group_id', String(s.groupId ?? 0)],
     ['username', s.mobile],
-    // ['owner_id', String(s.ownerId)],
+    ['owner_id', String(s.ownerId)],
   ]);
   authEvents.emit(AUTH_CHANGED);
   try {

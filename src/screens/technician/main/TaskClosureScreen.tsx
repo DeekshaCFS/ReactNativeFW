@@ -761,18 +761,22 @@ export default function TaskClosure({ navigation, route }: any) {
   };
 
   // ─── Duplicate checks ──
+  const itemKey = (itemId: number, name: string) =>
+    itemId ? `id:${itemId}` : `name:${name.trim().toLowerCase()}`;
 
   const hasDuplicatesInAdHoc = (slots: AdHocSlot[]): boolean => {
-    const seen = new Set<number>();
+    const seen = new Set<string>();
     for (const slot of slots) {
-      if (!seen.add(slot.itemId)) return true;
+      const key = itemKey(slot.itemId, slot.itemName);
+      if (seen.has(key)) return true;
+      seen.add(key);
     }
     return false;
   };
 
   const hasDuplicatesBetween = (assigned: AssignedSlot[], adHoc: AdHocSlot[]): boolean => {
-    const assignedIds = new Set(assigned.map(a => a.ItemId).filter(Boolean));
-    return adHoc.some(s => s.itemId !== 0 && assignedIds.has(s.itemId));
+    const assignedKeys = new Set(assigned.map(a => itemKey(a.ItemId, a.ItemName)));
+    return adHoc.some(s => assignedKeys.has(itemKey(s.itemId, s.itemName)));
   };
 
   // ─── UPDATE button handler ─────────────────────
@@ -783,7 +787,7 @@ export default function TaskClosure({ navigation, route }: any) {
       .filter((s): s is AdHocSlot => !!s && !!s.itemName && !!s.usedQty);
 
     if (assignedSlots.length > 0 && filledAdHoc.length > 0) {
-      if (hasDuplicatesBetween(assignedSlots, filledAdHoc)) {
+      if (hasDuplicatesBetween(assignedSlots, filledAdHoc) || hasDuplicatesInAdHoc(filledAdHoc)) {
         showFailureMsg(t('rn_duplicate_items_are_not_allowed'));
         return;
       }
@@ -2146,6 +2150,16 @@ export default function TaskClosure({ navigation, route }: any) {
           const item = issueList.find(i => i.Id === option.id);
           const idx = pendingSlotIndexRef.current;
           if (item && idx >= 0) {
+            const key = itemKey(item.ItemId, item.Name);
+            const alreadyAssigned = assignedSlots.some(a => itemKey(a.ItemId, a.ItemName) === key);
+            const alreadyPicked = adHocSlots.some(
+              (sl, i) => i !== idx && !!sl && itemKey(sl.itemId, sl.itemName) === key,
+            );
+            if (alreadyAssigned || alreadyPicked) {
+              showFailureMsg(t('rn_duplicate_items_are_not_allowed'));
+              setShowItemPicker(false);
+              return;
+            }
             setAdHocSlots(prev => {
               const updated = [...prev];
               updated[idx] = {

@@ -126,8 +126,10 @@ export default function TaskScreen({ navigation, route }: any) {
 
   useFocusEffect(
     React.useCallback(() => {
-      if (sessionReady && uid && ownerId) fetchTasks(1, true);
-    }, [sessionReady, uid, ownerId, selectedStatus, selectedTag, search, selectedDate])
+      if (!sessionReady) return;
+      if (uid) fetchTasks(1, true);
+      else setLoading(false); // no session -> never leave the spinner up
+    }, [sessionReady, uid, selectedStatus, selectedTag, search, selectedDate])
   );
 
   // Java (MainTaskFragmentNew): isAllData is false only for the default view -- no status
@@ -141,7 +143,7 @@ export default function TaskScreen({ navigation, route }: any) {
   const PAGE_FILL = 10;
 
   const fetchTasks = async (page = 1, reset = false) => {
-    if (!uid || !ownerId) return;
+    if (!uid) { setLoading(false); setRefreshing(false); return; }
     if (!reset && (fetchingRef.current || !hasMoreRef.current)) return;
 
     const requestId = ++requestRef.current;
@@ -197,7 +199,9 @@ export default function TaskScreen({ navigation, route }: any) {
         const seen = new Set(reset ? [] : prev.map(t => t.Id));
         return sortByIdDesc([...(reset ? [] : prev), ...collected.filter(t => !seen.has(t.Id))]);
       });
-    } catch (err: any) { /* silent */ }
+    } catch (err: any) {
+      showFailureMsg(err?.message || t('rn_something_went_wrong_please_try_again'));
+    }
     finally {
       if (requestId === requestRef.current) {
         fetchingRef.current = false;
@@ -211,9 +215,7 @@ export default function TaskScreen({ navigation, route }: any) {
     const loadSession = async () => {
       const storedToken   = await AsyncStorage.getItem('token');
       const storedUid     = await AsyncStorage.getItem('uid');
-      const storedOwnerId =
-        await AsyncStorage.getItem('owner_id') ||
-        await AsyncStorage.getItem('owner_id');
+      const storedOwnerId = await AsyncStorage.getItem('owner_id');
 
       setToken(storedToken);
       setUid(storedUid);
