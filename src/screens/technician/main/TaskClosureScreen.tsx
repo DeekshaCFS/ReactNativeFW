@@ -46,7 +46,7 @@ import { savePendingTask } from '../../../offline/offlineStore';
 import { cachedFetch, fsrCacheKey, customFieldsCacheKey } from '../../../offline/offlineCache';
 import DecimalInput from '../../../components/DecimalInput';
 import TaskChecklistModal from './TaskChecklistScreen';
-
+import { sanitizeCustomerNumber, validateCustomerNumber, CUSTOMER_NUMBER_MAX_LENGTH } from '../../../utils/customerNumber';
 import {useTranslation} from 'react-i18next';
 import { tr } from '../../../i18n/tr';
 // ─── Local Types ──────────────────────────────────────────────────────────────
@@ -876,6 +876,8 @@ export default function TaskClosure({ navigation, route }: any) {
   };
 
   const validateAfterTaskInput = (): string | null => {
+    const numberError = validateCustomerNumber(customerNumber);
+    if (numberError) return numberError;
     if (customerSignPaths.length === 0) {
       return 'Please add the customer signature.';
     }
@@ -1160,6 +1162,12 @@ export default function TaskClosure({ navigation, route }: any) {
   };
 
   const saveSignatureSheet = () => {
+    // Java signature_rate dialog: the customer number is checked when the dialog is saved.
+    const numberError = validateCustomerNumber(customerNumber);
+    if (numberError) {
+      showFailureMsg(numberError);
+      return;
+    }
     sigBackupRef.current = null;
     setShowSignatureSheet(false);
   };
@@ -1703,7 +1711,8 @@ export default function TaskClosure({ navigation, route }: any) {
                       />
                       <TextInput
                         value={customerNumber}
-                        onChangeText={setCustomerNumber}
+                        onChangeText={v => setCustomerNumber(sanitizeCustomerNumber(v))}
+                        maxLength={CUSTOMER_NUMBER_MAX_LENGTH}
                         placeholder={t('customer_number')}
                         placeholderTextColor="#a6a6a6"
                         keyboardType="phone-pad"
