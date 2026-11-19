@@ -27,6 +27,8 @@ target 'FieldWebApp' do
     'PhotoLibrary',
   ])
   pod 'FWBiometric', :path => './FWBiometric'
+  pod 'GoogleUtilities', :modular_headers => true
+  pod 'RecaptchaInterop', :modular_headers => true
 
   use_react_native!(
     :path => config[:reactNativePath],
