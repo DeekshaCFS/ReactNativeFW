@@ -20,7 +20,7 @@ import PlaceSearchModal from '../../components/PlaceSearchModal';
 import {FieldErrorTip} from '../../components/BottomSheetDialog';
 import AddQuotePreview, {type QuotePreviewData} from '../../components/AddQuotePreview';
 import AppDateTimePicker from '../../components/AppDateTimePicker';
-import {pick} from '@react-native-documents/picker';
+import {pick, types as pickerTypes} from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import SearchPickerModal, {type PickerOption} from '../../components/SearchPickerModal';
 import {getEnquiryServiceTypeList} from '../../api/services/servicesService';
@@ -461,13 +461,12 @@ const AddQuoteModal = ({visible, ownerId, onClose, onSuccess, mode = 'quote', te
     try {
       const [file] = await pick({
         type: [
-          'image/jpeg',
-          'image/png',
-          'application/pdf',
-          'application/vnd.ms-excel',
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'application/zip',
-          'text/plain',
+          pickerTypes.images,
+          pickerTypes.pdf,
+          pickerTypes.xls,
+          pickerTypes.xlsx,
+          pickerTypes.zip,
+          pickerTypes.plainText,
         ],
       });
       if (!file) {

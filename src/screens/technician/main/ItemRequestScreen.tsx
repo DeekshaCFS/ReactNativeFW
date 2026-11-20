@@ -23,7 +23,7 @@ import { ClosePopupIcon } from '../../../components/TaskTrackingSheet';
 import { UploadAttachmentIcon } from '../../../components/DialogIcons';
 import { getLargeItemAssignedUnassigned } from '../../../api/item/itemService';
 import { postFocDetails, getFocAttachmentList } from '../../../api/focItemRequest/focItemRequestService';
-import { pick } from '@react-native-documents/picker';
+import { pick, types as pickerTypes } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showToast } from '../../../utils/toast';
@@ -347,7 +347,7 @@ export default function ItemRequestScreen({ navigation, route }: any) {
   // -- Attach file --
   const pickDocument = async (itemId: number) => {
     try {
-      const result = await pick({ type: ['*/*'] });
+      const result = await pick({ type: [pickerTypes.allFiles] });
       const file = result[0];
       const base64 = await RNFS.readFile(file.uri, 'base64');
       updateItem(itemId, {

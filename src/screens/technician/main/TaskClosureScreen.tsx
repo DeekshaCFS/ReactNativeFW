@@ -38,7 +38,7 @@ import { getAllchkpointCategory, postChkpointData } from '../../../api/fsrManage
 import { requestLocationPermission, getCurrentPosition, getAddressFromCoordinates, Coordinates } from '../../../utils/locationPermision';
 import { buildImagesPayload } from '../../../utils/imagePayload';
 import { getCustomFieldData } from '../../../api/users/usersService';
-import { pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { pick, isErrorWithCode, errorCodes, types as pickerTypes } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import { showFailureMsg } from '../../../utils/toast';
 import { isNetworkAvailable } from '../../../offline/networkQuality';
@@ -57,16 +57,16 @@ interface PhotoAsset {
 }
 
 // Java: callFileAttachmentIntent() accepted only these types, up to 5 MB.
+// Picker type constants (same approach as the Tech Profile attachment), so iOS shows the files.
 const ATTACHMENT_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'application/pdf',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/zip',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
+  pickerTypes.images,
+  pickerTypes.pdf,
+  pickerTypes.xls,
+  pickerTypes.xlsx,
+  pickerTypes.zip,
+  pickerTypes.doc,
+  pickerTypes.docx,
+  pickerTypes.plainText,
 ];
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 

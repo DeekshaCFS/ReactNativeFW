@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import Modal from '../../components/AppModal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {pick} from '@react-native-documents/picker';
+import {pick, types as pickerTypes} from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import SearchPickerModal, {type PickerOption} from '../../components/SearchPickerModal';
 import PlaceSearchModal from '../../components/PlaceSearchModal';
@@ -214,7 +214,7 @@ const EditEmployeeModal: React.FC<Props> = ({
 
   const attachFile = async () => {
     try {
-      const [file] = await pick({type: ['*/*']});
+      const [file] = await pick({type: [pickerTypes.allFiles]});
       if (!file) {
         return;
       }

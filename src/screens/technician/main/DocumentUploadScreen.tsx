@@ -27,7 +27,7 @@ import Modal from '../../../components/AppModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import type { Asset } from 'react-native-image-picker';
-import { pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { pick, isErrorWithCode, errorCodes, types as pickerTypes } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../../theme/theme';
@@ -49,7 +49,8 @@ import { trf } from '../../../i18n/tr';
 const MAX_TOTAL_MB = 5;
 const MAX_FILES = 10;
 const MAX_CAPTURE_SLOTS = 5;
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
+// Picker type constants (not MIME strings): iOS only understands its own type identifiers.
+const ALLOWED_MIME_TYPES = [pickerTypes.images, pickerTypes.pdf];
 
 const GREEN = '#4CAF50';
 const SKIP_GREY = '#9CA3B0';
