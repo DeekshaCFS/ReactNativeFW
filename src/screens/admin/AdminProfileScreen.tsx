@@ -112,6 +112,9 @@ const hasNoSpacesAndNotEmpty = (value: string) => {
 // Ported from isValidGSTOrPAN(): Java flags it invalid when length is
 // >15 or <6, i.e. valid range is 6–15 characters.
 const isValidGstOrPan = (value: string) => value.trim().length >= 6 && value.trim().length <= 15;
+// Company and VAT registration numbers: letters and digits only, upper case, max 12 characters.
+const sanitizeRegistrationNo = (value: string) =>
+  value.replace(/[^0-9A-Za-z]/g, '').toUpperCase().slice(0, 12);
 
 // Ported from isValidWebsite()'s WebUrl regex.
 const WEBSITE_REGEX = /^((ftp|http|https):\/\/)?(www\.)?(?!.*(ftp|http|https|www\.))[a-zA-Z0-9_-]+(\.[a-zA-Z]+)+((\/)[\w#]+)*(\/\w+\?[a-zA-Z0-9_]+=\w+(&[a-zA-Z0-9_]+=\w+)*)?$/;
@@ -179,7 +182,7 @@ export default function AdminProfileScreen() {
   // CompanyDetails DTO: RegistrationNo is the company registration number. The full record is
   // kept so the update sends the stored company details back with the new number.
   const [companyRegistrationNo, setCompanyRegistrationNo] = useState('');
-  // VAT registration number. UI only for now: the field name and fetch/save mapping are not wired yet.
+  // VAT registration number: GetProfileDetails ResultData.VAT_Registration_Number, sent back with UpdateUser.
   const [vatRegistrationNo, setVatRegistrationNo] = useState('');
   const [companyDetailsRecord, setCompanyDetailsRecord] = useState<CompanyDetailsResultData | null>(null);
   const [companyWebsite, setCompanyWebsite] = useState('');
@@ -292,16 +295,19 @@ export default function AdminProfileScreen() {
       setCompanyName(user?.CompanyName ?? '');
       setCompanyAddress(user?.CompanyAddress ?? '');
       setGstOrPan(user?.CompanyGSTorPanNo ?? '');
+      // Registration numbers come from GetProfileDetails first (RegistrationNo / VAT_Registration_Number).
+      setCompanyRegistrationNo(user?.RegistrationNo ?? '');
+      setVatRegistrationNo(user?.VAT_Registration_Number ?? '');
       // GET CompanyDetails/GetComapnyDetails -> CompanyDetails.ResultData (RegistrationNo)
       getCompanyDetails({ UserId: Number(userId) })
         .then(res => {
           const details = res?.ResultData ?? null;
           setCompanyDetailsRecord(details);
-          setCompanyRegistrationNo(details?.RegistrationNo ?? '');
+          // Keep the profile value; fall back to the CompanyDetails record when the profile has none.
+          setCompanyRegistrationNo(prev => prev || details?.RegistrationNo || '');
         })
         .catch(() => {
           setCompanyDetailsRecord(null);
-          setCompanyRegistrationNo('');
         });
       setCompanyWebsite(user?.CompanyWebsite ?? '');
       setCompanyContactNo(user?.CompanyContactNo != null ? String(user.CompanyContactNo) : '');
@@ -498,6 +504,8 @@ export default function AdminProfileScreen() {
         CompanyGSTorPanNo: gstOrPan,
         CompanyWebsite: companyWebsite,
         CompanySortName: companyDisplayName,
+        RegistrationNo: companyRegistrationNo.trim(),
+        VAT_Registration_Number: vatRegistrationNo.trim(),
       };
 
       // Java: updateUser.setCompanyCity(...) and the service-type / trigger values.
@@ -733,10 +741,10 @@ export default function AdminProfileScreen() {
         <Field label={t('city')} value={companyCity} maxLength={200} onChange={setCompanyCity} />
         <Field label={t('rn_gst_pan_no')} value={gstOrPan} maxLength={15}
           onChange={(v) => setGstOrPan(v.replace(/[^0-9A-Za-z]/g, '').toUpperCase())} />
-        <Field label="Company Registration Number" value={companyRegistrationNo}
-          onChange={setCompanyRegistrationNo} />
-        <Field label="VAT Registration No." value={vatRegistrationNo}
-          onChange={setVatRegistrationNo} />
+        <Field label="Company Registration Number" value={companyRegistrationNo} maxLength={12}
+          onChange={(v) => setCompanyRegistrationNo(sanitizeRegistrationNo(v))} />
+        <Field label="VAT Registration No." value={vatRegistrationNo} maxLength={12}
+          onChange={(v) => setVatRegistrationNo(sanitizeRegistrationNo(v))} />
         <Field label={t('company_cont_no_hint')} keyboard="number-pad" maxLength={12} prefix={profile?.CountryCode ?? CONTACT_COUNTRY_CODE}
           value={companyContactNo} onChange={setCompanyContactNo} />
         <Field label={t('company_website_hint')} keyboard="url" maxLength={50}

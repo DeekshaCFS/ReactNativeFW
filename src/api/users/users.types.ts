@@ -125,6 +125,9 @@ export interface UserDetailsResultData {
   EmpDocType?: number;
   EmpDocument?: string;
   CRMLoginURL?: string;
+  // Company registration number and VAT registration number, returned by GetProfileDetails.
+  RegistrationNo?: string | null;
+  VAT_Registration_Number?: string | null;
   TaskConfigurationOBJ?: UserDetailsTaskConfigurationOBJ;
 }
 
@@ -206,6 +209,8 @@ export interface UpdateUserResultData {
   CompanyGSTorPanNo?: string;
   CompanyServiceTypeId?: number;
   CompanyLogoName?: string;
+  RegistrationNo?: string;
+  VAT_Registration_Number?: string;
   CompanyLogo?: string;
   CompanyWebsite?: string;
   CompanyContactNo?: number;
