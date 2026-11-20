@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import java.text.SimpleDateFormat
@@ -29,14 +30,15 @@ import java.util.Locale
  *  - AlarmReceiver + GPSBatteryStatus                                     -> a GPS/battery tick every 15 minutes
  *
  * Each tick is handed to the JS headless task (TrackingHeadlessService, task "FWTrackingTick"), which
- * reads the position and posts it to the server. This service runs in the foreground, so it keeps
- * working when the app UI is closed.
+ * reads the position and posts it to the server. This service runs in the foreground, and holds a
+ * partial wake lock while a task is active so the ticks still fire with the screen off.
  */
 class TrackingForegroundService : Service() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var userId: String = ""
     private var taskId: Int = 0
+    private var wakeLock: PowerManager.WakeLock? = null
 
     private val locationTick = object : Runnable {
         override fun run() {
@@ -87,8 +89,9 @@ class TrackingForegroundService : Service() {
             TrackingNotifications.locationNotification(this, System.currentTimeMillis(), "Updating your location...", null)
         )
         handler.removeCallbacksAndMessages(null)
-        // The alarm is armed immediately: the first location and status go out right away,
-        // then every 2 minutes (location) and 15 minutes (GPS/battery).
+        holdWakeLock()
+        // The first location and status go out right away, then every 2 minutes (location)
+        // and every 15 minutes (GPS/battery).
         handler.post(locationTick)
         handler.post(deviceTick)
     }
@@ -106,6 +109,9 @@ class TrackingForegroundService : Service() {
     }
 
     private fun dispatch(kind: String) {
+        // Renewed on every tick, so the CPU stays awake long enough for the JS task to finish.
+        holdWakeLock()
+
         val now = System.currentTimeMillis()
         val battery = batteryPercent()
         val gpsOn = isGpsOn()
@@ -122,7 +128,24 @@ class TrackingForegroundService : Service() {
             putExtra("gpsOn", gpsOn)
             putExtra("timestamp", now.toString())
         }
-        startService(intent)
+        try {
+            startService(intent)
+        } catch (e: Exception) {
+            // Background start refused by the system. The next tick tries again.
+        }
+    }
+
+    private fun holdWakeLock() {
+        val lock = wakeLock ?: (getSystemService(Context.POWER_SERVICE) as PowerManager)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:tracking")
+            .apply { setReferenceCounted(false) }
+            .also { wakeLock = it }
+        lock.acquire(WAKE_LOCK_TIMEOUT_MS)
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
     }
 
     private fun batteryPercent(): Int {
@@ -137,6 +160,7 @@ class TrackingForegroundService : Service() {
 
     private fun stopTracking() {
         handler.removeCallbacksAndMessages(null)
+        releaseWakeLock()
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_ACTIVE, false).apply()
         stopForeground(STOP_FOREGROUND_REMOVE)
         NotificationManagerCompat.from(this).cancel(TrackingNotifications.DEVICE_NOTIFICATION_ID)
@@ -147,6 +171,7 @@ class TrackingForegroundService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        releaseWakeLock()
         super.onDestroy()
     }
 
@@ -160,6 +185,7 @@ class TrackingForegroundService : Service() {
 
         const val LOCATION_INTERVAL_MS = 2 * 60 * 1000L
         const val DEVICE_INTERVAL_MS = 15 * 60 * 1000L
+        const val WAKE_LOCK_TIMEOUT_MS = 5 * 60 * 1000L
 
         const val PREFS = "fw_tracking"
         const val KEY_ACTIVE = "active"
@@ -169,8 +195,8 @@ class TrackingForegroundService : Service() {
 }
 
 /**
- * The two notifications shown in the tray:
- *  - "Location Updated: <time>" / "Updating your location..." (ongoing, the foreground notification)
+ * The two notifications shown in the tray (same as the Java app):
+ *  - "Location Updated: <time>" / "Updating your location..." (ongoing, actions: Open, Remove Updates)
  *  - "Service Running" / "Monitoring GPS and Battery Status" with GPS and battery state (silent, low importance)
  */
 object TrackingNotifications {
@@ -181,16 +207,23 @@ object TrackingNotifications {
 
     fun locationNotification(context: Context, whenMs: Long, text: String, bigText: String?): Notification {
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        val contentIntent = launch?.let {
+        val openPending = launch?.let {
             PendingIntent.getActivity(context, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         }
+        val removeIntent = Intent(context, TrackingForegroundService::class.java)
+            .setAction(TrackingForegroundService.ACTION_STOP)
+        val removePending = PendingIntent.getService(
+            context, 2, removeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val title = "Location Updated: " + formatTitleTime(whenMs)
 
         val builder = NotificationCompat.Builder(context, LOCATION_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(R.drawable.assets_images_fw_logo)
             .setContentTitle(title)
             .setContentText(text)
-            .setContentIntent(contentIntent)
+            .setContentIntent(openPending)
+            .addAction(R.drawable.assets_images_fw_logo, "Open", openPending)
+            .addAction(R.drawable.assets_images_fw_logo, "Remove Updates", removePending)
             .setWhen(whenMs)
             .setShowWhen(true)
             .setOngoing(true)
@@ -208,7 +241,7 @@ object TrackingNotifications {
         val time = SimpleDateFormat("h:mm a", Locale.ENGLISH).format(Date(whenMs)).toAmPmLowercase()
         val detail = "GPS: ${if (gpsOn) "On" else "Off"} · Battery: $battery% · Checked $time"
         return NotificationCompat.Builder(context, DEVICE_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(R.drawable.assets_images_fw_logo)
             .setContentTitle("Service Running")
             .setContentText("Monitoring GPS and Battery Status")
             .setStyle(NotificationCompat.BigTextStyle().bigText("Monitoring GPS and Battery Status\n$detail"))

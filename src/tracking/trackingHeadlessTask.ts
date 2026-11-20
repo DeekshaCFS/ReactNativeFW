@@ -6,9 +6,15 @@
 //
 //   location tick (every 2 min) -> Users/AddPathTravelledHistory + live location node
 //   device tick   (every 15 min) -> DeviceStatus/AddOrUpdateGPSBatteryStatus
+//
+// Path points that fail to upload (no network, server down) are kept in AsyncStorage and sent
+// with the next location tick, the same way the Java app stores them in its local travelled-path
+// table and auto-syncs them later.
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { addTravelledPathHistory } from '../api/travelledPath/travelledPathService';
+import type { TravelledPathPoint } from '../api/travelledPath/travelledPath.types';
 import { addUpdateDeviceStatus } from '../api/deviceStatus/deviceStatusService';
 import { getCurrentPosition } from '../utils/locationPermision';
 import { putLiveLocation } from '../utils/firebaseLiveLocation';
@@ -24,6 +30,9 @@ export type TrackingTick = {
   latitude?: number; // iOS sends the native fix
   longitude?: number;
 };
+
+const PENDING_PATH_KEY = 'fw_tracking_pending_path';
+const MAX_PENDING_POINTS = 500; // about 16 hours of 2-minute points
 
 export default async function trackingTick(tick: TrackingTick): Promise<void> {
   if (tick.kind === 'device') {
@@ -58,6 +67,40 @@ const currentFix = async (): Promise<{ latitude: number; longitude: number } | n
   }
 };
 
+const loadPending = async (): Promise<TravelledPathPoint[]> => {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_PATH_KEY);
+    return raw ? (JSON.parse(raw) as TravelledPathPoint[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const savePending = async (points: TravelledPathPoint[]): Promise<void> => {
+  try {
+    if (points.length === 0) {
+      await AsyncStorage.removeItem(PENDING_PATH_KEY);
+    } else {
+      await AsyncStorage.setItem(PENDING_PATH_KEY, JSON.stringify(points.slice(-MAX_PENDING_POINTS)));
+    }
+  } catch (error) {
+    console.log('[tracking] could not save pending path points:', error);
+  }
+};
+
+/** Sends the new point together with anything still waiting from earlier failed uploads. */
+const sendPathPoint = async (point: TravelledPathPoint): Promise<void> => {
+  const pending = await loadPending();
+  const batch = [...pending, point];
+  try {
+    await addTravelledPathHistory(batch);
+    if (pending.length > 0) await savePending([]);
+  } catch (error) {
+    console.log('[tracking] path history failed, keeping for retry:', error);
+    await savePending(batch);
+  }
+};
+
 const postLocation = async (tick: TrackingTick): Promise<void> => {
   const fix =
     tick.latitude != null && tick.longitude != null
@@ -74,19 +117,17 @@ const postLocation = async (tick: TrackingTick): Promise<void> => {
   }
 
   await Promise.all([
-    addTravelledPathHistory([
-      {
-        Latitude: String(latitude),
-        Longitude: String(longitude),
-        LocAddress: '',
-        TaskId: 0, // Java stores path points with TaskId 0
-        UserID: userId,
-        CreatedBy: userId,
-        CreatedDate: javaStyleDateTime(new Date(Number(tick.timestamp))),
-        UpdatedBy: userId,
-        UpdatedDate: '',
-      },
-    ]).catch(error => console.log('[tracking] path history failed:', error)),
+    sendPathPoint({
+      Latitude: String(latitude),
+      Longitude: String(longitude),
+      LocAddress: '',
+      TaskId: 0, // Java stores path points with TaskId 0
+      UserID: userId,
+      CreatedBy: userId,
+      CreatedDate: javaStyleDateTime(new Date(Number(tick.timestamp))),
+      UpdatedBy: userId,
+      UpdatedDate: '',
+    }),
     putLiveLocation(userId, latitude, longitude),
   ]);
 };

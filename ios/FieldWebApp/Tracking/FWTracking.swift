@@ -9,9 +9,11 @@
 //     "FWTrackingTick" event; JS posts them to the server (trackingHeadlessTask.ts)
 //   - the two tray notifications: "Location Updated: <time>" and "Service Running"
 //
-//  iOS can only keep the app alive in the background while location updates run ("location"
-//  background mode), so every location callback is used to check the intervals. The JS runtime
-//  keeps running in that same background period, so the event reaches JS.
+//  The ticks run on timers, not on location callbacks, so they still fire when the technician is
+//  standing still (iOS can deliver few or no location updates then). iOS can only keep the app alive
+//  in the background while location updates run ("location" background mode), which the continuous
+//  updates started in begin() provide. The JS runtime keeps running in that same background period,
+//  so the event reaches JS.
 //
 
 import Foundation
@@ -26,6 +28,9 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
   static let locationInterval: TimeInterval = 2 * 60
   static let deviceInterval: TimeInterval = 15 * 60
 
+  /// A cached fix older than this is not used for a tick (iOS can hand back old locations first).
+  private static let maxFixAge: TimeInterval = 60
+
   private static let eventName = "FWTrackingTick"
   private static let locationNotificationId = "fw.tracking.location"
   private static let deviceNotificationId = "fw.tracking.device"
@@ -38,8 +43,11 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
   private var taskId = 0
   private var running = false
   private var hasListeners = false
-  private var lastLocationTick: Date?
-  private var lastDeviceTick: Date?
+
+  private var locationTimer: DispatchSourceTimer?
+  private var deviceTimer: DispatchSourceTimer?
+  /// Set when a location tick is due; cleared once a fresh fix has been emitted.
+  private var pendingLocationFix = false
 
   override init() {
     super.init()
@@ -92,11 +100,11 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
   func stop(resolver resolve: @escaping RCTPromiseResolveBlock,
             rejecter reject: @escaping RCTPromiseRejectBlock) {
     UserDefaults.standard.set(false, forKey: Self.activeKey)
+    stopTimers()
     manager.stopUpdatingLocation()
     manager.allowsBackgroundLocationUpdates = false
     running = false
-    lastLocationTick = nil
-    lastDeviceTick = nil
+    pendingLocationFix = false
 
     UNUserNotificationCenter.current().removeDeliveredNotifications(
       withIdentifiers: [Self.locationNotificationId, Self.deviceNotificationId]
@@ -129,10 +137,10 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
     configureBackgroundUpdates()
     manager.startUpdatingLocation()
 
-    // Like the Android tick on start: device status right away, location on the first fix.
-    let now = Date()
-    lastDeviceTick = now
-    emitDevice(at: now)
+    // Like the Android tick on start: location and device status right away.
+    startTimers()
+    requestLocationTick()
+    emitDevice(at: Date())
   }
 
   private func configureBackgroundUpdates() {
@@ -143,6 +151,51 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
     manager.showsBackgroundLocationIndicator = (status == .authorizedAlways)
   }
 
+  // MARK: - Timers (Java: setupAlarm(120000) and the 15-minute GPSBatteryStatus alarm)
+
+  private func startTimers() {
+    stopTimers()
+
+    let location = DispatchSource.makeTimerSource(queue: .main)
+    location.schedule(deadline: .now() + Self.locationInterval,
+                      repeating: Self.locationInterval,
+                      leeway: .seconds(5))
+    location.setEventHandler { [weak self] in self?.locationTimerFired() }
+    location.resume()
+    locationTimer = location
+
+    let device = DispatchSource.makeTimerSource(queue: .main)
+    device.schedule(deadline: .now() + Self.deviceInterval,
+                    repeating: Self.deviceInterval,
+                    leeway: .seconds(30))
+    device.setEventHandler { [weak self] in self?.deviceTimerFired() }
+    device.resume()
+    deviceTimer = device
+  }
+
+  private func stopTimers() {
+    locationTimer?.cancel()
+    locationTimer = nil
+    deviceTimer?.cancel()
+    deviceTimer = nil
+  }
+
+  private func locationTimerFired() {
+    guard running else { return }
+    requestLocationTick()
+  }
+
+  private func deviceTimerFired() {
+    guard running else { return }
+    emitDevice(at: Date())
+  }
+
+  /// Asks for a fresh fix. The tick is emitted from didUpdateLocations when it arrives.
+  private func requestLocationTick() {
+    pendingLocationFix = true
+    manager.requestLocation()
+  }
+
   // MARK: - CLLocationManagerDelegate
 
   func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -150,21 +203,17 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
   }
 
   func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-    guard running, let location = locations.last else { return }
-    let now = Date()
+    guard running, pendingLocationFix, let location = locations.last else { return }
+    // Ignore stale cached fixes; wait for a fresh one.
+    guard abs(location.timestamp.timeIntervalSinceNow) < Self.maxFixAge else { return }
 
-    if lastLocationTick == nil || now.timeIntervalSince(lastLocationTick!) >= Self.locationInterval {
-      lastLocationTick = now
-      emitLocation(location, at: now)
-    }
-    if lastDeviceTick == nil || now.timeIntervalSince(lastDeviceTick!) >= Self.deviceInterval {
-      lastDeviceTick = now
-      emitDevice(at: now)
-    }
+    pendingLocationFix = false
+    emitLocation(location, at: Date())
   }
 
   func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
     print("[FWTracking] location error: \(error)")
+    // The next location tick requests a new fix, so a failed one is retried automatically.
   }
 
   // MARK: - Ticks
