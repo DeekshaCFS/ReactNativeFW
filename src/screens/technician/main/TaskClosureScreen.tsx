@@ -46,7 +46,7 @@ import { savePendingTask } from '../../../offline/offlineStore';
 import { cachedFetch, fsrCacheKey, customFieldsCacheKey } from '../../../offline/offlineCache';
 import DecimalInput from '../../../components/DecimalInput';
 import TaskChecklistModal from './TaskChecklistScreen';
-import { sanitizeCustomerNumber, validateCustomerNumber, CUSTOMER_NUMBER_MAX_LENGTH } from '../../../utils/customerNumber';
+
 import {useTranslation} from 'react-i18next';
 import { tr } from '../../../i18n/tr';
 // ─── Local Types ──────────────────────────────────────────────────────────────
@@ -876,8 +876,6 @@ export default function TaskClosure({ navigation, route }: any) {
   };
 
   const validateAfterTaskInput = (): string | null => {
-    const numberError = validateCustomerNumber(customerNumber);
-    if (numberError) return numberError;
     if (customerSignPaths.length === 0) {
       return 'Please add the customer signature.';
     }
@@ -1162,12 +1160,6 @@ export default function TaskClosure({ navigation, route }: any) {
   };
 
   const saveSignatureSheet = () => {
-    // Java signature_rate dialog: the customer number is checked when the dialog is saved.
-    const numberError = validateCustomerNumber(customerNumber);
-    if (numberError) {
-      showFailureMsg(numberError);
-      return;
-    }
     sigBackupRef.current = null;
     setShowSignatureSheet(false);
   };
@@ -1263,9 +1255,9 @@ export default function TaskClosure({ navigation, route }: any) {
               {[0, 1, 2, 3].map(i => (
                 <View
                   key={`pin-${i}`}
-                  style={[styles.pinBox, satisfactionCode.length === i && styles.pinBoxActive]}
+                  style={styles.pinBox}
                 >
-                  <Text style={styles.pinDigit}>{satisfactionCode[i] ? '\u2022' : ''}</Text>
+                  <Text style={styles.pinDigit}>{satisfactionCode[i] ?? ''}</Text>
                 </View>
               ))}
             </Pressable>
@@ -1711,8 +1703,7 @@ export default function TaskClosure({ navigation, route }: any) {
                       />
                       <TextInput
                         value={customerNumber}
-                        onChangeText={v => setCustomerNumber(sanitizeCustomerNumber(v))}
-                        maxLength={CUSTOMER_NUMBER_MAX_LENGTH}
+                        onChangeText={setCustomerNumber}
                         placeholder={t('customer_number')}
                         placeholderTextColor="#a6a6a6"
                         keyboardType="phone-pad"
@@ -2830,24 +2821,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: ms(12),
-    marginTop: ms(10),
+    marginTop: ms(5),
   },
   pinBox: {
-    width: ms(56),
-    height: ms(56),
-    borderWidth: 1,
-    borderColor: '#F4F4F4',
-    borderRadius: ms(10),
+    width: ms(40),
+    height: ms(40),
+    borderBottomWidth: 1.5,
+    borderColor: '#7a7a7a',
     backgroundColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pinBoxActive: {
-    borderColor: COLORS.primary,
-  },
   pinDigit: {
     fontSize: sp(24),
-    color: COLORS.ink,
+    color: COLORS.primary,
   },
   pinHiddenInput: {
     position: 'absolute',
