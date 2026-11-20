@@ -34,6 +34,7 @@ import {
   isDisclaimerAcceptedResponse,
 } from '../../../api/userDisclaimer/userDisclaimerService';
 import { getCurrentLocationAndAddress } from '../../../utils/locationPermision';
+import { requestActivityRecognitionPermission } from '../../../utils/activityRecognition';
 import { showFailureMsg, showSuccessMsg, showToast } from '../../../utils/toast';
 import { prefetchFsrForTasks } from '../../../offline/offlineCache';
 import {usePdfDownload} from '../../../hooks/usePdfDownload';
@@ -124,6 +125,11 @@ export default function HomeScreen({ navigation }: any) {
     });
     return unsubscribe;
   }, [navigation, userId]);
+
+  // Java TechDashboardFragmentNew: ACTIVITY_RECOGNITION is requested once, when the dashboard opens.
+  useEffect(() => {
+    requestActivityRecognitionPermission();
+  }, []);
 
   // ── data loaders ──────────────────────────────────────────────────────────
 

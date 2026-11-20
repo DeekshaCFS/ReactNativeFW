@@ -7,10 +7,12 @@ import ToastHost from './src/components/ToastHost';
 import { HOST_PRIORITY } from './src/utils/toast';
 import NumpadDoneBar from './src/components/NumpadDoneBar';
 import ImageSourceHost from './src/components/ImageSourceHost';
+import LocationDisclosureHost from './src/components/LocationDisclosureHost';
 import { loadStoredLanguage } from './src/i18n';
 import { TourProvider } from './src/tour/TourContext';
 import SpotlightOverlay from './src/tour/SpotlightOverlay';
 import SplashScreen from './src/screens/SplashScreen';
+import { runLocationOnboarding } from './src/utils/launchPermissions';
 import 'react-native-gesture-handler';
 
 // Any tap anywhere in the app dismisses the keyboard, including on iPhone where
@@ -24,6 +26,8 @@ const dismissKeyboardOnTap = () => {
 export default function App() {
   const [languageReady, setLanguageReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
+  // Set once the first-launch location step has finished; the app is shown after it.
+  const [locationStepDone, setLocationStepDone] = useState(false);
 
   useEffect(() => {
     const handler = (error: any) => {
@@ -46,6 +50,13 @@ export default function App() {
     loadStoredLanguage().finally(() => setLanguageReady(true));
   }, []);
 
+  // Java RuntimePermissionActivity: after the splash, a fresh install shows the "Use Your Location"
+  // disclosure and the system prompt before login. Runs once (flag in AsyncStorage).
+  useEffect(() => {
+    if (!splashDone) return;
+    runLocationOnboarding().finally(() => setLocationStepDone(true));
+  }, [splashDone]);
+
   // Keep the launch-screen colour while the stored language loads (a bare null shows the
   // window background, which read as a black screen on iOS before the splash).
   if (!languageReady) {
@@ -64,14 +75,19 @@ export default function App() {
     // narrower than the window and would otherwise offset the math).
     <TourProvider>
       <View style={styles.root} onStartShouldSetResponderCapture={dismissKeyboardOnTap}>
-        <AppContainer>
-          <NavigationContainer>
-            <RootNavigator />
-          </NavigationContainer>
-        </AppContainer>
+        {locationStepDone ? (
+          <AppContainer>
+            <NavigationContainer>
+              <RootNavigator />
+            </NavigationContainer>
+          </AppContainer>
+        ) : (
+          <View style={styles.boot} />
+        )}
         <SpotlightOverlay />
         {/* Java-style success / failure banner (CommonFunction.showSuccessMsg / showFailureMsg). */}
         <ImageSourceHost />
+        <LocationDisclosureHost />
         <NumpadDoneBar />
         <ToastHost priority={HOST_PRIORITY.root} />
       </View>

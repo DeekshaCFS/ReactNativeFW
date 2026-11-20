@@ -31,6 +31,7 @@ import { Platform } from 'react-native';
 import { request, check, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import Geolocation from 'react-native-geolocation-service';
 import { googleReverseGeocode } from './googleMaps';
+import { showLocationDisclosure } from './locationDisclosure';
 
 export type Coordinates = { latitude: number; longitude: number };
 
@@ -47,6 +48,10 @@ export async function requestLocationPermission(): Promise<boolean> {
 
     const existing = await check(permission);
     if (existing === RESULTS.GRANTED) return true;
+
+    // "Use Your Location" prominent disclosure first, then the system prompt (Java RuntimePermissionActivity).
+    const agreed = await showLocationDisclosure();
+    if (!agreed) return false;
 
     const result = await request(permission);
     return result === RESULTS.GRANTED;
