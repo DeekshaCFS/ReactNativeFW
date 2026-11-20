@@ -1,10 +1,13 @@
 // src/tracking/trackingHeadlessTask.ts
 //
-// Runs for every tick sent by TrackingForegroundService (see index.js). Works with the UI closed.
-//   location tick (every 2 min) -> Java GoogleLocationService + AddTravelledPathHistroyAsyncTask,
-//                                  and the live-location node the admin map reads
-//   device tick   (every 15 min) -> Java GPSBatteryStatus (DeviceStatus/AddOrUpdateGPSBatteryStatus)
+// Handles one tick from the native side, on both platforms:
+//   Android: headless task "FWTrackingTick" (index.js), started by TrackingForegroundService
+//   iOS:     "FWTrackingTick" event (trackingEvents.ts), emitted by FWTracking.swift
+//
+//   location tick (every 2 min) -> Users/AddPathTravelledHistory + live location node
+//   device tick   (every 15 min) -> DeviceStatus/AddOrUpdateGPSBatteryStatus
 
+import { Platform } from 'react-native';
 import { addTravelledPathHistory } from '../api/travelledPath/travelledPathService';
 import { addUpdateDeviceStatus } from '../api/deviceStatus/deviceStatusService';
 import { getCurrentPosition } from '../utils/locationPermision';
@@ -17,7 +20,9 @@ export type TrackingTick = {
   taskId: number;
   batteryPercent: number;
   gpsOn: boolean;
-  timestamp: string; // epoch ms, as a string
+  timestamp: string; // epoch ms as a string
+  latitude?: number; // iOS sends the native fix
+  longitude?: number;
 };
 
 export default async function trackingTick(tick: TrackingTick): Promise<void> {
@@ -43,20 +48,30 @@ const postDeviceStatus = async (tick: TrackingTick): Promise<void> => {
   }
 };
 
-const postLocation = async (tick: TrackingTick): Promise<void> => {
-  let position;
+const currentFix = async (): Promise<{ latitude: number; longitude: number } | null> => {
   try {
-    position = await getCurrentPosition();
+    const position = await getCurrentPosition();
+    return { latitude: position.latitude, longitude: position.longitude };
   } catch (error) {
     console.log('[tracking] no fix this tick:', error);
-    return;
+    return null;
   }
+};
+
+const postLocation = async (tick: TrackingTick): Promise<void> => {
+  const fix =
+    tick.latitude != null && tick.longitude != null
+      ? { latitude: tick.latitude, longitude: tick.longitude }
+      : await currentFix();
+  if (!fix) return;
 
   const userId = Number(tick.userId);
-  const { latitude, longitude } = position;
+  const { latitude, longitude } = fix;
 
-  // Tray notification: "Location Updated: <time>" with the coordinates.
-  trackingNative?.reportLocation(tick.timestamp, latitude, longitude).catch(() => {});
+  // Android's notification is updated from JS. iOS already updated its own.
+  if (Platform.OS === 'android') {
+    trackingNative?.reportLocation(tick.timestamp, latitude, longitude).catch(() => {});
+  }
 
   await Promise.all([
     addTravelledPathHistory([
@@ -71,12 +86,12 @@ const postLocation = async (tick: TrackingTick): Promise<void> => {
         UpdatedBy: userId,
         UpdatedDate: '',
       },
-    ]).catch((error: unknown) => console.log('[tracking] path history failed:', error)),
+    ]).catch(error => console.log('[tracking] path history failed:', error)),
     putLiveLocation(userId, latitude, longitude),
   ]);
 };
 
-// Java: currentDate + "T" + currentTime + "Z", both in local time (yyyy-MM-dd, HH:mm:ss).
+// Java: date (yyyy-MM-dd) + "T" + time (HH:mm:ss) + "Z", both in local time.
 const javaStyleDateTime = (d: Date): string => {
   const pad = (n: number) => String(n).padStart(2, '0');
   const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;

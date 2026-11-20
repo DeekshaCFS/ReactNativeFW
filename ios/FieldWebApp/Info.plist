@@ -11,6 +11,10 @@
 		</array>
 	</dict>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+	<string>location</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -67,9 +71,9 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Use Face ID to log in to FieldWeb quickly.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app uses your location in the background to track field visits.</string>
+	<string>FieldWeb records your route while a task is in progress.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app uses your location for field tracking.</string>
+	<string>FieldWeb records your route while a task is in progress.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIAppFonts</key>

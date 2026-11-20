@@ -1,9 +1,10 @@
 // src/tracking/trackingController.ts
 //
-// Task Acceptance tracking. Replaces the Java app's task alarm:
-//   - setupAlarm(120000) in TaskDialogNew / MainTaskFragmentNew on accept  -> startTaskTracking()
-//   - cancelAlarm() in AlertDialog on check-out                            -> stopTaskTracking()
-// The native TrackingForegroundService owns the timing; the JS side (trackingHeadlessTask.ts) posts the data.
+// Task Acceptance tracking, Android and iOS.
+//   startTaskTracking  -> on accept        (Java: setupAlarm(120000))
+//   stopTaskTracking   -> on check-out     (Java: cancelAlarm())
+// Android: TrackingForegroundService + headless JS task (index.js).
+// iOS:     FWTracking.swift emits "FWTrackingTick" events (trackingEvents.ts).
 
 import { NativeModules, Platform, PermissionsAndroid } from 'react-native';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
@@ -15,12 +16,12 @@ export type TrackingNative = {
   reportLocation(timestampMs: string, latitude: number, longitude: number): Promise<boolean>;
 };
 
-// Android only (TrackingModule.kt). iOS has no equivalent yet.
 export const trackingNative: TrackingNative | undefined = NativeModules.FWTracking;
 
-/** Best effort: tracking still runs in the foreground when these are refused, so a denial is not an error. */
-const requestOptionalPermissions = async (): Promise<void> => {
-  if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+/** Android only, best effort: tracking still runs when these are refused. */
+const requestOptionalAndroidPermissions = async (): Promise<void> => {
+  if (Platform.OS !== 'android') return;
+  if (Number(Platform.Version) >= 33) {
     try {
       await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
     } catch {}
@@ -33,14 +34,14 @@ const requestOptionalPermissions = async (): Promise<void> => {
   } catch {}
 };
 
-/** Call as soon as the technician accepts a task. Safe to call again while tracking is already running. */
+/** Call as soon as the technician accepts a task. Safe to call again while already running. */
 export async function startTaskTracking(userId: number, taskId: number): Promise<boolean> {
-  if (Platform.OS !== 'android' || !trackingNative) return false;
+  if (!trackingNative) return false;
 
   const granted = await requestLocationPermission();
   if (!granted) return false;
 
-  await requestOptionalPermissions();
+  await requestOptionalAndroidPermissions();
 
   try {
     return await trackingNative.start(String(userId), taskId);
@@ -50,9 +51,9 @@ export async function startTaskTracking(userId: number, taskId: number): Promise
   }
 }
 
-/** Call when the technician checks out (attendance check-out, as Java's AlertDialog does). */
+/** Call when the technician checks out. */
 export async function stopTaskTracking(): Promise<void> {
-  if (Platform.OS !== 'android' || !trackingNative) return;
+  if (!trackingNative) return;
   try {
     await trackingNative.stop();
   } catch (error) {
