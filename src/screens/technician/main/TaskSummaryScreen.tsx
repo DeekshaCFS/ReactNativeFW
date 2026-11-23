@@ -89,14 +89,20 @@ function SignaturePreview({ paths }: { paths: SignaturePath[] }) {
 }
 
 function StarsReadOnly({ value }: { value: number }) {
+  // Same star logic as StarRating on the Task Closure screen: full, half (0.5 steps) or empty.
+  const getStarIcon = (star: number): string => {
+    if (value >= star) return 'star';
+    if (value >= star - 0.5) return 'star-half';
+    return 'star-outline';
+  };
   return (
     <View style={{ flexDirection: 'row', gap: scale(2) }}>
       {[1, 2, 3, 4, 5].map(star => (
         <Ionicons
           key={star}
-          name={star <= value ? 'star' : 'star-outline'}
+          name={getStarIcon(star)}
           size={sp(18)}
-          color={COLORS.primary}
+          color={value >= star - 0.5 ? COLORS.primary : '#C0C0C0'}
         />
       ))}
     </View>
