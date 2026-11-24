@@ -15,6 +15,10 @@
 //  updates started in begin() provide. The JS runtime keeps running in that same background period,
 //  so the event reaches JS.
 //
+//  Tray notifications are posted natively at the start of every tick (not only when a fresh fix
+//  arrives), the battery notification also refreshes whenever the battery level changes, and a
+//  notification-center delegate lets them show while the app is open.
+//
 
 import Foundation
 import UIKit
@@ -23,7 +27,7 @@ import UserNotifications
 import React
 
 @objc(FWTracking)
-final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
+final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate, UNUserNotificationCenterDelegate {
 
   static let locationInterval: TimeInterval = 2 * 60
   static let deviceInterval: TimeInterval = 15 * 60
@@ -31,7 +35,11 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
   /// A cached fix older than this is not used for a tick (iOS can hand back old locations first).
   private static let maxFixAge: TimeInterval = 60
 
+  /// How many times an unknown battery reading (-1) is retried before skipping that tick.
+  private static let maxBatteryRetries = 3
+
   private static let eventName = "FWTrackingTick"
+  private static let notificationPrefix = "fw.tracking."
   private static let locationNotificationId = "fw.tracking.location"
   private static let deviceNotificationId = "fw.tracking.device"
   private static let activeKey = "fw.tracking.active"
@@ -46,8 +54,13 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
 
   private var locationTimer: DispatchSourceTimer?
   private var deviceTimer: DispatchSourceTimer?
+  private var batteryObserver: NSObjectProtocol?
   /// Set when a location tick is due; cleared once a fresh fix has been emitted.
   private var pendingLocationFix = false
+  /// Last position seen, so a tick can show coordinates before its own fresh fix arrives.
+  private var lastCoordinate: CLLocationCoordinate2D?
+  /// Last valid battery reading; used for location ticks and when a reading is momentarily unknown.
+  private var lastBattery: Int?
 
   override init() {
     super.init()
@@ -57,12 +70,31 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
     manager.pausesLocationUpdatesAutomatically = false
     manager.activityType = .otherNavigation
 
+    // Battery monitoring has to be on BEFORE the first read, otherwise batteryLevel is -1 (read as 0%).
+    UIDevice.current.isBatteryMonitoringEnabled = true
+    batteryObserver = NotificationCenter.default.addObserver(
+      forName: UIDevice.batteryLevelDidChangeNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in self?.batteryLevelChanged() }
+
+    // Lets the tray notifications be delivered while the app is open. Left alone if another
+    // library already owns the delegate.
+    let center = UNUserNotificationCenter.current()
+    if center.delegate == nil { center.delegate = self }
+
     // The module is created when JS first touches it at launch. Resume if a task was being tracked.
     let defaults = UserDefaults.standard
     if defaults.bool(forKey: Self.activeKey) {
       userId = defaults.string(forKey: Self.userIdKey) ?? ""
       taskId = defaults.integer(forKey: Self.taskIdKey)
       begin()
+    }
+  }
+
+  deinit {
+    if let observer = batteryObserver {
+      NotificationCenter.default.removeObserver(observer)
     }
   }
 
@@ -105,6 +137,7 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
     manager.allowsBackgroundLocationUpdates = false
     running = false
     pendingLocationFix = false
+    lastCoordinate = nil
 
     UNUserNotificationCenter.current().removeDeliveredNotifications(
       withIdentifiers: [Self.locationNotificationId, Self.deviceNotificationId]
@@ -190,9 +223,11 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
     emitDevice(at: Date())
   }
 
-  /// Asks for a fresh fix. The tick is emitted from didUpdateLocations when it arrives.
+  /// Asks for a fresh fix. The tick is emitted from didUpdateLocations when it arrives. The tray is
+  /// updated right away, so "Location Updated" shows on every tick even if no fresh fix comes in.
   private func requestLocationTick() {
     pendingLocationFix = true
+    showLocationNotification(at: Date(), coordinate: lastCoordinate)
     manager.requestLocation()
   }
 
@@ -203,7 +238,10 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
   }
 
   func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-    guard running, pendingLocationFix, let location = locations.last else { return }
+    guard running, let location = locations.last else { return }
+    lastCoordinate = location.coordinate
+
+    guard pendingLocationFix else { return }
     // Ignore stale cached fixes; wait for a fresh one.
     guard abs(location.timestamp.timeIntervalSinceNow) < Self.maxFixAge else { return }
 
@@ -219,21 +257,33 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
   // MARK: - Ticks
 
   private func emitLocation(_ location: CLLocation, at date: Date) {
-    let latitude = location.coordinate.latitude
-    let longitude = location.coordinate.longitude
-    let (gpsOn, battery) = deviceState()
-
-    showLocationNotification(at: date, latitude: latitude, longitude: longitude)
-    emit(kind: "location", date: date, gpsOn: gpsOn, battery: battery,
-         latitude: latitude, longitude: longitude)
+    showLocationNotification(at: date, coordinate: location.coordinate)
+    emit(kind: "location", date: date, gpsOn: gpsEnabled(), battery: currentBattery() ?? lastBattery ?? 0,
+         latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
   }
 
-  private func emitDevice(at date: Date) {
-    let (gpsOn, battery) = deviceState()
+  private func emitDevice(at date: Date, attempt: Int = 0) {
+    guard let battery = currentBattery() else {
+      // Unknown reading (-1): never post it as 0%. Show what we have and retry shortly.
+      showDeviceNotification(gpsOn: gpsEnabled(), battery: lastBattery, at: date)
+      if attempt < Self.maxBatteryRetries {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+          guard let self = self, self.running else { return }
+          self.emitDevice(at: Date(), attempt: attempt + 1)
+        }
+      }
+      return
+    }
 
-    showDeviceNotification(gpsOn: gpsOn, battery: battery, at: date)
-    emit(kind: "device", date: date, gpsOn: gpsOn, battery: battery,
+    showDeviceNotification(gpsOn: gpsEnabled(), battery: battery, at: date)
+    emit(kind: "device", date: date, gpsOn: gpsEnabled(), battery: battery,
          latitude: nil, longitude: nil)
+  }
+
+  /// Keeps the tray battery value live between the 15-minute server ticks. Tray only, no API call.
+  private func batteryLevelChanged() {
+    guard running, let battery = currentBattery() else { return }
+    showDeviceNotification(gpsOn: gpsEnabled(), battery: battery, at: Date())
   }
 
   private func emit(kind: String, date: Date, gpsOn: Bool, battery: Int,
@@ -255,11 +305,19 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
     sendEvent(withName: Self.eventName, body: body)
   }
 
-  private func deviceState() -> (Bool, Int) {
-    UIDevice.current.isBatteryMonitoringEnabled = true
-    let level = UIDevice.current.batteryLevel            // -1 when unknown
-    let battery = level < 0 ? 0 : Int((level * 100).rounded())
-    return (CLLocationManager.locationServicesEnabled(), battery)
+  private func gpsEnabled() -> Bool {
+    CLLocationManager.locationServicesEnabled()
+  }
+
+  /// nil when iOS does not know the level (-1: monitoring not ready yet, or a simulator).
+  private func currentBattery() -> Int? {
+    let device = UIDevice.current
+    device.isBatteryMonitoringEnabled = true
+    let level = device.batteryLevel
+    guard level >= 0 else { return nil }
+    let percent = Int((level * 100).rounded())
+    lastBattery = percent
+    return percent
   }
 
   // MARK: - Tray notifications
@@ -268,21 +326,24 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
     UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
   }
 
-  /// "Location Updated: <time>" with the position. Replaces the previous one in place.
-  private func showLocationNotification(at date: Date, latitude: Double, longitude: Double) {
+  /// "Location Updated: <time>" with the position when known. Replaces the previous one in place.
+  private func showLocationNotification(at date: Date, coordinate: CLLocationCoordinate2D?) {
     let content = UNMutableNotificationContent()
     content.title = "Location Updated: " + Self.formatTime(date, format: "dd-MMM-yyyy h:mm:ss a")
     content.body = "Updating your location..."
-    content.subtitle = String(format: "Lat %.6f, Lng %.6f", latitude, longitude)
+    if let coordinate = coordinate {
+      content.subtitle = String(format: "Lat %.6f, Lng %.6f", coordinate.latitude, coordinate.longitude)
+    }
     deliver(id: Self.locationNotificationId, content: content)
   }
 
   /// "Service Running" / "Monitoring GPS and Battery Status" with GPS and battery state.
-  private func showDeviceNotification(gpsOn: Bool, battery: Int, at date: Date) {
+  private func showDeviceNotification(gpsOn: Bool, battery: Int?, at date: Date) {
     let content = UNMutableNotificationContent()
     content.title = "Service Running"
     content.body = "Monitoring GPS and Battery Status"
-    content.subtitle = "GPS: \(gpsOn ? "On" : "Off") · Battery: \(battery)% · Checked \(Self.formatTime(date, format: "h:mm a"))"
+    let batteryText = battery.map { "\($0)%" } ?? "--"
+    content.subtitle = "GPS: \(gpsOn ? "On" : "Off") · Battery: \(batteryText) · Checked \(Self.formatTime(date, format: "h:mm a"))"
     deliver(id: Self.deviceNotificationId, content: content)
   }
 
@@ -295,6 +356,24 @@ final class FWTracking: RCTEventEmitter, CLLocationManagerDelegate {
     center.removeDeliveredNotifications(withIdentifiers: [id])
     center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
       if let error = error { print("[FWTracking] notification failed: \(error)") }
+    }
+  }
+
+  // MARK: - UNUserNotificationCenterDelegate
+
+  /// Without this, iOS drops these notifications while the app is in the foreground. They go to the
+  /// Notification Center list only, no banner, so a 2-minute update does not pop up repeatedly.
+  func userNotificationCenter(_ center: UNUserNotificationCenter,
+                              willPresent notification: UNNotification,
+                              withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+    if notification.request.identifier.hasPrefix(Self.notificationPrefix) {
+      if #available(iOS 14.0, *) {
+        completionHandler([.list])
+      } else {
+        completionHandler([])
+      }
+    } else {
+      completionHandler([])
     }
   }
 

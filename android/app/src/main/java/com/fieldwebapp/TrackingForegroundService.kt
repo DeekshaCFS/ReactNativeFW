@@ -6,8 +6,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.location.LocationManager
 import android.os.BatteryManager
@@ -32,6 +34,10 @@ import java.util.Locale
  * Each tick is handed to the JS headless task (TrackingHeadlessService, task "FWTrackingTick"), which
  * reads the position and posts it to the server. This service runs in the foreground, and holds a
  * partial wake lock while a task is active so the ticks still fire with the screen off.
+ *
+ * Tray notifications are driven natively, so they never depend on JS finishing:
+ *  - the location notification is re-posted on every location tick (coordinates are added when JS reports a fix)
+ *  - the battery notification is re-posted on every tick AND whenever the battery level changes
  */
 class TrackingForegroundService : Service() {
 
@@ -39,6 +45,7 @@ class TrackingForegroundService : Service() {
     private var userId: String = ""
     private var taskId: Int = 0
     private var wakeLock: PowerManager.WakeLock? = null
+    private var batteryReceiverRegistered = false
 
     private val locationTick = object : Runnable {
         override fun run() {
@@ -51,6 +58,20 @@ class TrackingForegroundService : Service() {
         override fun run() {
             dispatch(KIND_DEVICE)
             handler.postDelayed(this, DEVICE_INTERVAL_MS)
+        }
+    }
+
+    /** Keeps the tray battery value live. The server post still happens only on the 15-minute tick. */
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val active = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_ACTIVE, false)
+            if (!active) return
+            TrackingNotifications.postDevice(
+                this@TrackingForegroundService,
+                isGpsOn(),
+                batteryPercent(intent),
+                System.currentTimeMillis()
+            )
         }
     }
 
@@ -85,11 +106,13 @@ class TrackingForegroundService : Service() {
     }
 
     private fun startTracking() {
-        startAsForeground(
-            TrackingNotifications.locationNotification(this, System.currentTimeMillis(), "Updating your location...", null)
-        )
+        // The channels MUST exist before startForeground(), otherwise Android 8+ drops the
+        // foreground notification and "Location Updated" never shows in the tray.
+        TrackingNotifications.createChannels(this)
+        startAsForeground(TrackingNotifications.locationNotificationNow(this, System.currentTimeMillis()))
         handler.removeCallbacksAndMessages(null)
         holdWakeLock()
+        registerBatteryReceiver()
         // The first location and status go out right away, then every 2 minutes (location)
         // and every 15 minutes (GPS/battery).
         handler.post(locationTick)
@@ -108,6 +131,27 @@ class TrackingForegroundService : Service() {
         }
     }
 
+    private fun registerBatteryReceiver() {
+        if (batteryReceiverRegistered) return
+        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(batteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(batteryReceiver, filter)
+        }
+        batteryReceiverRegistered = true
+    }
+
+    private fun unregisterBatteryReceiver() {
+        if (!batteryReceiverRegistered) return
+        try {
+            unregisterReceiver(batteryReceiver)
+        } catch (e: IllegalArgumentException) {
+            // Already unregistered.
+        }
+        batteryReceiverRegistered = false
+    }
+
     private fun dispatch(kind: String) {
         // Renewed on every tick, so the CPU stays awake long enough for the JS task to finish.
         holdWakeLock()
@@ -116,8 +160,11 @@ class TrackingForegroundService : Service() {
         val battery = batteryPercent()
         val gpsOn = isGpsOn()
 
+        // Tray first, natively: it must not depend on JS getting a fix or reaching the network.
         if (kind == KIND_DEVICE) {
             TrackingNotifications.postDevice(this, gpsOn, battery, now)
+        } else {
+            TrackingNotifications.postLocationTick(this, now)
         }
 
         val intent = Intent(this, TrackingHeadlessService::class.java).apply {
@@ -148,9 +195,20 @@ class TrackingForegroundService : Service() {
         wakeLock = null
     }
 
-    private fun batteryPercent(): Int {
+    /**
+     * Same calculation as the Java app (HomeActivityNew: level / scale * 100), so the tray, the
+     * server value and the real battery agree. Falls back to BATTERY_PROPERTY_CAPACITY.
+     */
+    private fun batteryPercent(sticky: Intent? = null): Int {
+        val intent = sticky ?: registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        if (level >= 0 && scale > 0) {
+            return ((level.toFloat() / scale.toFloat()) * 100f).toInt()
+        }
         val manager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-        return manager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        val capacity = manager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        return if (capacity in 0..100) capacity else 0
     }
 
     private fun isGpsOn(): Boolean {
@@ -160,10 +218,12 @@ class TrackingForegroundService : Service() {
 
     private fun stopTracking() {
         handler.removeCallbacksAndMessages(null)
+        unregisterBatteryReceiver()
         releaseWakeLock()
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_ACTIVE, false).apply()
         stopForeground(STOP_FOREGROUND_REMOVE)
         NotificationManagerCompat.from(this).cancel(TrackingNotifications.DEVICE_NOTIFICATION_ID)
+        TrackingNotifications.clearCoords()
         stopSelf()
     }
 
@@ -171,6 +231,7 @@ class TrackingForegroundService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        unregisterBatteryReceiver()
         releaseWakeLock()
         super.onDestroy()
     }
@@ -205,6 +266,14 @@ object TrackingNotifications {
     const val LOCATION_NOTIFICATION_ID = 1001
     const val DEVICE_NOTIFICATION_ID = 1002
 
+    /** Last position JS reported, so each native tick can keep showing coordinates. */
+    @Volatile
+    private var lastCoords: String? = null
+
+    fun clearCoords() {
+        lastCoords = null
+    }
+
     fun locationNotification(context: Context, whenMs: Long, text: String, bigText: String?): Notification {
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
         val openPending = launch?.let {
@@ -237,6 +306,10 @@ object TrackingNotifications {
         return builder.build()
     }
 
+    /** The location notification with the last known coordinates (if any). */
+    fun locationNotificationNow(context: Context, whenMs: Long): Notification =
+        locationNotification(context, whenMs, "Updating your location...", lastCoords)
+
     fun deviceNotification(context: Context, gpsOn: Boolean, battery: Int, whenMs: Long): Notification {
         val time = SimpleDateFormat("h:mm a", Locale.ENGLISH).format(Date(whenMs)).toAmPmLowercase()
         val detail = "GPS: ${if (gpsOn) "On" else "Off"} · Battery: $battery% · Checked $time"
@@ -258,7 +331,13 @@ object TrackingNotifications {
     /** Called from JS once a fix is read, so the tray shows the time and position of the last update. */
     fun postLocation(context: Context, whenMs: Long, latitude: Double, longitude: Double) {
         val coords = "Lat ${"%.6f".format(Locale.ENGLISH, latitude)}, Lng ${"%.6f".format(Locale.ENGLISH, longitude)}"
+        lastCoords = coords
         notify(context, LOCATION_NOTIFICATION_ID, locationNotification(context, whenMs, "Updating your location...", coords))
+    }
+
+    /** Called natively on every location tick, whether or not JS gets a fix. */
+    fun postLocationTick(context: Context, whenMs: Long) {
+        notify(context, LOCATION_NOTIFICATION_ID, locationNotificationNow(context, whenMs))
     }
 
     fun postDevice(context: Context, gpsOn: Boolean, battery: Int, whenMs: Long) {
@@ -280,7 +359,8 @@ object TrackingNotifications {
         }
     }
 
-    private fun createChannels(context: Context) {
+    /** Idempotent. Must run before the first notification, including the startForeground() one. */
+    fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         manager.createNotificationChannel(

@@ -42,18 +42,27 @@ export default async function trackingTick(tick: TrackingTick): Promise<void> {
   }
 }
 
+const DEVICE_STATUS_RETRY_DELAYS_MS = [0, 2000, 5000]; // headless task timeout is 30 s
+
 const postDeviceStatus = async (tick: TrackingTick): Promise<void> => {
-  try {
-    await addUpdateDeviceStatus({
-      Id: 0,
-      UserId: Number(tick.userId),
-      GPSOnOrOff: tick.gpsOn,
-      BatteryPercentage: tick.batteryPercent,
-      CreatedBy: 0,
-      UpdatedBy: 0,
-    });
-  } catch (error) {
-    console.log('[tracking] device status failed:', error);
+  for (let attempt = 0; attempt < DEVICE_STATUS_RETRY_DELAYS_MS.length; attempt++) {
+    const delay = DEVICE_STATUS_RETRY_DELAYS_MS[attempt];
+    if (delay > 0) {
+      await new Promise<void>(resolve => setTimeout(resolve, delay));
+    }
+    try {
+      await addUpdateDeviceStatus({
+        Id: 0,
+        UserId: Number(tick.userId),
+        GPSOnOrOff: tick.gpsOn,
+        BatteryPercentage: tick.batteryPercent,
+        CreatedBy: 0,
+        UpdatedBy: 0,
+      });
+      return;
+    } catch (error) {
+      console.log(`[tracking] device status failed (attempt ${attempt + 1}):`, error);
+    }
   }
 };
 
