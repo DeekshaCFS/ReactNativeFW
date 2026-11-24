@@ -25,7 +25,7 @@ import { showFailureMsg, showSuccessMsg } from '../../../utils/toast';
 import { getNetworkQuality, isPostable } from '../../../offline/networkQuality';
 import { savePendingTask, getPendingTask } from '../../../offline/offlineStore';
 import { cachedFetch } from '../../../offline/offlineCache';
-
+import { syncPendingTask } from '../../../offline/offlineSync';
 import {useTranslation} from 'react-i18next';
 import { tr } from '../../../i18n/tr';
 interface SignaturePath {
@@ -192,14 +192,32 @@ export default function TaskSummaryScreen({ navigation, route }: any) {
       // Java (SummaryDetailsFragment.button_submit_closure): on a Poor link the whole closure
       // (tech notes, devices, after photos, items, ...) is stored on the device and posted later
       // from the Sync screen; the flow then carries on exactly as after an online closure.
-      const online = isPostable(await getNetworkQuality());
+      let online = isPostable(await getNetworkQuality());
+      let closurePosted = false;
+
+      // Work stored earlier for this task (accept, start/end statuses, before photos,
+      // checkpoints) must reach the server BEFORE the closure. Otherwise the Sync screen replays
+      // "Ongoing" after the task is already Completed and flips it back.
+      if (online) {
+        const pending = await getPendingTask(task.Id as number);
+        if (pending) {
+          const flushed = await syncPendingTask(task.Id as number);
+          if (!flushed.ok) {
+            // Could not send the earlier work: keep the order by storing the closure behind it.
+            online = false;
+          } else if (pending.closure) {
+            // A closure stored earlier was just sent by the flush; do not post it again.
+            closurePosted = true;
+          }
+        }
+      }
 
       if (!online) {
         await savePendingTask(
           { taskId: task.Id as number, newTaskId: task.NewTaskId ?? String(task.Id), userId: Number(freshUid) },
           { closure: payload },
         );
-      } else {
+      } else if (!closurePosted) {
         // Java (SummaryDetailsFragment.updateReissuedItems): items added during the closure are
         // first registered on the task via Task/UpdateReIssuedItems. The server answers with the
         // ItemIssuedId of each, which replaces the one in the closure payload (matched by ItemId);

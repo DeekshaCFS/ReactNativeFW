@@ -12,6 +12,7 @@ import { postChkpointData } from '../api/fsrManagement/fsrManagementService';
 import { updateTaskWithEarnedAmount } from '../api/passbook/passbookService';
 import { uploadTaskDoc } from '../api/taskList/taskListService';
 import { getTaskListValidate } from '../api';
+import { TASK_STATUS_ID } from '../constants/taskStatus';
 import { isNetworkAvailable } from './networkQuality';
 import { getPendingTask, getPendingTasks, removePendingSection, removePendingTask } from './offlineStore';
 import { tr } from '../i18n/tr';
@@ -27,6 +28,19 @@ const isTaskDeletedOnServer = async (taskId: number, newTaskId: string, userId: 
   try {
     const res = await getTaskListValidate({ Userid: userId, TaskId: taskId, NewTaskId: newTaskId });
     return res?.Code === '201' && String(res?.Message ?? '').toLowerCase() === 'no data found.';
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * True when the server already shows the task as Completed. Any other answer, or a network
+ * failure, means "unknown" and returns false, so nothing is skipped on a doubtful lookup.
+ */
+const isTaskCompletedOnServer = async (taskId: number, newTaskId: string, userId: number): Promise<boolean> => {
+  try {
+    const res = await getTaskListValidate({ Userid: userId, TaskId: taskId, NewTaskId: newTaskId });
+    return res?.Code === '200' && Number(res?.ResultData?.TaskStatus) === TASK_STATUS_ID.Completed;
   } catch {
     return false;
   }
@@ -55,6 +69,20 @@ export const syncPendingTask = async (taskId: number): Promise<SyncResult> => {
   if (await isTaskDeletedOnServer(task.taskId, task.newTaskId, task.userId)) {
     await removePendingTask(taskId);
     return { ok: false, message: tr('This task was removed by the admin, so its offline data was cleared.') };
+  }
+
+  // No closure stored here means it was posted online. If the server already shows the task
+  // Completed, the stored accept / start / end statuses are stale: replaying them would flip
+  // the task back to Ongoing. Drop them and carry on with the rest (photos, checkpoints, ...).
+  if (
+    !task.closure &&
+    (task.accept || task.statuses?.length) &&
+    (await isTaskCompletedOnServer(task.taskId, task.newTaskId, task.userId))
+  ) {
+    await removePendingSection(taskId, 'accept');
+    await removePendingSection(taskId, 'statuses');
+    delete task.accept;
+    delete task.statuses;
   }
 
   try {
