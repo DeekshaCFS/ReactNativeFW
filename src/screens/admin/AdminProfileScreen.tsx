@@ -458,9 +458,6 @@ export default function AdminProfileScreen() {
     if (!companyName.trim()) {
       return 'Company name is required';
     }
-    if (!companyRegistrationNo.trim()) {
-      return 'Company registration number is required';
-    }
     if (gstOrPan.trim() && !isValidGstOrPan(gstOrPan)) {
       return 'Please enter a valid GST / PAN number';
     }
