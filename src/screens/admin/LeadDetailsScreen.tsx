@@ -1086,11 +1086,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   historyIndex: {
+    flex: 0.4,
     fontSize: sp(12.3),
     fontWeight: '700',
   },
   historyDate: {
+    flex: 0.6,
     fontSize: sp(11.4),
+    textAlign: 'left',
   },
   historyNotes: {
     fontSize: sp(12.3),

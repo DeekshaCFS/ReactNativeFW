@@ -2035,7 +2035,7 @@ const styles = StyleSheet.create({
   },
   detailsValueEmail: {
     flex: 2 / 3,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   detailsCancelButton: {
     alignSelf: 'center',

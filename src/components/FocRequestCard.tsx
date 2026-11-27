@@ -252,6 +252,7 @@ const styles = StyleSheet.create({
   },
   dateValue: {
     flexGrow: 1,
+    marginLeft: ms(6),
     color: COLORS.lightGray,
     fontSize: sp(12),
     fontWeight: 'bold',
